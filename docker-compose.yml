@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: kasir_citra_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: kasir_citra_user
+      POSTGRES_PASSWORD: kasir_citra_password
+      POSTGRES_DB: kasir_citra_db
+    ports:
+      - "5434:5432"
+    volumes:
+      - kasir_citra_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kasir_citra_user -d kasir_citra_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  kasir_citra_pgdata:
