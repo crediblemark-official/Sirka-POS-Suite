@@ -50,14 +50,9 @@ export const usePreOrderStore = defineStore('preOrder', () => {
       id
     };
 
+    await dbService.savePreOrder(newSchedule);
     schedules.value.unshift(newSchedule);
     saveLocal();
-
-    try {
-      await dbService.savePreOrder(newSchedule);
-    } catch (err) {
-      console.error('Failed to save pre-order to DB:', err);
-    }
 
     return newSchedule;
   }
@@ -65,14 +60,9 @@ export const usePreOrderStore = defineStore('preOrder', () => {
   async function updateSchedule(schedule: PreOrderSchedule): Promise<void> {
     const idx = schedules.value.findIndex(s => s.id === schedule.id);
     if (idx !== -1) {
+      await dbService.savePreOrder(schedule);
       schedules.value[idx] = { ...schedule };
       saveLocal();
-
-      try {
-        await dbService.savePreOrder(schedule);
-      } catch (err) {
-        console.error('Failed to update pre-order in DB:', err);
-      }
     }
   }
 

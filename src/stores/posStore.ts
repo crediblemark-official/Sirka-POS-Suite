@@ -31,6 +31,8 @@ export const usePosStore = defineStore('pos', () => {
   const paymentMethod = ref<PaymentMethod>('Transfer Bank');
   const transactionNotes = ref<string>('');
   const isPreOrder = ref<boolean>(false);
+  // Gap-3 (PRD Aturan #4): PIC penerima barang untuk Faktur B2B & tanda terima pengiriman
+  const picName = ref<string>('');
 
   // Diskon & Kupon Promo State
   const appliedDiscount = ref<Discount | null>(null);
@@ -95,7 +97,7 @@ export const usePosStore = defineStore('pos', () => {
 
     const buyPrice = product.lastBuyPrice || 0;
     const markup = product.defaultMarkupPercent || inventoryStore.getCategoryMarkup(product.category);
-    const sellPrice = product.lastSellPrice || Math.round(buyPrice * (1 + markup / 100));
+    const sellPrice = product.lastSellPrice || Math.round(buyPrice * (100 + markup) / 100);
 
     const newItem: CartItem = {
       id: `cart-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
@@ -141,6 +143,48 @@ export const usePosStore = defineStore('pos', () => {
     }
   }
 
+  // BUG-019 FIX: Inline input `Harga Beli (Nota)` per baris keranjang. Harga jual dihitung ulang
+  // otomatis dari markup baris, KECUALI harga jual sudah di-override manual.
+  // Catatan: formula `buy * (100 + pct) / 100` menghindari error float `buy * 1.pct`
+  // (mis. 50 * 1.15 = 57.4999... → dibulatkan salah jadi 57, sewajarnya 58).
+  function updateItemBuyPrice(itemId: string, newBuyPrice: number) {
+    const item = cartItems.value.find(i => i.id === itemId);
+    if (item) {
+      item.buyPrice = Math.max(0, newBuyPrice);
+      if (!item.isManualSellPrice && item.buyPrice > 0) {
+        item.sellPrice = Math.round(item.buyPrice * (100 + item.markupPercent) / 100);
+      }
+      recalculateItem(item);
+    }
+  }
+
+  // Override `% Markup` per baris keranjang (melanggar manual jika jual sudah manual).
+  function updateItemMarkup(itemId: string, newPercent: number) {
+    const item = cartItems.value.find(i => i.id === itemId);
+    if (item) {
+      item.markupPercent = newPercent;
+      if (!item.isManualSellPrice && item.buyPrice > 0) {
+        item.sellPrice = Math.round(item.buyPrice * (100 + item.markupPercent) / 100);
+      }
+      recalculateItem(item);
+    }
+  }
+
+  // Baris Kontrol Markup Dinamis (PRD baris 101): preset % transaksi diterapkan
+  // ke semua baris kecuali baris yang harga jualnya sudah di-override manual.
+  const transactionMarkupPercent = ref<number | null>(null);
+  function applyTransactionMarkup(percent: number) {
+    transactionMarkupPercent.value = percent;
+    for (const item of cartItems.value) {
+      if (item.isManualSellPrice) continue;
+      item.markupPercent = percent;
+      if (item.buyPrice > 0) {
+        item.sellPrice = Math.round(item.buyPrice * (100 + item.markupPercent) / 100);
+      }
+      recalculateItem(item);
+    }
+  }
+
   function removeItem(itemId: string) {
     cartItems.value = cartItems.value.filter(i => i.id !== itemId);
   }
@@ -151,6 +195,7 @@ export const usePosStore = defineStore('pos', () => {
     appliedDiscount.value = null;
     manualDiscountPercent.value = 0;
     manualDiscountNominal.value = 0;
+    transactionMarkupPercent.value = null;
     pointsToRedeem.value = 0;
     attachedMemberCard.value = null;
   }
@@ -311,9 +356,16 @@ export const usePosStore = defineStore('pos', () => {
 
   function generateInvoiceNumber(dateStr: string): string {
     const cleanDate = dateStr.replace(/-/g, '');
-    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const prefix = settingsStore.invoicePrefix || 'INV';
-    return `${prefix}-${cleanDate}-${randomSuffix}`;
+    // BUG-001 FIX: Hitung urutan transaksi berdasarkan tanggal yang sama
+    const countToday = ledgerStore.transactions.filter(t => t.date === dateStr).length + 1;
+    let seq = countToday;
+    let candidate = `${prefix}-${cleanDate}-${String(seq).padStart(4, '0')}`;
+    while (ledgerStore.transactions.some(t => t.invoiceNo === candidate)) {
+      seq++;
+      candidate = `${prefix}-${cleanDate}-${String(seq).padStart(4, '0')}`;
+    }
+    return candidate;
   }
 
   // Proses Checkout Penjualan (F12)
@@ -322,6 +374,7 @@ export const usePosStore = defineStore('pos', () => {
     if (isCheckingOut.value) return null;
     if (cartItems.value.length === 0) return null;
 
+    setPointsToRedeem(isMember.value ? pointsToRedeem.value : 0);
     const invoiceNo = generateInvoiceNumber(transactionDate.value);
     const discountCodeUsed = appliedDiscount.value
       ? appliedDiscount.value.code
@@ -332,7 +385,7 @@ export const usePosStore = defineStore('pos', () => {
           : undefined;
 
     const tx: Transaction = {
-      id: `tx-${Date.now()}`,
+      id: `tx-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
       invoiceNo,
       date: transactionDate.value,
       buyer: selectedBuyer.value,
@@ -345,6 +398,7 @@ export const usePosStore = defineStore('pos', () => {
       paymentMethod: paymentMethod.value,
       customerType: saleMode.value,
       isPreOrder: isPreOrder.value,
+      picName: picName.value.trim() || undefined,
       notes: transactionNotes.value || undefined,
       discountAmount: totalDiscountAmount.value,
       discountCode: discountCodeUsed,
@@ -358,8 +412,9 @@ export const usePosStore = defineStore('pos', () => {
     isCheckingOut.value = true;
     try {
       await ledgerStore.addTransaction(tx, isMember.value ? selectedBuyerData.value?.id : undefined);
-    } finally {
+    } catch (error) {
       isCheckingOut.value = false;
+      throw error;
     }
     lastProcessedTransaction.value = tx;
     await Promise.all([inventoryStore.fetchFromDb(), buyerStore.fetchBuyers()]);
@@ -367,7 +422,9 @@ export const usePosStore = defineStore('pos', () => {
     clearCart();
     transactionNotes.value = '';
     isPreOrder.value = false;
+    picName.value = '';
 
+    isCheckingOut.value = false;
     return tx;
   }
 
@@ -387,6 +444,7 @@ export const usePosStore = defineStore('pos', () => {
     paymentMethod,
     transactionNotes,
     isPreOrder,
+    picName,
     cartItems,
     lastProcessedTransaction,
     appliedDiscount,
@@ -405,6 +463,10 @@ export const usePosStore = defineStore('pos', () => {
     addProductToCart,
     updateItemQty,
     updateItemSellPrice,
+    updateItemBuyPrice,
+    updateItemMarkup,
+    applyTransactionMarkup,
+    transactionMarkupPercent,
     removeItem,
     clearCart,
     loadPreOrderItems,

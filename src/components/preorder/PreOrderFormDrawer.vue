@@ -134,17 +134,20 @@ async function handleSavePoSidebar() {
     items: formItems.value
   };
 
+  try {
   if (isEditPo.value) {
     await preOrderStore.updateSchedule(payload);
   } else {
     await preOrderStore.addSchedule(payload);
   }
   emit('update:isOpen', false);
+  } catch (error) { alert(`Pesanan gagal disimpan: ${error}`); }
 }
 
 async function handleDeletePoSidebar() {
   if (preOrderStore.activeScheduleForSidebar) {
-    await preOrderStore.deleteSchedule(preOrderStore.activeScheduleForSidebar.id);
+    try { await preOrderStore.deleteSchedule(preOrderStore.activeScheduleForSidebar.id); }
+    catch (error) { alert(`Pesanan gagal dihapus: ${error}`); return; }
     preOrderStore.activeScheduleForSidebar = null;
     emit('update:isOpen', false);
   }

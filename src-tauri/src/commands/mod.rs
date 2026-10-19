@@ -15,3 +15,5 @@ pub use products::*;
 pub use settings::*;
 pub use system::*;
 pub use transactions::*;
+pub mod purchases;
+pub use purchases::*;

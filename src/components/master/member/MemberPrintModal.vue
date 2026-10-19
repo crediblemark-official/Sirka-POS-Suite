@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Buyer } from '../../../types';
 import { Printer, X, CreditCard } from 'lucide-vue-next';
-import MemberCardVisual from '../MemberCardVisual.vue';
+import MemberCardVisual from './MemberCardVisual.vue';
 
 defineProps<{
   isOpen: boolean;

@@ -60,6 +60,9 @@ pub async fn db_save_preorder(record: PreOrderRecord) -> Result<String, String> 
 #[tauri::command]
 pub async fn db_delete_preorder(id: String) -> Result<(), String> {
     let client = get_pg_client().await?;
-    client.execute("DELETE FROM pre_orders WHERE id = $1", &[&id]).await.map_err(|e| e.to_string())?;
+    client
+        .execute("DELETE FROM pre_orders WHERE id = $1", &[&id])
+        .await
+        .map_err(|e| e.to_string())?;
     Ok(())
 }

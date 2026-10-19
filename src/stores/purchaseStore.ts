@@ -1,3 +1,4 @@
+import { dbService } from '../services/dbService';
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { PurchaseReceipt, PurchaseReceiptItem, SupplierCategory, Product } from '../types';
@@ -11,13 +12,33 @@ export const usePurchaseStore = defineStore('purchase', () => {
   const saved = localStorage.getItem(STORAGE_KEY_PURCHASES);
   const purchaseHistory = ref<PurchaseReceipt[]>(saved ? JSON.parse(saved) : []);
 
+  const migrationKey = 'kasir_citra_purchases_db_migrated_v1';
+  async function fetchPurchases() {
+    if (!localStorage.getItem(migrationKey)) {
+      await dbService.importPurchases(purchaseHistory.value);
+      localStorage.setItem(migrationKey, 'true');
+    }
+    purchaseHistory.value = await dbService.getPurchases();
+    saveLocal();
+  }
+  let ready = fetchPurchases().then(() => true).catch(error => {
+    console.warn('Riwayat kulakan belum tersinkron:', error);
+    return false;
+  });
+  async function ensureReady() {
+    if (!await ready) {
+      await fetchPurchases();
+      ready = Promise.resolve(true);
+    }
+  }
+
   // Form State untuk penerimaan barang aktif
   const selectedSupplier = ref<SupplierCategory>('Hari Barokah');
   const supplierInvoiceNo = ref<string>('');
   const receiptDate = ref<string>(new Date().toISOString().slice(0, 10));
   const receiptNotes = ref<string>('');
   const receivingItems = ref<PurchaseReceiptItem[]>([]);
-  const showHistoryDrawer = ref<boolean>(true);
+  const showHistoryDrawer = ref<boolean>(false);
   const activeView = ref<'history' | 'form'>('history');
 
   function saveLocal() {
@@ -136,10 +157,9 @@ export const usePurchaseStore = defineStore('purchase', () => {
       createdAt: new Date().toISOString(),
     };
 
-    // Update stok dan HPP di inventory
-    for (const item of receivingItems.value) {
-      await inventoryStore.updateStockAndPrice(item.productId, item.qtyReceived, item.buyPrice, item.newSellPrice);
-    }
+    await ensureReady();
+    await dbService.savePurchase(receipt);
+    await inventoryStore.fetchFromDb();
 
     purchaseHistory.value.unshift(receipt);
     saveLocal();
@@ -156,23 +176,6 @@ export const usePurchaseStore = defineStore('purchase', () => {
     if (!activeReceiptForEdit.value || receivingItems.value.length === 0) return null;
 
     const oldReceipt = activeReceiptForEdit.value;
-    const oldItemsMap = new Map(oldReceipt.items.map(it => [it.productId, it.qtyReceived]));
-    const newItemsMap = new Map(receivingItems.value.map(it => [it.productId, it.qtyReceived]));
-
-    // 1. Update stok item yang ada di form baru
-    for (const item of receivingItems.value) {
-      const oldQty = oldItemsMap.get(item.productId) || 0;
-      const deltaQty = item.qtyReceived - oldQty;
-      await inventoryStore.updateStockAndPrice(item.productId, deltaQty, item.buyPrice, item.newSellPrice);
-    }
-
-    // 2. Item lama yang dihapus dari nota -> kurangi stoknya
-    for (const oldItem of oldReceipt.items) {
-      if (!newItemsMap.has(oldItem.productId)) {
-        await inventoryStore.updateStockAndPrice(oldItem.productId, -oldItem.qtyReceived, 0, 0);
-      }
-    }
-
     const updatedReceipt: PurchaseReceipt = {
       ...oldReceipt,
       supplierInvoiceNo: supplierInvoiceNo.value || oldReceipt.supplierInvoiceNo,
@@ -182,6 +185,10 @@ export const usePurchaseStore = defineStore('purchase', () => {
       totalBuy: totalBuy.value,
       notes: receiptNotes.value || undefined,
     };
+
+    await ensureReady();
+    await dbService.savePurchase(updatedReceipt);
+    await inventoryStore.fetchFromDb();
 
     const idx = purchaseHistory.value.findIndex(p => p.id === oldReceipt.id);
     if (idx !== -1) {
@@ -200,10 +207,9 @@ export const usePurchaseStore = defineStore('purchase', () => {
     const rcp = purchaseHistory.value.find(p => p.id === id);
     if (!rcp) return false;
 
-    // Kembalikan stok
-    for (const it of rcp.items) {
-      await inventoryStore.updateStockAndPrice(it.productId, -it.qtyReceived, 0, 0);
-    }
+    await ensureReady();
+    await dbService.deletePurchase(id);
+    await inventoryStore.fetchFromDb();
 
     purchaseHistory.value = purchaseHistory.value.filter(p => p.id !== id);
     saveLocal();

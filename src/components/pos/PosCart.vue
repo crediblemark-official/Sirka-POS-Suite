@@ -15,7 +15,9 @@ import {
   Coins,
   X,
   QrCode,
-  ShoppingBag
+  ShoppingBag,
+  ShoppingCart,
+  Percent
 } from 'lucide-vue-next';
 
 import { useBuyerStore } from '../../stores/buyerStore';
@@ -28,6 +30,7 @@ import PosVoucherModal from './PosVoucherModal.vue';
 
 const emit = defineEmits<{
   (e: 'show-receipt'): void;
+  (e: 'close'): void;
 }>();
 
 const posStore = usePosStore();
@@ -80,6 +83,33 @@ async function handleConfirmPayment() {
   } catch (error) {
     alert(`Pembayaran gagal disimpan. Keranjang tetap tersedia. ${error}`);
   }
+}
+
+// BUG-019 FIX: Preset & custom markup transaksi (PRD baris 101)
+const markupPresetOptions = [0, 15, 20, 25, 30] as const;
+function handleApplyTransactionMarkup(percent: number) {
+  posStore.applyTransactionMarkup(percent);
+}
+
+function handleCustomTransactionMarkup(event: Event) {
+  const raw = (event.target as HTMLInputElement).value.replace(/[^0-9.,]/g, '').replace(',', '.');
+  const num = parseFloat(raw);
+  if (!isNaN(num) && num >= 0) {
+    posStore.applyTransactionMarkup(Number(num.toFixed(1)));
+  } else {
+    posStore.applyTransactionMarkup(0);
+    (event.target as HTMLInputElement).value = '';
+  }
+}
+
+function parseRupiahInput(event: Event): number {
+  return Number((event.target as HTMLInputElement).value.replace(/\D/g, '')) || 0;
+}
+
+function parseMarkupInput(event: Event): number {
+  const raw = (event.target as HTMLInputElement).value.replace(/[^0-9.,]/g, '').replace(',', '.');
+  const num = parseFloat(raw);
+  return isNaN(num) ? 0 : Math.max(0, num);
 }
 
 const buyerSelectRef = ref<InstanceType<typeof SearchableSelect> | null>(null);
@@ -193,12 +223,31 @@ onUnmounted(() => {
   <div class="flex flex-col h-full text-xs select-none" style="background-color: var(--surface-body); color: var(--surface-text);">
     <!-- Top Buyer & Date Header Bar -->
     <div class="p-2.5 border-b flex flex-col gap-2" style="background-color: var(--surface-ribbon); border-color: var(--surface-ribbon-border);">
+      <!-- Top Title & Close Button -->
+      <div class="flex items-center justify-between pb-0.5">
+        <div class="flex items-center gap-1.5 font-bold text-xs" style="color: var(--surface-text);">
+          <ShoppingCart :size="14" class="text-amber-600" />
+          <span>Struk & Keranjang Kasir</span>
+          <span class="px-1.5 py-0.2 rounded-full font-mono text-[10px] font-bold" style="background-color: var(--surface-tab-bar);">
+            {{ posStore.cartItems.length }}
+          </span>
+        </div>
+        <button
+          type="button"
+          class="p-1 text-gray-400 hover:text-gray-700 hover:bg-black/10 rounded cursor-pointer transition-colors"
+          title="Tutup Keranjang Kasir (F3)"
+          @click="emit('close')"
+        >
+          <X :size="14" />
+        </button>
+      </div>
+
       <!-- Mode Switcher: B2B Grosir vs B2C Eceran -->
       <div class="flex items-center p-0.5 rounded border shadow-inner" style="background-color: var(--surface-tab-bar); border-color: var(--surface-tab-border);">
         <button
           type="button"
           class="flex-1 flex items-center justify-center gap-1.5 py-1 px-2 rounded text-[11px] font-bold cursor-pointer transition-all"
-          :class="posStore.saleMode === 'B2B' ? 'bg-white text-blue-700 shadow-xs' : 'text-gray-600 hover:text-gray-900'"
+          :class="posStore.saleMode === 'B2B' ? 'bg-white text-indigo-700 shadow-xs' : 'text-gray-600 hover:text-gray-900'"
           title="Mode Grosir / B2B (Tekan Alt+G)"
           @click="posStore.setSaleMode('B2B')"
         >
@@ -209,7 +258,7 @@ onUnmounted(() => {
         <button
           type="button"
           class="flex-1 flex items-center justify-center gap-1.5 py-1 px-2 rounded text-[11px] font-bold cursor-pointer transition-all"
-          :class="posStore.saleMode === 'B2C' ? 'bg-white text-emerald-700 shadow-xs' : 'text-gray-600 hover:text-gray-900'"
+          :class="posStore.saleMode === 'B2C' ? 'bg-white text-teal-700 shadow-xs' : 'text-gray-600 hover:text-gray-900'"
           title="Mode Eceran / Retail (Tekan Alt+E)"
           @click="posStore.setSaleMode('B2C')"
         >
@@ -223,8 +272,8 @@ onUnmounted(() => {
       <div class="flex flex-col gap-2 bg-white p-2.5 rounded border border-[#dedbd6] shadow-2xs">
         <div class="flex items-center justify-between gap-1">
           <div class="flex items-center gap-1.5 font-bold text-[10.5px] text-gray-700 uppercase tracking-wider">
-            <Building v-if="posStore.saleMode === 'B2B'" :size="12" class="text-blue-600" />
-            <ShoppingBag v-else :size="12" class="text-emerald-600" />
+            <Building v-if="posStore.saleMode === 'B2B'" :size="12" class="text-indigo-600" />
+            <ShoppingBag v-else :size="12" class="text-teal-600" />
             <span>{{ posStore.saleMode === 'B2B' ? 'Pembeli Grosir / B2B' : 'Pembeli / Pelanggan Eceran' }}</span>
           </div>
 
@@ -252,8 +301,8 @@ onUnmounted(() => {
           @create="handleOpenCreateBuyerModal"
         >
           <template #icon>
-            <Building v-if="posStore.saleMode === 'B2B'" :size="13" class="text-blue-600 shrink-0" />
-            <ShoppingBag v-else :size="13" class="text-emerald-600 shrink-0" />
+            <Building v-if="posStore.saleMode === 'B2B'" :size="13" class="text-indigo-600 shrink-0" />
+            <ShoppingBag v-else :size="13" class="text-teal-600 shrink-0" />
           </template>
         </SearchableSelect>
 
@@ -334,6 +383,46 @@ onUnmounted(() => {
       </div>
     </div>
 
+    <!-- Baris Kontrol Markup Dinamis (PRD baris 101) — BUG-019 FIX -->
+    <div
+      v-if="posStore.cartItems.length > 0"
+      class="flex items-center flex-wrap gap-1.5 px-3 py-1.5 border-b bg-indigo-50/50"
+      style="border-color: var(--surface-tab-border, #dedbd6);"
+    >
+      <span class="text-[10px] font-bold text-indigo-800 uppercase tracking-wider shrink-0">
+        Markup Transaksi:
+      </span>
+      <button
+        v-for="preset in markupPresetOptions"
+        :key="preset"
+        type="button"
+        class="px-2 py-0.5 rounded border text-[10.5px] font-bold font-mono cursor-pointer transition-all"
+        :class="posStore.transactionMarkupPercent === preset
+          ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
+          : 'bg-white text-indigo-700 border-indigo-300 hover:bg-indigo-100'"
+        :title="`Terapkan markup ${preset}% ke semua baris (hapus override manual tetap dipertahankan)`"
+        @click="handleApplyTransactionMarkup(preset)"
+      >
+        {{ preset === 0 ? '0%' : `+${preset}%` }}
+      </button>
+      <span class="text-[9.5px] text-gray-400 shrink-0">/</span>
+      <input
+        type="text"
+        inputmode="decimal"
+        placeholder="% bebas, mis. 12.5"
+        class="w-24 h-5 px-1.5 text-[10.5px] border border-indigo-300 rounded bg-white font-mono focus:border-indigo-500 focus:outline-none"
+        title="Markup custom dalam persen (bisa desimal), diterapkan ke semua baris non-manual"
+        @change="handleCustomTransactionMarkup"
+      />
+      <span
+        v-if="posStore.cartItems.some((it: any) => it.isManualSellPrice)"
+        class="text-[9px] text-amber-700 bg-amber-100 border border-amber-300 rounded px-1.5 py-0.2 font-semibold truncate"
+        title="Baris dengan harga jual edit-manual tidak ikut diubah oleh preset markup"
+      >
+        ⚙ {{ posStore.cartItems.filter((it: any) => it.isManualSellPrice).length }} baris di-override manual
+      </span>
+    </div>
+
     <!-- Items List Area (Clean Divider Lines, No Box Cards) -->
     <div class="flex-1 overflow-y-auto bg-white divide-y divide-[#dedbd6]">
       <!-- Empty Cart State -->
@@ -360,11 +449,49 @@ onUnmounted(() => {
             <span class="px-1 py-0.2 bg-amber-100 text-amber-800 rounded text-[9.5px] font-bold shrink-0">
               {{ item.unit }}
             </span>
+            <span class="truncate text-[10px] text-gray-400">{{ item.category }}</span>
           </div>
-          <div class="flex items-center gap-1.5 text-[11px] text-gray-500 font-mono mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis">
-            <span class="truncate max-w-[120px]">{{ item.category }}</span>
-            <span class="text-gray-300">•</span>
-            <span class="text-blue-700 font-medium shrink-0">@ {{ formatRupiah(item.sellPrice) }}</span>
+          <!-- BUG-019 FIX: Inline editing Harga Beli / Markup / Harga Jual (PRD baris 101-102, Zero-Modal) -->
+          <div class="flex items-center gap-1 mt-1 text-[10px]">
+            <label class="flex items-center gap-0.5 font-mono" title="Harga Beli dari nota supplier (Aturan #3)">
+              <span class="text-gray-400 text-[9px] font-sans">Beli</span>
+              <input
+                type="text"
+                inputmode="numeric"
+                placeholder="0"
+                :value="item.buyPrice || ''"
+                class="w-14 h-5 text-right font-mono text-gray-700 bg-gray-50 hover:bg-white focus:bg-white border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-400 rounded outline-none px-1"
+                @change="(e: any) => posStore.updateItemBuyPrice(item.id, parseRupiahInput(e))"
+              />
+            </label>
+            <label class="flex items-center gap-0.5 font-mono" title="% Markup baris ini — jual dihitung otomatis dari beli (Aturan #2)">
+              <span class="text-gray-400 text-[9px] font-sans">%</span>
+              <input
+                type="text"
+                inputmode="decimal"
+                :value="item.markupPercent"
+                class="w-9 h-5 text-center font-mono text-indigo-700 bg-indigo-50 hover:bg-white focus:bg-white border border-indigo-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-400 rounded outline-none px-0.5"
+                @change="(e: any) => posStore.updateItemMarkup(item.id, parseMarkupInput(e))"
+              />
+            </label>
+            <label class="flex items-center gap-0.5 font-mono" title="Harga Jual per unit (Aturan #2 level 3)">
+              <span class="text-gray-400 text-[9px] font-sans">Jual</span>
+              <input
+                type="text"
+                inputmode="numeric"
+                placeholder="0"
+                :value="item.sellPrice || ''"
+                class="w-14 h-5 text-right font-mono font-bold text-blue-700 bg-white hover:bg-blue-50 focus:bg-white border border-blue-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-400 rounded outline-none px-1"
+                @change="(e: any) => posStore.updateItemSellPrice(item.id, parseRupiahInput(e))"
+              />
+            </label>
+            <span
+              v-if="item.isManualSellPrice"
+              class="text-[8.5px] text-amber-700 bg-amber-100 border border-amber-300 rounded px-1 py-0 font-bold shrink-0"
+              title="Harga jual diketik manual — tidak ikut preset markup transaksi"
+            >
+              edit
+            </span>
           </div>
         </div>
 
@@ -464,6 +591,45 @@ onUnmounted(() => {
             <span>+ Gunakan Voucher</span>
           </span>
         </div>
+        <!-- Diskon Manual Kasir (% atau Rp) -->
+        <div class="flex items-center justify-between px-2.5 py-1 bg-gray-50 border border-gray-200 rounded text-xs mt-1.5">
+          <span class="text-[11px] text-gray-600 flex items-center gap-1 font-medium">
+            <Percent :size="11" class="text-indigo-500" />
+            <span>Diskon Kasir:</span>
+          </span>
+          <div class="flex items-center gap-1.5 font-mono text-xs">
+            <input
+              type="text"
+              placeholder="% Disc"
+              :value="posStore.manualDiscountPercent || ''"
+              class="w-12 h-5 text-center text-[11px] border border-gray-300 rounded bg-white font-mono focus:border-indigo-500 focus:outline-none"
+              @change="(e: any) => {
+                const p = Number(e.target.value.replace(/\D/g, '')) || 0;
+                posStore.setManualDiscount(p, 0);
+              }"
+            />
+            <span class="text-[10px] text-gray-400">atau</span>
+            <input
+              type="text"
+              placeholder="Rp Disc"
+              :value="posStore.manualDiscountNominal ? formatRupiah(posStore.manualDiscountNominal) : ''"
+              class="w-20 h-5 text-right px-1 text-[11px] border border-gray-300 rounded bg-white font-mono focus:border-indigo-500 focus:outline-none"
+              @change="(e: any) => {
+                const rp = Number(e.target.value.replace(/\D/g, '')) || 0;
+                posStore.setManualDiscount(0, rp);
+              }"
+            />
+            <button
+              v-if="posStore.manualDiscountAmount > 0"
+              type="button"
+              class="text-gray-400 hover:text-rose-600 cursor-pointer p-0.5"
+              title="Reset diskon manual"
+              @click="posStore.setManualDiscount(0, 0)"
+            >
+              <X :size="11" />
+            </button>
+          </div>
+        </div>
       </div>
 
       <!-- Totals Breakdown -->
@@ -490,6 +656,15 @@ onUnmounted(() => {
             <span>Diskon Kupon ({{ posStore.appliedDiscount?.code }}):</span>
           </span>
           <span class="font-mono font-bold">-Rp {{ formatRupiah(posStore.voucherDiscountAmount) }}</span>
+        </div>
+
+        <!-- Manual discount row -->
+        <div v-if="posStore.manualDiscountAmount > 0" class="flex items-center justify-between text-indigo-700 font-medium text-[11px]">
+          <span class="flex items-center gap-1">
+            <Percent :size="11" class="text-indigo-500" />
+            <span>Diskon Manual Kasir{{ posStore.manualDiscountPercent > 0 ? ` (${posStore.manualDiscountPercent}%)` : '' }}:</span>
+          </span>
+          <span class="font-mono font-bold">-Rp {{ formatRupiah(posStore.manualDiscountAmount) }}</span>
         </div>
 
         <!-- Points discount -->

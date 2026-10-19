@@ -4,6 +4,9 @@ import { usePosStore } from '../../stores/posStore';
 import { useInventoryStore } from '../../stores/inventoryStore';
 import { useBuyerStore } from '../../stores/buyerStore';
 import { useLedgerStore } from '../../stores/ledgerStore';
+import { usePurchaseStore } from '../../stores/purchaseStore';
+import { usePreOrderStore } from '../../stores/preOrderStore';
+import { useDiscountStore } from '../../stores/discountStore';
 import type { ModuleTab } from './AppLauncherTab.vue';
 import {
   Plus,
@@ -36,6 +39,9 @@ const posStore = usePosStore();
 const inventoryStore = useInventoryStore();
 const buyerStore = useBuyerStore();
 const ledgerStore = useLedgerStore();
+const purchaseStore = usePurchaseStore();
+const preOrderStore = usePreOrderStore();
+const discountStore = useDiscountStore();
 
 const tabBarRef = ref<HTMLDivElement | null>(null);
 const measurerRef = ref<HTMLDivElement | null>(null);
@@ -48,6 +54,10 @@ function hasBadge(tabId: ModuleTab): boolean {
   if (tabId === 'vendors') return inventoryStore.categoryMarkups.length > 0;
   if (tabId === 'buyers') return buyerStore.buyers.length > 0;
   if (tabId === 'ledger') return ledgerStore.totalReceivables > 0;
+  if (tabId === 'receiving') return purchaseStore.receivingItems.length > 0 || purchaseStore.purchaseHistory.length > 0;
+  if (tabId === 'preorder') return preOrderStore.schedules.length > 0;
+  if (tabId === 'discounts') return discountStore.activeDiscounts.length > 0;
+  if (tabId === 'loyalty') return buyerStore.memberBuyers.length > 0;
   return false;
 }
 
@@ -56,6 +66,11 @@ function getBadgeText(tabId: ModuleTab): string {
   if (tabId === 'products' || tabId === 'master') return String(inventoryStore.products.length);
   if (tabId === 'vendors') return String(inventoryStore.categoryMarkups.length);
   if (tabId === 'buyers') return String(buyerStore.buyers.length);
+  if (tabId === 'ledger') return `${ledgerStore.transactions.filter(t => t.paymentStatus === 'TEMPO').length} tempo`;
+  if (tabId === 'receiving') return String(purchaseStore.receivingItems.length > 0 ? purchaseStore.receivingItems.length : purchaseStore.purchaseHistory.length);
+  if (tabId === 'preorder') return String(preOrderStore.schedules.length);
+  if (tabId === 'discounts') return String(discountStore.activeDiscounts.length);
+  if (tabId === 'loyalty') return String(buyerStore.memberBuyers.length);
   return '';
 }
 
@@ -63,8 +78,8 @@ function updateFit() {
   if (!tabBarRef.value || !measurerRef.value) return;
   const availableWidth = tabBarRef.value.clientWidth;
   const neededWidth = measurerRef.value.getBoundingClientRect().width;
-  // If exact needed width for all full titles exceeds available tab bar space, then switch to compact mode
-  isCrowded.value = neededWidth > (availableWidth - 6);
+  // If exact needed width for all full titles exceeds available tab bar space, or 3 or more tabs open, switch to compact mode
+  isCrowded.value = props.openTabIds.length >= 3 || neededWidth > (availableWidth - 10);
 }
 
 onMounted(() => {
@@ -87,7 +102,16 @@ onUnmounted(() => {
 });
 
 watch(
-  () => [props.openTabIds, props.activeTab, posStore.selectedBuyer],
+  () => [
+    props.openTabIds,
+    props.activeTab,
+    posStore.selectedBuyer,
+    posStore.cartItems.length,
+    purchaseStore.receivingItems.length,
+    preOrderStore.schedules.length,
+    discountStore.activeDiscounts.length,
+    buyerStore.memberBuyers.length
+  ],
   () => {
     nextTick(updateFit);
   },
@@ -103,7 +127,7 @@ function handleWheel(e: WheelEvent) {
 function getTabShortTitle(tabId: ModuleTab): string {
   switch (tabId) {
     case 'pos':
-      return posStore.selectedBuyer === 'Eceran / Umum' ? 'Kasir' : `Kasir (${posStore.selectedBuyer})`;
+      return 'Kasir';
     case 'discounts':
       return 'Diskon';
     case 'loyalty':
@@ -122,7 +146,7 @@ function getTabShortTitle(tabId: ModuleTab): string {
     case 'buyers':
       return 'Pelanggan';
     case 'branding':
-      return 'Profil Toko';
+      return 'Profile';
     default:
       return tabId;
   }
@@ -164,7 +188,7 @@ function getTabDisplayTitle(tabId: ModuleTab): string {
 <template>
   <div
     ref="tabBarRef"
-    class="explorer-tab-bar relative flex items-center px-1.5 pt-1 border-b gap-0.5 overflow-x-hidden no-scrollbar select-none text-xs"
+    class="explorer-tab-bar relative flex items-center px-1.5 pt-1 border-b gap-0.5 overflow-x-auto no-scrollbar select-none text-xs"
     @wheel="handleWheel"
   >
     <!-- Hidden Ruler: Measures exact real pixel width needed if all tabs use FULL titles -->
@@ -215,12 +239,12 @@ function getTabDisplayTitle(tabId: ModuleTab): string {
     <div
       v-for="tabId in openTabIds"
       :key="tabId"
-      class="group relative flex items-center gap-1.5 px-2.5 py-1 rounded-t border-t border-l border-r cursor-pointer text-xs font-medium transition-all select-none"
+      class="group relative flex items-center gap-1.5 py-1 rounded-t border-t border-l border-r cursor-pointer text-xs font-medium transition-all select-none"
       :class="[
         activeTab === tabId ? 'shadow-xs font-semibold z-10' : 'border-transparent hover:opacity-90',
         isCrowded
-          ? 'flex-1 min-w-[42px] max-w-[170px]'
-          : 'flex-initial shrink-0 min-w-fit max-w-[340px]'
+          ? 'flex-1 min-w-[95px] max-w-[170px] px-2'
+          : 'flex-initial shrink-0 min-w-fit max-w-[340px] px-2.5'
       ]"
       :style="activeTab === tabId ? { backgroundColor: 'var(--surface-tab-active)', borderColor: 'var(--surface-tab-border)', color: 'var(--surface-text)' } : { backgroundColor: 'var(--surface-tab-inactive)', color: 'var(--surface-text-muted)' }"
       :title="getTabFullTitle(tabId)"
@@ -251,19 +275,19 @@ function getTabDisplayTitle(tabId: ModuleTab): string {
         {{ posStore.cartItems.length }}
       </span>
       <span
-        v-else-if="tabId === 'products' || tabId === 'master'"
+        v-else-if="!isCrowded && (tabId === 'products' || tabId === 'master')"
         class="bg-purple-100 text-purple-800 rounded-full px-1 text-[9px] font-bold shrink-0 font-mono hidden sm:inline-block"
       >
         {{ inventoryStore.products.length }}
       </span>
       <span
-        v-else-if="tabId === 'vendors'"
+        v-else-if="!isCrowded && tabId === 'vendors'"
         class="bg-emerald-100 text-emerald-800 rounded-full px-1 text-[9px] font-bold shrink-0 font-mono hidden sm:inline-block"
       >
         {{ inventoryStore.categoryMarkups.length }}
       </span>
       <span
-        v-else-if="tabId === 'buyers'"
+        v-else-if="!isCrowded && tabId === 'buyers'"
         class="bg-indigo-100 text-indigo-800 rounded-full px-1 text-[9px] font-bold shrink-0 font-mono hidden sm:inline-block"
       >
         {{ buyerStore.buyers.length }}

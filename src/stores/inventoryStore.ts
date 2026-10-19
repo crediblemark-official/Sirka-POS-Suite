@@ -60,13 +60,15 @@ export const useInventoryStore = defineStore('inventory', () => {
   async function updateCategoryMarkup(category: SupplierCategory, percent: number) {
     const found = categoryMarkups.value.find(c => c.category === category);
     if (found) {
-      found.defaultMarkupPercent = percent;
-      saveLocal();
-
+      const oldPercent = found.defaultMarkupPercent;
       try {
         await dbService.updateMarkup(category, percent);
+        found.defaultMarkupPercent = percent;
+        saveLocal();
       } catch (err) {
+        found.defaultMarkupPercent = oldPercent;
         console.error('Failed to sync markup to Rust backend:', err);
+        throw err;
       }
     }
   }
@@ -82,38 +84,46 @@ export const useInventoryStore = defineStore('inventory', () => {
       defaultMarkupPercent,
       description: description || ''
     };
-    categoryMarkups.value.push(newMarkup);
-    saveLocal();
 
     try {
       await dbService.createMarkup(trimmed, defaultMarkupPercent, description);
+      categoryMarkups.value.push(newMarkup);
+      saveLocal();
     } catch (err) {
       console.error('Failed to create category in Rust backend:', err);
+      throw err;
     }
   }
 
-  async function deleteCategory(category: string) {
-    categoryMarkups.value = categoryMarkups.value.filter(c => c.category !== category);
-    saveLocal();
-
+  // BUG-003 FIX: Hapus kategori hanya setelah DB berhasil (DB-first)
+  async function deleteCategory(category: string): Promise<boolean> {
     try {
       await dbService.deleteMarkup(category);
-    } catch (err) {
-      console.error('Failed to delete category in Rust backend:', err);
+      categoryMarkups.value = categoryMarkups.value.filter(c => c.category !== category);
+      saveLocal();
+      return true;
+    } catch (err: any) {
+      const msg = typeof err === 'string' ? err : err?.message || 'Gagal menghapus kategori';
+      alert(msg);
+      return false;
     }
   }
 
   async function updateProductPrices(productId: string, lastBuyPrice: number, lastSellPrice: number) {
     const prod = products.value.find(p => p.id === productId);
     if (prod) {
-      prod.lastBuyPrice = lastBuyPrice;
-      prod.lastSellPrice = lastSellPrice;
-      saveLocal();
-
+      const oldBuy = prod.lastBuyPrice;
+      const oldSell = prod.lastSellPrice;
       try {
+        prod.lastBuyPrice = lastBuyPrice;
+        prod.lastSellPrice = lastSellPrice;
         await dbService.upsertProduct(prod);
+        saveLocal();
       } catch (err) {
+        prod.lastBuyPrice = oldBuy;
+        prod.lastSellPrice = oldSell;
         console.error('Failed to sync price update to Rust backend:', err);
+        throw err;
       }
     }
   }
@@ -121,15 +131,21 @@ export const useInventoryStore = defineStore('inventory', () => {
   async function updateStockAndPrice(productId: string, addedStock: number, buyPrice: number, sellPrice: number) {
     const prod = products.value.find(p => p.id === productId);
     if (prod) {
-      prod.stock += addedStock;
-      if (buyPrice > 0) prod.lastBuyPrice = buyPrice;
-      if (sellPrice > 0) prod.lastSellPrice = sellPrice;
-      saveLocal();
-
+      const oldStock = prod.stock;
+      const oldBuy = prod.lastBuyPrice;
+      const oldSell = prod.lastSellPrice;
       try {
         await dbService.updateStockAndPrice(productId, addedStock, buyPrice, sellPrice);
+        prod.stock += addedStock;
+        if (buyPrice > 0) prod.lastBuyPrice = buyPrice;
+        if (sellPrice > 0) prod.lastSellPrice = sellPrice;
+        saveLocal();
       } catch (err) {
+        prod.stock = oldStock;
+        prod.lastBuyPrice = oldBuy;
+        prod.lastSellPrice = oldSell;
         console.error('Failed to sync stock to Rust backend:', err);
+        throw err;
       }
     }
   }
@@ -137,30 +153,46 @@ export const useInventoryStore = defineStore('inventory', () => {
   async function addProduct(newProd: Omit<Product, 'id'>): Promise<Product> {
     const id = `prod-${Date.now()}`;
     const product: Product = { ...newProd, id };
-    products.value.push(product);
-    saveLocal();
 
     try {
       await dbService.upsertProduct(product);
+      products.value.push(product);
+      saveLocal();
+      return product;
     } catch (err) {
       console.error('Failed to sync new product to Rust backend:', err);
+      throw err;
     }
-
-    return product;
   }
 
-  function updateProduct(product: Product) {
+  async function updateProduct(product: Product) {
     const idx = products.value.findIndex(p => p.id === product.id);
     if (idx !== -1) {
-      products.value[idx] = { ...product };
-      saveLocal();
-      dbService.upsertProduct(product).catch(e => console.warn(e));
+      const old = { ...products.value[idx] };
+      try {
+        await dbService.upsertProduct(product);
+        products.value[idx] = { ...product };
+        saveLocal();
+      } catch (e) {
+        products.value[idx] = old;
+        console.error('Failed to update product in DB:', e);
+        throw e;
+      }
     }
   }
 
-  function deleteProduct(id: string) {
-    products.value = products.value.filter(p => p.id !== id);
-    saveLocal();
+  // BUG-002 FIX: Hapus produk dengan sinkronisasi ke DB
+  async function deleteProduct(id: string): Promise<boolean> {
+    try {
+      await dbService.deleteProduct(id);
+      products.value = products.value.filter(p => p.id !== id);
+      saveLocal();
+      return true;
+    } catch (err: any) {
+      const msg = typeof err === 'string' ? err : err?.message || 'Gagal menghapus produk';
+      alert(msg);
+      return false;
+    }
   }
 
   function resetToDefaults() {

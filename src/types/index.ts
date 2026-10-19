@@ -43,6 +43,11 @@ export interface LoyaltyProgramSetting {
   earnPerAmount: number;        // e.g. 10000 -> 1 point for each Rp 10.000 spend
   pointValueInRupiah: number;   // e.g. 100 -> 1 point = Rp 100
   tierDiscounts: Record<MembershipTier, number>; // discount percentage per tier
+  tierMinSpend?: {
+    SILVER: number;
+    GOLD: number;
+    PLATINUM: number;
+  };
 }
 
 export interface StoreSetting {
@@ -64,6 +69,7 @@ export interface Product {
   lastBuyPrice: number;
   lastSellPrice: number;
   stock: number;
+  barcode?: string;
   notes?: string;
 }
 
@@ -98,6 +104,7 @@ export interface Transaction {
   paymentMethod: PaymentMethod;
   customerType?: CustomerType;
   isPreOrder?: boolean;
+  picName?: string;
   notes?: string;
   // Diskon & Loyalty Membership
   discountAmount?: number;

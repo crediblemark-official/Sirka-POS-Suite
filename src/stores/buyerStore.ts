@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { Buyer, CustomerType, MembershipTier, LoyaltyProgramSetting } from '../types';
 import { dbService } from '../services/dbService';
+import { useSettingsStore } from './settingsStore';
 
 const STORAGE_KEY_BUYERS = 'kasir_citra_buyers_v3';
 const STORAGE_KEY_LOYALTY = 'kasir_citra_loyalty_settings_v1';
@@ -20,7 +21,7 @@ export const useBuyerStore = defineStore('buyer', () => {
             name: 'Pembeli Banjarsari',
             code: 'BUYER-BJS',
             customerType: 'B2B',
-            memberCardNo: 'MBR-BJS-88',
+            memberCardNo: 'CITRA-BJS-88',
             tier: 'GOLD',
             points: 150,
             totalSpend: 7500000,
@@ -31,7 +32,7 @@ export const useBuyerStore = defineStore('buyer', () => {
             name: 'Pembeli Pahlawan',
             code: 'BUYER-PHL',
             customerType: 'B2B',
-            memberCardNo: 'MBR-PHL-21',
+            memberCardNo: 'CITRA-PHL-21',
             tier: 'SILVER',
             points: 80,
             totalSpend: 3200000,
@@ -42,7 +43,7 @@ export const useBuyerStore = defineStore('buyer', () => {
             name: 'Pembeli Mangunharjo',
             code: 'BUYER-MGH',
             customerType: 'B2B',
-            memberCardNo: 'MBR-MGH-07',
+            memberCardNo: 'CITRA-MGH-07',
             tier: 'REGULAR',
             points: 25,
             totalSpend: 850000,
@@ -54,7 +55,7 @@ export const useBuyerStore = defineStore('buyer', () => {
             code: 'ECERAN',
             customerType: 'B2C',
             address: 'Walk-in Customer / Eceran Toko',
-            memberCardNo: 'MBR-UMUM-01',
+            memberCardNo: 'CITRA-UMUM-01',
             tier: 'REGULAR',
             points: 10,
             totalSpend: 250000,
@@ -66,7 +67,13 @@ export const useBuyerStore = defineStore('buyer', () => {
   const savedLoyalty = localStorage.getItem(STORAGE_KEY_LOYALTY);
   const loyaltySettings = ref<LoyaltyProgramSetting>(
     savedLoyalty
-      ? JSON.parse(savedLoyalty)
+      ? {
+          earnPerAmount: 10000,
+          pointValueInRupiah: 100,
+          tierDiscounts: { REGULAR: 0, SILVER: 2, GOLD: 5, PLATINUM: 8 },
+          tierMinSpend: { SILVER: 1000000, GOLD: 5000000, PLATINUM: 15000000 },
+          ...JSON.parse(savedLoyalty)
+        }
       : {
           earnPerAmount: 10000,       // Tiap Rp 10.000 belanja dapat 1 poin
           pointValueInRupiah: 100,    // 1 poin = Rp 100 potongan tagihan
@@ -75,6 +82,11 @@ export const useBuyerStore = defineStore('buyer', () => {
             SILVER: 2,
             GOLD: 5,
             PLATINUM: 8
+          },
+          tierMinSpend: {
+            SILVER: 1000000,
+            GOLD: 5000000,
+            PLATINUM: 15000000
           }
         }
   );
@@ -90,11 +102,28 @@ export const useBuyerStore = defineStore('buyer', () => {
 
   async function fetchBuyers() {
     try {
-      const data = await dbService.getBuyers();
+      const [data, settings] = await Promise.all([
+        dbService.getBuyers(),
+        dbService.getSettings().catch(() => [])
+      ]);
       if (data && data.length > 0) {
         buyers.value = data;
-        saveLocal();
       }
+      if (settings && settings.length > 0) {
+        const loyalty = settings.find(s => s.key === 'loyalty_settings');
+        if (loyalty && loyalty.value) {
+          try {
+            const parsed = JSON.parse(loyalty.value);
+            loyaltySettings.value = {
+              tierMinSpend: { SILVER: 1000000, GOLD: 5000000, PLATINUM: 15000000 },
+              ...parsed
+            };
+          } catch (e) {
+            console.warn('[BuyerStore] Failed to parse loyalty_settings from DB:', e);
+          }
+        }
+      }
+      saveLocal();
     } catch (e) {
       console.warn('[BuyerStore] Failed to fetch buyers:', e);
     }
@@ -113,10 +142,14 @@ export const useBuyerStore = defineStore('buyer', () => {
     return buyers.value.find(b => b.memberCardNo && b.memberCardNo.trim().toUpperCase() === clean);
   }
 
-  function generateMemberCardNo(prefix = 'CITRA'): string {
+  function generateMemberCardNo(prefix?: string, customerType?: CustomerType): string {
+    const settingsStore = useSettingsStore();
+    const storeAbbr = (prefix && prefix.trim()) ? prefix.trim().toUpperCase() : settingsStore.storeCode;
     const random = Math.floor(1000 + Math.random() * 9000);
-    const year = new Date().getFullYear();
-    return `MBR-${prefix}-${year}-${random}`;
+    if (customerType === 'B2B') {
+      return `${storeAbbr}-B2B-${random}`;
+    }
+    return `${storeAbbr}-${random}`;
   }
 
   async function addBuyer(
@@ -143,68 +176,73 @@ export const useBuyerStore = defineStore('buyer', () => {
       memberSince: new Date().toISOString().slice(0, 10)
     };
 
-    buyers.value.push(newBuyer);
-    saveLocal();
-
     try {
       await dbService.upsertBuyer(newBuyer);
+      buyers.value.push(newBuyer);
+      saveLocal();
+      return newBuyer;
     } catch (err) {
       console.error('Failed to save buyer to DB:', err);
+      throw err;
     }
-
-    return newBuyer;
   }
 
   async function updateBuyer(buyer: Buyer) {
     const idx = buyers.value.findIndex(b => b.id === buyer.id);
     if (idx !== -1) {
-      buyers.value[idx] = { ...buyer };
-      saveLocal();
-      await dbService.upsertBuyer(buyer);
+      const old = { ...buyers.value[idx] };
+      try {
+        await dbService.upsertBuyer(buyer);
+        buyers.value[idx] = { ...buyer };
+        saveLocal();
+      } catch (err) {
+        buyers.value[idx] = old;
+        console.error('Failed to update buyer in DB:', err);
+        throw err;
+      }
     }
   }
 
   async function deleteBuyer(id: string) {
-    buyers.value = buyers.value.filter(b => b.id !== id);
-    saveLocal();
-    await dbService.deleteBuyer(id);
-  }
-
-  // Poin Loyalitas & Akumulasi Belanja Otomatis saat Checkout
-  async function addPointsAndSpend(buyerName: string, pointsEarned: number, spend: number) {
-    const buyer = getBuyerByName(buyerName);
-    if (!buyer) return;
-
-    buyer.points = (buyer.points || 0) + pointsEarned;
-    buyer.totalSpend = (buyer.totalSpend || 0) + spend;
-
-    // Evaluasi kenaikan tier otomatis berdasarkan total belanja
-    if (buyer.totalSpend >= 15000000) {
-      buyer.tier = 'PLATINUM';
-    } else if (buyer.totalSpend >= 5000000) {
-      buyer.tier = 'GOLD';
-    } else if (buyer.totalSpend >= 1000000) {
-      buyer.tier = 'SILVER';
-    } else {
-      buyer.tier = 'REGULAR';
+    const old = [...buyers.value];
+    try {
+      await dbService.deleteBuyer(id);
+      buyers.value = buyers.value.filter(b => b.id !== id);
+      saveLocal();
+    } catch (err) {
+      buyers.value = old;
+      console.error('Failed to delete buyer in DB:', err);
+      throw err;
     }
-
-    saveLocal();
-    await dbService.upsertBuyer(buyer);
   }
 
-  async function deductPoints(buyerName: string, pointsUsed: number) {
-    const buyer = getBuyerByName(buyerName);
-    if (!buyer || !pointsUsed) return;
+  // Poin loyalitas kini diurus backend (db_create_transaction / db_delete_transaction)
+  // secara atomik dalam satu transaksi DB — sinkronisasi JS manual diganti Rust (BUG-015 FIX).
 
-    buyer.points = Math.max(0, (buyer.points || 0) - pointsUsed);
-    saveLocal();
-    await dbService.upsertBuyer(buyer);
-  }
-
-  function updateLoyaltySettings(newSettings: LoyaltyProgramSetting) {
+  async function updateLoyaltySettings(newSettings: LoyaltyProgramSetting) {
     loyaltySettings.value = { ...newSettings };
     saveLocal();
+    try {
+      await dbService.updateSetting('loyalty_settings', JSON.stringify(newSettings));
+    } catch (e) {
+      console.warn('[BuyerStore] Failed to persist loyalty_settings to DB:', e);
+    }
+  }
+
+  function computeTierFromSpend(totalSpend: number = 0): MembershipTier {
+    const minSpend = loyaltySettings.value.tierMinSpend || {
+      SILVER: 1000000,
+      GOLD: 5000000,
+      PLATINUM: 15000000
+    };
+    const platMin = Number(minSpend.PLATINUM) || 15000000;
+    const goldMin = Number(minSpend.GOLD) || 5000000;
+    const silverMin = Number(minSpend.SILVER) || 1000000;
+
+    if (totalSpend >= platMin) return 'PLATINUM';
+    if (totalSpend >= goldMin) return 'GOLD';
+    if (totalSpend >= silverMin) return 'SILVER';
+    return 'REGULAR';
   }
 
   return {
@@ -223,8 +261,7 @@ export const useBuyerStore = defineStore('buyer', () => {
     addBuyer,
     updateBuyer,
     deleteBuyer,
-    addPointsAndSpend,
-    deductPoints,
-    updateLoyaltySettings
+    updateLoyaltySettings,
+    computeTierFromSpend
   };
 });

@@ -13,7 +13,8 @@ export function formatPercent(val: number): string {
 export function formatDateIndo(dateStr: string): string {
   if (!dateStr) return '';
   try {
-    const d = new Date(dateStr);
+    const cleanStr = dateStr.includes(' ') && !dateStr.includes('T') ? dateStr.replace(' ', 'T') : dateStr;
+    const d = new Date(cleanStr);
     return new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium' }).format(d);
   } catch {
     return dateStr;

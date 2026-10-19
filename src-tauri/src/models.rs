@@ -38,6 +38,8 @@ pub struct ProductRecord {
     pub last_buy_price: f64,
     #[serde(rename = "lastSellPrice")]
     pub last_sell_price: f64,
+    #[serde(default)]
+    pub barcode: Option<String>,
     pub stock: f64,
     pub notes: Option<String>,
 }
@@ -58,7 +60,7 @@ pub struct PreOrderRecord {
     pub day_name: String,
     pub buyer: String,
     pub items: serde_json::Value,
-    #[serde(rename = "isLoadedToPos")]
+    #[serde(default, rename = "isLoadedToPos")]
     pub is_loaded_to_pos: bool,
 }
 
@@ -97,6 +99,10 @@ pub struct TransactionRecord {
     pub points_earned: Option<f64>,
     #[serde(rename = "finalTotal")]
     pub final_total: Option<f64>,
+    #[serde(default, rename = "isPreOrder")]
+    pub is_pre_order: Option<bool>,
+    #[serde(default, rename = "picName")]
+    pub pic_name: Option<String>,
     #[serde(rename = "createdAt")]
     pub created_at: Option<String>,
 }

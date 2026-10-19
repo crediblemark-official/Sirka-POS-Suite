@@ -32,6 +32,7 @@ const settingsStore = useSettingsStore();
 
 const tempStore = ref({
   name: settingsStore.storeName,
+  code: settingsStore.storeCode,
   tagline: settingsStore.storeTagline,
   address: settingsStore.storeAddress,
   phone: settingsStore.storePhone,
@@ -83,6 +84,7 @@ function onHexTextInput(value: string) {
 }
 
 function resetToDefault() {
+  tempStore.value.code = 'CITRA';
   activeColor.value = '#2563eb';
   activePreset.value = 'blue';
   activeHeaderStyle.value = 'accent-line';
@@ -94,6 +96,7 @@ function resetToDefault() {
 async function handleSaveAll() {
   await Promise.all([
     settingsStore.updateSetting('store_name', tempStore.value.name.trim()),
+    settingsStore.updateSetting('store_code', tempStore.value.code.trim().toUpperCase() || 'CITRA'),
     settingsStore.updateSetting('store_tagline', tempStore.value.tagline.trim()),
     settingsStore.updateSetting('store_address', tempStore.value.address.trim()),
     settingsStore.updateSetting('store_phone', tempStore.value.phone.trim()),
@@ -116,7 +119,7 @@ async function handleSaveAll() {
       <div class="flex items-center gap-2 shrink-0">
         <Store :size="15" class="text-purple-700" />
         <span class="font-bold text-xs text-gray-800">Profil Usaha & Format Struk</span>
-        <span class="text-[10px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-semibold">{{ tempStore.name || 'Kasir Citra' }}</span>
+        <span class="text-[10px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-semibold">{{ tempStore.name || 'Kasir Citra' }} ({{ (tempStore.code || 'CITRA').toUpperCase() }})</span>
       </div>
 
       <div class="flex items-center gap-2 shrink-0 ml-auto">
@@ -258,25 +261,46 @@ async function handleSaveAll() {
               />
             </div>
 
-            <div class="grid grid-cols-2 gap-2.5">
+            <div class="grid grid-cols-3 gap-2.5">
               <div>
                 <label class="text-[11px] font-semibold text-gray-700 block mb-1">No. WhatsApp Toko</label>
                 <input
                   v-model="tempStore.phone"
                   type="text"
-                  class="w-full bg-white border border-gray-300 rounded px-3 py-1.5 text-xs outline-none focus:border-purple-600 font-mono text-gray-800"
+                  class="w-full bg-white border border-gray-300 rounded px-2.5 py-1.5 text-xs outline-none focus:border-purple-600 font-mono text-gray-800"
                   placeholder="0812-3456-7890"
                 />
               </div>
               <div>
-                <label class="text-[11px] font-semibold text-gray-700 block mb-1">Prefix Nomor Faktur</label>
+                <label class="text-[11px] font-semibold text-gray-700 block mb-1">Prefix Faktur</label>
                 <input
                   v-model="tempStore.invoicePrefix"
                   type="text"
-                  class="w-full bg-white border border-gray-300 rounded px-3 py-1.5 text-xs outline-none focus:border-purple-600 font-mono uppercase font-bold text-purple-900"
+                  class="w-full bg-white border border-gray-300 rounded px-2.5 py-1.5 text-xs outline-none focus:border-purple-600 font-mono uppercase font-bold text-purple-900"
                   placeholder="INV-B2B"
                 />
               </div>
+              <div>
+                <label class="text-[11px] font-semibold text-gray-700 block mb-1">Singkatan Toko *</label>
+                <input
+                  v-model="tempStore.code"
+                  type="text"
+                  maxlength="10"
+                  class="w-full bg-white border border-gray-300 rounded px-2.5 py-1.5 text-xs outline-none focus:border-purple-600 font-mono uppercase font-bold text-blue-900"
+                  placeholder="CITRA"
+                />
+              </div>
+            </div>
+
+            <!-- Preview Sinkronisasi Nomor Kartu Member -->
+            <div class="p-2 rounded bg-blue-50/80 border border-blue-200 flex items-center justify-between text-[11px]">
+              <div class="flex items-center gap-1.5 text-blue-950 font-medium">
+                <CreditCard :size="13" class="text-blue-700" />
+                <span>Format Kartu Member:</span>
+              </div>
+              <span class="font-mono font-bold text-blue-700 bg-white px-2 py-0.5 rounded border border-blue-300 shadow-2xs">
+                {{ (tempStore.code || 'CITRA').toUpperCase() }}-XXXX
+              </span>
             </div>
 
             <div>
@@ -301,6 +325,10 @@ async function handleSaveAll() {
                 <div class="flex justify-between text-[10px] text-gray-600">
                   <span>{{ tempStore.invoicePrefix || 'INV' }}-202610-001</span>
                   <span>19/10/2026 14:30</span>
+                </div>
+                <div class="text-[9.5px] text-blue-700 font-mono text-left pt-1 border-t border-dashed border-gray-300 mt-1 flex justify-between">
+                  <span>Member: {{ (tempStore.code || 'CITRA').toUpperCase() }}-1024</span>
+                  <span>Poin: +10</span>
                 </div>
               </div>
             </div>

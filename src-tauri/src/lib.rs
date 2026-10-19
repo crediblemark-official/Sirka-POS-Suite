@@ -7,12 +7,31 @@ pub mod models;
 
 use commands::*;
 
+/// Migrasi idempotent (db/migrations.sql) dijalankan otomatis saat aplikasi start,
+/// agar kolom baru (barcode, pic_name, is_pre_order) tersedia di database lama tanpa setup manual.
+async fn ensure_migrations() -> Result<(), String> {
+    let client = db::get_pg_client().await?;
+    let sql = include_str!("../../db/migrations.sql");
+    client
+        .batch_execute(sql)
+        .await
+        .map_err(|e| format!("Migrasi database gagal: {}", e))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .on_permission_request(|_webview, _kind| {
             tauri::webview::PermissionResponse::Allow
+        })
+        .setup(|_app| {
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = ensure_migrations().await {
+                    eprintln!("[Rust Migration] {}", e);
+                }
+            });
+            Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             // 1. Hardware & System
@@ -25,6 +44,7 @@ pub fn run() {
             db_get_products,
             db_upsert_product,
             db_update_stock_and_price,
+            db_delete_product,
             // 3. Category Markups & Vendors (Dynamic)
             db_get_markups,
             db_update_markup,

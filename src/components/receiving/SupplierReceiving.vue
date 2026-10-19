@@ -19,8 +19,7 @@ import {
   TrendingUp,
   Coins,
   Edit2,
-  Trash2,
-  Plus
+  Trash2
 } from 'lucide-vue-next';
 import MetricStatsStrip, { MetricStatItem } from '../common/MetricStatsStrip.vue';
 import AppEmptyState from '../common/AppEmptyState.vue';
@@ -193,7 +192,9 @@ function handleEditReceipt(rcp: PurchaseReceipt) {
 
 async function handleDeleteReceipt(rcp: PurchaseReceipt) {
   if (confirm(`Yakin ingin menghapus nota kulakan ${rcp.supplierInvoiceNo}? Stok barang akan dikembalikan ke kondisi sebelumnya.`)) {
-    const ok = await purchaseStore.deleteReceipt(rcp.id);
+    let ok = false;
+    try { ok = await purchaseStore.deleteReceipt(rcp.id); }
+    catch (error) { alert(`Gagal menghapus nota: ${error}`); return; }
     if (ok) {
       successMessage.value = `Nota ${rcp.supplierInvoiceNo} berhasil dihapus & stok barang telah disesuaikan.`;
       setTimeout(() => {
@@ -201,10 +202,6 @@ async function handleDeleteReceipt(rcp: PurchaseReceipt) {
       }, 4000);
     }
   }
-}
-
-function handleNewKulakan() {
-  purchaseStore.openNewReceiving();
 }
 </script>
 
@@ -229,7 +226,10 @@ function handleNewKulakan() {
       <!-- SISI KIRI: TABEL UTAMA RIWAYAT & DAFTAR NOTA KULAKAN -->
       <div class="flex-1 flex flex-col overflow-hidden bg-white">
         <!-- 1. Top Ribbon & Filter Bar -->
-        <div class="relative z-30 flex items-center justify-between px-3 py-1.5 bg-[#f6f5f2] border-b border-gray-200 gap-3 shrink-0">
+        <div
+          v-horizontal-scroll
+          class="h-10 relative z-30 flex items-center justify-between px-3 bg-[#f6f5f2] border-b border-gray-200 gap-3 shrink-0 overflow-x-auto no-scrollbar"
+        >
           <div class="flex items-center gap-2">
             <div class="flex items-center gap-1.5 font-bold text-gray-700 text-xs shrink-0 mr-1">
               <Clock :size="14" class="text-amber-700" />
@@ -248,17 +248,11 @@ function handleNewKulakan() {
             </div>
           </div>
 
-          <!-- Sisi Kanan: Tombol Input Kulakan Baru -->
-          <div class="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              class="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 rounded cursor-pointer shadow-2xs transition-colors shrink-0"
-              title="Catat Nota Kulakan Masuk Baru"
-              @click="handleNewKulakan"
-            >
-              <Plus :size="13" />
-              <span>Kulakan Baru</span>
-            </button>
+          <!-- Sisi Kanan: Status Pencarian -->
+          <div v-if="props.searchQuery" class="flex items-center gap-2 shrink-0">
+            <span class="text-[11px] text-gray-600 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 font-medium">
+              Cari: "<span class="font-bold text-gray-800">{{ props.searchQuery }}</span>"
+            </span>
           </div>
         </div>
 
@@ -399,6 +393,7 @@ function handleNewKulakan() {
       <!-- SISI KANAN: FORM INPUT KULAKAN (SIDEBAR DRAWER) -->
       <ReceivingFormDrawer
         :is-open="purchaseStore.showHistoryDrawer"
+        @update:is-open="purchaseStore.showHistoryDrawer = $event"
         @close="purchaseStore.showHistoryDrawer = false"
         @saved="onReceivingSaved"
       />

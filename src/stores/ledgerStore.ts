@@ -49,14 +49,6 @@ export const useLedgerStore = defineStore('ledger', () => {
     }
   }
 
-  function setPaymentStatus(transactionId: string, status: PaymentStatus) {
-    const tx = transactions.value.find(t => t.id === transactionId);
-    if (tx) {
-      tx.paymentStatus = status;
-      saveLocal();
-    }
-  }
-
   async function deleteTransaction(transactionId: string) {
     await dbService.deleteTransaction(transactionId);
     transactions.value = transactions.value.filter(t => t.id !== transactionId);
@@ -80,6 +72,7 @@ export const useLedgerStore = defineStore('ledger', () => {
       invoiceNo: string;
       date: string;
       buyer: string;
+      customerType?: 'B2B' | 'B2C';
       category: string;
       productName: string;
       qty: number;
@@ -100,6 +93,7 @@ export const useLedgerStore = defineStore('ledger', () => {
           invoiceNo: tx.invoiceNo,
           date: tx.date,
           buyer: tx.buyer,
+          customerType: tx.customerType,
           category: item.category,
           productName: item.name,
           qty: item.qty,
@@ -117,12 +111,13 @@ export const useLedgerStore = defineStore('ledger', () => {
     return rows;
   });
 
-  function exportToExcel() {
+  async function exportToExcel() {
     const data = flatLedgerRows.value.map((r, idx) => ({
       'NO': idx + 1,
       'NO NOTA': r.invoiceNo,
       'TANGGAL': r.date,
       'PEMBELI': r.buyer,
+      'TIPE TRANSAKSI': r.customerType || 'B2B',
       'KATEGORI / SUPPLIER': r.category,
       'NAMA BARANG': r.productName,
       'JUMLAH': r.qty,
@@ -139,7 +134,16 @@ export const useLedgerStore = defineStore('ledger', () => {
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Buku Besar Penjualan');
-    XLSX.writeFile(wb, `BUKU_BESAR_PENJUALAN_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    const filename = `BUKU_BESAR_PENJUALAN_${new Date().toISOString().slice(0, 10)}.xlsx`;
+
+    try {
+      const buffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const msg = await dbService.saveExportFile(filename, Array.from(new Uint8Array(buffer)));
+      alert(msg);
+    } catch (e) {
+      console.warn('Native export fallback ke browser download:', e);
+      XLSX.writeFile(wb, filename);
+    }
   }
 
   return {
@@ -147,7 +151,6 @@ export const useLedgerStore = defineStore('ledger', () => {
     fetchTransactionsFromDb,
     addTransaction,
     togglePaymentStatus,
-    setPaymentStatus,
     deleteTransaction,
     totalRevenue,
     totalCost,

@@ -50,17 +50,17 @@ pub async fn db_upsert_buyer(buyer: BuyerRecord) -> Result<String, String> {
     client
         .execute(
             "INSERT INTO buyers (id, name, code, phone, address, customer_type, member_card_no, tier, points, total_spend)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::numeric, $10::numeric)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::float8::numeric, $10::float8::numeric)
              ON CONFLICT (id) DO UPDATE SET
                name = EXCLUDED.name,
                code = EXCLUDED.code,
                phone = EXCLUDED.phone,
                address = EXCLUDED.address,
                customer_type = EXCLUDED.customer_type,
-               member_card_no = COALESCE(EXCLUDED.member_card_no, buyers.member_card_no),
-               tier = COALESCE(EXCLUDED.tier, buyers.tier),
-               points = COALESCE(EXCLUDED.points, buyers.points),
-               total_spend = COALESCE(EXCLUDED.total_spend, buyers.total_spend)",
+               member_card_no = EXCLUDED.member_card_no,
+               tier = EXCLUDED.tier,
+               points = EXCLUDED.points,
+               total_spend = EXCLUDED.total_spend",
             &[
                 &id,
                 &buyer.name,

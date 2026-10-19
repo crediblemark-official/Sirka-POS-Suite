@@ -74,6 +74,38 @@ function clearSearch() {
   searchInputRef.value?.blur();
 }
 
+// BUG-016 FIX: Scan barcode saat kursor sedang di kotak pencarian.
+// Scanner USB/HID mengetik cepat lalu Enter; jika teks persis sama dengan barcode/SKU
+// suatu barang DAN tab aktif adalah Kasir, Enter memasukkan barang itu ke keranjang.
+const SCAN_GAP_MS = 80;
+let lastSearchCharAt = 0;
+let lastSearchInterval = 0;
+
+function handleSearchKeydown(e: KeyboardEvent) {
+  if (props.activeTab !== 'pos') return;
+  const now = Date.now();
+  if (e.key.length === 1) {
+    lastSearchInterval = now - lastSearchCharAt;
+    lastSearchCharAt = now;
+    return;
+  }
+  if (e.key === 'Enter') {
+    const query = props.searchQuery.trim();
+    if (!query) return;
+    // Deteksi scanner: karakter terakhir baru masuk < gap scanner (bukan ketikan manusia)
+    if (lastSearchInterval > SCAN_GAP_MS) return;
+    const prods = inventoryStore.products;
+    const found =
+      prods.find(p => (p.barcode || '').trim() === query) ||
+      prods.find(p => p.code.trim().toUpperCase() === query.toUpperCase());
+    if (found) {
+      posStore.addProductToCart(found, 1);
+      emit('update:searchQuery', '');
+      emit('update:showCartDrawer', true);
+    }
+  }
+}
+
 defineExpose({
   focusSearch
 });
@@ -91,8 +123,9 @@ defineExpose({
       </button>
     </div>
 
-    <!-- View Modes (Icons vs List) -->
+    <!-- View Modes (Icons vs List) - Only functional in POS Catalog -->
     <div
+      v-if="activeTab === 'pos'"
       class="flex items-center p-0.5 rounded border"
       style="background-color: var(--surface-tab-bar); border-color: var(--surface-tab-border);"
     >
@@ -138,6 +171,7 @@ defineExpose({
           ref="searchInputRef"
           :value="searchQuery"
           @input="emit('update:searchQuery', ($event.target as HTMLInputElement).value)"
+          @keydown="handleSearchKeydown"
           type="text"
           :placeholder="searchPlaceholder"
           class="outline-none text-xs w-56 sm:w-72 md:w-80 bg-transparent placeholder-gray-400 focus:placeholder-gray-300 transition-all"
@@ -172,7 +206,8 @@ defineExpose({
       <button
         v-if="activeTab === 'pos'"
         class="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded border cursor-pointer transition-colors shadow-2xs"
-        :class="showCartDrawer ? 'bg-amber-600 text-white border-amber-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'"
+        :class="showCartDrawer ? 'text-white' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'"
+        :style="showCartDrawer ? { backgroundColor: 'var(--brand-primary)', borderColor: 'var(--brand-primary)', color: 'var(--brand-primary-contrast, #ffffff)' } : {}"
         title="Buka / Tutup Keranjang Belanja Kasir (F3)"
         @click="emit('update:showCartDrawer', !showCartDrawer)"
       >
@@ -184,7 +219,8 @@ defineExpose({
       <button
         v-else-if="activeTab === 'receiving'"
         class="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded border cursor-pointer transition-colors shadow-2xs"
-        :class="purchaseStore.showHistoryDrawer ? 'bg-amber-600 text-white border-amber-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'"
+        :class="purchaseStore.showHistoryDrawer ? 'text-white' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'"
+        :style="purchaseStore.showHistoryDrawer ? { backgroundColor: 'var(--brand-primary)', borderColor: 'var(--brand-primary)', color: 'var(--brand-primary-contrast, #ffffff)' } : {}"
         title="Buka / Tutup Form Input Kulakan (Sidebar)"
         @click="purchaseStore.showHistoryDrawer = !purchaseStore.showHistoryDrawer"
       >
@@ -196,7 +232,8 @@ defineExpose({
       <button
         v-else-if="activeTab === 'preorder'"
         class="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded border cursor-pointer transition-colors shadow-2xs"
-        :class="preOrderStore.showPreOrderSidebar ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'"
+        :class="preOrderStore.showPreOrderSidebar ? 'text-white' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'"
+        :style="preOrderStore.showPreOrderSidebar ? { backgroundColor: 'var(--brand-primary)', borderColor: 'var(--brand-primary)', color: 'var(--brand-primary-contrast, #ffffff)' } : {}"
         title="Buka / Tutup Form Input Pesanan PO (Sidebar)"
         @click="handleTogglePreOrderSidebar"
       >
@@ -208,7 +245,8 @@ defineExpose({
       <button
         v-else-if="activeTab === 'discounts'"
         class="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded border cursor-pointer transition-colors shadow-2xs"
-        :class="discountStore.showFormSidebar ? 'bg-rose-600 text-white border-rose-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'"
+        :class="discountStore.showFormSidebar ? 'text-white' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'"
+        :style="discountStore.showFormSidebar ? { backgroundColor: 'var(--brand-primary)', borderColor: 'var(--brand-primary)', color: 'var(--brand-primary-contrast, #ffffff)' } : {}"
         title="Buka / Tutup Form Input Diskon (Sidebar)"
         @click="discountStore.showFormSidebar = !discountStore.showFormSidebar"
       >
@@ -220,7 +258,8 @@ defineExpose({
       <button
         v-else-if="activeTab === 'loyalty'"
         class="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded border cursor-pointer transition-colors shadow-2xs"
-        :class="buyerStore.showMemberDrawer ? 'bg-amber-600 text-white border-amber-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'"
+        :class="buyerStore.showMemberDrawer ? 'text-white' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'"
+        :style="buyerStore.showMemberDrawer ? { backgroundColor: 'var(--brand-primary)', borderColor: 'var(--brand-primary)', color: 'var(--brand-primary-contrast, #ffffff)' } : {}"
         title="Buka / Tutup Panel Member & Poin"
         @click="buyerStore.showMemberDrawer = !buyerStore.showMemberDrawer"
       >
@@ -232,7 +271,8 @@ defineExpose({
       <button
         v-else-if="activeTab === 'products' || activeTab === 'master'"
         class="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded border cursor-pointer transition-colors shadow-2xs"
-        :class="inventoryStore.showProductSidebar ? 'bg-purple-700 text-white border-purple-700' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'"
+        :class="inventoryStore.showProductSidebar ? 'text-white' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'"
+        :style="inventoryStore.showProductSidebar ? { backgroundColor: 'var(--brand-primary)', borderColor: 'var(--brand-primary)', color: 'var(--brand-primary-contrast, #ffffff)' } : {}"
         title="Buka / Tutup Form Input Barang (Sidebar)"
         @click="inventoryStore.showProductSidebar = !inventoryStore.showProductSidebar"
       >
@@ -244,7 +284,8 @@ defineExpose({
       <button
         v-else-if="activeTab === 'vendors'"
         class="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded border cursor-pointer transition-colors shadow-2xs"
-        :class="inventoryStore.showVendorSidebar ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'"
+        :class="inventoryStore.showVendorSidebar ? 'text-white' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'"
+        :style="inventoryStore.showVendorSidebar ? { backgroundColor: 'var(--brand-primary)', borderColor: 'var(--brand-primary)', color: 'var(--brand-primary-contrast, #ffffff)' } : {}"
         title="Buka / Tutup Form Tambah Supplier (Sidebar)"
         @click="inventoryStore.showVendorSidebar = !inventoryStore.showVendorSidebar"
       >
@@ -256,7 +297,8 @@ defineExpose({
       <button
         v-else-if="activeTab === 'buyers'"
         class="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded border cursor-pointer transition-colors shadow-2xs"
-        :class="buyerStore.showBuyerSidebar ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'"
+        :class="buyerStore.showBuyerSidebar ? 'text-white' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'"
+        :style="buyerStore.showBuyerSidebar ? { backgroundColor: 'var(--brand-primary)', borderColor: 'var(--brand-primary)', color: 'var(--brand-primary-contrast, #ffffff)' } : {}"
         title="Buka / Tutup Form Tambah Pelanggan (Sidebar)"
         @click="buyerStore.showBuyerSidebar = !buyerStore.showBuyerSidebar"
       >

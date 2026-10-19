@@ -263,7 +263,7 @@ html[data-theme-mode="dark"] ::-webkit-scrollbar-thumb:hover {
 }
 
 .table-explorer td {
-  padding: 0.625rem 0.75rem; /* px-3 py-2.5 */
+  padding: 0.35rem 0.625rem; /* Compact POS row height (py-1 px-2.5) */
   vertical-align: middle;
 }
 

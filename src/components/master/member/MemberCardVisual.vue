@@ -8,8 +8,8 @@ import {
   Sparkles,
   Phone
 } from 'lucide-vue-next';
-import { Buyer } from '../../types';
-import { useSettingsStore } from '../../stores/settingsStore';
+import { Buyer } from '../../../types';
+import { useSettingsStore } from '../../../stores/settingsStore';
 
 const props = withDefaults(
   defineProps<{
@@ -53,7 +53,7 @@ function setSide(back: boolean) {
 
 // Generate Real QR Code
 async function generateQr() {
-  const cardNo = props.buyer.memberCardNo || props.buyer.phone || props.buyer.code || 'MBR-CITRA-0000';
+  const cardNo = props.buyer.memberCardNo || props.buyer.phone || props.buyer.code || `${settingsStore.storeCode}-0000`;
   try {
     qrDataUrl.value = await QRCode.toDataURL(cardNo, {
       width: 260,
@@ -84,7 +84,7 @@ onMounted(() => {
 
 // Pseudo 1D barcode lines generator based on card number
 const barcodeBars = computed(() => {
-  const str = props.buyer.memberCardNo || 'MBR-CITRA-0000';
+  const str = props.buyer.memberCardNo || `${settingsStore.storeCode}-0000`;
   const bars: { width: number; space: number }[] = [];
   for (let i = 0; i < str.length; i++) {
     const code = str.charCodeAt(i);
@@ -95,6 +95,23 @@ const barcodeBars = computed(() => {
   }
   return bars;
 });
+
+function formatMemberSince(dateStr?: string): string {
+  if (!dateStr) return '';
+  try {
+    const cleanStr = dateStr.includes(' ') && !dateStr.includes('T') ? dateStr.replace(' ', 'T') : dateStr;
+    const d = new Date(cleanStr);
+    if (!isNaN(d.getTime())) {
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      return `${day}/${month}/${year}`;
+    }
+    return dateStr.slice(0, 10);
+  } catch {
+    return dateStr.slice(0, 10);
+  }
+}
 
 const tierClass = computed(() => {
   switch (props.buyer.tier) {
@@ -226,17 +243,13 @@ const tierClass = computed(() => {
             <svg class="w-5 h-5 text-white/50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M8.5 16.5a5 5 0 0 1 0-7M12 18a8 8 0 0 0 0-12M15.5 20a11 11 0 0 0 0-16" />
             </svg>
-
-            <span class="text-[9px] font-mono tracking-widest text-white/40 uppercase">
-              RFID / NFC CHIP
-            </span>
           </div>
 
           <!-- Bottom: Card Number, Name & Points -->
           <div class="relative z-10 pt-2 border-t border-white/15">
             <!-- Embossed Card Number -->
             <p class="font-mono text-base font-extrabold tracking-widest text-white drop-shadow-md">
-              {{ buyer.memberCardNo || 'MBR-CITRA-0000' }}
+              {{ buyer.memberCardNo || `${settingsStore.storeCode}-0000` }}
             </p>
 
             <div class="flex items-end justify-between mt-1 text-xs">
@@ -250,11 +263,11 @@ const tierClass = computed(() => {
               </div>
 
               <div class="text-right">
-                <span class="px-1.5 py-0.5 rounded bg-black/30 border border-white/10 font-mono text-[10px] font-bold text-amber-300">
-                  {{ buyer.points || 0 }} Pts
-                </span>
-                <p class="text-[8.5px] text-white/60 mt-0.5">
-                  {{ buyer.customerType === 'B2B' ? 'Grosir (B2B)' : 'Eceran (B2C)' }}
+                <p v-if="buyer.memberSince" class="text-[9px] text-white/70 font-mono">
+                  SEJAK: {{ formatMemberSince(buyer.memberSince) }}
+                </p>
+                <p v-else class="text-[9px] text-white/70 font-mono tracking-wider">
+                  VALID MEMBER
                 </p>
               </div>
             </div>
@@ -304,7 +317,7 @@ const tierClass = computed(() => {
                   ></span>
                 </div>
                 <span class="font-mono text-[8px] text-slate-900 tracking-widest font-black leading-none mt-0.5">
-                  {{ buyer.memberCardNo || 'MBR-CITRA-0000' }}
+                  {{ buyer.memberCardNo || `${settingsStore.storeCode}-0000` }}
                 </span>
               </div>
 

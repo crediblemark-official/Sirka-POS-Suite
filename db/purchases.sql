@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS purchase_receipts (
+    id VARCHAR(50) PRIMARY KEY,
+    receipt JSONB NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

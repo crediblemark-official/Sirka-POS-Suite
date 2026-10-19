@@ -2,7 +2,8 @@
 import { ref, computed } from 'vue';
 import { Transaction } from '../../types';
 import { useSettingsStore } from '../../stores/settingsStore';
-import { Printer, Copy, Check, X } from 'lucide-vue-next';
+import { dbService } from '../../services/dbService';
+import { Printer, Copy, Check, X, ScanLine } from 'lucide-vue-next';
 
 const props = defineProps<{
   transaction: Transaction | null;
@@ -16,6 +17,46 @@ import { formatRupiah } from '../../utils/formatters';
 
 const settingsStore = useSettingsStore();
 const copied = ref(false);
+const copiedThermal = ref(false);
+const thermalPreview = ref(false);
+
+// BUG-014 FIX: Struk thermal (teks 32 kolom) dibuat di Rust dan dikirim ke printer thermal
+// atau driver label; hasil dapat dilihat (preview), disalin, atau disimpan ke file lewat sistem.
+const thermalText = ref<string>('');
+
+async function handleThermalPrint() {
+  if (!props.transaction) return;
+  try {
+    thermalText.value = await dbService.generateReceiptText(
+      props.transaction as unknown as Record<string, unknown>,
+      settingsStore.storeName
+    );
+    thermalPreview.value = true;
+  } catch (error) {
+    alert(`Gagal membuat struk thermal: ${error}`);
+  }
+}
+
+async function copyThermalText() {
+  if (!navigator.clipboard || !thermalText.value) return;
+  try {
+    await navigator.clipboard.writeText(thermalText.value);
+    copiedThermal.value = true;
+    setTimeout(() => { copiedThermal.value = false; }, 2000);
+  } catch { /* clipboard tidak tersedia */ }
+}
+
+async function saveThermalText() {
+  if (!props.transaction) return;
+  const filename = `struk_${props.transaction.invoiceNo}.txt`;
+  const encoder = new TextEncoder();
+  try {
+    const msg = await dbService.saveExportFile(filename, Array.from(encoder.encode(thermalText.value)));
+    alert(msg);
+  } catch (error) {
+    alert(`Gagal menyimpan teks struk: ${error}`);
+  }
+}
 
 function isPreOrderTx(tx: Transaction): boolean {
   if (tx.isPreOrder) return true;
@@ -35,6 +76,9 @@ const waText = computed(() => {
   text += `Tanggal: ${tx.date}\n`;
   text += `${isB2C ? 'Pelanggan' : 'Pembeli'}: *${tx.buyer}*\n`;
   text += `Status: *${tx.paymentStatus}* (${tx.paymentMethod})\n`;
+  if (tx.picName) {
+    text += `PIC Penerima: *${tx.picName}*\n`;
+  }
   if (tx.notes) {
     text += `Catatan: *${tx.notes}*\n`;
   }
@@ -141,6 +185,10 @@ function handlePrint() {
                 {{ transaction.paymentStatus }} ({{ transaction.paymentMethod }})
               </span>
             </div>
+            <div v-if="transaction.customerType !== 'B2C' && transaction.picName">
+              <strong>PIC:</strong>
+              <span class="font-bold text-gray-800 ml-1">{{ transaction.picName }}</span>
+            </div>
           </div>
         </div>
 
@@ -201,6 +249,28 @@ function handlePrint() {
           <span class="text-gray-800">{{ transaction.notes }}</span>
         </div>
 
+        <!-- Tanda Terima Pengiriman (Faktur B2B) — GAP-3: PRD Aturan #4 -->
+        <div
+          v-if="transaction.customerType !== 'B2C'"
+          class="mt-4 pt-2.5 border-t-2 border-dashed border-gray-300"
+        >
+          <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1.5 text-center">
+            Tanda Terima Pengiriman
+          </span>
+          <div class="grid grid-cols-2 gap-6 text-center text-[10.5px] text-gray-600">
+            <div>
+              <div class="pt-6 pb-0.5 border-b border-gray-500">
+                {{ transaction.picName || '' }}
+              </div>
+              <span class="block mt-0.5 font-semibold">Penerima (PIC Dapur)</span>
+            </div>
+            <div>
+              <div class="pt-6 pb-0.5 border-b border-gray-500"></div>
+              <span class="block mt-0.5 font-semibold">Pengirim (Toko)</span>
+            </div>
+          </div>
+        </div>
+
         <!-- Receipt Footer Note -->
         <div class="mt-4 pt-3 border-t border-gray-200 text-center text-[10.5px] text-gray-500 space-y-0.5">
           <p class="font-semibold text-gray-700">
@@ -228,6 +298,14 @@ function handlePrint() {
 
         <div class="flex items-center gap-2">
           <button
+            class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded font-bold text-xs cursor-pointer shadow-xs transition-colors"
+            title="Buat struk teks 32 kolom untuk printer thermal 58mm (preview, salin, atau simpan .txt)"
+            @click="handleThermalPrint"
+          >
+            <ScanLine :size="14" />
+            <span>Struk Thermal</span>
+          </button>
+          <button
             class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded font-semibold text-xs cursor-pointer border border-gray-300"
             @click="emit('close')"
           >
@@ -242,6 +320,72 @@ function handlePrint() {
           </button>
         </div>
       </div>
+
+      <!-- Preview Struk Thermal (Teks 32 Kolom) — BUG-014 FIX -->
+      <div v-if="thermalPreview" class="border-t border-gray-300 bg-gray-900 px-4 py-3">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-[10px] font-bold text-gray-300 uppercase tracking-wider">
+            Struk Thermal (Teks 32 Kolom) — kirim ke printer 58mm / driver label
+          </span>
+          <button
+            class="text-gray-400 hover:text-white cursor-pointer p-0.5"
+            title="Tutup preview struk thermal"
+            @click="thermalPreview = false"
+          >
+            <X :size="13" />
+          </button>
+        </div>
+        <pre
+          class="bg-black text-emerald-400 font-mono text-[10.5px] leading-relaxed p-3 rounded overflow-x-auto max-h-48"
+        >{{ thermalText || '(teks struk belum dibuat)' }}</pre>
+        <div class="flex items-center gap-2 mt-2">
+          <button
+            class="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-[11px] cursor-pointer transition-colors"
+            @click="copyThermalText"
+          >
+            <Check v-if="copiedThermal" :size="12" />
+            <Copy v-else :size="12" />
+            <span>{{ copiedThermal ? 'Tersalin!' : 'Salin Teks' }}</span>
+          </button>
+          <button
+            class="px-2.5 py-1 bg-white hover:bg-gray-100 border border-gray-300 rounded font-semibold text-[11px] text-gray-700 cursor-pointer transition-colors"
+            @click="saveThermalText"
+          >
+            Simpan .txt
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
+
+<style>
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #printableReceipt,
+  #printableReceipt * {
+    visibility: visible;
+  }
+  #printableReceipt {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-width: 80mm;
+    margin: 0 auto;
+    padding: 8px !important;
+    background: white !important;
+    color: black !important;
+    border: none !important;
+    box-shadow: none !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  @page {
+    size: auto;
+    margin: 4mm;
+  }
+}
+</style>

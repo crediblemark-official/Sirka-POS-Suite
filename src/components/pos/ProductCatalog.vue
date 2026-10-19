@@ -7,8 +7,10 @@ import { formatRupiah } from '../../utils/formatters';
 import {
   Folder,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Barcode
 } from 'lucide-vue-next';
+import AppEmptyState from '../common/AppEmptyState.vue';
 
 const props = withDefaults(defineProps<{
   searchQuery?: string;
@@ -31,6 +33,49 @@ const selectedCategory = ref<SupplierCategory | 'Semua'>('Semua');
 const selectedProductId = ref<string | null>(null);
 const activeMultiplier = ref<number>(1);
 
+// BUG-016 FIX: Barcode scanner engine (USB HID memaku sesuai "ketikan cepat diikuti Enter")
+const scanBuffer = ref('');
+const scanning = ref(false);          // status "sedang scan" untuk UI feedback
+const scanFeedback = ref<'ok' | 'notfound' | null>(null);
+const lastCharAt = ref(0);
+const SCAN_GAP_MS = 80;               // gap antar karakter; lebih dari ini = manusia mengetik
+
+function handleScanBuffer(e: KeyboardEvent) {
+  const now = Date.now();
+  if (now - lastCharAt.value > SCAN_GAP_MS) {
+    scanBuffer.value = e.key;         // gap panjang → mulai buffer baru
+  } else {
+    scanBuffer.value += e.key;
+  }
+  lastCharAt.value = now;
+}
+
+function lookupByBarcode(buffer: string): Product | undefined {
+  const key = buffer.trim();
+  if (!key) return undefined;
+  const prods = inventoryStore.products;
+  return (
+    prods.find(p => (p.barcode || '').trim() === key) ||
+    prods.find(p => p.code.trim().toUpperCase() === key.toUpperCase())
+  );
+}
+
+function commitScanBuffer() {
+  const buffer = scanBuffer.value;
+  scanBuffer.value = '';
+  if (!buffer) return;
+  const prod = lookupByBarcode(buffer);
+  if (prod) {
+    posStore.addProductToCart(prod, 1);
+    selectedProductId.value = prod.id;
+    scanFeedback.value = 'ok';
+  } else {
+    scanFeedback.value = 'notfound';
+  }
+  scanning.value = false;
+  setTimeout(() => { scanFeedback.value = null; }, 1600);
+}
+
 // Category Scroll & Drag state
 const categoryScrollRef = ref<HTMLDivElement | null>(null);
 const isDraggingCategory = ref(false);
@@ -52,7 +97,8 @@ const filteredProducts = computed(() => {
       !q ||
       p.name.toLowerCase().includes(q) ||
       p.code.toLowerCase().includes(q) ||
-      p.unit.toLowerCase().includes(q);
+      p.unit.toLowerCase().includes(q) ||
+      (p.barcode || '').toLowerCase().includes(q);
     return matchCat && matchSearch;
   });
 });
@@ -112,10 +158,39 @@ function scrollCategory(direction: 'left' | 'right') {
 function handleKeyDown(e: KeyboardEvent) {
   if (!props.isActive) return;
   const activeEl = document.activeElement;
-  const isInputActive = activeEl instanceof HTMLInputElement || activeEl instanceof HTMLTextAreaElement;
-  if (isInputActive) return;
+  const isInputActive = activeEl instanceof HTMLInputElement || activeEl instanceof HTMLTextAreaElement || activeEl instanceof HTMLSelectElement;
+  if (isInputActive) {
+    return;
+  }
 
   const prods = filteredProducts.value;
+
+  // --- BUG-016 FIX: Pipeline scanner barcode ---
+  // 1) Karakter alfanumerik tunggal dari scanner ditaruh di buffer berkecepatan tinggi
+  if (e.key.length === 1 && !e.altKey && !e.ctrlKey && !e.metaKey) {
+    handleScanBuffer(e);
+    scanning.value = true;
+    // scanning menangkap '1' (mis. nama barcode) tanpa mengganggu shortcut Alt+N
+    return;
+  }
+
+  // 2) Enter di akhir sesi scanner (gap sangat kecil) = scan; selain itu = perilaku bawaan
+  if (e.key === 'Enter') {
+    const isScan = scanBuffer.value.length >= 6 && (Date.now() - lastCharAt.value) <= SCAN_GAP_MS;
+    scanBuffer.value = '';
+    scanning.value = false;
+    if (isScan) {
+      e.preventDefault();
+      commitScanBuffer();
+      return;
+    }
+    if (prods.length === 0) return;
+    // bawaan: tambah barang terpilih
+    e.preventDefault();
+    handleAddSelected();
+    return;
+  }
+
   if (prods.length === 0) return;
 
   const currentIndex = prods.findIndex(p => p.id === selectedProductId.value);
@@ -202,7 +277,8 @@ defineExpose({
         <button
           type="button"
           class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 select-none"
-          :class="selectedCategory === 'Semua' ? 'bg-blue-600 text-white font-bold shadow-xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+          :class="selectedCategory === 'Semua' ? 'text-white font-bold shadow-xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+          :style="selectedCategory === 'Semua' ? 'background-color: var(--brand-primary);' : ''"
           @click="selectCategory('Semua')"
         >
           Semua Barang ({{ inventoryStore.products.length }})
@@ -212,7 +288,8 @@ defineExpose({
           :key="cat"
           type="button"
           class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 flex items-center gap-1 select-none"
-          :class="selectedCategory === cat ? 'bg-blue-600 text-white font-bold shadow-xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+          :class="selectedCategory === cat ? 'text-white font-bold shadow-xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+          :style="selectedCategory === cat ? 'background-color: var(--brand-primary);' : ''"
           @click="selectCategory(cat)"
         >
           <span>{{ cat }}</span>
@@ -244,7 +321,8 @@ defineExpose({
               v-for="(m, i) in [1, 5, 10, 25, 50]"
               :key="m"
               class="px-2 py-0.5 rounded text-xs font-semibold cursor-pointer transition-colors flex items-center gap-0.5"
-              :class="activeMultiplier === m ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'"
+              :class="activeMultiplier === m ? 'text-white shadow-2xs' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'"
+              :style="activeMultiplier === m ? 'background-color: var(--brand-primary);' : ''"
               :title="`Pilih Qty ${m} (Alt+${i+1})`"
               @click="activeMultiplier = m"
             >
@@ -253,7 +331,7 @@ defineExpose({
           </div>
         </div>
 
-        <!-- Keyboard Nav Hints -->
+        <!-- Keyboard Nav Hints + Scan Barcode Status (BUG-016 FIX) -->
         <div class="hidden lg:flex items-center gap-1 text-[11px] text-gray-500 bg-gray-100 border border-gray-200 rounded px-2 py-0.5 font-mono">
           <span class="text-gray-400">Navigasi:</span>
           <kbd class="px-1 bg-white border border-gray-300 rounded text-[10px] font-bold">↑</kbd>
@@ -262,18 +340,34 @@ defineExpose({
           <kbd class="px-1 bg-white border border-gray-300 rounded text-[10px] font-bold">→</kbd>
           <span class="text-gray-400 ml-1">Pilih | Masukkan:</span>
           <kbd class="px-1.5 bg-blue-50 text-blue-700 border border-blue-300 rounded text-[10px] font-bold">Enter ↵</kbd>
+          <span
+            class="ml-1.5 flex items-center gap-1 text-[10px]"
+            :class="scanning ? 'text-blue-700 font-bold' : 'text-gray-400'"
+          >
+            💠 Scanner: {{ scanning ? 'menerima…' : 'siap' }} — scan langsung masuk keranjang
+          </span>
         </div>
       </div>
 
       <div class="flex items-center gap-2">
+        <span
+          v-if="scanFeedback"
+          class="px-2 py-0.5 rounded text-[10.5px] font-bold border animate-in fade-in duration-150"
+          :class="scanFeedback === 'ok'
+            ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+            : 'bg-rose-100 text-rose-800 border-rose-300'"
+        >
+          {{ scanFeedback === 'ok' ? '✓ Barcode masuk keranjang' : '✗ Barcode tidak terdaftar' }}
+        </span>
         <button
-          class="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-3 py-1 rounded text-xs font-bold cursor-pointer disabled:opacity-40 flex items-center gap-1.5 shadow-2xs transition-colors"
+          class="text-white px-3 py-1 rounded text-xs font-bold cursor-pointer disabled:opacity-40 flex items-center gap-1.5 shadow-2xs transition-colors hover:brightness-110 active:brightness-95"
+          style="background-color: var(--brand-primary);"
           :disabled="!selectedProductId"
           title="Masukkan barang terpilih ke keranjang (Enter)"
           @click="handleAddSelected"
         >
           <span>+ Tambah (+{{ activeMultiplier }})</span>
-          <kbd class="px-1 bg-blue-700 text-blue-100 rounded text-[9.5px] font-mono font-normal">Enter</kbd>
+          <kbd class="px-1 bg-black/20 text-white rounded text-[9.5px] font-mono font-normal">Enter</kbd>
         </button>
       </div>
     </div>
@@ -281,10 +375,12 @@ defineExpose({
     <!-- Folder & File Tiles Grid -->
     <div class="flex-1 overflow-y-auto">
       <!-- Empty state -->
-      <div v-if="filteredProducts.length === 0" class="h-64 flex flex-col items-center justify-center text-gray-400 gap-2">
-        <Folder :size="48" class="text-gray-300" />
-        <p>Tidak ada barang yang cocok dalam folder ini.</p>
-      </div>
+      <AppEmptyState
+        v-if="filteredProducts.length === 0"
+        :icon="Folder"
+        title="Tidak ada barang yang cocok dalam folder ini"
+        description="Coba pilih kategori lain atau periksa kata kunci pencarian Anda"
+      />
 
       <!-- Icon Grid View -->
       <div
@@ -356,6 +452,13 @@ defineExpose({
               <td class="p-2 font-medium flex items-center gap-1.5">
                 <Folder :size="14" class="text-amber-500 shrink-0" />
                 <span>{{ prod.name }}</span>
+                <span
+                  v-if="prod.barcode"
+                  class="p-0.5 bg-gray-100 text-gray-500 border border-gray-200 rounded shrink-0"
+                  :title="`Scan kasir tersedia • Barcode: ${prod.barcode} (scan langsung masuk keranjang)`"
+                >
+                  <Barcode :size="12" class="text-amber-600" />
+                </span>
               </td>
               <td class="p-2 text-gray-500">{{ prod.category }}</td>
               <td class="p-2 text-center">{{ prod.unit }}</td>

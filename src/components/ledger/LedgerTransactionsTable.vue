@@ -1,0 +1,183 @@
+<script setup lang="ts">
+import {
+  Printer,
+  Trash2,
+  ChevronDown,
+  ChevronUp,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  FileText
+} from 'lucide-vue-next';
+import { Transaction } from '../../types';
+import { formatRupiah } from '../../utils/formatters';
+
+const props = defineProps<{
+  transactions: Transaction[];
+  expandedTxIds: Set<string>;
+  isAllExpanded: boolean;
+}>();
+
+const emit = defineEmits<{
+  (e: 'toggle-expand', txId: string): void;
+  (e: 'toggle-expand-all'): void;
+  (e: 'open-status-confirm', tx: Transaction): void;
+  (e: 'view-receipt', tx: Transaction): void;
+  (e: 'delete-transaction', id: string): void;
+}>();
+</script>
+
+<template>
+  <table class="table-explorer min-w-[1050px]">
+    <thead>
+      <tr>
+        <th class="w-12 text-center">
+          <button
+            type="button"
+            class="p-1 hover:bg-black/10 rounded cursor-pointer transition-colors"
+            :title="isAllExpanded ? 'Tutup semua rincian nota' : 'Buka semua rincian nota'"
+            @click="emit('toggle-expand-all')"
+          >
+            <ChevronsDownUp v-if="isAllExpanded" :size="14" class="text-indigo-800" />
+            <ChevronsUpDown v-else :size="14" class="text-gray-600" />
+          </button>
+        </th>
+        <th class="w-48">NO. NOTA</th>
+        <th class="w-24 text-center">TANGGAL</th>
+        <th class="w-16 text-center">JENIS</th>
+        <th class="w-40">PELANGGAN</th>
+        <th class="w-24 text-center">TOTAL ITEM</th>
+        <th class="w-32 text-right">MODAL (HPP)</th>
+        <th class="w-32 text-right">TOTAL NOTA</th>
+        <th class="w-32 text-right">UNTUNG BERSIH</th>
+        <th class="w-28 text-center">STATUS BAYAR</th>
+        <!-- Sticky Action Header -->
+        <th class="th-action-sticky w-20">AKSI</th>
+      </tr>
+    </thead>
+    <tbody>
+      <template v-for="tx in transactions" :key="tx.id">
+        <tr
+          class="cursor-pointer"
+          :class="{ 'bg-[#fefcf8]': expandedTxIds.has(tx.id) }"
+          @click="emit('toggle-expand', tx.id)"
+        >
+          <td class="text-center text-gray-400">
+            <ChevronUp v-if="expandedTxIds.has(tx.id)" :size="14" class="inline text-indigo-700" />
+            <ChevronDown v-else :size="14" class="inline" />
+          </td>
+          <td class="font-mono font-bold text-blue-700 whitespace-nowrap" :title="tx.invoiceNo">{{ tx.invoiceNo }}</td>
+          <td class="font-mono text-gray-500 text-center whitespace-nowrap">{{ tx.date }}</td>
+          <td class="text-center whitespace-nowrap">
+            <span
+              class="px-1.5 py-0.5 rounded text-[10px] font-bold"
+              :class="tx.customerType === 'B2C' ? 'bg-teal-100 text-teal-800' : 'bg-indigo-100 text-indigo-800'"
+            >
+              {{ tx.customerType || 'B2B' }}
+            </span>
+          </td>
+          <td class="whitespace-nowrap" :title="tx.buyer">
+            <span class="px-2 py-0.5 bg-gray-100 rounded font-semibold text-gray-800 text-[11px] inline-block truncate max-w-[170px]">
+              {{ tx.buyer }}
+            </span>
+          </td>
+          <td class="text-center font-mono font-semibold text-gray-700 whitespace-nowrap" :title="`${tx.items.length} item barang terjual (Klik baris untuk rincian)`">
+            {{ tx.items.length }} Item
+          </td>
+          <td class="text-right font-mono text-gray-600 whitespace-nowrap">Rp {{ formatRupiah(tx.totalBuy) }}</td>
+          <td class="text-right font-mono font-bold text-blue-700 whitespace-nowrap">Rp {{ formatRupiah(tx.finalTotal ?? tx.totalSell) }}</td>
+          <td class="text-right font-mono font-bold text-emerald-700 whitespace-nowrap">Rp {{ formatRupiah(tx.totalProfit) }}</td>
+          <td class="text-center whitespace-nowrap" @click.stop>
+            <button
+              type="button"
+              class="px-2.5 py-0.5 rounded text-[10.5px] font-bold cursor-pointer transition-all"
+              :class="tx.paymentStatus === 'LUNAS' ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-amber-100 text-amber-800 hover:bg-amber-200'"
+              title="Klik untuk mengubah Lunas / Tempo"
+              @click="emit('open-status-confirm', tx)"
+            >
+              {{ tx.paymentStatus }}
+            </button>
+          </td>
+          <!-- Sticky Action Cell (Right Anchor) -->
+          <td class="td-action-sticky whitespace-nowrap" @click.stop>
+            <div class="flex items-center justify-center gap-1">
+              <button
+                type="button"
+                class="p-1 text-gray-500 hover:text-blue-700 hover:bg-blue-50 rounded cursor-pointer transition-colors"
+                title="Cetak Ulang Nota"
+                @click="emit('view-receipt', tx)"
+              >
+                <Printer :size="13" />
+              </button>
+              <button
+                type="button"
+                class="p-1 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer transition-colors"
+                title="Hapus Transaksi"
+                @click="emit('delete-transaction', tx.id)"
+              >
+                <Trash2 :size="13" />
+              </button>
+            </div>
+          </td>
+        </tr>
+
+        <!-- EXPANDED DETAIL SUBTABLE -->
+        <tr v-if="expandedTxIds.has(tx.id)" class="subtable-row border-b border-indigo-200">
+          <td colspan="11" class="p-0!">
+            <div class="bg-white overflow-hidden border-y border-indigo-200/80">
+              <div class="px-4 py-2 bg-[#f6f4ee] border-b border-indigo-200/80 font-bold text-gray-700 flex items-center justify-between text-[11px] whitespace-nowrap">
+                <div class="flex items-center gap-2">
+                  <FileText :size="13" class="text-indigo-800" />
+                  <span>Rincian Transaksi Faktur: <span class="font-mono text-blue-700">{{ tx.invoiceNo }}</span></span>
+                  <span class="text-gray-300">|</span>
+                  <span class="text-gray-600 font-normal">Pelanggan: <strong class="text-gray-800">{{ tx.buyer }}</strong> ({{ tx.customerType || 'B2B' }})</span>
+                  <span class="text-gray-300">|</span>
+                  <span class="text-gray-500 font-mono font-normal">Tgl: {{ tx.date }}</span>
+                </div>
+                <div class="flex items-center gap-3">
+                  <span class="text-gray-600 font-normal">Total: <strong>{{ tx.items.length }} barang</strong></span>
+                  <span class="text-gray-300">|</span>
+                  <span class="font-mono text-gray-600 font-normal">Modal: Rp {{ formatRupiah(tx.totalBuy) }}</span>
+                  <span class="text-gray-300">|</span>
+                  <span class="font-mono font-bold text-blue-700">Total Nota: Rp {{ formatRupiah(tx.finalTotal ?? tx.totalSell) }}</span>
+                  <span class="text-gray-300">|</span>
+                  <span class="font-mono font-bold text-emerald-700">Untung: Rp {{ formatRupiah(tx.totalProfit) }}</span>
+                </div>
+              </div>
+
+              <table class="w-full text-xs text-left border-collapse">
+                <thead class="bg-gray-50 border-b border-gray-200 text-gray-500 font-semibold text-[10.5px]">
+                  <tr class="h-7">
+                    <th class="px-4 py-1.5 text-center w-10">NO</th>
+                    <th class="px-3 py-1.5">NAMA BARANG</th>
+                    <th class="px-3 py-1.5 text-center w-20">QTY</th>
+                    <th class="px-3 py-1.5 text-center w-20">SATUAN</th>
+                    <th class="px-3 py-1.5 text-right w-28 whitespace-nowrap">MODAL (HPP)</th>
+                    <th class="px-3 py-1.5 text-right w-32 whitespace-nowrap">HARGA JUAL</th>
+                    <th class="px-3 py-1.5 text-right w-32 whitespace-nowrap">SUBTOTAL</th>
+                    <th class="px-4 py-1.5 text-right w-32 whitespace-nowrap pr-4">LABA ITEM</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                  <tr
+                    v-for="(it, iIdx) in tx.items"
+                    :key="it.id"
+                    class="hover:bg-indigo-50/30 transition-colors"
+                  >
+                    <td class="px-4 py-1.5 text-center text-gray-400 font-mono">{{ iIdx + 1 }}</td>
+                    <td class="px-3 py-1.5 font-semibold text-gray-800" :title="it.name">{{ it.name }}</td>
+                    <td class="px-3 py-1.5 text-center font-mono font-bold text-gray-900">{{ it.qty }}</td>
+                    <td class="px-3 py-1.5 text-center text-gray-500 font-mono">{{ it.unit }}</td>
+                    <td class="px-3 py-1.5 text-right font-mono text-gray-600 whitespace-nowrap">Rp {{ formatRupiah(it.buyPrice) }}</td>
+                    <td class="px-3 py-1.5 text-right font-mono text-blue-700 whitespace-nowrap">Rp {{ formatRupiah(it.sellPrice) }}</td>
+                    <td class="px-3 py-1.5 text-right font-mono font-bold text-gray-900 whitespace-nowrap">Rp {{ formatRupiah(it.subtotalSell) }}</td>
+                    <td class="px-4 py-1.5 text-right font-mono font-bold text-emerald-700 whitespace-nowrap pr-4">Rp {{ formatRupiah(it.profit) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </td>
+        </tr>
+      </template>
+    </tbody>
+  </table>
+</template>

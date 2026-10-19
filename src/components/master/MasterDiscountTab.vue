@@ -4,6 +4,7 @@ import { Discount } from '../../types';
 import { useDiscountStore } from '../../stores/discountStore';
 import { formatRupiah } from '../../utils/formatters';
 import MetricStatsStrip, { MetricStatItem } from '../common/MetricStatsStrip.vue';
+import AppEmptyState from '../common/AppEmptyState.vue';
 import DiscountSimulator from './discount/DiscountSimulator.vue';
 import DiscountFormDrawer from './discount/DiscountFormDrawer.vue';
 import {
@@ -40,7 +41,6 @@ const discountStore = useDiscountStore();
 // Filter & Search states
 type FilterCategory = 'ALL' | 'ACTIVE' | 'INACTIVE' | 'PERCENT' | 'FIXED' | 'MEMBER' | 'B2B' | 'B2C';
 const activeFilter = ref<FilterCategory>('ALL');
-const localSearchQuery = ref('');
 
 // Selection & Form Sidebar states
 const selectedDiscountId = ref<string>('');
@@ -57,7 +57,7 @@ const totalUsageCount = computed(() => discountStore.discounts.reduce((acc, d) =
 const filteredDiscounts = computed(() => {
   return discountStore.discounts.filter(d => {
     // 1. Search Query
-    const q = (props.searchQuery || localSearchQuery.value).toLowerCase().trim();
+    const q = props.searchQuery.toLowerCase().trim();
     const matchesSearch =
       !q ||
       d.code.toLowerCase().includes(q) ||
@@ -263,12 +263,19 @@ function handleKeyDown(e: KeyboardEvent) {
 
 <template>
   <div class="flex flex-col h-full bg-[#f8f7f5] text-[#2e2b28] select-none text-xs overflow-hidden">
-    <!-- 1. Top Category / Filter Ribbon -->
-    <div class="relative flex items-center bg-[#f6f5f2] border-b border-gray-200 px-3 py-1.5 select-none shrink-0 gap-1.5 overflow-x-auto no-scrollbar">
-      <span class="text-gray-500 font-bold text-[11px] uppercase tracking-wider shrink-0 flex items-center gap-1 mr-1">
-        <Tag :size="13" class="text-rose-600" />
-        <span>Kategori Diskon:</span>
-      </span>
+    <!-- Main Workspace: Split Layar (Kiri: Tabel Data & Ribbon, Kanan: Drawer Form Input & Edit) -->
+    <div class="flex-1 flex overflow-hidden">
+      <!-- Sisi Kiri: Ribbon + MetricStatsStrip + Tabel Data Promo Edge-to-Edge -->
+      <div class="flex-1 flex flex-col overflow-hidden bg-white">
+        <!-- 1. Top Category / Filter Ribbon -->
+        <div
+          v-horizontal-scroll
+          class="h-10 relative flex items-center bg-[#f6f5f2] border-b border-gray-200 px-3 select-none shrink-0 gap-1.5 overflow-x-auto no-scrollbar"
+        >
+          <span class="text-gray-500 font-bold text-[11px] uppercase tracking-wider shrink-0 flex items-center gap-1 mr-1">
+            <Tag :size="13" class="text-rose-600" />
+            <span>Kategori Diskon:</span>
+          </span>
 
       <!-- Filter Buttons -->
       <button
@@ -373,18 +380,16 @@ function handleKeyDown(e: KeyboardEvent) {
         </span>
       </button>
 
-      <span v-if="props.searchQuery" class="text-[11px] text-rose-700 font-medium bg-rose-50 px-2 py-0.5 rounded border border-rose-200 ml-auto shrink-0">
-        Cari: "{{ props.searchQuery }}"
-      </span>
+      <div v-if="props.searchQuery" class="flex items-center gap-2 ml-auto shrink-0">
+        <span class="text-[11px] text-gray-600 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 font-medium">
+          Cari: "<span class="font-bold text-gray-800">{{ props.searchQuery }}</span>"
+        </span>
+      </div>
     </div>
 
-    <!-- 2. DRY Metric Stats Strip -->
+    <!-- Reusable MetricStatsStrip (DRY) di sisi kiri -->
     <MetricStatsStrip :items="discountMetrics" />
 
-    <!-- 3. Main Workspace: Split Layar (Kiri: Tabel Data, Kanan: Drawer Form Input & Edit) -->
-    <div class="flex-1 flex overflow-hidden">
-      <!-- Sisi Kiri: Tabel Data Promo Edge-to-Edge -->
-      <div class="flex-1 flex flex-col overflow-hidden bg-white">
         <div
           class="flex-1 outline-none"
           :class="discountStore.showFormSidebar ? 'overflow-auto' : 'overflow-y-auto overflow-x-hidden'"
@@ -392,33 +397,33 @@ function handleKeyDown(e: KeyboardEvent) {
           @keydown="handleKeyDown"
         >
           <!-- Empty State -->
-          <div
+          <AppEmptyState
             v-if="filteredDiscounts.length === 0"
-            class="h-64 flex flex-col items-center justify-center text-gray-400 gap-2 select-none"
+            :icon="Tag"
+            title="Tidak ada kupon promo yang cocok"
+            description="Coba ubah kategori filter atau periksa kata kunci pencarian Anda."
           >
-            <Tag :size="48" class="text-gray-300" />
-            <p class="font-medium">Tidak ada kupon promo yang cocok dengan kriteria pencarian.</p>
             <button
               type="button"
               class="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs font-semibold cursor-pointer border border-gray-300 transition-colors"
-              @click="activeFilter = 'ALL'; localSearchQuery = '';"
+              @click="activeFilter = 'ALL'"
             >
               Reset Filter & Pencarian
             </button>
-          </div>
+          </AppEmptyState>
 
           <!-- Tabel Diskon Rapi Sejajar Edge-to-Edge -->
-          <table v-else class="w-full table-fixed text-xs text-left border-collapse" :class="discountStore.showFormSidebar ? 'min-w-[720px]' : ''">
-            <thead class="bg-[#f0ede8] border-b border-gray-200 text-gray-600 font-semibold sticky top-0 z-10 shadow-2xs">
-              <tr class="h-9">
-                <th class="px-2.5 h-9 align-middle w-10 text-center">NO</th>
-                <th class="px-2.5 h-9 align-middle w-32">KODE DISKON</th>
-                <th class="px-2.5 h-9 align-middle">NAMA DISKON & KETERANGAN</th>
-                <th class="px-2.5 h-9 align-middle w-36 text-center">BESAR POTONGAN</th>
-                <th class="px-2.5 h-9 align-middle w-28 text-right">MIN. BELANJA</th>
-                <th class="px-2.5 h-9 align-middle w-32 text-center">BERLAKU UNTUK</th>
-                <th class="px-2.5 h-9 align-middle w-20 text-center">STATUS</th>
-                <th class="px-2.5 h-9 align-middle w-20 text-center">
+          <table v-else class="table-explorer" :class="discountStore.showFormSidebar ? 'min-w-[720px]' : ''">
+            <thead>
+              <tr>
+                <th class="w-10 text-center">NO</th>
+                <th class="w-32">KODE DISKON</th>
+                <th>NAMA DISKON & KETERANGAN</th>
+                <th class="w-36 text-center">BESAR POTONGAN</th>
+                <th class="w-28 text-right">MIN. BELANJA</th>
+                <th class="w-32 text-center">BERLAKU UNTUK</th>
+                <th class="w-20 text-center">STATUS</th>
+                <th class="th-action-sticky w-20 text-center">
                   <button
                     type="button"
                     class="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-700 hover:text-rose-800 transition-colors cursor-pointer select-none"
@@ -441,11 +446,11 @@ function handleKeyDown(e: KeyboardEvent) {
                   @dblclick="handleOpenEdit(d)"
                 >
                   <!-- Nomor Urut -->
-                  <td class="p-2.5 text-center font-mono text-gray-400">{{ idx + 1 }}</td>
+                  <td class="text-center font-mono text-gray-400">{{ idx + 1 }}</td>
 
                   <!-- Kode Promo dengan Tombol Salin Cepat -->
-                  <td class="p-2.5 font-mono truncate" :title="d.code">
-                    <div class="inline-flex items-center gap-1.5 bg-rose-50/80 text-rose-700 px-2 py-0.5 rounded border border-rose-200 truncate">
+                  <td class="font-mono truncate whitespace-nowrap" :title="d.code">
+                    <div class="inline-flex items-center gap-1.5 text-rose-700 truncate">
                       <span class="font-bold tracking-wide truncate">{{ d.code }}</span>
                       <button
                         type="button"
@@ -460,7 +465,7 @@ function handleKeyDown(e: KeyboardEvent) {
                   </td>
 
                   <!-- Nama Promo & Keterangan -->
-                  <td class="p-2.5 truncate" :title="d.name + (d.description ? ' - ' + d.description : '')">
+                  <td class="truncate" :title="d.name + (d.description ? ' - ' + d.description : '')">
                     <div class="flex items-center gap-1.5 truncate">
                       <Tag :size="13" class="text-rose-500 shrink-0" />
                       <span class="font-bold text-gray-900 truncate">{{ d.name }}</span>
@@ -469,71 +474,71 @@ function handleKeyDown(e: KeyboardEvent) {
                   </td>
 
                   <!-- Nilai Diskon Badge -->
-                  <td class="p-2.5 text-center truncate">
+                  <td class="text-center truncate whitespace-nowrap">
                     <span
                       v-if="d.type === 'PERCENT'"
-                      class="inline-flex items-center gap-1 px-2 py-0.5 rounded font-black font-mono text-xs bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs"
+                      class="inline-flex items-center gap-1 font-bold font-mono text-xs text-amber-700"
                     >
                       <Percent :size="11" />
                       <span>{{ d.value }}% OFF</span>
                     </span>
                     <span
                       v-else
-                      class="inline-flex items-center gap-1 px-2 py-0.5 rounded font-black font-mono text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs"
+                      class="inline-flex items-center gap-1 font-bold font-mono text-xs text-emerald-700"
                     >
                       <span>-Rp {{ formatRupiah(d.value) }}</span>
                     </span>
 
-                    <span v-if="d.maxDiscount" class="text-[10px] text-gray-500 font-mono ml-1.5 truncate">
+                    <span v-if="d.maxDiscount" class="text-[10px] text-gray-400 font-mono ml-1.5 truncate">
                       (Maks Rp {{ formatRupiah(d.maxDiscount) }})
                     </span>
                   </td>
 
                   <!-- Minimal Belanja -->
-                  <td class="p-2.5 text-right font-mono truncate">
-                    <span v-if="d.minPurchase > 0" class="text-gray-800 font-semibold">
+                  <td class="text-right font-mono truncate whitespace-nowrap">
+                    <span v-if="d.minPurchase > 0" class="text-gray-800 font-semibold text-xs">
                       Rp {{ formatRupiah(d.minPurchase) }}
                     </span>
                     <span v-else class="text-gray-400 italic text-[11px]">Tanpa Minimal</span>
                   </td>
 
                   <!-- Target / Syarat Berlaku -->
-                  <td class="p-2.5 text-center truncate">
+                  <td class="text-center truncate whitespace-nowrap">
                     <span
                       v-if="d.scope === 'ALL'"
-                      class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-gray-100 text-gray-700 font-semibold border border-gray-200"
+                      class="inline-flex items-center gap-1 text-[11px] text-gray-600 font-medium"
                     >
                       Semua Pelanggan
                     </span>
                     <span
                       v-else-if="d.scope === 'MEMBER_ONLY'"
-                      class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-amber-50 text-amber-800 border border-amber-200 font-bold"
+                      class="inline-flex items-center gap-1 text-[11px] text-amber-700 font-bold"
                     >
-                      <Users :size="11" />
+                      <Users :size="12" />
                       <span>Khusus Member</span>
                     </span>
                     <span
                       v-else-if="d.scope === 'CUSTOMER_TYPE'"
-                      class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold border"
-                      :class="d.targetCustomerType === 'B2B' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-teal-50 text-teal-700 border-teal-200'"
+                      class="inline-flex items-center gap-1 text-[11px] font-bold"
+                      :class="d.targetCustomerType === 'B2B' ? 'text-indigo-600' : 'text-teal-600'"
                     >
-                      <Building v-if="d.targetCustomerType === 'B2B'" :size="11" />
-                      <UserCheck v-else :size="11" />
+                      <Building v-if="d.targetCustomerType === 'B2B'" :size="12" />
+                      <UserCheck v-else :size="12" />
                       <span>{{ d.targetCustomerType === 'B2B' ? 'Langganan Grosir' : 'Pelanggan Eceran' }}</span>
                     </span>
                     <span
                       v-else-if="d.scope === 'CATEGORY'"
-                      class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-purple-50 text-purple-700 font-semibold border border-purple-200"
+                      class="inline-flex items-center gap-1 text-[11px] text-purple-700 font-semibold"
                     >
                       <span>Kategori: {{ d.targetCategory }}</span>
                     </span>
                   </td>
 
                   <!-- Status Aktif / Nonaktif -->
-                  <td class="p-2.5 text-center whitespace-nowrap">
+                  <td class="text-center whitespace-nowrap">
                     <button
                       type="button"
-                      class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold cursor-pointer transition-colors shadow-2xs"
+                      class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold cursor-pointer transition-colors"
                       :class="d.isActive ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'"
                       :title="d.isActive ? 'Klik untuk nonaktifkan' : 'Klik untuk aktifkan'"
                       @click.stop="discountStore.toggleDiscount(d.id)"
@@ -544,7 +549,7 @@ function handleKeyDown(e: KeyboardEvent) {
                   </td>
 
                   <!-- Tombol Expand Rincian -->
-                  <td class="p-2.5 text-center whitespace-nowrap" @click.stop>
+                  <td class="td-action-sticky text-center whitespace-nowrap" @click.stop>
                     <button
                       type="button"
                       class="flex items-center justify-center gap-1 px-2.5 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-colors mx-auto whitespace-nowrap"

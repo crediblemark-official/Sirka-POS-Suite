@@ -44,10 +44,41 @@ const emit = defineEmits<{
 const containerRef = ref<HTMLDivElement | null>(null);
 const searchInputRef = ref<HTMLInputElement | null>(null);
 const optionsListRef = ref<HTMLDivElement | null>(null);
+const popoverRef = ref<HTMLDivElement | null>(null);
 
 const isOpen = ref(false);
 const searchQuery = ref('');
 const highlightedIndex = ref(0);
+
+const dropdownPosition = ref({
+  top: '0px',
+  left: '0px',
+  width: '0px'
+});
+
+function updateDropdownPosition() {
+  if (!containerRef.value) return;
+  const rect = containerRef.value.getBoundingClientRect();
+  const spaceBelow = window.innerHeight - rect.bottom;
+  const dropdownHeight = 230;
+
+  let top = rect.bottom + 4;
+  if (spaceBelow < dropdownHeight && rect.top > dropdownHeight) {
+    top = Math.max(8, rect.top - dropdownHeight - 4);
+  }
+
+  dropdownPosition.value = {
+    top: `${Math.round(top)}px`,
+    left: `${Math.round(rect.left)}px`,
+    width: `${Math.max(Math.round(rect.width), 200)}px`
+  };
+}
+
+function handleScrollOrResize() {
+  if (isOpen.value) {
+    updateDropdownPosition();
+  }
+}
 
 const selectedOption = computed(() =>
   props.options.find(opt => opt.value === props.modelValue)
@@ -91,6 +122,7 @@ function handleInputChange(e: Event) {
 
 function openDropdown() {
   if (props.disabled) return;
+  updateDropdownPosition();
   isOpen.value = true;
   searchQuery.value = '';
   // Set initial highlighted index to current selected item
@@ -98,6 +130,7 @@ function openDropdown() {
   highlightedIndex.value = idx >= 0 ? idx : 0;
 
   nextTick(() => {
+    updateDropdownPosition();
     searchInputRef.value?.focus();
     scrollToHighlighted();
   });
@@ -193,7 +226,10 @@ function handleKeydown(e: KeyboardEvent) {
 }
 
 function handleClickOutside(e: MouseEvent) {
-  if (containerRef.value && !containerRef.value.contains(e.target as Node)) {
+  const target = e.target as Node;
+  const inContainer = containerRef.value && containerRef.value.contains(target);
+  const inPopover = popoverRef.value && popoverRef.value.contains(target);
+  if (!inContainer && !inPopover) {
     closeDropdown();
   }
 }
@@ -206,11 +242,15 @@ watch(searchQuery, () => {
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown);
   document.addEventListener('mousedown', handleClickOutside);
+  window.addEventListener('resize', handleScrollOrResize);
+  window.addEventListener('scroll', handleScrollOrResize, true);
 });
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown);
   document.removeEventListener('mousedown', handleClickOutside);
+  window.removeEventListener('resize', handleScrollOrResize);
+  window.removeEventListener('scroll', handleScrollOrResize, true);
 });
 
 defineExpose({
@@ -226,8 +266,9 @@ defineExpose({
     <div
       role="combobox"
       :aria-expanded="isOpen"
-      class="w-full h-8 flex items-center justify-between gap-1.5 bg-white border border-[#dedbd6] rounded px-2.5 transition-all shadow-2xs"
+      class="w-full flex items-center justify-between gap-1.5 bg-white border border-[#dedbd6] rounded transition-all shadow-2xs"
       :class="[
+        size === 'sm' ? 'h-7 text-xs px-2' : 'h-8 text-xs px-2.5',
         disabled ? 'opacity-50 cursor-not-allowed bg-gray-50' : 'cursor-text hover:border-blue-400',
         isOpen ? 'border-blue-500 ring-1 ring-blue-500 bg-white' : ''
       ]"
@@ -286,19 +327,28 @@ defineExpose({
       </div>
     </div>
 
-    <!-- Dropdown Menu / Popover (Options list only) -->
-    <transition
-      enter-active-class="transition duration-100 ease-out"
-      enter-from-class="transform scale-95 opacity-0"
-      enter-to-class="transform scale-100 opacity-100"
-      leave-active-class="transition duration-75 ease-in"
-      leave-from-class="transform scale-100 opacity-100"
-      leave-to-class="transform scale-95 opacity-0"
-    >
-      <div
-        v-if="isOpen"
-        class="absolute z-50 left-0 right-0 mt-1 bg-white rounded-md border border-[#dedbd6] shadow-xl overflow-hidden flex flex-col max-h-56"
+    <!-- Dropdown Menu / Popover (Teleported to body to avoid overflow clipping) -->
+    <Teleport to="body">
+      <transition
+        enter-active-class="transition duration-100 ease-out"
+        enter-from-class="transform scale-95 opacity-0"
+        enter-to-class="transform scale-100 opacity-100"
+        leave-active-class="transition duration-75 ease-in"
+        leave-from-class="transform scale-100 opacity-100"
+        leave-to-class="transform scale-95 opacity-0"
       >
+        <div
+          v-if="isOpen"
+          ref="popoverRef"
+          :style="{
+            position: 'fixed',
+            top: dropdownPosition.top,
+            left: dropdownPosition.left,
+            width: dropdownPosition.width,
+            zIndex: 99999
+          }"
+          class="bg-white rounded-md border border-[#dedbd6] shadow-xl overflow-hidden flex flex-col max-h-56 text-xs select-none"
+        >
 
         <!-- Options List -->
         <div
@@ -389,15 +439,8 @@ defineExpose({
             </button>
           </div>
         </div>
-
-        <!-- Dropdown Footer Hint -->
-        <div class="px-2 py-1 bg-gray-50 border-t border-gray-100 flex items-center justify-between text-[10px] text-gray-400 font-mono">
-          <span v-if="filteredOptions.length > 0">Gunakan <kbd class="px-1 bg-white border border-gray-200 rounded">↑</kbd> <kbd class="px-1 bg-white border border-gray-200 rounded">↓</kbd> navigasi</span>
-          <span v-else-if="allowCreate && searchQuery.trim()" class="text-blue-600 font-semibold">Tekan <kbd class="px-1 bg-white border border-blue-300 rounded text-blue-700">Enter</kbd> untuk Tambah</span>
-          <span v-else>Tidak ada data</span>
-          <span><kbd class="px-1 bg-white border border-gray-200 rounded">Enter</kbd> pilih</span>
-        </div>
       </div>
     </transition>
-  </div>
+  </Teleport>
+</div>
 </template>

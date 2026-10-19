@@ -1,6 +1,6 @@
 # Product Requirements Document (PRD) Final v2.1: Sistem Kasir (POS) & Distribusi Hibrida (B2B Grosir & B2C Eceran)
 
-**Status Dokumen:** Final v2.1 (Revisi Model Bisnis: Hibrida B2B Grosir / Suplai Institusi & B2C Eceran / Walk-in Retail, dengan Aturan Markup Dinamis, Dual Pricing, Input Harga Saat Nota Supplier Datang, Nota Per Transaksi, & Pembayaran Dinamis)
+**Status Dokumen:** Final v2.2 (Revisi Model Bisnis: Hibrida B2B Grosir / Suplai Institusi & B2C Eceran / Walk-in Retail, dengan Aturan Markup Dinamis, Dual Pricing, Input Harga Saat Nota Supplier Datang, Nota Per Transaksi, & Pembayaran Dinamis — ditambah Audit Gap Implementasi, lihat Section 7)
 
 **Dokumen Referensi Sumber Data Klien:**
 
@@ -137,3 +137,105 @@ Agar aplikasi terasa **compact, cepat, dan tidak ribet (minim form input)** laya
 3. **Skenario C — Penjualan Grosir ke Reseller / Katering Mitra:**
    * Katering mitra memesan 10 Jeriken Sunlight 5L dan 50 pack Sarung Tangan.
    * Admin memilih mode **`🏢 B2B (Grosir)`**, memilih nama Buyer mitra, memberikan markup grosir (misal `+12%`), dan menerbitkan nota faktur transaksi.
+
+---
+
+## 7. Catatan Audit Implementasi (Gap Analysis vs Kode Aktual)
+
+**Status:** Ditambahkan pada v2.2 — hasil audit fitur (tanggal audit: 19 Oktober 2026) membandingkan requirement dokumen ini dengan implementasi aktual (Tauri 2 + Vue 3 + Pinia + Rust/PostgreSQL). Semua referensi file:line mengikuti struktur repo Kasir-Citra.
+
+### 7.1. Fitur Sudah Lengkap
+
+| Fitur PRD | Bukti Implementasi |
+| ----- | ----- |
+| Aturan #1 Mode Switcher B2B/B2C 1-klik + hotkey (Alt+G/E, Alt+1..9), auto-set buyer & metode bayar B2C | `src/components/pos/PosCart.vue:136-219`; `src/stores/posStore.ts:63-76` |
+| Panel kiri: katalog, filter kategori/supplier 1-klik, Icon/List view, multiplier chips `+1/+5/+10/+25/+50` | `src/components/pos/ProductCatalog.vue:40-58,144-151,240-253` |
+| Pilih buyer (combobox + auto-create cepat) & tanggal transaksi | `PosCart.vue:244-258,328-333,565-572` |
+| Aturan #5 status Lunas/Tempo + metode (Transfer/Tunai/QRIS/Nota Tempo) | `src/components/pos/PosPaymentModal.vue:27-32,118-159` |
+| Footer ringkasan real-time (Modal, Tagihan, Laba %) | `PosCart.vue:469-521`; `posStore.ts:240-241,305-310` |
+| Regulasi stok otomatis + validasi stok saat checkout (transaksional) | `src-tauri/src/commands/transactions.rs:117-134` |
+| Modul 2: matriks Pre-Order + 1-klik pull ke kasir | `src/components/preorder/PreOrderMatrix.vue:195-198,381-390`; `src-tauri/src/commands/preorders.rs` |
+| Modul 3: buku besar terpadu, 1-klik pelunasan piutang (toggle LUNAS↔TEMPO), metrik piutang, filter status/buyer | `src/components/ledger/LedgerView.vue:138-142,265-356,475-485`; `src/stores/ledgerStore.ts:37-74`; `transactions.rs:140-151` |
+| Aturan #2 level 2: markup per kategori/supplier (CRUD lengkap) | `src/stores/inventoryStore.ts:55-104`; `src-tauri/src/commands/markups.rs:29-76`; `MasterVendorTab.vue:120-154` |
+| Arrival costing via modul Kulakan: harga beli nota inline + markup auto + riwayat/edit nota (balik stok) | `src/components/receiving/ReceivingFormDrawer.vue:235-247,314-323`; `src/stores/purchaseStore.ts:83-108`; `src-tauri/src/commands/purchases.rs:18-86` |
+| Modul 4: master barang, vendor & margin, pelanggan B2B/B2C, identitas toko white-label + invoice prefix | `MasterProducts.vue:115-140`; `MasterBuyerTab.vue:175-203`; `MasterBrandingTab.vue:96-102` |
+| Struk dinamis B2B (faktur) vs B2C (struk retail), header & salam berbeda + salin teks WhatsApp | `src/components/pos/ReceiptModal.vue:26-75,114-121` |
+
+### 7.2. Gap Kritis (Belum Sesuai Locked Requirement)
+
+#### GAP-1: Keranjang kasir TANPA inline Harga Beli (Nota), % Markup, & override Harga Jual — melanggar Aturan #2 (level 3), Aturan #3, dan Modul 1
+
+- Baris item keranjang hanya punya input Qty (`PosCart.vue:381-392`); input `buyPrice|markupPercent` di `src/components/pos/*` = 0 hasil.
+- **Baris Kontrol Markup Dinamis** (preset `0/+15/+20/+25/+30%` + `%` custom — PRD baris 101) tidak ada di PosCart.
+- Dead-code: `posStore.setManualDiscount` (`posStore.ts:189`) & `posStore.updateItemSellPrice` (`posStore.ts:132`) lengkap tapi tak pernah dipanggil UI.
+- Konsekuensi: Skenario B (baris 134, isi harga nota di keranjang) tidak bisa jalan; alur aktual dipaksa lewat tab Kulakan lalu memakai `lastSellPrice` (`posStore.ts:96-98`).
+- **Aksi:** tambahkan column input inline `Harga Beli`, `% Markup`, `Harga Jual` + baris kontrol preset markup; wire `setManualDiscount` & `updateItemSellPrice`.
+
+#### GAP-2: Cetak struk/faktur (F12) tidak benar-benar mencetak — melanggar Aturan #4
+
+- "Cetak" hanya `window.print()` (`ReceiptModal.vue:87-89`); **tanpa CSS `@media print`/`@page` sama sekali** di `src/assets/main.css` → mencetak seluruh jendela, bukan struk.
+- Backend `generate_receipt_text` (`src-tauri/src/commands/system.rs:14-24`, terdaftar `lib.rs:20`) tidak pernah di-invoke frontend; isinya hanya 4 field hardcoded tanpa rincian item. Tidak ada dukungan printer thermal.
+- **Aksi:** buat CSS print layout struk + wiring `generate_receipt_text`; pertimbangkan ESC/POS thermal.
+
+#### GAP-3: Faktur B2B belum punya PIC & tanda terima pengiriman — melanggar Aturan #4
+
+- Meta struk hanya invoiceNo/tanggal/pembeli/status (`ReceiptModal.vue:125-145`).
+- **Aksi:** tambah field PIC pemesan, petugas pengirir, area tanda terima/ttd.
+
+#### GAP-4: Export & filter segmen B2B/B2C setengah jadi — melanggar Modul 3 (baris 114-116)
+
+- Export Excel tidak mengikuti filter segmen, tanpa kolom Tipe Transaksi (B2B/B2C); `filteredFlatRows` (`LedgerView.vue:149-162`) tidak memfilter `filterMarket` → view "Rincian Barang" menampilkan semua segmen walau difilter.
+- Export pakai `XLSX.writeFile` browser (`ledgerStore.ts:120-143`) padahal backend `save_export_file` (`system.rs:5-10`, `lib.rs:19`) tak pernah dipakai → unduhan bisa gagal diam-diam di Tauri WebView. Tidak ada opsi CSV.
+- **Aksi:** terapkan `filterMarket` di `filteredFlatRows`, tambah kolom tipe transaksi, routing file via `save_export_file`, tambah opsi CSV.
+
+#### GAP-5: Flag & counter deklaratif tidak pernah ditulis ke data
+
+| Item | Masalah | Bukti |
+| ----- | ----- | ----- |
+| `is_loaded_to_pos` Pre-Order | Tak pernah di-set → PO bisa ditarik kasir berkali-kali | `db/schema.sql:31`; `PreOrderMatrix.vue:195-198`; `posStore.ts:200-237` |
+| `usage_count` kupon | Tak ada kode increment → statistik "X Kali" selalu 0 | `db/schema.sql:94`; `MasterDiscountTab.vue:55,634`; `posStore.ts:321-374`; `transactions.rs:51-136` |
+| `isPreOrder` transaksi | Checkbox ada, tapi model Rust/DB tak punya kolom → flag hilang saat reload; ReceiptModal menebak via regex | `types/index.ts:100`; `models.rs:66-102`; `schema.sql:35-56`; `ReceiptModal.vue:20-24` |
+| Loyalty program | Simpan hanya localStorage, tanpa tabel/command DB → aturan poin hilang antar perangkat | `src/stores/buyerStore.ts:205-208` |
+
+- **Aksi:** tambah kolom `is_pre_order` di `transaction_records`, increment `usage_count` saat checkout kupon, set `is_loaded_to_pos` saat pull ke kasir, buat tabel + command loyalty settings.
+
+#### GAP-6: Hapus data tidak sinkron ke DB
+
+- `deleteProduct` (`inventoryStore.ts:161-164`) hanya lokal — tak ada command `db_delete_product` (cek `lib.rs:25-27`) → produk "dihapus" muncul lagi setelah `fetchFromDb`.
+- `deleteCategory` berisiko FK error (`products.category` FK tanpa ON DELETE, `db/schema.sql:14`) dan error hanya `console.error` (`inventoryStore.ts:100-102`).
+- **Aksi:** buat `db_delete_product`, paksa cek relasi sebelum hapus kategori, tampilkan error ke UI.
+
+#### GAP-7: Barcode scan barang di kasir belum ada — melanggar Skenario A (baris 128)
+
+- `Product` tak punya field barcode (`types/index.ts:57-68`); `ProductCatalog.vue` tidak menangani input scanner fisik. Scan hanya untuk kartu member (webcam QR). PR tombol "barcode" (`FileExplorerLayout.vue:117`) mengklaim tersedia — menyesatkan.
+- **Aksi:** tambah field `barcode` di master barang + handler scanner HID di katalog; ubah klaim UI agar sesuai realita.
+
+### 7.3. Bug Berisiko (Hardening Wajib)
+
+1. **Kolisi nomor invoice bisa memuntahkan transaksi diam-diam:** suffix random 4-digit (`posStore.ts:312-317`) vs `invoice_no UNIQUE` (`schema.sql:37`); `db_create_transaction` pakai `ON CONFLICT DO NOTHING` lalu return sukses (`transactions.rs:76,102`) → transaksi "sukses" di UI tapi tak tersimpan & stok tak terpotong. Aksi: nomor invoice deterministik dari sequence/counter DB, dan perbaiki return path agar tak menyetujui transaksi gagal.
+2. **Hapus transaksi tidak membalikkan stok/poin** (`LedgerView.vue:216`; `transactions.rs:153-158`). Aksi: reverse stok + poin saat delete.
+3. **Badge status DB palsu:** "PostgreSQL Aktif (5434)" hijau statis (`AppTitleBar.vue:94-100`), tak memakai `isConnectedToPg` yang tersedia (`inventoryStore.ts:44,48`).
+4. **Dual sumber kebenaran localStorage vs DB:** semua store menulis lokal dulu dan menelan error DB (`buyerStore.ts:149-153`; `discountStore.ts:179-183`; `preOrderStore.ts:17-28`; `inventoryStore.ts:66-70`) → data terlihat ada di UI walau gagal tersimpan. Aksi: tampilkan feedback error DB ke UI, jadikan DB sumber utama.
+5. **Dead-code backend & frontend:** `generate_receipt_text`, `save_export_file`, `setManualDiscount`, `updateItemSellPrice` (posStore), `addPointsAndSpend`/`deductPoints` (`buyerStore.ts:174-203`), `setPaymentStatus` (`ledgerStore.ts:52-58`) — wire ke UI atau hapus.
+
+### 7.4. Fitur di Kode yang TIDAK Ada di PRD (Bonus Terdokumentasi, jadikan bagian resmi scope)
+
+- **Program member & poin loyalitas:** kartu member, tier REGULAR/SILVER/GOLD/PLATINUM, diskon otomatis per tier (`posStore.ts:244-252`), tukar poin, scan kartu via QR webcam + scanner USB (`MemberScanModal.vue`), modul Member lengkap.
+- **Voucher/kupon promo:** scope `ALL/CATEGORY/CUSTOMER_TYPE/MEMBER_ONLY`, min belanja, max diskon, simulator (`src/components/master/discount/*`).
+- **Modul Kulakan/Penerimaan Barang:** riwayat nota, edit nota dengan rebalancing stok (advisory lock), import historis (`src-tauri/src/commands/purchases.rs`; `SupplierReceiving.vue`).
+- **Mesin tema/white-label:** preset warna, tema latar, aksen header (`settingsStore.ts:75-103`; `src/utils/theme.ts`).
+
+### 7.5. Roadmap Prioritas Pelengkapan
+
+| Prioritas | Item | Gap Terkait |
+| ----- | ----- | ----- |
+| **P1** | Inline `Harga Beli`/`% Markup`/`Harga Jual` + baris kontrol markup di keranjang | GAP-1 |
+| **P1** | CSS print struk + wiring cetak backend | GAP-2 |
+| **P2** | PIC & tanda terima di faktur B2B | GAP-3 |
+| **P2** | Perbaikan export & filter segmen | GAP-4 |
+| **P2** | Sinkronisasi flag (`is_pre_order`, `usage_count`, `is_loaded_to_pos`, loyalty DB) | GAP-5 |
+| **P3** | Hapus produk/kategori sinkron DB | GAP-6 |
+| **P3** | Barcode scan barang + field barcode master | GAP-7 |
+| **P3** | Hardening: invoice deterministik, reverse stok saat delete, badge DB asli, error DB ke UI | Bug 7.3 |
+
+> **Progress Log (19 Okt 2026):** Status perbaikan didokumentasikan di `BUG.md` (19 item). **Semua GAP kritis & mayor telah tertutup dan diverifikasi** (`bun test` 6 pass, `cargo test --lib` 3 pass, `vue-tsc` & `cargo check` bersih): GAP-1 (inline `Beli / % Markup / Jual` + baris kontrol markup dinamis via `updateItemBuyPrice`/`updateItemMarkup`/`applyTransactionMarkup`), GAP-2 (CSS print + **generator struk thermal 32 kolom di Rust** dengan preview/salin/simpan), GAP-3 (**kolom `pic_name` + input PIC di modal bayar B2B + blok tanda terima pengiriman pada faktur cetak & thermal**), GAP-4, GAP-5, GAP-6, **GAP-7** (fitur barcode: kolom `products.barcode` + migrasi otomatis `db/migrations.sql` via `ensure_migrations()` di `lib.rs`, field master, scanner engine di katalog & pencarian kasir), dan bug 7.3. **Sisa (by design):** normalisasi JSONB `PurchaseReceipt` (opsional, tunggu kebutuhan laporan SQL). Seluruh perbaikan telah di-commit ke branch `main` (lihat `BUG.md` untuk detail tracker).

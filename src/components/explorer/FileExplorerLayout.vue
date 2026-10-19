@@ -111,10 +111,10 @@ watch(activeTab, (newTab) => {
 const searchPlaceholder = computed(() => {
   switch (activeTab.value) {
     case 'pos':
-      return 'Cari SKU / Barang dagangan...';
+      return 'Cari barang / SKU / barcode...';
     case 'products':
     case 'master':
-      return 'Cari nama barang, kode SKU, barcode...';
+      return 'Cari nama barang, kode SKU, kategori...';
     case 'vendors':
       return 'Cari nama supplier, kelompok barang...';
     case 'buyers':
@@ -214,9 +214,9 @@ onUnmounted(() => {
           <!-- Right Struk Kasir (POS Cart Panel) -->
           <div
             v-if="showCartDrawer"
-            class="w-[420px] border-l border-gray-300 bg-white flex flex-col shrink-0 shadow-lg"
+            class="w-[380px] lg:w-[420px] border-l border-gray-300 bg-white flex flex-col shrink-0 shadow-lg"
           >
-            <PosCart @show-receipt="handleShowReceipt" />
+            <PosCart @show-receipt="handleShowReceipt" @close="showCartDrawer = false" />
           </div>
         </div>
 

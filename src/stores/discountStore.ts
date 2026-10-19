@@ -174,39 +174,47 @@ export const useDiscountStore = defineStore('discount', () => {
       usageCount: 0,
       createdAt: new Date().toISOString()
     };
-    discounts.value.unshift(newDiscount);
-    saveLocal();
     try {
       await dbService.upsertDiscount(newDiscount);
+      discounts.value.unshift(newDiscount);
+      saveLocal();
+      return newDiscount;
     } catch (e) {
-      console.warn('[DiscountStore] Failed to sync new discount to DB:', e);
+      console.error('[DiscountStore] Failed to sync new discount to DB:', e);
+      throw e;
     }
-    return newDiscount;
   }
 
   async function updateDiscount(updated: Discount): Promise<void> {
     const idx = discounts.value.findIndex(d => d.id === updated.id);
     if (idx !== -1) {
-      discounts.value[idx] = {
+      const old = { ...discounts.value[idx] };
+      const formatted = {
         ...updated,
         code: updated.code.trim().toUpperCase()
       };
-      saveLocal();
       try {
-        await dbService.upsertDiscount(discounts.value[idx]);
+        await dbService.upsertDiscount(formatted);
+        discounts.value[idx] = formatted;
+        saveLocal();
       } catch (e) {
-        console.warn('[DiscountStore] Failed to sync updated discount to DB:', e);
+        discounts.value[idx] = old;
+        console.error('[DiscountStore] Failed to sync updated discount to DB:', e);
+        throw e;
       }
     }
   }
 
   async function deleteDiscount(id: string): Promise<void> {
-    discounts.value = discounts.value.filter(d => d.id !== id);
-    saveLocal();
+    const old = [...discounts.value];
     try {
       await dbService.deleteDiscount(id);
+      discounts.value = discounts.value.filter(d => d.id !== id);
+      saveLocal();
     } catch (e) {
-      console.warn('[DiscountStore] Failed to delete discount in DB:', e);
+      discounts.value = old;
+      console.error('[DiscountStore] Failed to delete discount in DB:', e);
+      throw e;
     }
   }
 

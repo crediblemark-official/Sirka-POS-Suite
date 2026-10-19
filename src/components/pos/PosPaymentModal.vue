@@ -40,7 +40,7 @@ function toggleRedeemPoints() {
 }
 
 function handleConfirm() {
-  emit('confirm');
+  if (!posStore.isCheckingOut) emit('confirm');
 }
 </script>
 
@@ -48,7 +48,7 @@ function handleConfirm() {
   <div
     v-if="isOpen"
     class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 select-none text-xs"
-    @click.self="emit('close')"
+    @click.self="!posStore.isCheckingOut && emit('close')"
   >
     <div class="bg-white rounded-lg shadow-2xl border border-gray-300 w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-100">
       <!-- Modal Header -->
@@ -60,7 +60,7 @@ function handleConfirm() {
         <button
           type="button"
           class="p-1 text-gray-400 hover:text-black rounded cursor-pointer"
-          @click="emit('close')"
+          @click="!posStore.isCheckingOut && emit('close')"
         >
           <X :size="16" />
         </button>
@@ -158,6 +158,17 @@ function handleConfirm() {
           </div>
         </div>
 
+        <!-- PIC Penerima Barang (B2B / Faktur Pengiriman) — GAP-3 -->
+        <div v-if="posStore.saleMode === 'B2B'">
+          <label class="text-xs font-bold text-gray-700 block mb-1.5">PIC Penerima Barang (opsional):</label>
+          <input
+            v-model="posStore.picName"
+            type="text"
+            placeholder="Nama PIC dapur / pihak penerima (tercetak di faktur & tanda terima)"
+            class="w-full px-2.5 py-1.5 text-xs bg-white border border-gray-300 rounded focus:border-blue-500 focus:outline-none placeholder:text-gray-400"
+          />
+        </div>
+
         <!-- Catatan / Keterangan Transaksi -->
         <div>
           <div class="flex items-center justify-between mb-1.5">
@@ -185,17 +196,18 @@ function handleConfirm() {
         <button
           type="button"
           class="px-3 py-1.5 bg-white hover:bg-gray-100 border border-gray-300 rounded text-xs font-semibold text-gray-700 cursor-pointer transition-colors"
-          @click="emit('close')"
+          @click="!posStore.isCheckingOut && emit('close')"
         >
           Batal (Esc)
         </button>
         <button
           type="button"
           class="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
+          :disabled="posStore.isCheckingOut"
           @click="handleConfirm"
         >
           <Printer :size="14" />
-          <span>Selesaikan & Cetak Struk ↵</span>
+          <span>{{ posStore.isCheckingOut ? 'Menyimpan…' : 'Selesaikan & Cetak Struk ↵' }}</span>
         </button>
       </div>
     </div>

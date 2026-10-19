@@ -10,9 +10,11 @@ import {
   PackageCheck,
   TrendingUp,
   Coins,
-  Truck
+  Truck,
+  RotateCcw
 } from 'lucide-vue-next';
 import AppEmptyState from '../common/AppEmptyState.vue';
+import MetricStatsStrip, { MetricStatItem } from '../common/MetricStatsStrip.vue';
 
 const props = withDefaults(defineProps<{
   searchQuery?: string;
@@ -61,6 +63,53 @@ const categoriesCount = computed(() => {
   return new Set(filteredProducts.value.map(p => p.category)).size;
 });
 
+const metricStats = computed<MetricStatItem[]>(() => [
+  {
+    label: 'Total SKU Barang',
+    value: `${filteredProducts.value.length} SKU`,
+    icon: Package,
+    iconBoxClass: 'bg-purple-50 text-purple-700',
+    valClass: 'text-gray-800'
+  },
+  {
+    label: 'Fisik Stok di Toko',
+    value: `${totalStockQty.value} Unit / Pcs`,
+    icon: Boxes,
+    iconBoxClass: 'bg-blue-50 text-blue-700',
+    valClass: 'text-blue-800'
+  },
+  {
+    label: 'Nilai Aset Modal (HPP)',
+    value: `Rp ${formatRupiah(totalAssetBuy.value)}`,
+    icon: PackageCheck,
+    iconBoxClass: 'bg-emerald-50 text-emerald-700',
+    valClass: 'text-emerald-700'
+  },
+  {
+    label: 'Estimasi Nilai Jual',
+    value: `Rp ${formatRupiah(totalAssetSell.value)}`,
+    icon: TrendingUp,
+    iconBoxClass: 'bg-amber-50 text-amber-700',
+    valClass: 'text-amber-800'
+  },
+  {
+    label: 'Potensi Margin Aset',
+    value: `+Rp ${formatRupiah(totalAssetProfit.value)}`,
+    sublabel: `(+${averageAssetMargin.value}%)`,
+    icon: Coins,
+    iconBoxClass: 'bg-teal-50 text-teal-700',
+    valClass: 'text-teal-800',
+    sublabelClass: 'text-emerald-600 font-semibold font-mono'
+  },
+  {
+    label: 'Kategori / Supplier',
+    value: `${categoriesCount.value} Vendor`,
+    icon: Truck,
+    iconBoxClass: 'bg-rose-50 text-rose-700',
+    valClass: 'text-rose-800'
+  }
+]);
+
 function handleDblClick(prod: Product) {
   emit('edit-product', prod);
 }
@@ -68,74 +117,39 @@ function handleDblClick(prod: Product) {
 
 <template>
   <div class="flex-1 flex flex-col h-full bg-white select-none text-xs overflow-hidden">
-    <!-- 1. Ringkasan Metrik Cepat Aset Inventori (Seimbang Terbagi Rata 6 Kolom, Identik Kulakan) -->
-    <div class="flex items-center divide-x divide-gray-200 px-2 py-2 border-b border-gray-200 bg-white shrink-0">
-      <!-- 1. Total SKU -->
-      <div class="flex items-center gap-2 px-2.5 first:pl-1 flex-1 min-w-0">
-        <div class="w-7 h-7 rounded bg-purple-50 text-purple-700 flex items-center justify-center shrink-0">
-          <Package :size="15" />
-        </div>
-        <div class="min-w-0">
-          <div class="text-[10px] text-gray-500 font-medium leading-none truncate">Total SKU Barang</div>
-          <div class="text-xs font-bold text-gray-800 font-mono mt-0.5 truncate">{{ filteredProducts.length }} SKU</div>
-        </div>
+    <!-- 1. Top Ribbon: Title, Counter & Action -->
+    <div
+      v-horizontal-scroll
+      class="h-10 relative flex items-center justify-between bg-[#f6f5f2] border-b border-gray-200 px-3 select-none shrink-0 gap-1.5 overflow-x-auto no-scrollbar"
+    >
+      <div class="flex items-center gap-2 shrink-0">
+        <Package :size="15" class="text-purple-700" />
+        <span class="font-bold text-xs text-gray-800">Daftar Barang Dagangan (Katalog SKU)</span>
+        <span class="text-[10px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-bold font-mono">
+          {{ inventoryStore.products.length }} SKU
+        </span>
       </div>
 
-      <!-- 2. Total Fisik Stok -->
-      <div class="flex items-center gap-2 px-2.5 flex-1 min-w-0">
-        <div class="w-7 h-7 rounded bg-blue-50 text-blue-700 flex items-center justify-center shrink-0">
-          <Boxes :size="15" />
-        </div>
-        <div class="min-w-0">
-          <div class="text-[10px] text-gray-500 font-medium leading-none truncate">Fisik Stok di Toko</div>
-          <div class="text-xs font-bold text-blue-800 font-mono mt-0.5 truncate">{{ totalStockQty }} Unit / Pcs</div>
-        </div>
-      </div>
+      <!-- Sisi Kanan: Search indicator, Reset Bawaan & Action Tambah Barang -->
+      <div class="flex items-center gap-2 shrink-0 ml-auto">
+        <span v-if="props.searchQuery" class="text-[11px] text-gray-600 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 font-medium">
+          Cari: "<span class="font-bold text-gray-800">{{ props.searchQuery }}</span>"
+        </span>
 
-      <!-- 3. Total Nilai Modal Stok (HPP) -->
-      <div class="flex items-center gap-2 px-2.5 flex-1 min-w-0">
-        <div class="w-7 h-7 rounded bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
-          <PackageCheck :size="15" />
-        </div>
-        <div class="min-w-0">
-          <div class="text-[10px] text-gray-500 font-medium leading-none truncate">Nilai Aset Modal (HPP)</div>
-          <div class="text-xs font-bold text-emerald-700 font-mono mt-0.5 truncate">Rp {{ formatRupiah(totalAssetBuy) }}</div>
-        </div>
-      </div>
-
-      <!-- 4. Potensi Nilai Jual Stok -->
-      <div class="flex items-center gap-2 px-2.5 flex-1 min-w-0">
-        <div class="w-7 h-7 rounded bg-amber-50 text-amber-700 flex items-center justify-center shrink-0">
-          <TrendingUp :size="15" />
-        </div>
-        <div class="min-w-0">
-          <div class="text-[10px] text-gray-500 font-medium leading-none truncate">Estimasi Nilai Jual Stok</div>
-          <div class="text-xs font-bold text-amber-800 font-mono mt-0.5 truncate">Rp {{ formatRupiah(totalAssetSell) }}</div>
-        </div>
-      </div>
-
-      <!-- 5. Potensi Margin Aset -->
-      <div class="flex items-center gap-2 px-2.5 flex-1 min-w-0">
-        <div class="w-7 h-7 rounded bg-teal-50 text-teal-700 flex items-center justify-center shrink-0">
-          <Coins :size="15" />
-        </div>
-        <div class="min-w-0">
-          <div class="text-[10px] text-gray-500 font-medium leading-none truncate">Potensi Margin Aset</div>
-          <div class="text-xs font-bold text-teal-800 font-mono mt-0.5 truncate">+Rp {{ formatRupiah(totalAssetProfit) }} <span class="text-[10px] font-semibold text-emerald-600 font-mono">(+{{ averageAssetMargin }}%)</span></div>
-        </div>
-      </div>
-
-      <!-- 6. Total Supplier -->
-      <div class="flex items-center gap-2 px-2.5 flex-1 min-w-0">
-        <div class="w-7 h-7 rounded bg-rose-50 text-rose-700 flex items-center justify-center shrink-0">
-          <Truck :size="15" />
-        </div>
-        <div class="min-w-0">
-          <div class="text-[10px] text-gray-500 font-medium leading-none truncate">Kategori / Supplier</div>
-          <div class="text-xs font-bold text-rose-800 font-mono mt-0.5 truncate">{{ categoriesCount }} Vendor</div>
-        </div>
+        <button
+          type="button"
+          class="flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-gray-100 text-gray-700 rounded text-xs font-semibold cursor-pointer border border-gray-300 transition-colors shadow-2xs"
+          title="Kembalikan data ke daftar bawaan"
+          @click="inventoryStore.resetToDefaults"
+        >
+          <RotateCcw :size="11" />
+          <span>Reset Bawaan</span>
+        </button>
       </div>
     </div>
+
+    <!-- 2. Reusable MetricStatsStrip (DRY) -->
+    <MetricStatsStrip :items="metricStats" />
 
     <!-- Table of SKUs (Edge-to-Edge) -->
     <div class="flex-1" :class="inventoryStore.showProductSidebar ? 'overflow-auto' : 'overflow-y-auto overflow-x-hidden'">

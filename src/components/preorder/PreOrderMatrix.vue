@@ -19,11 +19,11 @@ import {
   TrendingUp,
   Coins,
   Users,
-  RotateCcw,
-  Plus
+  RotateCcw
 } from 'lucide-vue-next';
 import MetricStatsStrip, { MetricStatItem } from '../common/MetricStatsStrip.vue';
 import SearchableSelect, { type SelectOption } from '../common/SearchableSelect.vue';
+import AppEmptyState from '../common/AppEmptyState.vue';
 import PreOrderFormDrawer from './PreOrderFormDrawer.vue';
 
 const props = withDefaults(defineProps<{
@@ -183,7 +183,8 @@ const metricStats = computed<MetricStatItem[]>(() => [
 
 async function handleDeletePo(id: string, date: string, buyer: string) {
   if (confirm(`Yakin ingin menghapus catatan pesanan untuk ${buyer} tanggal ${date}?`)) {
-    await preOrderStore.deleteSchedule(id);
+    try { await preOrderStore.deleteSchedule(id); }
+    catch (error) { alert(`Gagal menghapus pesanan: ${error}`); return; }
     if (preOrderStore.activeScheduleForSidebar?.id === id) {
       preOrderStore.activeScheduleForSidebar = null;
       preOrderStore.showPreOrderSidebar = false;
@@ -191,8 +192,10 @@ async function handleDeletePo(id: string, date: string, buyer: string) {
   }
 }
 
-function handleLoadToPos(schedule: PreOrderSchedule) {
+async function handleLoadToPos(schedule: PreOrderSchedule) {
   posStore.loadPreOrderItems(schedule.items, schedule.buyer, schedule.date);
+  schedule.isLoadedToPos = true;
+  await preOrderStore.updateSchedule({ ...schedule, isLoadedToPos: true });
   emit('switch-to-pos');
 }
 
@@ -200,107 +203,95 @@ function handleCardClick(sched: PreOrderSchedule) {
   preOrderStore.activeScheduleForSidebar = sched;
   preOrderStore.showPreOrderSidebar = true;
 }
-
-function handleOpenAddPo() {
-  preOrderStore.activeScheduleForSidebar = null;
-  preOrderStore.showPreOrderSidebar = true;
-}
 </script>
 
 <template>
   <div class="flex flex-col h-full bg-[#f8f7f5] text-[#2e2b28] select-none text-xs overflow-hidden">
-    <!-- 1. Top Ribbon: Filter Bar (Hari Kirim & Pelanggan) -->
-    <div class="relative z-30 flex items-center justify-between bg-[#f6f5f2] border-b border-gray-200 px-3 py-1.5 select-none shrink-0 gap-3">
-      <!-- Sisi Kiri: Filter Hari & Pelanggan -->
-      <div class="flex items-center gap-3 shrink-0 flex-wrap">
-        <!-- 1. Filter Hari Kirim (Pill Horizontal) -->
-        <div class="flex items-center gap-1 shrink-0">
-          <button
-            v-for="d in days"
-            :key="d"
-            type="button"
-            class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1"
-            :class="selectedDay === d ? 'bg-emerald-600 text-white font-bold shadow-2xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
-            @click="selectedDay = d"
-          >
-            <span>{{ d === 'Semua' ? 'Semua Hari' : d }}</span>
-            <span
-              class="text-[10px] px-1 rounded-full"
-              :class="selectedDay === d ? 'bg-emerald-700 text-white' : 'bg-gray-100 text-gray-600'"
+    <!-- Main Workspace: Split Layar (Kiri: Grid & Ribbon, Kanan: Sidebar Form Input) -->
+    <main class="flex-1 flex overflow-hidden">
+      <!-- Sisi Kiri: Ribbon + Metric Stats Strip + Grid Kartu Rekap Pesanan PO -->
+      <div class="flex-1 flex flex-col overflow-hidden bg-white">
+        <!-- 1. Top Ribbon: Filter Bar (Hari Kirim & Pelanggan) -->
+        <div
+          v-horizontal-scroll
+          class="h-10 relative z-30 flex items-center justify-between bg-[#f6f5f2] border-b border-gray-200 px-3 select-none shrink-0 gap-3 overflow-x-auto no-scrollbar"
+        >
+          <!-- Sisi Kiri: Filter Hari & Pelanggan -->
+          <div class="flex items-center gap-3 shrink-0">
+            <!-- 1. Filter Hari Kirim (Pill Horizontal) -->
+            <div class="flex items-center gap-1 shrink-0">
+              <button
+                v-for="d in days"
+                :key="d"
+                type="button"
+                class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1"
+                :class="selectedDay === d ? 'bg-emerald-600 text-white font-bold shadow-2xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+                @click="selectedDay = d"
+              >
+                <span>{{ d === 'Semua' ? 'Semua Hari' : d }}</span>
+                <span
+                  class="text-[10px] px-1 rounded-full"
+                  :class="selectedDay === d ? 'bg-emerald-700 text-white' : 'bg-gray-100 text-gray-600'"
+                >
+                  {{ getDayCount(d) }}
+                </span>
+              </button>
+            </div>
+
+            <div class="h-4 w-px bg-gray-300 shrink-0"></div>
+
+            <!-- 2. Filter Pelanggan Pemesan -->
+            <div class="flex items-center gap-1.5">
+              <span class="text-gray-500 font-bold text-[11px] uppercase tracking-wider flex items-center gap-1 shrink-0">
+                <Users :size="13" class="text-emerald-700" />
+                <span>Pelanggan:</span>
+              </span>
+              <div class="w-56 shrink-0 relative z-40">
+                <SearchableSelect
+                  v-model="selectedBuyer"
+                  :options="buyerOptions"
+                  placeholder="Semua Pelanggan"
+                  search-placeholder="Ketik nama pelanggan..."
+                  size="sm"
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- Sisi Kanan: Reset Filter & Total Hasil -->
+          <div class="flex items-center gap-2 shrink-0">
+            <button
+              v-if="hasActiveFilter"
+              type="button"
+              class="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded cursor-pointer transition-colors shadow-2xs"
+              title="Reset semua filter"
+              @click="resetFilters"
             >
-              {{ getDayCount(d) }}
+              <RotateCcw :size="12" />
+              <span>Reset Filter</span>
+            </button>
+
+            <div class="font-mono text-xs text-gray-500 px-2 py-0.5 bg-gray-100 rounded border border-gray-200">
+              <span class="font-bold text-gray-800">{{ filteredSchedules.length }}</span> Jadwal PO
+            </div>
+
+            <span v-if="props.searchQuery" class="text-[11px] text-gray-600 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 font-medium">
+              Cari: "<span class="font-bold text-gray-800">{{ props.searchQuery }}</span>"
             </span>
-          </button>
-        </div>
-
-        <div class="h-4 w-px bg-gray-300 shrink-0"></div>
-
-        <!-- 2. Filter Pelanggan Pemesan -->
-        <div class="flex items-center gap-1.5">
-          <span class="text-gray-500 font-bold text-[11px] uppercase tracking-wider flex items-center gap-1 shrink-0">
-            <Users :size="13" class="text-emerald-700" />
-            <span>Pelanggan:</span>
-          </span>
-          <div class="w-56 shrink-0 relative z-40">
-            <SearchableSelect
-              v-model="selectedBuyer"
-              :options="buyerOptions"
-              placeholder="Semua Pelanggan"
-              search-placeholder="Ketik nama pelanggan..."
-              size="sm"
-            />
           </div>
         </div>
-      </div>
 
-      <!-- Sisi Kanan: Reset Filter & Total Hasil -->
-      <div class="flex items-center gap-2 shrink-0">
-        <button
-          v-if="hasActiveFilter"
-          type="button"
-          class="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded cursor-pointer transition-colors shadow-2xs"
-          title="Reset semua filter"
-          @click="resetFilters"
-        >
-          <RotateCcw :size="12" />
-          <span>Reset Filter</span>
-        </button>
+        <!-- Reusable MetricStatsStrip (DRY) di sisi kiri -->
+        <MetricStatsStrip :items="metricStats" />
 
-        <div class="font-mono text-xs text-gray-500 px-2 py-0.5 bg-gray-100 rounded border border-gray-200">
-          <span class="font-bold text-gray-800">{{ filteredSchedules.length }}</span> Jadwal PO
-        </div>
-
-
-        <button
-          type="button"
-          class="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 rounded cursor-pointer shadow-2xs transition-colors"
-          title="Tambah Pesanan Mingguan Baru"
-          @click="handleOpenAddPo"
-        >
-          <Plus :size="13" />
-          <span>Pesanan</span>
-        </button>
-
-        <span v-if="props.searchQuery" class="text-[11px] text-emerald-700 font-medium bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-          Cari: "{{ props.searchQuery }}"
-        </span>
-      </div>
-    </div>
-
-    <!-- 2. Reusable MetricStatsStrip (DRY) -->
-    <MetricStatsStrip :items="metricStats" />
-
-    <!-- 3. Main Workspace: Grid Jadwal Pre-Order (Kiri) + Sidebar Form Input (Kanan) -->
-    <main class="flex-1 flex overflow-hidden">
-      <!-- Sisi Kiri: Grid Kartu Rekap Pesanan PO -->
-      <div class="flex-1 p-3 overflow-y-auto bg-white">
-        <!-- Empty State -->
-        <div
+        <div class="flex-1 p-3 overflow-y-auto">
+          <!-- Empty State -->
+        <AppEmptyState
           v-if="filteredSchedules.length === 0"
-          class="h-64 flex flex-col items-center justify-center text-gray-400 gap-2 select-none"
+          :icon="Calendar"
+          title="Tidak ada jadwal pesanan yang sesuai"
+          description="Coba ubah tanggal, status filter, atau kata kunci pencarian Anda."
         >
-          <Calendar :size="48" class="text-gray-300" />
-          <p class="font-medium">Tidak ada jadwal pesanan yang sesuai filter atau pencarian.</p>
           <button
             type="button"
             class="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs font-semibold cursor-pointer border border-gray-300 transition-colors"
@@ -308,7 +299,7 @@ function handleOpenAddPo() {
           >
             Reset Semua Filter
           </button>
-        </div>
+        </AppEmptyState>
 
         <!-- Grid Kartu Pesanan -->
         <div v-else class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -326,6 +317,12 @@ function handleOpenAddPo() {
                   {{ sched.dayName }}
                 </span>
                 <span class="font-mono text-xs text-gray-600 font-semibold">{{ sched.date }}</span>
+                <span
+                  v-if="sched.isLoadedToPos"
+                  class="px-1.5 py-0.5 bg-blue-100 text-blue-700 border border-blue-200 rounded text-[10px] font-bold tracking-tight"
+                >
+                  ✓ Dimuat Kasir
+                </span>
               </div>
 
               <div class="flex items-center gap-1.5">
@@ -379,17 +376,19 @@ function handleOpenAddPo() {
 
               <button
                 type="button"
-                class="flex items-center gap-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded font-bold text-xs cursor-pointer shadow-2xs transition-colors"
-                title="Tarik barang pesanan ini langsung ke kasir untuk proses pembayaran"
+                class="flex items-center gap-1 px-2.5 py-1 text-white rounded font-bold text-xs cursor-pointer shadow-2xs transition-colors"
+                :class="sched.isLoadedToPos ? 'bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800' : 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800'"
+                :title="sched.isLoadedToPos ? 'Pesanan sudah pernah dimuat. Klik untuk memuat ulang ke kasir.' : 'Tarik barang pesanan ini langsung ke kasir untuk proses pembayaran'"
                 @click.stop="handleLoadToPos(sched)"
               >
                 <Truck :size="12" />
-                <span>Tarik ke Kasir</span>
+                <span>{{ sched.isLoadedToPos ? 'Tarik Ulang' : 'Tarik ke Kasir' }}</span>
                 <ArrowRight :size="12" />
               </button>
             </div>
           </div>
         </div>
+      </div>
       </div>
 
       <!-- Sisi Kanan: Form Input & Edit Pesanan PO (Modular Drawer) -->

@@ -2,7 +2,7 @@
 import { ref, computed, watch } from 'vue';
 import { Product, SupplierCategory } from '../../types';
 import { useInventoryStore } from '../../stores/inventoryStore';
-import { Settings, Package, RotateCcw } from 'lucide-vue-next';
+import { Settings, Package } from 'lucide-vue-next';
 
 // Modular Sub-Tabs
 import MasterSkuTab from './MasterSkuTab.vue';
@@ -41,6 +41,7 @@ const productForm = ref<{
   lastBuyPrice: number;
   lastSellPrice: number;
   stock: number;
+  barcode: string;
   notes: string;
 }>({
   id: '',
@@ -52,6 +53,7 @@ const productForm = ref<{
   lastBuyPrice: 0,
   lastSellPrice: 0,
   stock: 100,
+  barcode: '',
   notes: ''
 });
 
@@ -69,6 +71,7 @@ function handleOpenAddProduct() {
     lastBuyPrice: 0,
     lastSellPrice: 0,
     stock: 100,
+    barcode: '',
     notes: ''
   };
   inventoryStore.showProductSidebar = true;
@@ -86,6 +89,7 @@ function handleOpenEditProduct(prod: Product) {
     lastBuyPrice: prod.lastBuyPrice,
     lastSellPrice: prod.lastSellPrice,
     stock: prod.stock,
+    barcode: prod.barcode || '',
     notes: prod.notes || ''
   };
   inventoryStore.showProductSidebar = true;
@@ -120,6 +124,7 @@ function handleSaveProductSidebar() {
     name: productForm.value.name.trim().toUpperCase(),
     code: (productForm.value.code.trim() || `SKU-${Date.now().toString().slice(-4)}`).toUpperCase(),
     unit: productForm.value.unit.trim().toUpperCase(),
+    barcode: productForm.value.barcode.trim() || undefined,
     lastBuyPrice: Number(productForm.value.lastBuyPrice) || 0,
     lastSellPrice: Number(productForm.value.lastSellPrice) || 0,
     stock: Number(productForm.value.stock) || 0
@@ -142,35 +147,7 @@ function handleDeleteProduct(id: string) {
 
 <template>
   <div class="flex flex-col h-full bg-[#f8f7f5] text-[#2e2b28] select-none text-xs overflow-hidden">
-    <!-- 1. Top Ribbon: Daftar Barang (Katalog SKU) & Aksi Cepat -->
-    <div class="relative flex items-center justify-between bg-[#f6f5f2] border-b border-gray-200 px-3 py-1.5 select-none shrink-0 gap-1.5 overflow-x-auto no-scrollbar">
-      <div class="flex items-center gap-2 shrink-0">
-        <Package :size="15" class="text-purple-700" />
-        <span class="font-bold text-xs text-gray-800">Daftar Barang Dagangan (Katalog SKU)</span>
-        <span class="text-[10px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-bold font-mono">
-          {{ inventoryStore.products.length }} SKU
-        </span>
-      </div>
-
-      <!-- Sisi Kanan: Reset Bawaan & Tambah Barang Baru -->
-      <div class="flex items-center gap-2 shrink-0 ml-auto">
-        <span v-if="props.searchQuery" class="text-[11px] text-purple-700 font-medium bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
-          Cari: "{{ props.searchQuery }}"
-        </span>
-
-        <button
-          type="button"
-          class="flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-gray-100 text-gray-700 rounded text-xs font-semibold cursor-pointer border border-gray-300 transition-colors shadow-2xs"
-          title="Kembalikan data ke daftar bawaan"
-          @click="inventoryStore.resetToDefaults"
-        >
-          <RotateCcw :size="11" />
-          <span>Reset Bawaan</span>
-        </button>
-      </div>
-    </div>
-
-    <!-- 2. Main Workspace: Split Layar (Kiri: Tabel SKU, Kanan: Sidebar Drawer) -->
+    <!-- Main Workspace: Split Layar (Kiri: Tabel SKU, Kanan: Sidebar Drawer) -->
     <main class="flex-1 flex overflow-hidden">
       <div class="flex-1 flex flex-col overflow-hidden">
         <MasterSkuTab
@@ -215,6 +192,19 @@ function handleDeleteProduct(id: string) {
               placeholder="Contoh: SKU-BRG-001 (Otomatis jika kosong)"
               class="w-full bg-[#fcfbfa] border border-gray-300 rounded px-2.5 py-1 text-xs outline-none focus:border-purple-600 font-mono shadow-2xs"
             />
+          </div>
+
+          <div>
+            <label class="text-[11px] font-semibold text-gray-600 block mb-0.5">Barcode Kasir (opsional)</label>
+            <input
+              v-model="productForm.barcode"
+              type="text"
+              placeholder="Klik lalu scan chip barcode fisik, atau ketik angka (EAN/UPC)"
+              class="w-full bg-[#fcfbfa] border border-gray-300 rounded px-2.5 py-1 text-xs outline-none focus:border-purple-600 font-mono shadow-2xs"
+            />
+            <span class="text-[10px] text-gray-400 block mt-0.5">
+              Dipakai untuk scan langsung masuk keranjang di layar Kasir.
+            </span>
           </div>
 
           <div>

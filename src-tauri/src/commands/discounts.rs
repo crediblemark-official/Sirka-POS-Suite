@@ -54,7 +54,7 @@ pub async fn db_upsert_discount(discount: DiscountRecord) -> Result<String, Stri
                 id, code, name, type, value, min_purchase, max_discount, 
                 scope, target_category, target_customer_type, is_active, description, usage_count
              )
-             VALUES ($1, UPPER($2), $3, $4, $5::numeric, $6::numeric, $7::numeric, $8, $9, $10, $11, $12, COALESCE($13, 0))
+             VALUES ($1, UPPER($2), $3, $4, $5::float8::numeric, $6::float8::numeric, $7::float8::numeric, $8, $9, $10, $11, $12, COALESCE($13, 0))
              ON CONFLICT (id) DO UPDATE SET
                code = UPPER(EXCLUDED.code),
                name = EXCLUDED.name,

@@ -38,6 +38,18 @@ export const dbService = {
     });
   },
 
+  async deleteProduct(productId: string): Promise<void> {
+    await invoke('db_delete_product', { productId });
+  },
+
+  // BUG-014 FIX: struk thermal (teks 32 kolom) dibangun di Rust dari data transaksi lengkap
+  async generateReceiptText(tx: Record<string, unknown>, storeName?: string): Promise<string> {
+    return await invoke<string>('generate_receipt_text', {
+      tx,
+      storeName: storeName || null
+    });
+  },
+
   // 2. CATEGORIES / VENDORS & MARKUPS
   async getMarkups(): Promise<CategoryMarkupSetting[]> {
     return await invoke<CategoryMarkupSetting[]>('db_get_markups');
@@ -128,5 +140,10 @@ export const dbService = {
 
   async savePreOrder(record: PreOrderSchedule): Promise<string> {
     return await invoke<string>('db_save_preorder', { record });
+  },
+
+  // 8. SYSTEM & EXPORT
+  async saveExportFile(filename: string, data: number[]): Promise<string> {
+    return await invoke<string>('save_export_file', { filename, data });
   }
 };

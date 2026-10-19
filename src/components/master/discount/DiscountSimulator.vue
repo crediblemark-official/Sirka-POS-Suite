@@ -20,7 +20,7 @@ function getSimResult() {
     id: 'sim-buyer',
     name: 'Pelanggan Simulasi',
     customerType: simCustomerType.value,
-    memberCardNo: simIsMember.value ? 'MBR-CITRA-SIM' : undefined,
+    memberCardNo: simIsMember.value ? 'CITRA-SIM' : undefined,
     tier: 'REGULAR' as const
   };
 

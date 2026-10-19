@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue';
 import { Buyer, CustomerType } from '../../types';
+import { useSettingsStore } from '../../stores/settingsStore';
 import { X, Save, Plus, Edit2, Building, ShoppingBag, CreditCard } from 'lucide-vue-next';
 import SearchableSelect, { type SelectOption } from '../common/SearchableSelect.vue';
 
@@ -27,6 +28,7 @@ const emit = defineEmits<{
   (e: 'save', data: Omit<Buyer, 'id'> | Buyer): void;
 }>();
 
+const settingsStore = useSettingsStore();
 const isEditMode = computed(() => !!props.initialData?.id);
 
 const form = ref<{
@@ -88,8 +90,9 @@ watch(
 );
 
 function generateCardNumber() {
+  const storeAbbr = settingsStore.storeCode || 'CITRA';
   const rand = Math.floor(1000 + Math.random() * 9000);
-  const prefix = form.value.customerType === 'B2B' ? 'MBR-B2B' : 'MBR-CITRA';
+  const prefix = form.value.customerType === 'B2B' ? `${storeAbbr}-B2B` : storeAbbr;
   form.value.memberCardNo = `${prefix}-${rand}`;
   form.value.hasMemberCard = true;
 }
@@ -238,7 +241,7 @@ function handleSubmit() {
                   <input
                     v-model="form.memberCardNo"
                     type="text"
-                    placeholder="MBR-..."
+                    :placeholder="`${settingsStore.storeCode}-...`"
                     class="w-full bg-white border border-amber-300 rounded px-2 py-1 text-xs font-mono font-bold uppercase outline-none focus:border-amber-600"
                   />
                   <button

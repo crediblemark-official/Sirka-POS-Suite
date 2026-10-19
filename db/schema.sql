@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS products (
     last_buy_price NUMERIC(15,2) NOT NULL DEFAULT 0,
     last_sell_price NUMERIC(15,2) NOT NULL DEFAULT 0,
     stock NUMERIC(15,2) NOT NULL DEFAULT 0,
+    barcode TEXT,
     notes TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -52,11 +53,14 @@ CREATE TABLE IF NOT EXISTS transactions (
     points_discount NUMERIC(15,2) DEFAULT 0,
     points_earned NUMERIC(10,0) DEFAULT 0,
     final_total NUMERIC(15,2) DEFAULT 0,
+    is_pre_order BOOLEAN DEFAULT FALSE,
+    pic_name TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
 CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
+CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode);
 CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date);
 CREATE INDEX IF NOT EXISTS idx_transactions_buyer ON transactions(buyer);
 CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions(payment_status);
@@ -99,4 +103,9 @@ CREATE TABLE IF NOT EXISTS store_settings (
     key VARCHAR(100) PRIMARY KEY,
     value TEXT NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS purchase_receipts (
+    id VARCHAR(50) PRIMARY KEY,
+    receipt JSONB NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

@@ -12,11 +12,13 @@ import {
   ShoppingBag,
   UserCheck,
   Users,
-  Sparkles
+  Sparkles,
+  Edit2,
+  Phone
 } from 'lucide-vue-next';
 
 import MetricStatsStrip, { MetricStatItem } from '../common/MetricStatsStrip.vue';
-import MemberRegisterModal from './member/MemberRegisterModal.vue';
+import AppEmptyState from '../common/AppEmptyState.vue';
 import MemberPointAdjustModal from './member/MemberPointAdjustModal.vue';
 import MemberPrintModal from './member/MemberPrintModal.vue';
 import MemberDetailDrawer from './member/MemberDetailDrawer.vue';
@@ -29,7 +31,6 @@ const props = withDefaults(defineProps<{
 
 const buyerStore = useBuyerStore();
 
-const localSearchQuery = ref('');
 type MemberFilterTier = MembershipTier | 'ALL' | 'UNREGISTERED' | 'B2B' | 'B2C';
 const selectedTierFilter = ref<MemberFilterTier>('ALL');
 
@@ -38,13 +39,15 @@ const showDetailDrawer = computed({
   get: () => buyerStore.showMemberDrawer,
   set: (val: boolean) => { buyerStore.showMemberDrawer = val; }
 });
+const drawerInitialTab = ref<'CARD' | 'EDIT' | 'REGISTER' | 'RULES'>('CARD');
+const registerInitialBuyerId = ref<string | undefined>(undefined);
 
 // Modals State
 const showPrintCardModal = ref(false);
 const activeCardPreviewBuyer = ref<Buyer>(buyerStore.buyers[0] || {
   id: 'preview',
   name: 'Budi Santoso',
-  memberCardNo: 'MBR-CITRA-8899',
+  memberCardNo: 'CITRA-8899',
   tier: 'GOLD',
   points: 250,
   totalSpend: 6500000,
@@ -53,9 +56,6 @@ const activeCardPreviewBuyer = ref<Buyer>(buyerStore.buyers[0] || {
 
 const showPointAdjustModal = ref(false);
 const buyerForPointAdjust = ref<Buyer | null>(null);
-
-const showRegisterMemberModal = ref(false);
-const registerInitialBuyerId = ref<string | undefined>(undefined);
 
 // Counts for filter pills
 const regularCount = computed(() => buyerStore.buyers.filter(b => b.memberCardNo && b.tier === 'REGULAR').length);
@@ -125,19 +125,21 @@ const metricStats = computed<MetricStatItem[]>(() => [
   }
 ]);
 
-function openRegisterModal(buyerId?: string) {
+function openRegisterDrawer(buyerId?: string) {
   registerInitialBuyerId.value = buyerId;
-  showRegisterMemberModal.value = true;
+  drawerInitialTab.value = 'REGISTER';
+  showDetailDrawer.value = true;
 }
 
 function onMemberRegistered(buyer: Buyer) {
   activeCardPreviewBuyer.value = buyer;
+  drawerInitialTab.value = 'CARD';
 }
 
 const filteredMembers = computed(() => {
   return buyerStore.buyers.filter(b => {
     const isMbr = Boolean(b.memberCardNo);
-    const q = (props.searchQuery || localSearchQuery.value).toLowerCase().trim();
+    const q = props.searchQuery.toLowerCase().trim();
     const matchesSearch =
       !q ||
       b.name.toLowerCase().includes(q) ||
@@ -175,6 +177,13 @@ watch(
 
 function selectForPreview(buyer: Buyer) {
   activeCardPreviewBuyer.value = buyer;
+  drawerInitialTab.value = 'CARD';
+  showDetailDrawer.value = true;
+}
+
+function openEditMemberDrawer(buyer: Buyer) {
+  activeCardPreviewBuyer.value = buyer;
+  drawerInitialTab.value = 'EDIT';
   showDetailDrawer.value = true;
 }
 
@@ -209,12 +218,19 @@ function handleKeyDown(e: KeyboardEvent) {
 
 <template>
   <div class="flex flex-col h-full bg-[#f8f7f5] text-[#2e2b28] select-none text-xs overflow-hidden">
-    <!-- 1. Top Ribbon: Filter Kategori & Tier -->
-    <div class="relative flex items-center bg-[#f6f5f2] border-b border-gray-200 px-3 py-1.5 select-none shrink-0 gap-1.5 overflow-x-auto no-scrollbar">
-      <span class="text-gray-500 font-bold text-[11px] uppercase tracking-wider shrink-0 flex items-center gap-1 mr-1">
-        <CreditCard :size="13" class="text-amber-600" />
-        <span>Filter Member:</span>
-      </span>
+    <!-- Main Workspace: Split Layar (Kiri: Tabel Member & Ribbon, Kanan: Drawer Kartu & Aturan Poin) -->
+    <div class="flex-1 flex overflow-hidden">
+      <!-- Sisi Kiri: Ribbon + MetricStatsStrip + Tabel Data Pelanggan & Member Edge-to-Edge -->
+      <div class="flex-1 flex flex-col overflow-hidden bg-white">
+        <!-- 1. Top Ribbon: Filter Kategori & Tier -->
+        <div
+          v-horizontal-scroll
+          class="h-10 relative flex items-center bg-[#f6f5f2] border-b border-gray-200 px-3 select-none shrink-0 gap-1.5 overflow-x-auto no-scrollbar"
+        >
+          <span class="text-gray-500 font-bold text-[11px] uppercase tracking-wider shrink-0 flex items-center gap-1 mr-1">
+            <CreditCard :size="13" class="text-amber-600" />
+            <span>Filter Member:</span>
+          </span>
 
       <button
         type="button"
@@ -317,39 +333,16 @@ function handleKeyDown(e: KeyboardEvent) {
       </button>
 
       <!-- Sisi Kanan: Search, Cetak & Tombol Daftarkan Member -->
-      <div class="flex items-center gap-2 ml-auto shrink-0">
-        <span v-if="props.searchQuery" class="text-[11px] text-amber-700 font-medium bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-          Cari: "{{ props.searchQuery }}"
+      <div v-if="props.searchQuery" class="flex items-center gap-2 ml-auto shrink-0">
+        <span class="text-[11px] text-gray-600 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 font-medium">
+          Cari: "<span class="font-bold text-gray-800">{{ props.searchQuery }}</span>"
         </span>
-
-        <button
-          type="button"
-          class="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-gray-300 hover:bg-gray-100 text-gray-700 rounded font-semibold text-xs cursor-pointer shadow-2xs transition-colors shrink-0"
-          title="Cetak Kartu Member Pelanggan Terpilih"
-          @click="printMemberCard()"
-        >
-          <Printer :size="13" class="text-gray-600" />
-          <span>Cetak</span>
-        </button>
-
-        <button
-          type="button"
-          class="flex items-center gap-1.5 px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded font-bold text-xs cursor-pointer shadow-2xs transition-colors shrink-0 active:scale-95"
-          @click="openRegisterModal()"
-        >
-          <UserPlus :size="14" />
-          <span>Member</span>
-        </button>
       </div>
     </div>
 
-    <!-- 2. Reusable MetricStatsStrip (DRY) -->
+    <!-- Reusable MetricStatsStrip (DRY) di sisi kiri -->
     <MetricStatsStrip :items="metricStats" />
 
-    <!-- 3. Main Workspace: Split Layar (Kiri: Tabel Member, Kanan: Drawer Kartu & Aturan Poin) -->
-    <div class="flex-1 flex overflow-hidden">
-      <!-- Sisi Kiri: Tabel Data Pelanggan & Member Edge-to-Edge -->
-      <div class="flex-1 flex flex-col overflow-hidden bg-white">
         <div
           class="flex-1 outline-none"
           :class="showDetailDrawer ? 'overflow-auto' : 'overflow-y-auto overflow-x-hidden'"
@@ -357,12 +350,12 @@ function handleKeyDown(e: KeyboardEvent) {
           @keydown="handleKeyDown"
         >
           <!-- Empty State -->
-          <div
+          <AppEmptyState
             v-if="filteredMembers.length === 0"
-            class="h-64 flex flex-col items-center justify-center text-gray-400 gap-2 select-none"
+            :icon="CreditCard"
+            title="Tidak ada data pelanggan yang cocok"
+            description="Coba ubah tier filter atau periksa kata kunci pencarian Anda."
           >
-            <CreditCard :size="48" class="text-gray-300" />
-            <p class="font-medium">Tidak ada data pelanggan yang cocok dengan kriteria pencarian.</p>
             <button
               type="button"
               class="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs font-semibold cursor-pointer border border-gray-300 transition-colors"
@@ -370,102 +363,126 @@ function handleKeyDown(e: KeyboardEvent) {
             >
               Reset Filter & Pencarian
             </button>
-          </div>
+          </AppEmptyState>
 
           <!-- Tabel Data Member Rapi Sejajar Edge-to-Edge -->
-          <table v-else class="w-full table-fixed text-xs text-left border-collapse" :class="showDetailDrawer ? 'min-w-[720px]' : ''">
-            <thead class="bg-[#f0ede8] border-b border-gray-200 text-gray-600 font-semibold sticky top-0 z-10 shadow-2xs">
-              <tr class="h-9">
-                <th class="px-2.5 h-9 align-middle w-36">NO. KARTU MEMBER</th>
-                <th class="px-2.5 h-9 align-middle">NAMA PELANGGAN</th>
-                <th class="px-2.5 h-9 align-middle w-32">TIPE & KONTAK</th>
-                <th class="px-2.5 h-9 align-middle w-24 text-center">TINGKATAN</th>
-                <th class="px-2.5 h-9 align-middle w-28 text-right">POIN BELANJA</th>
-                <th class="px-2.5 h-9 align-middle w-28 text-right">TOTAL BELANJA</th>
-                <th class="px-2.5 h-9 align-middle w-28 text-center">AKSI</th>
+          <table v-else class="table-explorer" :class="showDetailDrawer ? 'min-w-[880px]' : ''">
+            <thead>
+              <tr>
+                <th class="w-32">NO. KARTU MEMBER</th>
+                <th class="min-w-[160px]">NAMA PELANGGAN</th>
+                <th class="min-w-[150px]">ALAMAT</th>
+                <th class="w-24 text-center">TIPE</th>
+                <th class="w-32">NO. TELEPON</th>
+                <th class="w-24 text-center">TINGKATAN</th>
+                <th class="w-28 text-right">POIN BELANJA</th>
+                <th class="w-28 text-right">TOTAL BELANJA</th>
+                <th class="th-action-sticky w-28 text-center">AKSI</th>
               </tr>
             </thead>
             <tbody>
               <tr
                 v-for="b in filteredMembers"
                 :key="b.id"
-                class="border-b border-gray-100 hover:bg-amber-50/50 cursor-pointer transition-colors select-none"
-                :class="activeCardPreviewBuyer.id === b.id ? 'bg-[#fef9ee] font-semibold ring-1 ring-inset ring-amber-400 z-10' : ''"
+                class="hover:bg-amber-50/50 cursor-pointer transition-colors select-none"
+                :class="activeCardPreviewBuyer.id === b.id ? 'bg-[#fef9ee] font-semibold ring-1 ring-inset ring-amber-400' : ''"
+                title="Klik untuk lihat kartu member, klik ganda untuk edit data"
                 @click="selectForPreview(b)"
+                @dblclick="openEditMemberDrawer(b)"
               >
                 <!-- Nomor Kartu Member -->
-                <td class="p-2.5 font-mono truncate" :title="b.memberCardNo || 'Belum Ada Kartu'">
-                  <div v-if="b.memberCardNo" class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-300 truncate">
+                <td class="font-mono truncate whitespace-nowrap" :title="b.memberCardNo || 'Belum Ada Kartu'">
+                  <div v-if="b.memberCardNo" class="inline-flex items-center gap-1.5 text-slate-800 text-xs truncate">
                     <CreditCard :size="12" class="text-amber-600 shrink-0" />
                     <span class="font-bold truncate">{{ b.memberCardNo }}</span>
                   </div>
-                  <span v-else class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-gray-100 text-gray-500 border border-gray-200 text-[10px] font-semibold">
-                    Belum Ada Kartu
-                  </span>
+                  <span v-else class="text-gray-400 text-[11px]">-</span>
                 </td>
 
                 <!-- Nama Pelanggan -->
-                <td class="p-2.5 truncate" :title="b.name + (b.address ? ' - ' + b.address : '')">
-                  <span class="font-bold text-gray-900 block leading-tight truncate">{{ b.name }}</span>
-                  <span v-if="b.address" class="text-[10px] text-gray-400 block truncate font-normal mt-0.5">
-                    {{ b.address }}
+                <td class="truncate whitespace-nowrap" :title="b.name">
+                  <span class="font-bold text-gray-900 block truncate text-xs">{{ b.name }}</span>
+                </td>
+
+                <!-- Alamat -->
+                <td class="truncate" :title="b.address || '-'">
+                  <span class="text-[11px] text-gray-500 block truncate">{{ b.address || '-' }}</span>
+                </td>
+
+                <!-- Tipe Pasar (Grosir / Eceran) -->
+                <td class="text-center truncate whitespace-nowrap">
+                  <span
+                    class="text-[10px] font-bold"
+                    :class="b.customerType === 'B2B' ? 'text-indigo-600' : 'text-teal-600'"
+                  >
+                    {{ b.customerType === 'B2B' ? 'Grosir (B2B)' : 'Eceran (B2C)' }}
                   </span>
                 </td>
 
-                <!-- Tipe & Kontak -->
-                <td class="p-2.5 truncate" :title="b.phone">
-                  <span class="font-mono text-[11px] text-gray-700 block font-semibold truncate">{{ b.phone || '-' }}</span>
-                  <span class="text-[10px] text-gray-500 block truncate">{{ b.customerType === 'B2B' ? 'Grosir (B2B)' : 'Eceran (B2C)' }}</span>
+                <!-- Kontak / No. Telepon -->
+                <td class="truncate whitespace-nowrap font-mono" :title="b.phone || '-'">
+                  <div v-if="b.phone" class="flex items-center gap-1 text-[11px] text-gray-700 font-semibold truncate">
+                    <Phone :size="11" class="text-emerald-600 shrink-0" />
+                    <span>{{ b.phone }}</span>
+                  </div>
+                  <span v-else class="text-gray-400 text-[11px]">-</span>
                 </td>
 
                 <!-- Tier Badge -->
-                <td class="p-2.5 text-center truncate">
+                <td class="text-center truncate whitespace-nowrap">
                   <span
                     v-if="b.memberCardNo"
-                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-black text-[10px] border shadow-2xs"
+                    class="inline-flex items-center gap-1 font-bold text-[10px] leading-tight"
                     :class="{
-                      'bg-slate-100 text-slate-700 border-slate-300': b.tier === 'REGULAR',
-                      'bg-blue-50 text-blue-800 border-blue-300': b.tier === 'SILVER',
-                      'bg-amber-100 text-amber-900 border-amber-300': b.tier === 'GOLD',
-                      'bg-purple-100 text-purple-900 border-purple-300': b.tier === 'PLATINUM'
+                      'text-slate-600': b.tier === 'REGULAR',
+                      'text-blue-600': b.tier === 'SILVER',
+                      'text-amber-700 font-extrabold': b.tier === 'GOLD',
+                      'text-purple-700 font-extrabold': b.tier === 'PLATINUM'
                     }"
                   >
                     <span>⭐ {{ b.tier || 'REGULAR' }}</span>
                   </span>
-                  <span v-else class="text-gray-400 text-[10px] italic">
-                    Non-Member
-                  </span>
+                  <span v-else class="text-gray-400 text-[10px]">-</span>
                 </td>
 
                 <!-- Poin Loyalitas -->
-                <td class="p-2.5 text-right font-mono truncate">
-                  <template v-if="b.memberCardNo">
-                    <span class="font-black text-amber-700 text-xs block truncate">
+                <td class="text-right font-mono truncate whitespace-nowrap" :title="`Setara Rp ${formatRupiah((b.points || 0) * buyerStore.loyaltySettings.pointValueInRupiah)}`">
+                  <div v-if="b.memberCardNo" class="inline-flex items-baseline justify-end gap-1.5 whitespace-nowrap">
+                    <span class="font-bold text-amber-700 text-xs">
                       {{ (b.points || 0).toLocaleString('id-ID') }} Pts
                     </span>
-                    <span class="text-[10px] text-gray-400 block truncate">
-                      = Rp {{ formatRupiah((b.points || 0) * buyerStore.loyaltySettings.pointValueInRupiah) }}
+                    <span class="text-[10px] text-gray-400 font-sans">
+                      (Rp {{ formatRupiah((b.points || 0) * buyerStore.loyaltySettings.pointValueInRupiah) }})
                     </span>
-                  </template>
+                  </div>
                   <span v-else class="text-gray-400 text-[10px]">-</span>
                 </td>
 
                 <!-- Akumulasi Belanja -->
-                <td class="p-2.5 text-right font-mono font-bold text-gray-800 truncate">
+                <td class="text-right font-mono font-bold text-gray-800 truncate whitespace-nowrap text-xs">
                   Rp {{ formatRupiah(b.totalSpend || 0) }}
                 </td>
 
                 <!-- Aksi -->
-                <td class="p-2.5 text-center" @click.stop>
+                <td class="td-action-sticky text-center" @click.stop>
                   <div v-if="b.memberCardNo" class="flex items-center justify-center gap-1">
                     <button
                       type="button"
-                      class="px-2 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded font-semibold text-[10.5px] cursor-pointer flex items-center gap-1 shadow-2xs transition-colors"
+                      class="p-1 text-gray-500 hover:text-blue-700 hover:bg-blue-50 rounded cursor-pointer transition-colors"
+                      title="Edit Data Member (Klik Ganda Baris)"
+                      @click="openEditMemberDrawer(b)"
+                    >
+                      <Edit2 :size="11" />
+                    </button>
+
+                    <button
+                      type="button"
+                      class="px-1.5 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded font-semibold text-[10px] cursor-pointer flex items-center gap-0.5 transition-colors"
                       title="Sesuaikan Poin Member (+/-)"
                       @click="openPointAdjustModal(b)"
                     >
-                      <Coins :size="11" />
-                      <span>Atur Poin</span>
+                      <Coins :size="10" />
+                      <span>Poin</span>
                     </button>
 
                     <button
@@ -474,17 +491,17 @@ function handleKeyDown(e: KeyboardEvent) {
                       title="Cetak Kartu Member"
                       @click="printMemberCard(b)"
                     >
-                      <Printer :size="13" />
+                      <Printer :size="11" />
                     </button>
                   </div>
 
                   <div v-else class="flex items-center justify-center">
                     <button
                       type="button"
-                      class="px-2.5 py-0.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded text-[11px] cursor-pointer flex items-center gap-1 shadow-2xs transition-transform active:scale-95"
-                      @click="openRegisterModal(b.id)"
+                      class="px-2 py-0.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded text-[10px] cursor-pointer flex items-center gap-1 shadow-2xs transition-transform active:scale-95"
+                      @click="openRegisterDrawer(b.id)"
                     >
-                      <UserPlus :size="11" />
+                      <UserPlus :size="10" />
                       <span>Member</span>
                     </button>
                   </div>
@@ -495,13 +512,16 @@ function handleKeyDown(e: KeyboardEvent) {
         </div>
       </div>
 
-      <!-- Sisi Kanan: Panel Drawer Kartu Member & Aturan Poin -->
+      <!-- Sisi Kanan: Panel Drawer Kartu Member & Form Pendaftaran Baru -->
       <MemberDetailDrawer
         :is-open="showDetailDrawer"
         :buyer="activeCardPreviewBuyer"
+        :initial-tab="drawerInitialTab"
+        :initial-register-buyer-id="registerInitialBuyerId"
         @close="showDetailDrawer = false"
         @adjust-points="openPointAdjustModal"
         @print-card="printMemberCard"
+        @registered="onMemberRegistered"
       />
     </div>
 
@@ -510,13 +530,6 @@ function handleKeyDown(e: KeyboardEvent) {
       :is-open="showPointAdjustModal"
       :buyer="buyerForPointAdjust"
       @close="showPointAdjustModal = false"
-    />
-
-    <MemberRegisterModal
-      :is-open="showRegisterMemberModal"
-      :initial-buyer-id="registerInitialBuyerId"
-      @close="showRegisterMemberModal = false"
-      @registered="onMemberRegistered"
     />
 
     <MemberPrintModal

@@ -13,6 +13,8 @@ import {
   Package
 } from 'lucide-vue-next';
 import FormSidebarDrawer from '../common/FormSidebarDrawer.vue';
+import AppEmptyState from '../common/AppEmptyState.vue';
+import MetricStatsStrip, { MetricStatItem } from '../common/MetricStatsStrip.vue';
 
 const props = withDefaults(defineProps<{
   searchQuery?: string;
@@ -81,6 +83,51 @@ const filteredMarkups = computed(() => {
     (c.description && c.description.toLowerCase().includes(q))
   );
 });
+
+const vendorMetrics = computed<MetricStatItem[]>(() => [
+  {
+    label: 'Total Supplier',
+    value: `${totalVendors.value} Mitra`,
+    icon: Truck,
+    iconBoxClass: 'bg-rose-50 text-rose-700',
+    valClass: 'text-gray-800'
+  },
+  {
+    label: 'Rata-Rata Margin',
+    value: `+${averageMarkup.value}%`,
+    icon: Percent,
+    iconBoxClass: 'bg-emerald-50 text-emerald-700',
+    valClass: 'text-emerald-800'
+  },
+  {
+    label: 'Margin Tertinggi',
+    value: `+${maxMarkup.value}%`,
+    icon: TrendingUp,
+    iconBoxClass: 'bg-blue-50 text-blue-700',
+    valClass: 'text-blue-800'
+  },
+  {
+    label: 'Margin Terendah',
+    value: `+${minMarkup.value}%`,
+    icon: Coins,
+    iconBoxClass: 'bg-amber-50 text-amber-700',
+    valClass: 'text-amber-800'
+  },
+  {
+    label: 'SKU Terhubung',
+    value: `${totalConnectedSkus.value} Produk`,
+    icon: Boxes,
+    iconBoxClass: 'bg-purple-50 text-purple-700',
+    valClass: 'text-purple-800'
+  },
+  {
+    label: 'Sistem Kalkulasi',
+    value: 'Otomatis POS',
+    icon: Sparkles,
+    iconBoxClass: 'bg-teal-50 text-teal-700',
+    valClass: 'text-teal-800'
+  }
+]);
 
 function handleOpenAdd() {
   isEditing.value = false;
@@ -164,167 +211,97 @@ defineExpose({
 </script>
 
 <template>
-  <div class="flex-1 flex flex-col h-full bg-white select-none text-xs overflow-hidden">
-    <!-- 1. Top Ribbon: Supplier & Margin Untung & Aksi Cepat -->
-    <div class="relative flex items-center justify-between bg-[#f6f5f2] border-b border-gray-200 px-3 py-1.5 select-none shrink-0 gap-1.5 overflow-x-auto no-scrollbar">
-      <div class="flex items-center gap-2 shrink-0">
-        <Percent :size="15" class="text-emerald-700" />
-        <span class="font-bold text-xs text-gray-800">Supplier & Margin Keuntungan Otomatis</span>
-        <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold font-mono">
-          {{ totalVendors }} Mitra Terdaftar
-        </span>
-      </div>
-
-      <!-- Sisi Kanan: Status Pencarian -->
-      <div class="flex items-center gap-2 shrink-0 ml-auto">
-        <span v-if="props.searchQuery" class="text-[11px] text-emerald-700 font-medium bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-          Cari: "{{ props.searchQuery }}"
-        </span>
-      </div>
-    </div>
-
-    <!-- 2. Ringkasan Metrik Cepat Vendor (Seimbang Terbagi Rata 6 Kolom, Identik Kulakan) -->
-    <div class="flex items-center divide-x divide-gray-200 px-2 py-2 border-b border-gray-200 bg-white shrink-0">
-      <!-- 1. Total Supplier -->
-      <div class="flex items-center gap-2 px-2.5 first:pl-1 flex-1 min-w-0">
-        <div class="w-7 h-7 rounded bg-rose-50 text-rose-700 flex items-center justify-center shrink-0">
-          <Truck :size="15" />
-        </div>
-        <div class="min-w-0">
-          <div class="text-[10px] text-gray-500 font-medium leading-none truncate">Total Supplier</div>
-          <div class="text-xs font-bold text-gray-800 font-mono mt-0.5 truncate">{{ totalVendors }} Mitra</div>
-        </div>
-      </div>
-
-      <!-- 2. Rata-Rata Margin -->
-      <div class="flex items-center gap-2 px-2.5 flex-1 min-w-0">
-        <div class="w-7 h-7 rounded bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
-          <Percent :size="15" />
-        </div>
-        <div class="min-w-0">
-          <div class="text-[10px] text-gray-500 font-medium leading-none truncate">Rata-Rata Margin</div>
-          <div class="text-xs font-bold text-emerald-800 font-mono mt-0.5 truncate">+{{ averageMarkup }}%</div>
-        </div>
-      </div>
-
-      <!-- 3. Margin Tertinggi -->
-      <div class="flex items-center gap-2 px-2.5 flex-1 min-w-0">
-        <div class="w-7 h-7 rounded bg-blue-50 text-blue-700 flex items-center justify-center shrink-0">
-          <TrendingUp :size="15" />
-        </div>
-        <div class="min-w-0">
-          <div class="text-[10px] text-gray-500 font-medium leading-none truncate">Margin Tertinggi</div>
-          <div class="text-xs font-bold text-blue-800 font-mono mt-0.5 truncate">+{{ maxMarkup }}%</div>
-        </div>
-      </div>
-
-      <!-- 4. Margin Terendah -->
-      <div class="flex items-center gap-2 px-2.5 flex-1 min-w-0">
-        <div class="w-7 h-7 rounded bg-amber-50 text-amber-700 flex items-center justify-center shrink-0">
-          <Coins :size="15" />
-        </div>
-        <div class="min-w-0">
-          <div class="text-[10px] text-gray-500 font-medium leading-none truncate">Margin Terendah</div>
-          <div class="text-xs font-bold text-amber-800 font-mono mt-0.5 truncate">+{{ minMarkup }}%</div>
-        </div>
-      </div>
-
-      <!-- 5. Total SKU Terhubung -->
-      <div class="flex items-center gap-2 px-2.5 flex-1 min-w-0">
-        <div class="w-7 h-7 rounded bg-purple-50 text-purple-700 flex items-center justify-center shrink-0">
-          <Boxes :size="15" />
-        </div>
-        <div class="min-w-0">
-          <div class="text-[10px] text-gray-500 font-medium leading-none truncate">SKU Terhubung</div>
-          <div class="text-xs font-bold text-purple-800 font-mono mt-0.5 truncate">{{ totalConnectedSkus }} Produk</div>
-        </div>
-      </div>
-
-      <!-- 6. Status Kalkulasi -->
-      <div class="flex items-center gap-2 px-2.5 flex-1 min-w-0">
-        <div class="w-7 h-7 rounded bg-teal-50 text-teal-700 flex items-center justify-center shrink-0">
-          <Sparkles :size="15" />
-        </div>
-        <div class="min-w-0">
-          <div class="text-[10px] text-gray-500 font-medium leading-none truncate">Sistem Kalkulasi</div>
-          <div class="text-xs font-bold text-teal-800 font-mono mt-0.5 truncate">Otomatis POS</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 2. Workspace: Edge-to-Edge Table on Left, FormSidebarDrawer on Right -->
+  <div class="flex flex-col h-full bg-[#f8f7f5] text-[#2e2b28] select-none text-xs overflow-hidden">
+    <!-- Main Workspace: Split Layar (Kiri: Tabel Vendor & Ribbon, Kanan: FormSidebarDrawer) -->
     <div class="flex-1 flex overflow-hidden">
-      <!-- Tabel Vendor / Supplier Edge-to-Edge -->
+      <!-- Sisi Kiri: Ribbon + MetricStatsStrip + Tabel Vendor Edge-to-Edge -->
       <div class="flex-1 flex flex-col overflow-hidden bg-white">
+        <!-- 1. Top Ribbon: Supplier & Margin Untung & Aksi Cepat -->
+        <div
+          v-horizontal-scroll
+          class="h-10 relative flex items-center justify-between bg-[#f6f5f2] border-b border-gray-200 px-3 select-none shrink-0 gap-1.5 overflow-x-auto no-scrollbar"
+        >
+          <div class="flex items-center gap-2 shrink-0">
+            <Percent :size="15" class="text-emerald-700" />
+            <span class="font-bold text-xs text-gray-800">Supplier & Margin Keuntungan Otomatis</span>
+            <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold font-mono">
+              {{ totalVendors }} Mitra Terdaftar
+            </span>
+          </div>
+
+          <!-- Sisi Kanan: Status Pencarian -->
+          <div v-if="props.searchQuery" class="flex items-center gap-2 shrink-0 ml-auto">
+            <span class="text-[11px] text-gray-600 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 font-medium">
+              Cari: "<span class="font-bold text-gray-800">{{ props.searchQuery }}</span>"
+            </span>
+          </div>
+        </div>
+
+        <!-- Reusable MetricStatsStrip (DRY) di sisi kiri -->
+        <MetricStatsStrip :items="vendorMetrics" />
+
         <div class="flex-1" :class="showVendorDrawer ? 'overflow-auto' : 'overflow-y-auto overflow-x-hidden'">
-          <table class="w-full table-fixed text-xs text-left border-collapse" :class="showVendorDrawer ? 'min-w-[640px]' : ''">
-            <thead class="bg-[#f0ede8] border-b border-gray-200 text-gray-600 font-semibold sticky top-0 z-10">
-              <tr class="h-9">
-                <th class="px-2.5 h-9 align-middle w-12 text-center">NO</th>
-                <th class="px-2.5 h-9 align-middle w-56">NAMA SUPPLIER / KELOMPOK</th>
-                <th class="px-2.5 h-9 align-middle">DESKRIPSI & KETERANGAN</th>
-                <th class="px-2.5 h-9 align-middle w-32 text-center">BARANG TERKAIT</th>
-                <th class="px-2.5 h-9 align-middle w-36 text-center">DEFAULT MARGIN</th>
-                <th class="px-2.5 h-9 align-middle w-28 text-center">STATUS</th>
-                <th class="px-2.5 h-9 align-middle w-20 text-center">AKSI</th>
+          <AppEmptyState
+            v-if="filteredMarkups.length === 0"
+            :icon="Truck"
+            title="Tidak Ada Supplier Ditemukan"
+            description="Klik tombol Supplier Baru untuk mendaftarkan mitra pemasok baru."
+          />
+          <table v-else class="table-explorer" :class="showVendorDrawer ? 'min-w-[640px]' : ''">
+            <thead>
+              <tr>
+                <th class="w-12 text-center">NO</th>
+                <th class="w-56">NAMA SUPPLIER / KELOMPOK</th>
+                <th>DESKRIPSI & KETERANGAN</th>
+                <th class="w-32 text-center">BARANG TERKAIT</th>
+                <th class="w-36 text-center">DEFAULT MARGIN</th>
+                <th class="w-28 text-center">STATUS</th>
+                <th class="th-action-sticky w-20">AKSI</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-gray-100 font-mono">
-              <tr
-                v-if="filteredMarkups.length === 0"
-                class="h-40 text-center text-gray-400 select-none font-sans"
-              >
-                <td colspan="7" class="py-8">
-                  <div class="flex flex-col items-center justify-center gap-1.5">
-                    <Truck :size="32" class="text-gray-300" />
-                    <span class="font-bold text-gray-600">Tidak ada supplier ditemukan</span>
-                    <span class="text-[11px] text-gray-400">Klik tombol Tambah Supplier untuk mendaftarkan mitra baru.</span>
-                  </div>
-                </td>
-              </tr>
-
+            <tbody>
               <tr
                 v-for="(setting, idx) in filteredMarkups"
                 :key="setting.category"
-                class="hover:bg-purple-50/60 cursor-pointer transition-colors group select-none font-sans"
-                :class="activeVendorKey === setting.category && showVendorDrawer ? 'bg-purple-50/90 font-medium' : (idx % 2 === 1 ? 'bg-[#faf9f7]' : 'bg-white')"
+                class="cursor-pointer"
+                :class="activeVendorKey === setting.category && showVendorDrawer ? 'bg-purple-50/90 font-medium' : ''"
                 @click="handleOpenEdit(setting)"
               >
-                <td class="px-2.5 py-2 align-middle text-center text-gray-400 font-mono text-[11px]">
+                <td class="text-center text-gray-400 font-mono text-[11px]">
                   {{ idx + 1 }}
                 </td>
 
-                <td class="px-2.5 py-2 align-middle font-bold text-gray-900 group-hover:text-purple-900 truncate">
+                <td class="font-bold text-gray-900 truncate">
                   <div class="flex items-center gap-1.5">
                     <Truck :size="13" class="text-rose-600 shrink-0" />
                     <span class="truncate">{{ setting.category }}</span>
                   </div>
                 </td>
 
-                <td class="px-2.5 py-2 align-middle text-gray-600 text-[11px] truncate">
+                <td class="text-gray-600 text-[11px] truncate">
                   {{ setting.description || 'Kelompok barang dagangan inventori' }}
                 </td>
 
-                <td class="px-2.5 py-2 align-middle text-center font-mono text-xs">
+                <td class="text-center font-mono text-xs">
                   <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 font-semibold text-[11px]">
                     <Package :size="11" class="text-purple-600" />
                     <span>{{ getProductCountForVendor(setting.category) }} SKU</span>
                   </span>
                 </td>
 
-                <td class="px-2.5 py-2 align-middle text-center font-mono">
+                <td class="text-center font-mono">
                   <span class="inline-block px-2.5 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded font-bold text-xs">
                     +{{ setting.defaultMarkupPercent }}%
                   </span>
                 </td>
 
-                <td class="px-2.5 py-2 align-middle text-center">
+                <td class="text-center">
                   <span class="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded text-[10px] font-semibold">
                     Otomatis POS
                   </span>
                 </td>
 
-                <td class="px-2.5 py-2 align-middle text-center" @click.stop>
+                <td class="td-action-sticky text-center" @click.stop>
                   <div class="flex items-center justify-center gap-1">
                     <button
                       type="button"

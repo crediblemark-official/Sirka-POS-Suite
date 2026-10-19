@@ -2,6 +2,7 @@
 import { ref, computed, watch } from 'vue';
 import { Buyer, CustomerType, MembershipTier } from '../../types';
 import { useBuyerStore } from '../../stores/buyerStore';
+import { useSettingsStore } from '../../stores/settingsStore';
 import {
   Users,
   Building,
@@ -17,6 +18,7 @@ import {
 } from 'lucide-vue-next';
 import FormSidebarDrawer from '../common/FormSidebarDrawer.vue';
 import AppEmptyState from '../common/AppEmptyState.vue';
+import MetricStatsStrip, { MetricStatItem } from '../common/MetricStatsStrip.vue';
 import SearchableSelect, { type SelectOption } from '../common/SearchableSelect.vue';
 
 const tierOptions: SelectOption[] = [
@@ -45,6 +47,7 @@ const emit = defineEmits<{
 }>();
 
 const buyerStore = useBuyerStore();
+const settingsStore = useSettingsStore();
 
 // Drawer state for Buyer (Terhubung dengan Header Toolbar Tombol Cart)
 const isEditing = ref(false);
@@ -92,6 +95,51 @@ const memberBuyersCount = computed(() => buyerStore.memberBuyers.length);
 const totalPoints = computed(() => {
   return buyerStore.buyers.reduce((acc, b) => acc + (b.points || 0), 0);
 });
+
+const buyerMetrics = computed<MetricStatItem[]>(() => [
+  {
+    label: 'Total Pelanggan',
+    value: `${totalBuyers.value} Orang`,
+    icon: Users,
+    iconBoxClass: 'bg-blue-50 text-blue-700',
+    valClass: 'text-gray-800'
+  },
+  {
+    label: 'Langganan Grosir',
+    value: `${b2bCount.value} Mitra (B2B)`,
+    icon: Building,
+    iconBoxClass: 'bg-indigo-50 text-indigo-700',
+    valClass: 'text-indigo-800'
+  },
+  {
+    label: 'Pelanggan Eceran',
+    value: `${b2cCount.value} Pembeli (B2C)`,
+    icon: ShoppingBag,
+    iconBoxClass: 'bg-teal-50 text-teal-700',
+    valClass: 'text-teal-800'
+  },
+  {
+    label: 'Member Terdaftar',
+    value: `${memberBuyersCount.value} Kartu`,
+    icon: CreditCard,
+    iconBoxClass: 'bg-purple-50 text-purple-700',
+    valClass: 'text-purple-800'
+  },
+  {
+    label: 'Poin Loyalitas',
+    value: `${totalPoints.value} Poin`,
+    icon: Coins,
+    iconBoxClass: 'bg-amber-50 text-amber-700',
+    valClass: 'text-amber-800'
+  },
+  {
+    label: 'Database Pelanggan',
+    value: 'Siap Kasir POS',
+    icon: Sparkles,
+    iconBoxClass: 'bg-emerald-50 text-emerald-700',
+    valClass: 'text-emerald-800'
+  }
+]);
 
 const filteredBuyers = computed(() => {
   let list = buyerStore.buyers;
@@ -157,8 +205,9 @@ watch(
 );
 
 function generateCardNumber() {
+  const storeAbbr = settingsStore.storeCode || 'CITRA';
   const rand = Math.floor(1000 + Math.random() * 9000);
-  const prefix = buyerForm.value.customerType === 'B2B' ? 'MBR-B2B' : 'MBR-CITRA';
+  const prefix = buyerForm.value.customerType === 'B2B' ? `${storeAbbr}-B2B` : storeAbbr;
   buyerForm.value.memberCardNo = `${prefix}-${rand}`;
   buyerForm.value.hasMemberCard = true;
 }
@@ -213,133 +262,70 @@ defineExpose({
 </script>
 
 <template>
-  <div class="flex-1 flex flex-col h-full bg-white select-none text-xs overflow-hidden">
-    <!-- Layer 1: Ribbon Header (Standar Kulakan) -->
-    <div class="relative flex items-center justify-between bg-[#f6f5f2] border-b border-gray-200 px-3 py-1.5 select-none shrink-0 gap-1.5 overflow-x-auto no-scrollbar">
-      <div class="flex items-center gap-2 shrink-0">
-        <Users :size="15" class="text-indigo-700" />
-        <span class="font-bold text-xs text-gray-800">Data Pelanggan & Mitra</span>
-        <!-- Filter Pills Horizontal -->
-        <div class="flex items-center gap-1 ml-2">
-          <button
-            @click="localFilter = 'ALL'"
-            :class="[
-              'px-2 py-0.5 rounded text-[11px] font-medium transition-colors flex items-center gap-1 cursor-pointer',
-              localFilter === 'ALL'
-                ? 'bg-white shadow-2xs border border-gray-300 text-gray-900 font-bold'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50'
-            ]"
-          >
-            Semua
-            <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-gray-200 text-gray-700 font-bold">{{ totalBuyers }}</span>
-          </button>
-          <button
-            @click="localFilter = 'B2B'"
-            :class="[
-              'px-2 py-0.5 rounded text-[11px] font-medium transition-colors flex items-center gap-1 cursor-pointer',
-              localFilter === 'B2B'
-                ? 'bg-white shadow-2xs border border-gray-300 text-indigo-900 font-bold'
-                : 'text-gray-600 hover:text-indigo-900 hover:bg-gray-200/50'
-            ]"
-          >
-            Grosir B2B
-            <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-indigo-100 text-indigo-800 font-bold">{{ b2bCount }}</span>
-          </button>
-          <button
-            @click="localFilter = 'B2C'"
-            :class="[
-              'px-2 py-0.5 rounded text-[11px] font-medium transition-colors flex items-center gap-1 cursor-pointer',
-              localFilter === 'B2C'
-                ? 'bg-white shadow-2xs border border-gray-300 text-teal-900 font-bold'
-                : 'text-gray-600 hover:text-teal-900 hover:bg-gray-200/50'
-            ]"
-          >
-            Eceran B2C
-            <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-teal-100 text-teal-800 font-bold">{{ b2cCount }}</span>
-          </button>
-        </div>
-      </div>
-
-      <div class="flex items-center gap-2 shrink-0 ml-auto">
-        <span v-if="props.searchQuery" class="text-[11px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded border border-gray-200">
-          Cari: "<span class="font-semibold text-gray-700">{{ props.searchQuery }}</span>"
-        </span>
-      </div>
-    </div>
-
-    <!-- 1. Ringkasan Metrik Cepat Pelanggan (Seimbang Terbagi Rata 6 Kolom, Identik Kulakan) -->
-    <div class="flex items-center divide-x divide-gray-200 px-2 py-2 border-b border-gray-200 bg-white shrink-0">
-      <!-- 1. Total Pelanggan -->
-      <div class="flex items-center gap-2 px-2.5 first:pl-1 flex-1 min-w-0">
-        <div class="w-7 h-7 rounded bg-blue-50 text-blue-700 flex items-center justify-center shrink-0">
-          <Users :size="15" />
-        </div>
-        <div class="min-w-0">
-          <div class="text-[10px] text-gray-500 font-medium leading-none truncate">Total Pelanggan</div>
-          <div class="text-xs font-bold text-gray-800 font-mono mt-0.5 truncate">{{ totalBuyers }} Orang</div>
-        </div>
-      </div>
-
-      <!-- 2. Mitra Grosir B2B -->
-      <div class="flex items-center gap-2 px-2.5 flex-1 min-w-0">
-        <div class="w-7 h-7 rounded bg-indigo-50 text-indigo-700 flex items-center justify-center shrink-0">
-          <Building :size="15" />
-        </div>
-        <div class="min-w-0">
-          <div class="text-[10px] text-gray-500 font-medium leading-none truncate">Langganan Grosir</div>
-          <div class="text-xs font-bold text-indigo-800 font-mono mt-0.5 truncate">{{ b2bCount }} Mitra (B2B)</div>
-        </div>
-      </div>
-
-      <!-- 3. Pelanggan Eceran B2C -->
-      <div class="flex items-center gap-2 px-2.5 flex-1 min-w-0">
-        <div class="w-7 h-7 rounded bg-teal-50 text-teal-700 flex items-center justify-center shrink-0">
-          <ShoppingBag :size="15" />
-        </div>
-        <div class="min-w-0">
-          <div class="text-[10px] text-gray-500 font-medium leading-none truncate">Pelanggan Eceran</div>
-          <div class="text-xs font-bold text-teal-800 font-mono mt-0.5 truncate">{{ b2cCount }} Pembeli (B2C)</div>
-        </div>
-      </div>
-
-      <!-- 4. Member Terdaftar -->
-      <div class="flex items-center gap-2 px-2.5 flex-1 min-w-0">
-        <div class="w-7 h-7 rounded bg-purple-50 text-purple-700 flex items-center justify-center shrink-0">
-          <CreditCard :size="15" />
-        </div>
-        <div class="min-w-0">
-          <div class="text-[10px] text-gray-500 font-medium leading-none truncate">Member Terdaftar</div>
-          <div class="text-xs font-bold text-purple-800 font-mono mt-0.5 truncate">{{ memberBuyersCount }} Kartu</div>
-        </div>
-      </div>
-
-      <!-- 5. Total Poin Loyalitas -->
-      <div class="flex items-center gap-2 px-2.5 flex-1 min-w-0">
-        <div class="w-7 h-7 rounded bg-amber-50 text-amber-700 flex items-center justify-center shrink-0">
-          <Coins :size="15" />
-        </div>
-        <div class="min-w-0">
-          <div class="text-[10px] text-gray-500 font-medium leading-none truncate">Poin Loyalitas</div>
-          <div class="text-xs font-bold text-amber-800 font-mono mt-0.5 truncate">{{ totalPoints }} Poin</div>
-        </div>
-      </div>
-
-      <!-- 6. Status Sinkronisasi -->
-      <div class="flex items-center gap-2 px-2.5 flex-1 min-w-0">
-        <div class="w-7 h-7 rounded bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
-          <Sparkles :size="15" />
-        </div>
-        <div class="min-w-0">
-          <div class="text-[10px] text-gray-500 font-medium leading-none truncate">Database Pelanggan</div>
-          <div class="text-xs font-bold text-emerald-800 font-mono mt-0.5 truncate">Siap Kasir POS</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 2. Workspace: Edge-to-Edge Table on Left, FormSidebarDrawer on Right -->
+  <div class="flex flex-col h-full bg-[#f8f7f5] text-[#2e2b28] select-none text-xs overflow-hidden">
+    <!-- Main Workspace: Split Layar (Kiri: Tabel Pelanggan & Ribbon, Kanan: FormSidebarDrawer) -->
     <div class="flex-1 flex overflow-hidden">
-      <!-- Tabel Pelanggan Edge-to-Edge -->
+      <!-- Sisi Kiri: Ribbon + MetricStatsStrip + Tabel Pelanggan Edge-to-Edge -->
       <div class="flex-1 flex flex-col overflow-hidden bg-white">
+        <!-- Layer 1: Ribbon Header (Standar Kulakan) -->
+        <div
+          v-horizontal-scroll
+          class="h-10 relative flex items-center justify-between bg-[#f6f5f2] border-b border-gray-200 px-3 select-none shrink-0 gap-1.5 overflow-x-auto no-scrollbar"
+        >
+          <div class="flex items-center gap-2 shrink-0">
+            <Users :size="15" class="text-indigo-700" />
+            <span class="font-bold text-xs text-gray-800">Data Pelanggan & Mitra</span>
+            <!-- Filter Pills Horizontal -->
+            <div class="flex items-center gap-1 ml-2">
+              <button
+                @click="localFilter = 'ALL'"
+                :class="[
+                  'px-2 py-0.5 rounded text-[11px] font-medium transition-colors flex items-center gap-1 cursor-pointer',
+                  localFilter === 'ALL'
+                    ? 'bg-white shadow-2xs border border-gray-300 text-gray-900 font-bold'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50'
+                ]"
+              >
+                Semua
+                <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-gray-200 text-gray-700 font-bold">{{ totalBuyers }}</span>
+              </button>
+              <button
+                @click="localFilter = 'B2B'"
+                :class="[
+                  'px-2 py-0.5 rounded text-[11px] font-medium transition-colors flex items-center gap-1 cursor-pointer',
+                  localFilter === 'B2B'
+                    ? 'bg-white shadow-2xs border border-gray-300 text-indigo-900 font-bold'
+                    : 'text-gray-600 hover:text-indigo-900 hover:bg-gray-200/50'
+                ]"
+              >
+                Grosir B2B
+                <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-indigo-100 text-indigo-800 font-bold">{{ b2bCount }}</span>
+              </button>
+              <button
+                @click="localFilter = 'B2C'"
+                :class="[
+                  'px-2 py-0.5 rounded text-[11px] font-medium transition-colors flex items-center gap-1 cursor-pointer',
+                  localFilter === 'B2C'
+                    ? 'bg-white shadow-2xs border border-gray-300 text-teal-900 font-bold'
+                    : 'text-gray-600 hover:text-teal-900 hover:bg-gray-200/50'
+                ]"
+              >
+                Eceran B2C
+                <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-teal-100 text-teal-800 font-bold">{{ b2cCount }}</span>
+              </button>
+            </div>
+          </div>
+
+          <div v-if="props.searchQuery" class="flex items-center gap-2 shrink-0 ml-auto">
+            <span class="text-[11px] text-gray-600 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 font-medium">
+              Cari: "<span class="font-bold text-gray-800">{{ props.searchQuery }}</span>"
+            </span>
+          </div>
+        </div>
+
+        <!-- Reusable MetricStatsStrip (DRY) di sisi kiri -->
+        <MetricStatsStrip :items="buyerMetrics" />
+
         <div class="flex-1" :class="showBuyerDrawer ? 'overflow-auto' : 'overflow-y-auto overflow-x-hidden'">
           <AppEmptyState
             v-if="filteredBuyers.length === 0"
@@ -561,7 +547,7 @@ defineExpose({
                   <input
                     v-model="buyerForm.memberCardNo"
                     type="text"
-                    placeholder="MBR-CITRA-1234"
+                    :placeholder="`${settingsStore.storeCode}-1234`"
                     class="flex-1 bg-white border border-gray-300 rounded px-2.5 py-1 text-xs font-mono font-bold text-purple-900 outline-none focus:border-purple-600 uppercase"
                   />
                   <button

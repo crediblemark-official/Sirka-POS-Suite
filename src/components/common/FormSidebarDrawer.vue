@@ -14,7 +14,7 @@ const props = withDefaults(
     saveLabel?: string;
     newButtonLabel?: string;
     editButtonLabel?: string;
-    themeColor?: 'rose' | 'amber' | 'blue' | 'purple' | 'emerald' | 'indigo' | 'gray';
+    themeColor?: 'brand' | 'rose' | 'amber' | 'blue' | 'purple' | 'emerald' | 'indigo' | 'gray';
     showDelete?: boolean;
     showSegmentedControl?: boolean;
   }>(),
@@ -42,6 +42,15 @@ const emit = defineEmits<{
 
 const colorConfig = computed(() => {
   switch (props.themeColor) {
+    case 'brand':
+      return {
+        icon: 'text-blue-700',
+        badge: 'bg-blue-100 text-blue-900',
+        activePillNew: 'bg-white text-blue-700 shadow-xs font-bold',
+        activePillEdit: 'bg-white text-blue-700 shadow-xs font-bold',
+        saveBtn: 'hover:opacity-95 active:opacity-90',
+        saveBtnStyle: { backgroundColor: 'var(--brand-primary)', color: 'var(--brand-primary-contrast, #ffffff)' }
+      };
     case 'amber':
       return {
         icon: 'text-amber-700',
@@ -184,7 +193,8 @@ function handleClose() {
     </div>
 
     <!-- Compact Sticky Footer (No redundant 'Mode:...' label) -->
-    <div class="p-2.5 bg-white border-t border-gray-200 shrink-0">
+    <div class="p-2.5 bg-white border-t border-gray-200 shrink-0 space-y-1.5">
+      <slot name="footer-prefix" />
       <div v-if="isEditing" class="grid grid-cols-4 gap-2">
         <button
           v-if="showDelete"
@@ -210,6 +220,7 @@ function handleClose() {
           type="button"
           class="col-span-2 py-1.5 text-white rounded font-bold text-xs cursor-pointer flex items-center justify-center gap-1.5 shadow-xs transition-colors disabled:opacity-40"
           :class="colorConfig.saveBtn"
+          :style="colorConfig.saveBtnStyle || {}"
           :disabled="!canSave"
           @click="emit('save')"
         >
@@ -231,6 +242,7 @@ function handleClose() {
           type="button"
           class="col-span-2 py-1.5 text-white rounded font-bold text-xs cursor-pointer flex items-center justify-center gap-1.5 shadow-xs transition-colors disabled:opacity-40"
           :class="colorConfig.saveBtn"
+          :style="colorConfig.saveBtnStyle || {}"
           :disabled="!canSave"
           @click="emit('save')"
         >

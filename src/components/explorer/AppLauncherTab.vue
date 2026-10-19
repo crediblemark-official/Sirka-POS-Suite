@@ -87,7 +87,7 @@ const availableMenuItems: MenuItem[] = [
     id: 'products',
     title: 'Daftar Barang (SKU)',
     category: 'Inventori',
-    description: 'Master data barang dagangan, stok fisik gudang, barcode, dan margin harga jual.',
+    description: 'Master data barang dagangan, stok fisik gudang, satuan, dan margin harga jual.',
     icon: Package,
     iconBoxBg: 'bg-purple-50 text-purple-600 border border-purple-200/80',
     statBadge: () => `${inventoryStore.products.length} Produk`

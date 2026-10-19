@@ -13,6 +13,7 @@ export const useSettingsStore = defineStore('settings', () => {
       ? JSON.parse(saved)
       : {
           store_name: 'Kasir Citra',
+          store_code: 'CITRA',
           store_tagline: 'Distribusi B2B & Hub Pengadaan',
           store_address: 'Jl. Sentral Distribusi No. 8',
           store_phone: '0812-3456-7890',
@@ -103,6 +104,19 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   const storeName = computed(() => settings.value.store_name || 'Kasir Citra');
+  const storeCode = computed(() => {
+    if (settings.value.store_code && settings.value.store_code.trim()) {
+      return settings.value.store_code.trim().toUpperCase();
+    }
+    const name = (settings.value.store_name || '').replace(/^(toko|kasir|warung|cv|pt|ud)\s+/i, '').trim();
+    if (!name) return 'CITRA';
+    const words = name.split(/\s+/).filter(Boolean);
+    if (words.length === 1) {
+      return words[0].toUpperCase();
+    }
+    return words.map(w => w[0]).join('').toUpperCase() || 'CITRA';
+  });
+  const storeAbbreviation = computed(() => storeCode.value);
   const storeTagline = computed(() => settings.value.store_tagline || 'Distribusi B2B & Hub Pengadaan');
   const storeAddress = computed(() => settings.value.store_address || '');
   const storePhone = computed(() => settings.value.store_phone || '');
@@ -116,6 +130,8 @@ export const useSettingsStore = defineStore('settings', () => {
   return {
     settings,
     storeName,
+    storeCode,
+    storeAbbreviation,
     storeTagline,
     storeAddress,
     storePhone,

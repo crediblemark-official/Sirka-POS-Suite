@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useSettingsStore } from '../../stores/settingsStore';
+import { useInventoryStore } from '../../stores/inventoryStore';
 import { invoke } from '@tauri-apps/api/core';
 import { Minus, Square, Copy, X, Store, Database } from 'lucide-vue-next';
 
 const settingsStore = useSettingsStore();
+const inventoryStore = useInventoryStore();
 const isMaximized = ref(false);
 
 // Window control functions with safe fallbacks (works in Tauri desktop and safe in browser)
@@ -90,12 +92,19 @@ onMounted(async () => {
         </span>
       </div>
 
-      <!-- Badge Indikator Status Database -->
-      <div class="hidden lg:flex items-center gap-1.5 ml-2 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 text-[10px] font-medium border border-emerald-500/20">
-        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+      <!-- Badge Indikator Status Database (BUG-012 FIX: Reactive) -->
+      <div
+        class="hidden lg:flex items-center gap-1.5 ml-2 px-2 py-0.5 rounded-full text-[10px] font-medium border transition-colors"
+        :class="inventoryStore.isConnectedToPg ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20' : 'bg-rose-500/10 text-rose-700 border-rose-500/20'"
+        :title="inventoryStore.isConnectedToPg ? 'Koneksi PostgreSQL aktif (Port 5434)' : 'Terputus dari database PostgreSQL (Mode Offline / Cache Lokal)'"
+      >
+        <span
+          class="w-1.5 h-1.5 rounded-full"
+          :class="inventoryStore.isConnectedToPg ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'"
+        ></span>
         <span class="flex items-center gap-1 font-mono">
           <Database :size="9" />
-          <span>PostgreSQL Aktif (5434)</span>
+          <span>{{ inventoryStore.isConnectedToPg ? 'PostgreSQL Aktif' : 'DB Terputus' }}</span>
         </span>
       </div>
     </div>
