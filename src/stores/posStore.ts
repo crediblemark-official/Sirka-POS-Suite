@@ -173,13 +173,44 @@ export const usePosStore = defineStore('pos', () => {
   // Baris Kontrol Markup Dinamis (PRD baris 101): preset % transaksi diterapkan
   // ke semua baris kecuali baris yang harga jualnya sudah di-override manual.
   const transactionMarkupPercent = ref<number | null>(null);
+  const transactionMarkupNominal = ref<number | null>(null);
+
   function applyTransactionMarkup(percent: number) {
     transactionMarkupPercent.value = percent;
+    transactionMarkupNominal.value = null;
     for (const item of cartItems.value) {
       if (item.isManualSellPrice) continue;
       item.markupPercent = percent;
       if (item.buyPrice > 0) {
         item.sellPrice = Math.round(item.buyPrice * (100 + item.markupPercent) / 100);
+      }
+      recalculateItem(item);
+    }
+  }
+
+  function applyTransactionMarkupNominal(nominalRp: number) {
+    transactionMarkupNominal.value = nominalRp;
+    transactionMarkupPercent.value = null;
+    for (const item of cartItems.value) {
+      if (item.isManualSellPrice) continue;
+      item.sellPrice = Math.max(0, item.buyPrice + nominalRp);
+      if (item.buyPrice > 0) {
+        item.markupPercent = Number((((item.sellPrice - item.buyPrice) / item.buyPrice) * 100).toFixed(1));
+      }
+      recalculateItem(item);
+    }
+  }
+
+  function resetToMasterPrice() {
+    transactionMarkupPercent.value = null;
+    transactionMarkupNominal.value = null;
+    for (const item of cartItems.value) {
+      item.isManualSellPrice = false;
+      const orig = inventoryStore.products.find(p => p.id === item.id);
+      if (orig) {
+        item.buyPrice = orig.lastBuyPrice;
+        item.sellPrice = orig.lastSellPrice;
+        item.markupPercent = orig.defaultMarkupPercent;
       }
       recalculateItem(item);
     }
@@ -466,7 +497,10 @@ export const usePosStore = defineStore('pos', () => {
     updateItemBuyPrice,
     updateItemMarkup,
     applyTransactionMarkup,
+    applyTransactionMarkupNominal,
+    resetToMasterPrice,
     transactionMarkupPercent,
+    transactionMarkupNominal,
     removeItem,
     clearCart,
     loadPreOrderItems,

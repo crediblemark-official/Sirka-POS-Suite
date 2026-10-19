@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { usePosStore } from '../../stores/posStore';
-import { Buyer } from '../../types';
+import { Buyer, CartItem } from '../../types';
 import {
   Trash2,
   Plus,
@@ -27,6 +27,7 @@ import BuyerFormModal from '../master/BuyerFormModal.vue';
 import MemberScanModal from './MemberScanModal.vue';
 import PosPaymentModal from './PosPaymentModal.vue';
 import PosVoucherModal from './PosVoucherModal.vue';
+import ItemPriceAdjustModal from './ItemPriceAdjustModal.vue';
 
 const emit = defineEmits<{
   (e: 'show-receipt'): void;
@@ -85,31 +86,17 @@ async function handleConfirmPayment() {
   }
 }
 
-// BUG-019 FIX: Preset & custom markup transaksi (PRD baris 101)
-const markupPresetOptions = [0, 15, 20, 25, 30] as const;
-function handleApplyTransactionMarkup(percent: number) {
-  posStore.applyTransactionMarkup(percent);
+// Modal Edit Harga Per-Item (3 Cara: Harga Jual Langsung, Markup Rp, Markup %)
+const showItemPriceModal = ref(false);
+const selectedItemForPriceAdjust = ref<CartItem | null>(null);
+
+function openPriceAdjustModal(item: CartItem) {
+  selectedItemForPriceAdjust.value = item;
+  showItemPriceModal.value = true;
 }
 
-function handleCustomTransactionMarkup(event: Event) {
-  const raw = (event.target as HTMLInputElement).value.replace(/[^0-9.,]/g, '').replace(',', '.');
-  const num = parseFloat(raw);
-  if (!isNaN(num) && num >= 0) {
-    posStore.applyTransactionMarkup(Number(num.toFixed(1)));
-  } else {
-    posStore.applyTransactionMarkup(0);
-    (event.target as HTMLInputElement).value = '';
-  }
-}
-
-function parseRupiahInput(event: Event): number {
-  return Number((event.target as HTMLInputElement).value.replace(/\D/g, '')) || 0;
-}
-
-function parseMarkupInput(event: Event): number {
-  const raw = (event.target as HTMLInputElement).value.replace(/[^0-9.,]/g, '').replace(',', '.');
-  const num = parseFloat(raw);
-  return isNaN(num) ? 0 : Math.max(0, num);
+function handleSaveItemPrice(payload: { itemId: string; sellPrice: number; markupPercent: number }) {
+  posStore.updateItemSellPrice(payload.itemId, payload.sellPrice);
 }
 
 const buyerSelectRef = ref<InstanceType<typeof SearchableSelect> | null>(null);
@@ -383,46 +370,6 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- Baris Kontrol Markup Dinamis (PRD baris 101) — BUG-019 FIX -->
-    <div
-      v-if="posStore.cartItems.length > 0"
-      class="flex items-center flex-wrap gap-1.5 px-3 py-1.5 border-b bg-indigo-50/50"
-      style="border-color: var(--surface-tab-border, #dedbd6);"
-    >
-      <span class="text-[10px] font-bold text-indigo-800 uppercase tracking-wider shrink-0">
-        Markup Transaksi:
-      </span>
-      <button
-        v-for="preset in markupPresetOptions"
-        :key="preset"
-        type="button"
-        class="px-2 py-0.5 rounded border text-[10.5px] font-bold font-mono cursor-pointer transition-all"
-        :class="posStore.transactionMarkupPercent === preset
-          ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
-          : 'bg-white text-indigo-700 border-indigo-300 hover:bg-indigo-100'"
-        :title="`Terapkan markup ${preset}% ke semua baris (hapus override manual tetap dipertahankan)`"
-        @click="handleApplyTransactionMarkup(preset)"
-      >
-        {{ preset === 0 ? '0%' : `+${preset}%` }}
-      </button>
-      <span class="text-[9.5px] text-gray-400 shrink-0">/</span>
-      <input
-        type="text"
-        inputmode="decimal"
-        placeholder="% bebas, mis. 12.5"
-        class="w-24 h-5 px-1.5 text-[10.5px] border border-indigo-300 rounded bg-white font-mono focus:border-indigo-500 focus:outline-none"
-        title="Markup custom dalam persen (bisa desimal), diterapkan ke semua baris non-manual"
-        @change="handleCustomTransactionMarkup"
-      />
-      <span
-        v-if="posStore.cartItems.some((it: any) => it.isManualSellPrice)"
-        class="text-[9px] text-amber-700 bg-amber-100 border border-amber-300 rounded px-1.5 py-0.2 font-semibold truncate"
-        title="Baris dengan harga jual edit-manual tidak ikut diubah oleh preset markup"
-      >
-        ⚙ {{ posStore.cartItems.filter((it: any) => it.isManualSellPrice).length }} baris di-override manual
-      </span>
-    </div>
-
     <!-- Items List Area (Clean Divider Lines, No Box Cards) -->
     <div class="flex-1 overflow-y-auto bg-white divide-y divide-[#dedbd6]">
       <!-- Empty Cart State -->
@@ -440,105 +387,84 @@ onUnmounted(() => {
       <div
         v-for="item in posStore.cartItems"
         :key="item.id"
-        class="flex items-center justify-between px-3 py-2 hover:bg-[#faf9f6] transition-colors gap-2"
+        class="px-3 py-2 hover:bg-[#faf9f6] transition-colors flex flex-col gap-1.5"
       >
-        <!-- Item Info -->
-        <div class="flex-1 min-w-0">
-          <div class="flex items-center gap-1.5">
-            <span class="font-semibold text-gray-900 truncate" :title="item.name">{{ item.name }}</span>
+        <!-- Baris 1: Nama Barang, Unit, Kategori, & Tombol Hapus -->
+        <div class="flex items-center justify-between gap-1.5">
+          <div class="flex items-center gap-1.5 min-w-0 flex-1">
+            <span class="font-semibold text-gray-900 text-xs truncate" :title="item.name">
+              {{ item.name }}
+            </span>
             <span class="px-1 py-0.2 bg-amber-100 text-amber-800 rounded text-[9.5px] font-bold shrink-0">
               {{ item.unit }}
             </span>
-            <span class="truncate text-[10px] text-gray-400">{{ item.category }}</span>
-          </div>
-          <!-- BUG-019 FIX: Inline editing Harga Beli / Markup / Harga Jual (PRD baris 101-102, Zero-Modal) -->
-          <div class="flex items-center gap-1 mt-1 text-[10px]">
-            <label class="flex items-center gap-0.5 font-mono" title="Harga Beli dari nota supplier (Aturan #3)">
-              <span class="text-gray-400 text-[9px] font-sans">Beli</span>
-              <input
-                type="text"
-                inputmode="numeric"
-                placeholder="0"
-                :value="item.buyPrice || ''"
-                class="w-14 h-5 text-right font-mono text-gray-700 bg-gray-50 hover:bg-white focus:bg-white border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-400 rounded outline-none px-1"
-                @change="(e: any) => posStore.updateItemBuyPrice(item.id, parseRupiahInput(e))"
-              />
-            </label>
-            <label class="flex items-center gap-0.5 font-mono" title="% Markup baris ini — jual dihitung otomatis dari beli (Aturan #2)">
-              <span class="text-gray-400 text-[9px] font-sans">%</span>
-              <input
-                type="text"
-                inputmode="decimal"
-                :value="item.markupPercent"
-                class="w-9 h-5 text-center font-mono text-indigo-700 bg-indigo-50 hover:bg-white focus:bg-white border border-indigo-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-400 rounded outline-none px-0.5"
-                @change="(e: any) => posStore.updateItemMarkup(item.id, parseMarkupInput(e))"
-              />
-            </label>
-            <label class="flex items-center gap-0.5 font-mono" title="Harga Jual per unit (Aturan #2 level 3)">
-              <span class="text-gray-400 text-[9px] font-sans">Jual</span>
-              <input
-                type="text"
-                inputmode="numeric"
-                placeholder="0"
-                :value="item.sellPrice || ''"
-                class="w-14 h-5 text-right font-mono font-bold text-blue-700 bg-white hover:bg-blue-50 focus:bg-white border border-blue-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-400 rounded outline-none px-1"
-                @change="(e: any) => posStore.updateItemSellPrice(item.id, parseRupiahInput(e))"
-              />
-            </label>
-            <span
-              v-if="item.isManualSellPrice"
-              class="text-[8.5px] text-amber-700 bg-amber-100 border border-amber-300 rounded px-1 py-0 font-bold shrink-0"
-              title="Harga jual diketik manual — tidak ikut preset markup transaksi"
-            >
-              edit
+            <span class="truncate text-[10px] text-gray-400 shrink-0">
+              {{ item.category }}
             </span>
           </div>
-        </div>
 
-        <!-- Simple Qty Input (No Bulky Pill, No Native Spin Arrow) -->
-        <div class="flex items-center gap-1 shrink-0">
           <button
-            type="button"
-            class="w-5 h-5 rounded text-gray-400 hover:text-black hover:bg-gray-200 flex items-center justify-center cursor-pointer transition-colors"
-            title="Kurang 1"
-            @click="posStore.updateItemQty(item.id, item.qty - 1)"
-          >
-            <Minus :size="11" />
-          </button>
-          <input
-            type="text"
-            inputmode="numeric"
-            :value="item.qty"
-            class="w-12 h-6 text-center font-mono font-bold text-xs bg-gray-50 hover:bg-white focus:bg-white border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-400 rounded outline-none transition-all"
-            @input="(e: any) => {
-              const val = Number(e.target.value.replace(/\D/g, '')) || 1;
-              posStore.updateItemQty(item.id, val);
-            }"
-            @keydown.up.prevent="posStore.updateItemQty(item.id, item.qty + 1)"
-            @keydown.down.prevent="posStore.updateItemQty(item.id, item.qty - 1)"
-          />
-          <button
-            type="button"
-            class="w-5 h-5 rounded text-gray-400 hover:text-black hover:bg-gray-200 flex items-center justify-center cursor-pointer transition-colors"
-            title="Tambah 1"
-            @click="posStore.updateItemQty(item.id, item.qty + 1)"
-          >
-            <Plus :size="11" />
-          </button>
-        </div>
-
-        <!-- Subtotal & Trash -->
-        <div class="flex items-center gap-2 text-right">
-          <span class="font-bold font-mono text-gray-800 text-xs w-20">
-            {{ formatRupiah(item.subtotalSell) }}
-          </span>
-          <button
-            class="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer transition-colors"
-            title="Hapus item"
+            class="p-0.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer transition-colors shrink-0"
+            title="Hapus barang dari keranjang"
             @click="posStore.removeItem(item.id)"
           >
             <Trash2 :size="13" />
           </button>
+        </div>
+
+        <!-- Baris 2: Harga Jual Bersih (Kiri) & Qty + Subtotal (Kanan) -->
+        <div class="flex items-center justify-between gap-2">
+          <!-- Kiri: Tampilan Bersih: Klik untuk buka modal 3-cara penyesuaian harga -->
+          <div
+            class="text-xs font-mono flex items-center gap-1.5 cursor-pointer hover:opacity-80 group/price min-w-0"
+            title="Klik untuk ubah harga (Harga Jual Langsung, Markup Rp, atau %)"
+            @click="openPriceAdjustModal(item)"
+          >
+            <span class="font-bold text-amber-700 group-hover/price:underline">
+              Rp {{ formatRupiah(item.sellPrice) }}
+            </span>
+            <span class="text-[10px] text-gray-400 uppercase">/ {{ item.unit }}</span>
+          </div>
+
+          <!-- Kanan: Qty Control & Subtotal -->
+          <div class="flex items-center gap-2 shrink-0">
+            <!-- Simple Qty Input -->
+            <div class="flex items-center gap-0.5">
+              <button
+                type="button"
+                class="w-5 h-5 rounded text-gray-400 hover:text-black hover:bg-gray-200 flex items-center justify-center cursor-pointer transition-colors"
+                title="Kurang 1"
+                @click="posStore.updateItemQty(item.id, item.qty - 1)"
+              >
+                <Minus :size="11" />
+              </button>
+              <input
+                type="text"
+                inputmode="numeric"
+                :value="item.qty"
+                class="w-10 h-5.5 text-center font-mono font-bold text-xs bg-gray-50 hover:bg-white focus:bg-white border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-400 rounded outline-none transition-all"
+                @input="(e: any) => {
+                  const val = Number(e.target.value.replace(/\D/g, '')) || 1;
+                  posStore.updateItemQty(item.id, val);
+                }"
+                @keydown.up.prevent="posStore.updateItemQty(item.id, item.qty + 1)"
+                @keydown.down.prevent="posStore.updateItemQty(item.id, item.qty - 1)"
+              />
+              <button
+                type="button"
+                class="w-5 h-5 rounded text-gray-400 hover:text-black hover:bg-gray-200 flex items-center justify-center cursor-pointer transition-colors"
+                title="Tambah 1"
+                @click="posStore.updateItemQty(item.id, item.qty + 1)"
+              >
+                <Plus :size="11" />
+              </button>
+            </div>
+
+            <!-- Subtotal -->
+            <span class="font-bold font-mono text-gray-900 text-xs text-right min-w-[65px]">
+              {{ formatRupiah(item.subtotalSell) }}
+            </span>
+          </div>
         </div>
       </div>
     </div>
@@ -744,6 +670,14 @@ onUnmounted(() => {
       :default-customer-type="posStore.saleMode"
       @close="showBuyerModal = false"
       @save="handleSaveNewBuyer"
+    />
+
+    <!-- Modal 3 Cara Penyesuaian Harga Per-Item -->
+    <ItemPriceAdjustModal
+      :is-open="showItemPriceModal"
+      :item="selectedItemForPriceAdjust"
+      @close="showItemPriceModal = false"
+      @save="handleSaveItemPrice"
     />
   </div>
 </template>

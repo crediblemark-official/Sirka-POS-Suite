@@ -331,22 +331,6 @@ defineExpose({
           </div>
         </div>
 
-        <!-- Keyboard Nav Hints + Scan Barcode Status (BUG-016 FIX) -->
-        <div class="hidden lg:flex items-center gap-1 text-[11px] text-gray-500 bg-gray-100 border border-gray-200 rounded px-2 py-0.5 font-mono">
-          <span class="text-gray-400">Navigasi:</span>
-          <kbd class="px-1 bg-white border border-gray-300 rounded text-[10px] font-bold">↑</kbd>
-          <kbd class="px-1 bg-white border border-gray-300 rounded text-[10px] font-bold">↓</kbd>
-          <kbd class="px-1 bg-white border border-gray-300 rounded text-[10px] font-bold">←</kbd>
-          <kbd class="px-1 bg-white border border-gray-300 rounded text-[10px] font-bold">→</kbd>
-          <span class="text-gray-400 ml-1">Pilih | Masukkan:</span>
-          <kbd class="px-1.5 bg-blue-50 text-blue-700 border border-blue-300 rounded text-[10px] font-bold">Enter ↵</kbd>
-          <span
-            class="ml-1.5 flex items-center gap-1 text-[10px]"
-            :class="scanning ? 'text-blue-700 font-bold' : 'text-gray-400'"
-          >
-            💠 Scanner: {{ scanning ? 'menerima…' : 'siap' }} — scan langsung masuk keranjang
-          </span>
-        </div>
       </div>
 
       <div class="flex items-center gap-2">
