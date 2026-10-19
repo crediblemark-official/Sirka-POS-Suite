@@ -17,6 +17,8 @@ export const usePurchaseStore = defineStore('purchase', () => {
   const receiptDate = ref<string>(new Date().toISOString().slice(0, 10));
   const receiptNotes = ref<string>('');
   const receivingItems = ref<PurchaseReceiptItem[]>([]);
+  const showHistoryDrawer = ref<boolean>(true);
+  const activeView = ref<'history' | 'form'>('history');
 
   function saveLocal() {
     localStorage.setItem(STORAGE_KEY_PURCHASES, JSON.stringify(purchaseHistory.value));
@@ -88,17 +90,35 @@ export const usePurchaseStore = defineStore('purchase', () => {
     receivingItems.value = receivingItems.value.filter(i => i.id !== itemId);
   }
 
+  const activeReceiptForEdit = ref<PurchaseReceipt | null>(null);
+
   function clearReceivingForm() {
     receivingItems.value = [];
     supplierInvoiceNo.value = '';
     receiptNotes.value = '';
+    activeReceiptForEdit.value = null;
+  }
+
+  function loadReceiptForEdit(receipt: PurchaseReceipt) {
+    activeReceiptForEdit.value = receipt;
+    selectedSupplier.value = receipt.supplier;
+    supplierInvoiceNo.value = receipt.supplierInvoiceNo;
+    receiptDate.value = receipt.date;
+    receiptNotes.value = receipt.notes || '';
+    receivingItems.value = JSON.parse(JSON.stringify(receipt.items || []));
+    showHistoryDrawer.value = true;
+  }
+
+  function openNewReceiving() {
+    clearReceivingForm();
+    showHistoryDrawer.value = true;
   }
 
   const totalBuy = computed(() =>
     receivingItems.value.reduce((acc, i) => acc + i.subtotalBuy, 0)
   );
 
-  // Proses Simpan Penerimaan Barang:
+  // Proses Simpan Penerimaan Barang Baru:
   // 1. Tambah stok barang di Inventory
   // 2. Update HPP (lastBuyPrice) & lastSellPrice di Inventory & DB
   // 3. Simpan riwayat penerimaan pembelian
@@ -118,14 +138,7 @@ export const usePurchaseStore = defineStore('purchase', () => {
 
     // Update stok dan HPP di inventory
     for (const item of receivingItems.value) {
-      const prod = inventoryStore.products.find(p => p.id === item.productId);
-      if (prod) {
-        prod.stock += item.qtyReceived;
-        prod.lastBuyPrice = item.buyPrice;
-        prod.lastSellPrice = item.newSellPrice;
-      }
-      // Update PostgreSQL
-      inventoryStore.updateProductPrices(item.productId, item.buyPrice, item.newSellPrice);
+      await inventoryStore.updateStockAndPrice(item.productId, item.qtyReceived, item.buyPrice, item.newSellPrice);
     }
 
     purchaseHistory.value.unshift(receipt);
@@ -135,6 +148,72 @@ export const usePurchaseStore = defineStore('purchase', () => {
     return receipt;
   }
 
+  // Proses Perbarui Penerimaan Barang (Edit):
+  // 1. Hitung selisih stok (delta) antara versi lama vs versi baru
+  // 2. Update HPP & Harga Jual baru
+  // 3. Simpan pembaruan nota di riwayat
+  async function updateReceiving(): Promise<PurchaseReceipt | null> {
+    if (!activeReceiptForEdit.value || receivingItems.value.length === 0) return null;
+
+    const oldReceipt = activeReceiptForEdit.value;
+    const oldItemsMap = new Map(oldReceipt.items.map(it => [it.productId, it.qtyReceived]));
+    const newItemsMap = new Map(receivingItems.value.map(it => [it.productId, it.qtyReceived]));
+
+    // 1. Update stok item yang ada di form baru
+    for (const item of receivingItems.value) {
+      const oldQty = oldItemsMap.get(item.productId) || 0;
+      const deltaQty = item.qtyReceived - oldQty;
+      await inventoryStore.updateStockAndPrice(item.productId, deltaQty, item.buyPrice, item.newSellPrice);
+    }
+
+    // 2. Item lama yang dihapus dari nota -> kurangi stoknya
+    for (const oldItem of oldReceipt.items) {
+      if (!newItemsMap.has(oldItem.productId)) {
+        await inventoryStore.updateStockAndPrice(oldItem.productId, -oldItem.qtyReceived, 0, 0);
+      }
+    }
+
+    const updatedReceipt: PurchaseReceipt = {
+      ...oldReceipt,
+      supplierInvoiceNo: supplierInvoiceNo.value || oldReceipt.supplierInvoiceNo,
+      date: receiptDate.value,
+      supplier: selectedSupplier.value,
+      items: JSON.parse(JSON.stringify(receivingItems.value)),
+      totalBuy: totalBuy.value,
+      notes: receiptNotes.value || undefined,
+    };
+
+    const idx = purchaseHistory.value.findIndex(p => p.id === oldReceipt.id);
+    if (idx !== -1) {
+      purchaseHistory.value[idx] = updatedReceipt;
+    }
+    saveLocal();
+    clearReceivingForm();
+
+    return updatedReceipt;
+  }
+
+  // Proses Hapus Penerimaan Barang:
+  // 1. Kurangi kembali stok yang sebelumnya masuk
+  // 2. Hapus nota dari purchaseHistory
+  async function deleteReceipt(id: string): Promise<boolean> {
+    const rcp = purchaseHistory.value.find(p => p.id === id);
+    if (!rcp) return false;
+
+    // Kembalikan stok
+    for (const it of rcp.items) {
+      await inventoryStore.updateStockAndPrice(it.productId, -it.qtyReceived, 0, 0);
+    }
+
+    purchaseHistory.value = purchaseHistory.value.filter(p => p.id !== id);
+    saveLocal();
+
+    if (activeReceiptForEdit.value?.id === id) {
+      clearReceivingForm();
+    }
+    return true;
+  }
+
   return {
     purchaseHistory,
     selectedSupplier,
@@ -142,6 +221,9 @@ export const usePurchaseStore = defineStore('purchase', () => {
     receiptDate,
     receiptNotes,
     receivingItems,
+    activeReceiptForEdit,
+    loadReceiptForEdit,
+    openNewReceiving,
     addItemToReceiving,
     updateItemQty,
     updateItemBuyPrice,
@@ -151,5 +233,9 @@ export const usePurchaseStore = defineStore('purchase', () => {
     clearReceivingForm,
     totalBuy,
     submitReceiving,
+    updateReceiving,
+    deleteReceipt,
+    showHistoryDrawer,
+    activeView,
   };
 });

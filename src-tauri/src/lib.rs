@@ -18,6 +18,9 @@ pub fn run() {
             // 1. Hardware & System
             save_export_file,
             generate_receipt_text,
+            window_minimize,
+            window_toggle_maximize,
+            window_close,
             // 2. Products & Inventory
             db_get_products,
             db_upsert_product,
@@ -38,9 +41,15 @@ pub fn run() {
             db_get_transactions,
             db_create_transaction,
             db_update_transaction_status,
+            db_delete_transaction,
+            db_get_purchases,
+            db_save_purchase,
+            db_delete_purchase,
+            db_import_purchases,
             // 7. Pre-Orders
             db_get_preorders,
             db_save_preorder,
+            db_delete_preorder,
             // 8. Discounts & Promos
             db_get_discounts,
             db_upsert_discount,

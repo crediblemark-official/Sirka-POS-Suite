@@ -1,15 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { usePosStore } from '../../stores/posStore';
-import { PaymentMethod, Buyer } from '../../types';
+import { Buyer } from '../../types';
 import {
   Trash2,
   Plus,
   Minus,
   Printer,
-  ShoppingBag,
-  CheckCircle2,
-  Clock,
   Receipt,
   Building,
   Tag,
@@ -17,15 +14,17 @@ import {
   Sparkles,
   Coins,
   X,
-  QrCode
+  QrCode,
+  ShoppingBag
 } from 'lucide-vue-next';
 
 import { useBuyerStore } from '../../stores/buyerStore';
-import { useDiscountStore } from '../../stores/discountStore';
 import { formatRupiah } from '../../utils/formatters';
 import SearchableSelect, { type SelectOption } from '../common/SearchableSelect.vue';
 import BuyerFormModal from '../master/BuyerFormModal.vue';
 import MemberScanModal from './MemberScanModal.vue';
+import PosPaymentModal from './PosPaymentModal.vue';
+import PosVoucherModal from './PosVoucherModal.vue';
 
 const emit = defineEmits<{
   (e: 'show-receipt'): void;
@@ -33,43 +32,12 @@ const emit = defineEmits<{
 
 const posStore = usePosStore();
 const buyerStore = useBuyerStore();
-const discountStore = useDiscountStore();
 
-// Kupon & Diskon State
-const couponInput = ref('');
-const couponError = ref('');
-const couponSuccess = ref('');
+// Modal States
 const showVoucherModal = ref(false);
+const showPaymentModal = ref(false);
+const showScanMemberModal = ref(false);
 
-function handleApplyCoupon() {
-  couponError.value = '';
-  couponSuccess.value = '';
-  const code = couponInput.value.trim().toUpperCase();
-  if (!code) return;
-  const ok = posStore.applyDiscount(code);
-  if (ok) {
-    couponSuccess.value = `Kupon ${code} berhasil dipasang!`;
-    couponInput.value = '';
-    showVoucherModal.value = false;
-    setTimeout(() => { couponSuccess.value = ''; }, 3000);
-  } else {
-    couponError.value = 'Kupon tidak berlaku atau S&K belanja belum terpenuhi.';
-    setTimeout(() => { couponError.value = ''; }, 3500);
-  }
-}
-
-function handleSelectVoucher(code: string) {
-  couponInput.value = code;
-  handleApplyCoupon();
-}
-
-function handleRemoveCoupon() {
-  posStore.removeDiscount();
-  couponError.value = '';
-  couponSuccess.value = '';
-}
-
-// Tukar Poin State
 function toggleRedeemPoints() {
   if (posStore.pointsToRedeem > 0) {
     posStore.setPointsToRedeem(0);
@@ -78,8 +46,9 @@ function toggleRedeemPoints() {
   }
 }
 
-// Modal Scan Kartu Member (F3 - Menggunakan Komponen Terpisah)
-const showScanMemberModal = ref(false);
+function handleRemoveCoupon() {
+  posStore.removeDiscount();
+}
 
 function handleSelectScannedMember(buyer: Buyer) {
   if (buyer.customerType && buyer.customerType !== posStore.saleMode) {
@@ -96,25 +65,20 @@ function unlinkMember() {
   posStore.detachMemberCard();
 }
 
-const paymentMethods: PaymentMethod[] = [
-  'Transfer Bank',
-  'Tunai / Kas',
-  'QRIS',
-  'Nota Tempo'
-];
-
-const showPaymentModal = ref(false);
-
 function handleOpenPaymentModal() {
   if (posStore.cartItems.length === 0) return;
   showPaymentModal.value = true;
 }
 
-function handleConfirmPayment() {
-  showPaymentModal.value = false;
-  const tx = posStore.processCheckout();
-  if (tx) {
-    emit('show-receipt');
+async function handleConfirmPayment() {
+  try {
+    const tx = await posStore.processCheckout();
+    if (tx) {
+      showPaymentModal.value = false;
+      emit('show-receipt');
+    }
+  } catch (error) {
+    alert(`Pembayaran gagal disimpan. Keranjang tetap tersedia. ${error}`);
   }
 }
 
@@ -226,11 +190,11 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="flex flex-col h-full bg-[#fcfbfa] text-[#2e2b28] text-xs select-none">
+  <div class="flex flex-col h-full text-xs select-none" style="background-color: var(--surface-body); color: var(--surface-text);">
     <!-- Top Buyer & Date Header Bar -->
-    <div class="p-2.5 bg-[#f3f1ed] border-b border-[#dedbd6] flex flex-col gap-2">
+    <div class="p-2.5 border-b flex flex-col gap-2" style="background-color: var(--surface-ribbon); border-color: var(--surface-ribbon-border);">
       <!-- Mode Switcher: B2B Grosir vs B2C Eceran -->
-      <div class="flex items-center bg-[#e2dfd9] p-0.5 rounded border border-[#cac6be] shadow-inner">
+      <div class="flex items-center p-0.5 rounded border shadow-inner" style="background-color: var(--surface-tab-bar); border-color: var(--surface-tab-border);">
         <button
           type="button"
           class="flex-1 flex items-center justify-center gap-1.5 py-1 px-2 rounded text-[11px] font-bold cursor-pointer transition-all"
@@ -578,281 +542,18 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- Modal Konfirmasi Pembayaran & Metode (Muncul setelah klik Bayar / F12) -->
-    <div
-      v-if="showPaymentModal"
-      class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 select-none text-xs"
-      @click.self="showPaymentModal = false"
-    >
-      <div class="bg-white rounded-lg shadow-2xl border border-gray-300 w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-100">
-        <!-- Modal Header -->
-        <div class="px-4 py-3 bg-[#f6f5f2] border-b border-gray-200 flex items-center justify-between font-bold text-gray-800">
-          <div class="flex items-center gap-2 text-sm">
-            <Receipt :size="17" class="text-blue-600" />
-            <span>Konfirmasi Pembayaran Kasir</span>
-          </div>
-          <button
-            type="button"
-            class="p-1 text-gray-400 hover:text-black rounded cursor-pointer"
-            @click="showPaymentModal = false"
-          >
-            <X :size="16" />
-          </button>
-        </div>
+    <!-- Modal Konfirmasi Pembayaran & Metode (F12) -->
+    <PosPaymentModal
+      :is-open="showPaymentModal"
+      @close="showPaymentModal = false"
+      @confirm="handleConfirmPayment"
+    />
 
-        <!-- Modal Body -->
-        <div class="p-5 space-y-4">
-          <!-- Total Tagihan Display -->
-          <div class="p-3.5 bg-blue-50/70 border border-blue-200 rounded-lg text-center">
-            <span class="text-xs font-semibold text-gray-600 block mb-0.5">TOTAL BAYAR AKHIR:</span>
-            <span class="text-2xl font-black font-mono text-blue-700">
-              Rp {{ formatRupiah(posStore.finalTotal) }}
-            </span>
-            <div v-if="posStore.totalDiscountAmount > 0 || posStore.pointsDiscountAmount > 0" class="text-[11px] text-rose-600 font-mono mt-0.5">
-              (Hemat Rp {{ formatRupiah(posStore.totalDiscountAmount + posStore.pointsDiscountAmount) }} dari normal Rp {{ formatRupiah(posStore.totalSell) }})
-            </div>
-            <span class="text-[11px] text-gray-500 block mt-1 font-mono">
-              {{ posStore.selectedBuyer }} ({{ posStore.saleMode === 'B2B' ? 'Grosir / B2B' : 'Eceran' }}) • {{ posStore.cartItems.length }} Barang
-            </span>
-          </div>
-
-          <!-- Opsi Tukar Poin Member Langsung di Modal Bayar -->
-          <div
-            v-if="posStore.isMember && posStore.memberPoints > 0"
-            class="p-3 bg-amber-50/90 border border-amber-200 rounded-lg space-y-2"
-          >
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-1.5 font-bold text-amber-950 text-xs">
-                <Coins :size="15" class="text-amber-600" />
-                <span>Poin Member: {{ posStore.memberPoints }} Poin</span>
-              </div>
-              <span class="text-[11px] font-mono text-amber-800 font-semibold">
-                (Senilai Rp {{ formatRupiah(posStore.memberPoints * buyerStore.loyaltySettings.pointValueInRupiah) }})
-              </span>
-            </div>
-
-            <div class="flex items-center justify-between gap-2 pt-1.5 border-t border-amber-200/70 text-xs">
-              <label class="flex items-center gap-2 cursor-pointer font-semibold text-gray-800 select-none">
-                <input
-                  type="checkbox"
-                  :checked="posStore.pointsToRedeem > 0"
-                  @change="toggleRedeemPoints"
-                  class="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
-                />
-                <span>Tukar Poin untuk Potongan Bayar</span>
-              </label>
-
-              <div v-if="posStore.pointsToRedeem > 0" class="flex items-center gap-1 font-mono text-xs text-amber-900 font-bold">
-                <span>-Rp {{ formatRupiah(posStore.pointsDiscountAmount) }}</span>
-                <span class="text-[10px] text-gray-500 font-normal">({{ posStore.pointsToRedeem }} P)</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Status Bayar -->
-          <div>
-            <label class="text-xs font-bold text-gray-700 block mb-1.5">Status Pembayaran:</label>
-            <div class="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                class="flex items-center justify-center gap-2 py-2 px-3 rounded-md border text-xs font-bold cursor-pointer transition-all"
-                :class="posStore.paymentStatus === 'LUNAS' ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs ring-2 ring-emerald-300' : 'bg-gray-50 text-gray-700 border-gray-300 hover:bg-gray-100'"
-                @click="posStore.paymentStatus = 'LUNAS'"
-              >
-                <CheckCircle2 :size="15" />
-                <span>Lunas</span>
-              </button>
-
-              <button
-                type="button"
-                class="flex items-center justify-center gap-2 py-2 px-3 rounded-md border text-xs font-bold cursor-pointer transition-all"
-                :class="posStore.paymentStatus === 'TEMPO' ? 'bg-amber-600 text-white border-amber-600 shadow-xs ring-2 ring-amber-300' : 'bg-gray-50 text-gray-700 border-gray-300 hover:bg-gray-100'"
-                @click="posStore.paymentStatus = 'TEMPO'"
-              >
-                <Clock :size="15" />
-                <span>Tempo (Piutang)</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Metode Pembayaran -->
-          <div>
-            <label class="text-xs font-bold text-gray-700 block mb-1.5">Metode Pembayaran:</label>
-            <div class="grid grid-cols-2 gap-2">
-              <button
-                v-for="m in paymentMethods"
-                :key="m"
-                type="button"
-                class="py-2 px-2.5 rounded-md border text-xs font-medium text-center cursor-pointer transition-all truncate"
-                :class="posStore.paymentMethod === m ? 'bg-blue-600 text-white border-blue-600 font-bold shadow-xs ring-2 ring-blue-300' : 'bg-gray-50 text-gray-700 border-gray-300 hover:bg-gray-100'"
-                @click="posStore.paymentMethod = m"
-              >
-                {{ m }}
-              </button>
-            </div>
-          </div>
-
-          <!-- Catatan / Keterangan Transaksi -->
-          <div>
-            <div class="flex items-center justify-between mb-1.5">
-              <label class="text-xs font-bold text-gray-700">Catatan / Keterangan Nota:</label>
-              <label class="flex items-center gap-1.5 text-[11px] text-gray-600 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  v-model="posStore.isPreOrder"
-                  class="rounded text-blue-600 focus:ring-0 cursor-pointer"
-                />
-                <span :class="posStore.isPreOrder ? 'text-blue-700 font-bold' : ''">Pesanan Pre-Order</span>
-              </label>
-            </div>
-            <input
-              v-model="posStore.transactionNotes"
-              type="text"
-              placeholder="Contoh: Pre-order Pembeli, Titipan Bu Siti, dll (opsional)..."
-              class="w-full px-2.5 py-1.5 text-xs bg-white border border-gray-300 rounded focus:border-blue-500 focus:outline-none placeholder:text-gray-400"
-            />
-          </div>
-        </div>
-
-        <!-- Modal Footer Actions -->
-        <div class="px-4 py-3 bg-[#f6f5f2] border-t border-gray-200 flex items-center justify-end gap-2">
-          <button
-            type="button"
-            class="px-3 py-1.5 bg-white hover:bg-gray-100 border border-gray-300 rounded text-xs font-semibold text-gray-700 cursor-pointer transition-colors"
-            @click="showPaymentModal = false"
-          >
-            Batal (Esc)
-          </button>
-          <button
-            type="button"
-            class="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
-            @click="handleConfirmPayment"
-          >
-            <Printer :size="14" />
-            <span>Selesaikan & Cetak Struk ↵</span>
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Modal Pilih & Masukkan Kupon Promo (Terpisah rapi & tidak menumpuk) -->
-    <div
-      v-if="showVoucherModal"
-      class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 select-none text-xs"
-      @click.self="showVoucherModal = false"
-    >
-      <div class="bg-white rounded-lg shadow-2xl border border-gray-300 w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-100">
-        <!-- Header -->
-        <div class="px-4 py-3 bg-[#f6f5f2] border-b border-gray-200 flex items-center justify-between font-bold text-gray-800">
-          <div class="flex items-center gap-2 text-sm text-rose-700">
-            <Tag :size="16" />
-            <span>Gunakan Kupon / Voucher Promo</span>
-          </div>
-          <button
-            type="button"
-            class="p-1 text-gray-400 hover:text-black rounded cursor-pointer"
-            @click="showVoucherModal = false"
-          >
-            <X :size="16" />
-          </button>
-        </div>
-
-        <!-- Body -->
-        <div class="p-4 space-y-3">
-          <!-- Manual Code Input -->
-          <div>
-            <label class="text-[11px] font-semibold text-gray-600 block mb-1">Punya Kode Kupon Khusus?</label>
-            <div class="flex gap-1.5">
-              <input
-                v-model="couponInput"
-                type="text"
-                placeholder="Misal: HEMAT5K"
-                class="flex-1 bg-gray-50 border border-gray-300 rounded px-2.5 py-1.5 text-xs font-mono font-bold uppercase outline-none focus:border-rose-500 focus:bg-white"
-                @keydown.enter.prevent="handleApplyCoupon"
-              />
-              <button
-                type="button"
-                class="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded font-bold text-xs cursor-pointer shadow-xs transition-colors shrink-0"
-                @click="handleApplyCoupon"
-              >
-                Gunakan
-              </button>
-            </div>
-            <div v-if="couponError" class="text-[10.5px] text-rose-600 font-semibold mt-1">
-              {{ couponError }}
-            </div>
-            <div v-if="couponSuccess" class="text-[10.5px] text-emerald-600 font-semibold mt-1">
-              {{ couponSuccess }}
-            </div>
-          </div>
-
-          <!-- Active Promo List -->
-          <div>
-            <div class="text-[11px] font-semibold text-gray-600 mb-1.5 flex items-center justify-between">
-              <span>Atau Pilih Promo yang Tersedia:</span>
-              <span class="text-gray-400 font-mono text-[10px]">{{ discountStore.activeDiscounts.length }} Voucher</span>
-            </div>
-
-            <div class="space-y-2 max-h-56 overflow-y-auto pr-0.5">
-              <div
-                v-for="v in discountStore.activeDiscounts"
-                :key="v.id"
-                class="p-2.5 rounded-lg border transition-all cursor-pointer flex items-center justify-between"
-                :class="posStore.appliedDiscount?.id === v.id ? 'bg-rose-50 border-rose-300 ring-1 ring-rose-400' : 'bg-gray-50/70 border-gray-200 hover:bg-rose-50/40 hover:border-rose-200'"
-                @click="() => { handleSelectVoucher(v.code); showVoucherModal = false; }"
-              >
-                <div>
-                  <div class="flex items-center gap-1.5">
-                    <span class="font-mono font-bold text-xs text-rose-700 bg-rose-100 px-1.5 py-0.2 rounded">{{ v.code }}</span>
-                    <span class="font-bold text-gray-800 text-xs">{{ v.name }}</span>
-                  </div>
-                  <div class="text-[10px] text-gray-500 mt-0.5">
-                    <span v-if="v.minPurchase > 0">Min. Belanja: Rp {{ formatRupiah(v.minPurchase) }}</span>
-                    <span v-else>Tanpa minimal belanja</span>
-                    <span v-if="v.scope === 'MEMBER_ONLY'" class="ml-1 text-amber-700 font-bold">• Khusus Member</span>
-                  </div>
-                </div>
-
-                <div class="text-right shrink-0 ml-2">
-                  <span class="font-bold font-mono text-emerald-700 text-xs block">
-                    {{ v.type === 'PERCENT' ? `${v.value}%` : `Rp ${formatRupiah(v.value)}` }}
-                  </span>
-                  <span class="text-[9.5px] text-rose-600 font-bold underline">
-                    {{ posStore.appliedDiscount?.id === v.id ? 'Terpasang' : 'Pilih' }}
-                  </span>
-                </div>
-              </div>
-
-              <div v-if="discountStore.activeDiscounts.length === 0" class="text-center py-6 text-gray-400">
-                <Tag :size="24" class="mx-auto mb-1 opacity-40" />
-                <p>Belum ada kupon promo aktif saat ini.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Footer -->
-        <div class="px-4 py-2.5 bg-[#f6f5f2] border-t border-gray-200 flex items-center justify-between">
-          <button
-            v-if="posStore.appliedDiscount"
-            type="button"
-            class="text-[11px] text-rose-600 hover:underline font-bold cursor-pointer"
-            @click="() => { handleRemoveCoupon(); showVoucherModal = false; }"
-          >
-            Hapus Kupon Terpasang
-          </button>
-          <div v-else></div>
-
-          <button
-            type="button"
-            class="px-3 py-1 bg-white hover:bg-gray-100 border border-gray-300 rounded text-xs font-semibold text-gray-700 cursor-pointer"
-            @click="showVoucherModal = false"
-          >
-            Tutup
-          </button>
-        </div>
-      </div>
-    </div>
+    <!-- Modal Pilih & Masukkan Kupon Promo -->
+    <PosVoucherModal
+      :is-open="showVoucherModal"
+      @close="showVoucherModal = false"
+    />
 
     <!-- Modal Scan & Input Kartu Member (Komponen Terpisah) -->
     <MemberScanModal

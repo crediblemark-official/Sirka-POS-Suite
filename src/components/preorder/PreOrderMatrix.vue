@@ -2,22 +2,35 @@
 import { ref, computed } from 'vue';
 import { usePreOrderStore } from '../../stores/preOrderStore';
 import { usePosStore } from '../../stores/posStore';
-import { BuyerName, SupplierCategory, PreOrderSchedule } from '../../types';
+import { useInventoryStore } from '../../stores/inventoryStore';
+import { useBuyerStore } from '../../stores/buyerStore';
+import { BuyerName, PreOrderSchedule } from '../../types';
+import { formatRupiah } from '../../utils/formatters';
 import {
   Calendar,
   Building,
   ArrowRight,
-  Package,
   Layers,
   Truck,
-  Plus,
-  Edit2,
-  Trash2
+  Trash2,
+  FileText,
+  Boxes,
+  PackageCheck,
+  TrendingUp,
+  Coins,
+  Users,
+  RotateCcw,
+  Plus
 } from 'lucide-vue-next';
+import MetricStatsStrip, { MetricStatItem } from '../common/MetricStatsStrip.vue';
+import SearchableSelect, { type SelectOption } from '../common/SearchableSelect.vue';
+import PreOrderFormDrawer from './PreOrderFormDrawer.vue';
 
-import { useInventoryStore } from '../../stores/inventoryStore';
-import { useBuyerStore } from '../../stores/buyerStore';
-import PreOrderFormModal from './PreOrderFormModal.vue';
+const props = withDefaults(defineProps<{
+  searchQuery?: string;
+}>(), {
+  searchQuery: ''
+});
 
 const emit = defineEmits<{
   (e: 'switch-to-pos'): void;
@@ -30,48 +43,151 @@ const buyerStore = useBuyerStore();
 
 const selectedDay = ref<string>('Semua');
 const selectedBuyer = ref<BuyerName | 'Semua'>('Semua');
-const selectedCategory = ref<SupplierCategory | 'Semua'>('Semua');
+const localSearchQuery = ref<string>('');
 
-const days = ['Semua', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'];
+const days = ['Semua', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
 const buyers = computed(() => ['Semua', ...buyerStore.buyers.map(b => b.name)]);
-const categories = computed(() => ['Semua', ...inventoryStore.categoryMarkups.map(c => c.category)]);
 
-// Modals State
-const showPoModal = ref(false);
-const activeScheduleForEdit = ref<PreOrderSchedule | null>(null);
+function getDayCount(d: string) {
+  if (d === 'Semua') return preOrderStore.schedules.length;
+  return preOrderStore.schedules.filter(s => s.dayName === d).length;
+}
+
+
+function getBuyerCount(b: string) {
+  if (b === 'Semua') return preOrderStore.schedules.length;
+  return preOrderStore.schedules.filter(s => s.buyer === b).length;
+}
+
+const buyerOptions = computed<SelectOption[]>(() => {
+  return buyers.value.map(b => ({
+    value: b,
+    label: b === 'Semua' ? 'Semua Pelanggan' : b,
+    badge: `${getBuyerCount(b)} PO`
+  }));
+});
+
+const hasActiveFilter = computed(() => {
+  return selectedDay.value !== 'Semua' || selectedBuyer.value !== 'Semua';
+});
+
+function resetFilters() {
+  selectedDay.value = 'Semua';
+  selectedBuyer.value = 'Semua';
+}
 
 const filteredSchedules = computed(() => {
   return preOrderStore.schedules.filter(s => {
     const matchDay = selectedDay.value === 'Semua' || s.dayName === selectedDay.value;
     const matchBuyer = selectedBuyer.value === 'Semua' || s.buyer === selectedBuyer.value;
-    const matchCategory =
-      selectedCategory.value === 'Semua' ||
-      s.items.some(i => i.category === selectedCategory.value);
-    return matchDay && matchBuyer && matchCategory;
+
+    const q = (props.searchQuery || localSearchQuery.value).toLowerCase().trim();
+    const matchSearch =
+      !q ||
+      s.buyer.toLowerCase().includes(q) ||
+      s.dayName.toLowerCase().includes(q) ||
+      s.date.includes(q) ||
+      s.items.some(i => i.productName.toLowerCase().includes(q));
+
+    return matchDay && matchBuyer && matchSearch;
   });
 });
 
-function handleOpenAddPo() {
-  activeScheduleForEdit.value = null;
-  showPoModal.value = true;
-}
+// 6 Metrik Pre-Order Lengkap
+const totalPoQty = computed(() => {
+  return filteredSchedules.value.reduce((acc, s) => {
+    return acc + s.items.reduce((sum, i) => sum + (i.qty || 0), 0);
+  }, 0);
+});
 
-function handleOpenEditPo(sched: PreOrderSchedule) {
-  activeScheduleForEdit.value = JSON.parse(JSON.stringify(sched));
-  showPoModal.value = true;
-}
+const totalPoBuy = computed(() => {
+  return filteredSchedules.value.reduce((acc, s) => {
+    return acc + s.items.reduce((sum, i) => {
+      const prod = inventoryStore.products.find(p => p.name.toLowerCase() === i.productName.toLowerCase());
+      const buyPrice = prod?.lastBuyPrice || 0;
+      return sum + ((i.qty || 0) * buyPrice);
+    }, 0);
+  }, 0);
+});
 
-async function handleSavePo(data: PreOrderSchedule | Omit<PreOrderSchedule, 'id'>) {
-  if ('id' in data && data.id) {
-    await preOrderStore.updateSchedule(data as PreOrderSchedule);
-  } else {
-    await preOrderStore.addSchedule(data);
+const totalPoSell = computed(() => {
+  return filteredSchedules.value.reduce((acc, s) => {
+    return acc + s.items.reduce((sum, i) => {
+      const prod = inventoryStore.products.find(p => p.name.toLowerCase() === i.productName.toLowerCase());
+      const sellPrice = prod?.lastSellPrice || 0;
+      return sum + ((i.qty || 0) * sellPrice);
+    }, 0);
+  }, 0);
+});
+
+const totalPoProfit = computed(() => {
+  return Math.max(0, totalPoSell.value - totalPoBuy.value);
+});
+
+const averagePoMargin = computed(() => {
+  if (totalPoBuy.value === 0) return 0;
+  return Number(((totalPoProfit.value / totalPoBuy.value) * 100).toFixed(1));
+});
+
+const uniquePoBuyersCount = computed(() => {
+  return new Set(filteredSchedules.value.map(s => s.buyer)).size;
+});
+
+// DRY Metric Stats configuration
+const metricStats = computed<MetricStatItem[]>(() => [
+  {
+    label: 'Total Pesanan PO',
+    value: `${filteredSchedules.value.length} Pesanan`,
+    icon: FileText,
+    iconBoxClass: 'bg-emerald-50 text-emerald-700',
+    valClass: 'text-gray-800'
+  },
+  {
+    label: 'Fisik Barang PO',
+    value: `${totalPoQty.value} Pcs`,
+    icon: Boxes,
+    iconBoxClass: 'bg-purple-50 text-purple-700',
+    valClass: 'text-purple-800'
+  },
+  {
+    label: 'Modal Belanja (HPP)',
+    value: `Rp ${formatRupiah(totalPoBuy.value)}`,
+    icon: PackageCheck,
+    iconBoxClass: 'bg-blue-50 text-blue-700',
+    valClass: 'text-blue-700'
+  },
+  {
+    label: 'Estimasi Omzet PO',
+    value: `Rp ${formatRupiah(totalPoSell.value)}`,
+    icon: TrendingUp,
+    iconBoxClass: 'bg-amber-50 text-amber-700',
+    valClass: 'text-amber-800'
+  },
+  {
+    label: 'Margin Keuntungan',
+    value: `+Rp ${formatRupiah(totalPoProfit.value)}`,
+    sublabel: `(+${averagePoMargin.value}%)`,
+    icon: Coins,
+    iconBoxClass: 'bg-teal-50 text-teal-700',
+    valClass: 'text-teal-800',
+    sublabelClass: 'text-emerald-600 font-semibold font-mono'
+  },
+  {
+    label: 'Pelanggan Pemesan',
+    value: `${uniquePoBuyersCount.value} Pelanggan`,
+    icon: Users,
+    iconBoxClass: 'bg-indigo-50 text-indigo-700',
+    valClass: 'text-indigo-800'
   }
-}
+]);
 
 async function handleDeletePo(id: string, date: string, buyer: string) {
-  if (confirm(`Yakin ingin menghapus jadwal pre-order untuk ${buyer} tanggal ${date}?`)) {
+  if (confirm(`Yakin ingin menghapus catatan pesanan untuk ${buyer} tanggal ${date}?`)) {
     await preOrderStore.deleteSchedule(id);
+    if (preOrderStore.activeScheduleForSidebar?.id === id) {
+      preOrderStore.activeScheduleForSidebar = null;
+      preOrderStore.showPreOrderSidebar = false;
+    }
   }
 }
 
@@ -79,169 +195,208 @@ function handleLoadToPos(schedule: PreOrderSchedule) {
   posStore.loadPreOrderItems(schedule.items, schedule.buyer, schedule.date);
   emit('switch-to-pos');
 }
+
+function handleCardClick(sched: PreOrderSchedule) {
+  preOrderStore.activeScheduleForSidebar = sched;
+  preOrderStore.showPreOrderSidebar = true;
+}
+
+function handleOpenAddPo() {
+  preOrderStore.activeScheduleForSidebar = null;
+  preOrderStore.showPreOrderSidebar = true;
+}
 </script>
 
 <template>
   <div class="flex flex-col h-full bg-[#f8f7f5] text-[#2e2b28] select-none text-xs overflow-hidden">
-    <!-- Top Filter Header -->
-    <div class="p-3 bg-white border-b border-[#dedbd6] flex flex-wrap items-center justify-between gap-2 shadow-xs">
-      <div class="flex items-center gap-2.5">
-        <div class="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center text-blue-700">
-          <Calendar :size="18" />
+    <!-- 1. Top Ribbon: Filter Bar (Hari Kirim & Pelanggan) -->
+    <div class="relative z-30 flex items-center justify-between bg-[#f6f5f2] border-b border-gray-200 px-3 py-1.5 select-none shrink-0 gap-3">
+      <!-- Sisi Kiri: Filter Hari & Pelanggan -->
+      <div class="flex items-center gap-3 shrink-0 flex-wrap">
+        <!-- 1. Filter Hari Kirim (Pill Horizontal) -->
+        <div class="flex items-center gap-1 shrink-0">
+          <button
+            v-for="d in days"
+            :key="d"
+            type="button"
+            class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1"
+            :class="selectedDay === d ? 'bg-emerald-600 text-white font-bold shadow-2xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+            @click="selectedDay = d"
+          >
+            <span>{{ d === 'Semua' ? 'Semua Hari' : d }}</span>
+            <span
+              class="text-[10px] px-1 rounded-full"
+              :class="selectedDay === d ? 'bg-emerald-700 text-white' : 'bg-gray-100 text-gray-600'"
+            >
+              {{ getDayCount(d) }}
+            </span>
+          </button>
         </div>
-        <div>
-          <h2 class="font-bold text-sm text-gray-900 leading-tight">
-            Matriks Rekap Pesanan Supplier Mingguan
-          </h2>
-          <p class="text-[11px] text-gray-500">
-            Jadwal pengiriman pre-order harian pembeli & tarik ke keranjang kasir POS saat barang tiba.
-          </p>
+
+        <div class="h-4 w-px bg-gray-300 shrink-0"></div>
+
+        <!-- 2. Filter Pelanggan Pemesan -->
+        <div class="flex items-center gap-1.5">
+          <span class="text-gray-500 font-bold text-[11px] uppercase tracking-wider flex items-center gap-1 shrink-0">
+            <Users :size="13" class="text-emerald-700" />
+            <span>Pelanggan:</span>
+          </span>
+          <div class="w-56 shrink-0 relative z-40">
+            <SearchableSelect
+              v-model="selectedBuyer"
+              :options="buyerOptions"
+              placeholder="Semua Pelanggan"
+              search-placeholder="Ketik nama pelanggan..."
+              size="sm"
+            />
+          </div>
         </div>
       </div>
 
-      <!-- Action & Filters -->
-      <div class="flex items-center gap-2">
-        <!-- Add PO Button -->
+      <!-- Sisi Kanan: Reset Filter & Total Hasil -->
+      <div class="flex items-center gap-2 shrink-0">
         <button
+          v-if="hasActiveFilter"
           type="button"
-          class="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded font-bold text-xs cursor-pointer shadow-xs transition-colors shrink-0"
-          @click="handleOpenAddPo"
+          class="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded cursor-pointer transition-colors shadow-2xs"
+          title="Reset semua filter"
+          @click="resetFilters"
         >
-          <Plus :size="14" />
-          <span>Buat Pre-Order Baru</span>
+          <RotateCcw :size="12" />
+          <span>Reset Filter</span>
         </button>
 
-        <div class="h-5 w-px bg-gray-300 mx-1"></div>
-
-        <div class="flex items-center gap-1">
-          <span class="text-gray-500 font-semibold">Hari:</span>
-          <select v-model="selectedDay" class="bg-gray-50 border border-gray-300 rounded px-2 py-1 text-xs outline-none cursor-pointer">
-            <option v-for="d in days" :key="d" :value="d">{{ d }}</option>
-          </select>
+        <div class="font-mono text-xs text-gray-500 px-2 py-0.5 bg-gray-100 rounded border border-gray-200">
+          <span class="font-bold text-gray-800">{{ filteredSchedules.length }}</span> Jadwal PO
         </div>
 
-        <div class="flex items-center gap-1">
-          <span class="text-gray-500 font-semibold">Pembeli:</span>
-          <select v-model="selectedBuyer" class="bg-gray-50 border border-gray-300 rounded px-2 py-1 text-xs outline-none cursor-pointer">
-            <option v-for="b in buyers" :key="b" :value="b">
-              {{ b }}
-            </option>
-          </select>
-        </div>
 
-        <div class="flex items-center gap-1">
-          <span class="text-gray-500 font-semibold">Vendor:</span>
-          <select v-model="selectedCategory" class="bg-gray-50 border border-gray-300 rounded px-2 py-1 text-xs outline-none cursor-pointer">
-            <option v-for="c in categories" :key="c" :value="c">{{ c }}</option>
-          </select>
-        </div>
+        <button
+          type="button"
+          class="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 rounded cursor-pointer shadow-2xs transition-colors"
+          title="Tambah Pesanan Mingguan Baru"
+          @click="handleOpenAddPo"
+        >
+          <Plus :size="13" />
+          <span>Pesanan</span>
+        </button>
+
+        <span v-if="props.searchQuery" class="text-[11px] text-emerald-700 font-medium bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+          Cari: "{{ props.searchQuery }}"
+        </span>
       </div>
     </div>
 
-    <!-- Schedules Grid -->
-    <div class="flex-1 overflow-y-auto p-4">
-      <div v-if="filteredSchedules.length === 0" class="h-64 flex flex-col items-center justify-center text-gray-400 gap-2">
-        <Package :size="40" class="text-gray-300" />
-        <span class="font-semibold text-gray-600">Tidak ada jadwal pre-order yang cocok.</span>
-        <button
-          type="button"
-          class="mt-1 px-3 py-1.5 bg-blue-600 text-white rounded font-bold text-xs cursor-pointer hover:bg-blue-700"
-          @click="handleOpenAddPo"
-        >
-          + Buat Jadwal Pre-Order Baru Sekarang
-        </button>
-      </div>
+    <!-- 2. Reusable MetricStatsStrip (DRY) -->
+    <MetricStatsStrip :items="metricStats" />
 
-      <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+    <!-- 3. Main Workspace: Grid Jadwal Pre-Order (Kiri) + Sidebar Form Input (Kanan) -->
+    <main class="flex-1 flex overflow-hidden">
+      <!-- Sisi Kiri: Grid Kartu Rekap Pesanan PO -->
+      <div class="flex-1 p-3 overflow-y-auto bg-white">
+        <!-- Empty State -->
         <div
-          v-for="sched in filteredSchedules"
-          :key="sched.id"
-          class="bg-white border border-[#dedbd6] rounded-lg shadow-xs flex flex-col overflow-hidden hover:border-blue-400 transition-all"
+          v-if="filteredSchedules.length === 0"
+          class="h-64 flex flex-col items-center justify-center text-gray-400 gap-2 select-none"
         >
-          <!-- Top Strip -->
-          <div class="px-3 py-2 bg-[#f6f5f2] border-b border-gray-200 flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <span class="px-2 py-0.5 bg-blue-600 text-white rounded font-bold text-xs">
-                {{ sched.dayName }}
-              </span>
-              <span class="font-mono text-gray-500 text-[11px]">{{ sched.date }}</span>
-            </div>
-            
-            <div class="flex items-center gap-2">
-              <div class="flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-800 rounded font-semibold text-[11px]">
-                <Building :size="12" />
-                <span>{{ sched.buyer }}</span>
-              </div>
+          <Calendar :size="48" class="text-gray-300" />
+          <p class="font-medium">Tidak ada jadwal pesanan yang sesuai filter atau pencarian.</p>
+          <button
+            type="button"
+            class="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs font-semibold cursor-pointer border border-gray-300 transition-colors"
+            @click="resetFilters"
+          >
+            Reset Semua Filter
+          </button>
+        </div>
 
-              <!-- Quick Edit & Delete Controls -->
-              <div class="flex items-center gap-0.5">
-                <button
-                  type="button"
-                  class="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded cursor-pointer transition-colors"
-                  title="Edit Jadwal PO"
-                  @click="handleOpenEditPo(sched)"
-                >
-                  <Edit2 :size="12" />
-                </button>
-                <button
-                  type="button"
-                  class="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer transition-colors"
-                  title="Hapus Jadwal PO"
-                  @click="handleDeletePo(sched.id, sched.date, sched.buyer)"
-                >
-                  <Trash2 :size="12" />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Items in Schedule -->
-          <div class="flex-1 p-2 space-y-1 overflow-y-auto max-h-60">
-            <div
-              v-for="item in sched.items"
-              :key="item.id"
-              class="flex items-center justify-between p-1.5 rounded bg-gray-50 border border-gray-100 text-xs"
-            >
-              <div class="flex flex-col min-w-0 pr-2">
-                <span class="font-semibold text-gray-900 truncate">{{ item.productName }}</span>
-                <span class="text-[10px] text-gray-400 font-mono">{{ item.category }}</span>
-              </div>
-              <div class="font-mono text-right shrink-0">
-                <span class="font-bold text-blue-700">{{ item.qty }} {{ item.unit }}</span>
-                <span v-if="item.packagingNote && item.packagingNote !== `${item.qty} ${item.unit}`" class="block text-[10px] text-gray-500">
-                  ({{ item.packagingNote }})
+        <!-- Grid Kartu Pesanan -->
+        <div v-else class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+          <div
+            v-for="sched in filteredSchedules"
+            :key="sched.id"
+            class="bg-white border rounded shadow-2xs hover:shadow-md transition-all flex flex-col overflow-hidden cursor-pointer"
+            :class="preOrderStore.activeScheduleForSidebar?.id === sched.id ? 'border-emerald-500 ring-2 ring-emerald-400/50' : 'border-gray-300 hover:border-gray-400'"
+            @click="handleCardClick(sched)"
+          >
+            <!-- Card Header: Hari, Tanggal, Pembeli -->
+            <div class="p-2.5 bg-[#f6f5f2] border-b border-gray-200 flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="px-2 py-0.5 bg-emerald-700 text-white rounded font-bold text-xs uppercase font-mono">
+                  {{ sched.dayName }}
                 </span>
+                <span class="font-mono text-xs text-gray-600 font-semibold">{{ sched.date }}</span>
+              </div>
+
+              <div class="flex items-center gap-1.5">
+                <div class="flex items-center gap-1 font-bold text-gray-800 text-xs truncate max-w-[150px]">
+                  <Building :size="11" />
+                  <span>{{ sched.buyer }}</span>
+                </div>
+
+                <!-- Quick Delete Control -->
+                <div class="flex items-center gap-0.5">
+                  <button
+                    type="button"
+                    class="p-1 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer transition-colors"
+                    title="Hapus Catatan Pesanan"
+                    @click.stop="handleDeletePo(sched.id, sched.date, sched.buyer)"
+                  >
+                    <Trash2 :size="12" />
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
 
-          <!-- Bottom Action -->
-          <div class="p-2.5 bg-[#fbfaf8] border-t border-gray-200 flex items-center justify-between">
-            <div class="flex items-center gap-1 text-[11px] text-gray-500">
-              <Layers :size="13" />
-              <span>{{ sched.items.length }} Item Pesanan</span>
+            <!-- Items in Schedule List -->
+            <div class="flex-1 p-2 space-y-1 overflow-y-auto max-h-56">
+              <div
+                v-for="item in sched.items"
+                :key="item.id"
+                class="flex items-center justify-between p-1.5 rounded bg-gray-50 border border-gray-100 text-xs hover:bg-emerald-50/30 transition-colors"
+              >
+                <div class="flex flex-col min-w-0 pr-2">
+                  <span class="font-bold text-gray-900 truncate leading-tight">{{ item.productName }}</span>
+                </div>
+                <div class="font-mono text-right shrink-0">
+                  <span class="font-black text-blue-700 text-xs">{{ item.qty }} {{ item.unit }}</span>
+                  <span
+                    v-if="item.packagingNote && item.packagingNote !== `${item.qty} ${item.unit}`"
+                    class="block text-[10px] text-gray-500"
+                  >
+                    ({{ item.packagingNote }})
+                  </span>
+                </div>
+              </div>
             </div>
 
-            <button
-              class="flex items-center gap-1.5 px-3 py-1 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded font-bold text-xs cursor-pointer shadow-xs transition-colors"
-              title="Tarik ke Kasir POS"
-              @click="handleLoadToPos(sched)"
-            >
-              <Truck :size="13" />
-              <span>Tarik ke Kasir</span>
-              <ArrowRight :size="13" />
-            </button>
+            <!-- Bottom Action: Tarik ke Kasir -->
+            <div class="p-2 bg-[#faf9f7] border-t border-gray-200 flex items-center justify-between">
+              <div class="flex items-center gap-1 text-[11px] text-gray-500">
+                <Layers :size="12" />
+                <span><strong>{{ sched.items.length }}</strong> Barang Dipesan</span>
+              </div>
+
+              <button
+                type="button"
+                class="flex items-center gap-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded font-bold text-xs cursor-pointer shadow-2xs transition-colors"
+                title="Tarik barang pesanan ini langsung ke kasir untuk proses pembayaran"
+                @click.stop="handleLoadToPos(sched)"
+              >
+                <Truck :size="12" />
+                <span>Tarik ke Kasir</span>
+                <ArrowRight :size="12" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- Pre-Order Form Modal -->
-    <PreOrderFormModal
-      :is-open="showPoModal"
-      :initial-data="activeScheduleForEdit"
-      @close="showPoModal = false"
-      @save="handleSavePo"
-    />
+      <!-- Sisi Kanan: Form Input & Edit Pesanan PO (Modular Drawer) -->
+      <PreOrderFormDrawer
+        :is-open="preOrderStore.showPreOrderSidebar"
+        @update:is-open="preOrderStore.showPreOrderSidebar = $event"
+      />
+    </main>
   </div>
 </template>

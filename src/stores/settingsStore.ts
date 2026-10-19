@@ -19,9 +19,18 @@ export const useSettingsStore = defineStore('settings', () => {
           invoice_prefix: 'INV-B2B',
           primary_color: '#2563eb',
           theme_preset: 'blue',
-          header_accent_style: 'accent-line'
+          header_accent_style: 'accent-line',
+          surface_theme: 'bone-white',
+          custom_surface_color: '#fcfbfa'
         }
   );
+
+  // If user previously had default classic-gray, upgrade to requested bone-white
+  if (!settings.value.surface_theme || settings.value.surface_theme === 'classic-gray') {
+    settings.value.surface_theme = 'bone-white';
+    settings.value.custom_surface_color = '#fcfbfa';
+    saveLocal();
+  }
 
   function saveLocal() {
     localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settings.value));
@@ -30,7 +39,9 @@ export const useSettingsStore = defineStore('settings', () => {
   function applyCurrentTheme() {
     const color = settings.value.primary_color || '#2563eb';
     const headerStyle = settings.value.header_accent_style || 'accent-line';
-    applyTheme(color, headerStyle);
+    const surfaceId = settings.value.surface_theme || 'bone-white';
+    const customSurface = settings.value.custom_surface_color || '#fcfbfa';
+    applyTheme(color, headerStyle, surfaceId, customSurface);
   }
 
   async function fetchSettings() {
@@ -55,7 +66,7 @@ export const useSettingsStore = defineStore('settings', () => {
   async function updateSetting(key: string, value: string) {
     settings.value[key] = value;
     saveLocal();
-    if (key === 'primary_color' || key === 'header_accent_style') {
+    if (key === 'primary_color' || key === 'header_accent_style' || key === 'surface_theme' || key === 'custom_surface_color') {
       applyCurrentTheme();
     }
     await dbService.updateSetting(key, value);
@@ -77,6 +88,20 @@ export const useSettingsStore = defineStore('settings', () => {
     ]);
   }
 
+  async function setSurfaceTheme(surfaceId: string, customHex?: string) {
+    settings.value.surface_theme = surfaceId;
+    if (customHex) {
+      settings.value.custom_surface_color = customHex;
+    }
+    saveLocal();
+    applyCurrentTheme();
+
+    await Promise.all([
+      dbService.updateSetting('surface_theme', surfaceId),
+      customHex ? dbService.updateSetting('custom_surface_color', customHex) : Promise.resolve()
+    ]);
+  }
+
   const storeName = computed(() => settings.value.store_name || 'Kasir Citra');
   const storeTagline = computed(() => settings.value.store_tagline || 'Distribusi B2B & Hub Pengadaan');
   const storeAddress = computed(() => settings.value.store_address || '');
@@ -85,6 +110,8 @@ export const useSettingsStore = defineStore('settings', () => {
   const primaryColor = computed(() => settings.value.primary_color || '#2563eb');
   const themePreset = computed(() => settings.value.theme_preset || 'blue');
   const headerAccentStyle = computed(() => settings.value.header_accent_style || 'accent-line');
+  const surfaceTheme = computed(() => settings.value.surface_theme || 'classic-gray');
+  const customSurfaceColor = computed(() => settings.value.custom_surface_color || '#ecebe9');
 
   return {
     settings,
@@ -96,9 +123,12 @@ export const useSettingsStore = defineStore('settings', () => {
     primaryColor,
     themePreset,
     headerAccentStyle,
+    surfaceTheme,
+    customSurfaceColor,
     fetchSettings,
     updateSetting,
     setTheme,
+    setSurfaceTheme,
     applyCurrentTheme
   };
 });

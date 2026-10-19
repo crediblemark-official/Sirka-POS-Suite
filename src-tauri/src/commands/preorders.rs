@@ -35,8 +35,10 @@ pub async fn db_save_preorder(record: PreOrderRecord) -> Result<String, String> 
     client
         .execute(
             "INSERT INTO pre_orders (id, date, day_name, buyer, items, is_loaded_to_pos)
-             VALUES ($1, $2::date, $3, $4, $5, $6)
+             VALUES ($1, $2::text::date, $3, $4, $5, $6)
              ON CONFLICT (id) DO UPDATE SET
+               date = EXCLUDED.date,
+               day_name = EXCLUDED.day_name,
                buyer = EXCLUDED.buyer,
                items = EXCLUDED.items,
                is_loaded_to_pos = EXCLUDED.is_loaded_to_pos",
@@ -53,4 +55,11 @@ pub async fn db_save_preorder(record: PreOrderRecord) -> Result<String, String> 
         .map_err(|e| format!("Gagal simpan pre-order: {}", e))?;
 
     Ok(record.id)
+}
+
+#[tauri::command]
+pub async fn db_delete_preorder(id: String) -> Result<(), String> {
+    let client = get_pg_client().await?;
+    client.execute("DELETE FROM pre_orders WHERE id = $1", &[&id]).await.map_err(|e| e.to_string())?;
+    Ok(())
 }

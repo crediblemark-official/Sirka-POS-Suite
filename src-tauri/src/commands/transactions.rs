@@ -49,8 +49,9 @@ pub async fn db_get_transactions() -> Result<Vec<TransactionRecord>, String> {
 }
 
 #[tauri::command]
-pub async fn db_create_transaction(tx: TransactionRecord) -> Result<String, String> {
-    let client = get_pg_client().await?;
+pub async fn db_create_transaction(tx: TransactionRecord, member_id: Option<String>) -> Result<String, String> {
+    let mut connection = get_pg_client().await?;
+    let client = connection.transaction().await.map_err(|e| e.to_string())?;
     let customer_type = tx.customer_type.unwrap_or_else(|| "B2B".to_string());
     let discount_amount = tx.discount_amount.unwrap_or(0.0);
     let points_used = tx.points_used.unwrap_or(0.0);
@@ -58,7 +59,7 @@ pub async fn db_create_transaction(tx: TransactionRecord) -> Result<String, Stri
     let points_earned = tx.points_earned.unwrap_or(0.0);
     let final_total = tx.final_total.unwrap_or(tx.total_sell);
 
-    client
+    let inserted = client
         .execute(
             "INSERT INTO transactions (
                 id, invoice_no, date, buyer, items, total_buy, total_sell, total_profit, 
@@ -67,16 +68,12 @@ pub async fn db_create_transaction(tx: TransactionRecord) -> Result<String, Stri
                 created_at
              )
              VALUES (
-                $1, $2, $3::date, $4, $5, $6::numeric, $7::numeric, $8::numeric, 
-                $9::numeric, $10, $11, $12, $13, 
-                $14::numeric, $15, $16::numeric, $17::numeric, $18::numeric, $19::numeric, 
+                $1, $2, $3::text::date, $4, $5, $6::float8, $7::float8, $8::float8, 
+                $9::float8, $10, $11, $12, $13, 
+                $14::float8, $15, $16::float8, $17::float8, $18::float8, $19::float8, 
                 NOW()
              )
-             ON CONFLICT (id) DO UPDATE SET
-               buyer = EXCLUDED.buyer,
-               payment_status = EXCLUDED.payment_status,
-               payment_method = EXCLUDED.payment_method,
-               customer_type = EXCLUDED.customer_type",
+             ON CONFLICT (id) DO NOTHING",
             &[
                 &tx.id,
                 &tx.invoice_no,
@@ -102,27 +99,39 @@ pub async fn db_create_transaction(tx: TransactionRecord) -> Result<String, Stri
         .await
         .map_err(|e| format!("Gagal simpan transaksi: {}", e))?;
 
-    // Kurangi stok barang & perbarui harga jual terakhir
-    if let Some(items_array) = tx.items.as_array() {
-        for item in items_array {
-            if let (Some(prod_id), Some(qty), Some(sell_price)) = (
-                item.get("productId").and_then(|v| v.as_str()),
-                item.get("quantity").and_then(|v| v.as_f64()),
-                item.get("sellPrice").and_then(|v| v.as_f64()),
-            ) {
-                let _ = client
-                    .execute(
-                        "UPDATE products 
-                         SET stock = GREATEST(0, stock - $1::numeric),
-                             last_sell_price = CASE WHEN $2::numeric > 0 THEN $2::numeric ELSE last_sell_price END,
-                             updated_at = NOW() 
-                         WHERE id = $3",
-                        &[&qty, &sell_price, &prod_id],
-                    )
-                    .await;
-            }
-        }
+    if inserted == 0 { return Ok(tx.invoice_no); }
+    if let Some(member_id) = member_id {
+        let changed = client.execute(
+            "UPDATE buyers SET points = points - $1::float8 + $2::float8,
+             total_spend = total_spend + $3::float8,
+             tier = CASE WHEN total_spend + $3::float8 >= 15000000 THEN 'PLATINUM'
+                         WHEN total_spend + $3::float8 >= 5000000 THEN 'GOLD'
+                         WHEN total_spend + $3::float8 >= 1000000 THEN 'SILVER' ELSE 'REGULAR' END
+             WHERE id = $4 AND member_card_no IS NOT NULL AND points >= $1::float8",
+            &[&points_used, &points_earned, &final_total, &member_id]
+        ).await.map_err(|e| e.to_string())?;
+        if changed != 1 { return Err("Member tidak ditemukan atau poin tidak cukup".into()); }
+    } else if points_used > 0.0 || points_earned > 0.0 {
+        return Err("Member wajib dipilih untuk transaksi poin".into());
     }
+    // Kurangi stok barang & perbarui harga jual terakhir
+    let items = tx.items.as_array().ok_or("Item transaksi tidak valid")?;
+    if items.is_empty() { return Err("Keranjang kosong".into()); }
+    for item in items {
+        let id = item.get("productId").and_then(|v| v.as_str()).ok_or("Produk tidak valid")?;
+        let qty = item.get("qty").and_then(|v| v.as_f64()).ok_or("Jumlah tidak valid")?;
+        let price = item.get("sellPrice").and_then(|v| v.as_f64()).ok_or("Harga tidak valid")?;
+        if !qty.is_finite() || qty <= 0.0 || !price.is_finite() || price < 0.0 {
+            return Err("Jumlah atau harga tidak valid".into());
+        }
+        let changed = client.execute(
+            "UPDATE products SET stock = stock - $1::float8, last_sell_price = $2::float8,
+             updated_at = NOW() WHERE id = $3 AND stock >= $1::float8",
+            &[&qty, &price, &id]
+        ).await.map_err(|e| e.to_string())?;
+        if changed != 1 { return Err(format!("Produk {} tidak ditemukan atau stok tidak cukup", id)); }
+    }
+    client.commit().await.map_err(|e| e.to_string())?;
 
     Ok(tx.invoice_no)
 }
@@ -138,5 +147,12 @@ pub async fn db_update_transaction_status(id: String, payment_status: String) ->
         .await
         .map_err(|e| format!("Gagal update status transaksi: {}", e))?;
 
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn db_delete_transaction(id: String) -> Result<(), String> {
+    let client = get_pg_client().await?;
+    client.execute("DELETE FROM transactions WHERE id = $1", &[&id]).await.map_err(|e| e.to_string())?;
     Ok(())
 }

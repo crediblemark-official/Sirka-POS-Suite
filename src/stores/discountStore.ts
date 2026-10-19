@@ -64,6 +64,12 @@ export const useDiscountStore = defineStore('discount', () => {
         ]
   );
 
+  // Ensure GROSIR50K has B2B customer type if loaded from older localStorage
+  const g4 = discounts.value.find(d => d.code === 'GROSIR50K');
+  if (g4 && g4.targetCustomerType !== 'B2B') {
+    g4.targetCustomerType = 'B2B';
+  }
+
   const activeDiscounts = computed(() => discounts.value.filter(d => d.isActive));
 
   function saveLocal() {
@@ -226,9 +232,32 @@ export const useDiscountStore = defineStore('discount', () => {
     }
   }
 
+  const showFormSidebar = ref<boolean>(false);
+  const activeDiscountForEdit = ref<Discount | null>(null);
+
+  function openAddDiscount() {
+    activeDiscountForEdit.value = null;
+    showFormSidebar.value = true;
+  }
+
+  function openEditDiscount(discount: Discount) {
+    activeDiscountForEdit.value = { ...discount };
+    showFormSidebar.value = true;
+  }
+
+  function closeFormSidebar() {
+    showFormSidebar.value = false;
+    activeDiscountForEdit.value = null;
+  }
+
   return {
     discounts,
     activeDiscounts,
+    showFormSidebar,
+    activeDiscountForEdit,
+    openAddDiscount,
+    openEditDiscount,
+    closeFormSidebar,
     fetchDiscounts,
     findDiscountByCode,
     calculateDiscountAmount,

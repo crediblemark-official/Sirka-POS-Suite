@@ -7,6 +7,8 @@ import { dbService } from '../services/dbService';
 const STORAGE_KEY_PREORDERS = 'kasir_citra_preorders_v2';
 
 export const usePreOrderStore = defineStore('preOrder', () => {
+  const showPreOrderSidebar = ref(false);
+  const activeScheduleForSidebar = ref<PreOrderSchedule | null>(null);
   const saved = localStorage.getItem(STORAGE_KEY_PREORDERS);
   const schedules = ref<PreOrderSchedule[]>(saved ? JSON.parse(saved) : INITIAL_PREORDERS);
 
@@ -17,7 +19,7 @@ export const usePreOrderStore = defineStore('preOrder', () => {
   async function fetchPreOrdersFromDb() {
     try {
       const data = await dbService.getPreOrders();
-      if (data && data.length > 0) {
+      if (data) {
         schedules.value = data as any;
         saveLocal();
       }
@@ -75,11 +77,14 @@ export const usePreOrderStore = defineStore('preOrder', () => {
   }
 
   async function deleteSchedule(id: string): Promise<void> {
+    await dbService.deletePreOrder(id);
     schedules.value = schedules.value.filter(s => s.id !== id);
     saveLocal();
   }
 
   return {
+    showPreOrderSidebar,
+    activeScheduleForSidebar,
     schedules,
     saveLocal,
     fetchPreOrdersFromDb,

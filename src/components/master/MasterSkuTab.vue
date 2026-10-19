@@ -1,9 +1,24 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { computed } from 'vue';
 import { Product } from '../../types';
 import { useInventoryStore } from '../../stores/inventoryStore';
 import { formatRupiah } from '../../utils/formatters';
-import { Search, Plus, Edit2, Trash2 } from 'lucide-vue-next';
+import {
+  Trash2,
+  Package,
+  Boxes,
+  PackageCheck,
+  TrendingUp,
+  Coins,
+  Truck
+} from 'lucide-vue-next';
+import AppEmptyState from '../common/AppEmptyState.vue';
+
+const props = withDefaults(defineProps<{
+  searchQuery?: string;
+}>(), {
+  searchQuery: ''
+});
 
 const emit = defineEmits<{
   (e: 'add-product'): void;
@@ -11,14 +26,39 @@ const emit = defineEmits<{
 }>();
 
 const inventoryStore = useInventoryStore();
-const searchQuery = ref('');
 
 const filteredProducts = computed(() => {
-  const q = searchQuery.value.toLowerCase().trim();
+  const q = (props.searchQuery || '').toLowerCase().trim();
   if (!q) return inventoryStore.products;
   return inventoryStore.products.filter(
     p => p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q) || p.category.toLowerCase().includes(q)
   );
+});
+
+// Metrik Lengkap Aset Stok Barang
+const totalStockQty = computed(() => {
+  return filteredProducts.value.reduce((acc, p) => acc + (p.stock || 0), 0);
+});
+
+const totalAssetBuy = computed(() => {
+  return filteredProducts.value.reduce((acc, p) => acc + ((p.stock || 0) * (p.lastBuyPrice || 0)), 0);
+});
+
+const totalAssetSell = computed(() => {
+  return filteredProducts.value.reduce((acc, p) => acc + ((p.stock || 0) * (p.lastSellPrice || 0)), 0);
+});
+
+const totalAssetProfit = computed(() => {
+  return Math.max(0, totalAssetSell.value - totalAssetBuy.value);
+});
+
+const averageAssetMargin = computed(() => {
+  if (totalAssetBuy.value === 0) return 0;
+  return Number(((totalAssetProfit.value / totalAssetBuy.value) * 100).toFixed(1));
+});
+
+const categoriesCount = computed(() => {
+  return new Set(filteredProducts.value.map(p => p.category)).size;
 });
 
 function handleDblClick(prod: Product) {
@@ -27,93 +67,135 @@ function handleDblClick(prod: Product) {
 </script>
 
 <template>
-  <div class="bg-white border border-[#dedbd6] rounded-lg shadow-xs flex flex-col overflow-hidden text-xs select-none">
-    <!-- Header Bar -->
-    <div class="p-3 bg-[#f6f5f2] border-b border-gray-200 flex items-center justify-between gap-3">
-      <div class="flex items-center gap-2">
-        <span class="font-bold text-xs text-blue-700">Daftar Semua Barang Aktif ({{ inventoryStore.products.length }} Item)</span>
-        <button
-          type="button"
-          class="px-2 py-0.5 bg-gray-200 hover:bg-gray-300 rounded text-[11px] font-semibold text-gray-700 cursor-pointer transition-colors"
-          title="Reset ke bawaan spreadsheet PRD"
-          @click="inventoryStore.resetToDefaults"
-        >
-          Reset Bawaan
-        </button>
+  <div class="flex-1 flex flex-col h-full bg-white select-none text-xs overflow-hidden">
+    <!-- 1. Ringkasan Metrik Cepat Aset Inventori (Seimbang Terbagi Rata 6 Kolom, Identik Kulakan) -->
+    <div class="flex items-center divide-x divide-gray-200 px-2 py-2 border-b border-gray-200 bg-white shrink-0">
+      <!-- 1. Total SKU -->
+      <div class="flex items-center gap-2 px-2.5 first:pl-1 flex-1 min-w-0">
+        <div class="w-7 h-7 rounded bg-purple-50 text-purple-700 flex items-center justify-center shrink-0">
+          <Package :size="15" />
+        </div>
+        <div class="min-w-0">
+          <div class="text-[10px] text-gray-500 font-medium leading-none truncate">Total SKU Barang</div>
+          <div class="text-xs font-bold text-gray-800 font-mono mt-0.5 truncate">{{ filteredProducts.length }} SKU</div>
+        </div>
       </div>
 
-      <div class="flex items-center gap-2">
-        <div class="flex items-center gap-1 px-2.5 py-1 bg-white border border-gray-300 rounded w-60 shadow-inner">
-          <Search :size="13" class="text-gray-400" />
-          <input
-            v-model="searchQuery"
-            type="text"
-            placeholder="Cari SKU atau nama barang..."
-            class="bg-transparent outline-none text-xs w-full text-gray-700"
-          />
+      <!-- 2. Total Fisik Stok -->
+      <div class="flex items-center gap-2 px-2.5 flex-1 min-w-0">
+        <div class="w-7 h-7 rounded bg-blue-50 text-blue-700 flex items-center justify-center shrink-0">
+          <Boxes :size="15" />
         </div>
+        <div class="min-w-0">
+          <div class="text-[10px] text-gray-500 font-medium leading-none truncate">Fisik Stok di Toko</div>
+          <div class="text-xs font-bold text-blue-800 font-mono mt-0.5 truncate">{{ totalStockQty }} Unit / Pcs</div>
+        </div>
+      </div>
 
-        <button
-          type="button"
-          class="flex items-center gap-1 px-3 py-1 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded font-bold text-xs cursor-pointer shadow-xs transition-colors"
-          @click="emit('add-product')"
-        >
-          <Plus :size="14" />
-          <span>+ Tambah SKU Baru</span>
-        </button>
+      <!-- 3. Total Nilai Modal Stok (HPP) -->
+      <div class="flex items-center gap-2 px-2.5 flex-1 min-w-0">
+        <div class="w-7 h-7 rounded bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
+          <PackageCheck :size="15" />
+        </div>
+        <div class="min-w-0">
+          <div class="text-[10px] text-gray-500 font-medium leading-none truncate">Nilai Aset Modal (HPP)</div>
+          <div class="text-xs font-bold text-emerald-700 font-mono mt-0.5 truncate">Rp {{ formatRupiah(totalAssetBuy) }}</div>
+        </div>
+      </div>
+
+      <!-- 4. Potensi Nilai Jual Stok -->
+      <div class="flex items-center gap-2 px-2.5 flex-1 min-w-0">
+        <div class="w-7 h-7 rounded bg-amber-50 text-amber-700 flex items-center justify-center shrink-0">
+          <TrendingUp :size="15" />
+        </div>
+        <div class="min-w-0">
+          <div class="text-[10px] text-gray-500 font-medium leading-none truncate">Estimasi Nilai Jual Stok</div>
+          <div class="text-xs font-bold text-amber-800 font-mono mt-0.5 truncate">Rp {{ formatRupiah(totalAssetSell) }}</div>
+        </div>
+      </div>
+
+      <!-- 5. Potensi Margin Aset -->
+      <div class="flex items-center gap-2 px-2.5 flex-1 min-w-0">
+        <div class="w-7 h-7 rounded bg-teal-50 text-teal-700 flex items-center justify-center shrink-0">
+          <Coins :size="15" />
+        </div>
+        <div class="min-w-0">
+          <div class="text-[10px] text-gray-500 font-medium leading-none truncate">Potensi Margin Aset</div>
+          <div class="text-xs font-bold text-teal-800 font-mono mt-0.5 truncate">+Rp {{ formatRupiah(totalAssetProfit) }} <span class="text-[10px] font-semibold text-emerald-600 font-mono">(+{{ averageAssetMargin }}%)</span></div>
+        </div>
+      </div>
+
+      <!-- 6. Total Supplier -->
+      <div class="flex items-center gap-2 px-2.5 flex-1 min-w-0">
+        <div class="w-7 h-7 rounded bg-rose-50 text-rose-700 flex items-center justify-center shrink-0">
+          <Truck :size="15" />
+        </div>
+        <div class="min-w-0">
+          <div class="text-[10px] text-gray-500 font-medium leading-none truncate">Kategori / Supplier</div>
+          <div class="text-xs font-bold text-rose-800 font-mono mt-0.5 truncate">{{ categoriesCount }} Vendor</div>
+        </div>
       </div>
     </div>
 
-    <!-- Table of SKUs -->
-    <div class="overflow-x-auto">
-      <table class="w-full text-xs text-left">
-        <thead class="bg-[#fcfbfa] border-b border-gray-200 text-gray-600 font-semibold">
+    <!-- Table of SKUs (Edge-to-Edge) -->
+    <div class="flex-1" :class="inventoryStore.showProductSidebar ? 'overflow-auto' : 'overflow-y-auto overflow-x-hidden'">
+      <AppEmptyState
+        v-if="filteredProducts.length === 0"
+        :icon="Package"
+        title="Belum Ada Barang Dagangan"
+        description="Tidak ada barang atau SKU yang cocok dengan pencarian."
+      />
+
+      <table v-else class="table-explorer" :class="inventoryStore.showProductSidebar ? 'min-w-[720px]' : ''">
+        <thead>
           <tr>
-            <th class="p-2 w-24">KODE</th>
-            <th class="p-2">NAMA BARANG</th>
-            <th class="p-2 w-36">KELOMPOK SUPPLIER</th>
-            <th class="p-2 w-20 text-center">SATUAN</th>
-            <th class="p-2 w-24 text-center">DEFAULT %</th>
-            <th class="p-2 w-32 text-right">BELI TERAKHIR</th>
-            <th class="p-2 w-32 text-right">HARGA JUAL</th>
-            <th class="p-2 w-24 text-center">STOK</th>
-            <th class="p-2 w-20 text-center">AKSI</th>
+            <th class="w-28">KODE</th>
+            <th>NAMA BARANG</th>
+            <th class="w-36">PEMASOK / SUPPLIER</th>
+            <th class="w-16 text-center">SATUAN</th>
+            <th class="w-24 text-center">MARGIN (%)</th>
+            <th class="w-28 text-right">MODAL BELI</th>
+            <th class="w-28 text-right">HARGA JUAL</th>
+            <th class="w-16 text-center">STOK</th>
+            <!-- Sticky Action Header -->
+            <th class="th-action-sticky w-16 text-center">AKSI</th>
           </tr>
         </thead>
         <tbody>
           <tr
             v-for="prod in filteredProducts"
             :key="prod.id"
-            class="border-b border-gray-100 hover:bg-[#faf9f7] cursor-pointer transition-colors"
+            class="cursor-pointer"
+            :class="inventoryStore.activeProductForSidebar?.id === prod.id ? 'bg-[#f7f0fa] ring-1 ring-inset ring-purple-400 font-semibold' : ''"
+            @click="emit('edit-product', prod)"
             @dblclick="handleDblClick(prod)"
           >
-            <td class="p-2 font-mono text-gray-500 font-bold">{{ prod.code }}</td>
-            <td class="p-2 font-semibold text-gray-900">{{ prod.name }}</td>
-            <td class="p-2">
-              <span class="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-[11px] font-medium border border-gray-200">
+            <td class="font-mono text-gray-600 font-bold truncate whitespace-nowrap" :title="prod.code">{{ prod.code }}</td>
+            <td class="font-semibold text-gray-900 truncate" :title="prod.name">{{ prod.name }}</td>
+            <td class="truncate" :title="prod.category">
+              <span class="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-[11px] font-medium border border-gray-200 truncate block">
                 {{ prod.category }}
               </span>
             </td>
-            <td class="p-2 text-center font-bold text-gray-600">{{ prod.unit }}</td>
-            <td class="p-2 text-center font-mono font-bold text-emerald-700">
+            <td class="text-center font-bold text-gray-600 font-mono whitespace-nowrap">{{ prod.unit }}</td>
+            <td class="text-center font-mono font-bold text-emerald-700 whitespace-nowrap">
               +{{ prod.defaultMarkupPercent || inventoryStore.getCategoryMarkup(prod.category) }}%
             </td>
-            <td class="p-2 text-right font-mono text-gray-500">Rp {{ formatRupiah(prod.lastBuyPrice) }}</td>
-            <td class="p-2 text-right font-mono font-bold text-blue-700">Rp {{ formatRupiah(prod.lastSellPrice) }}</td>
-            <td class="p-2 text-center font-mono font-semibold">{{ prod.stock }}</td>
-            <td class="p-2 text-center">
-              <div class="flex items-center justify-center gap-1">
+            <td class="text-right font-mono text-gray-500 whitespace-nowrap">
+              Rp {{ formatRupiah(prod.lastBuyPrice) }}
+            </td>
+            <td class="text-right font-mono font-bold text-blue-700 whitespace-nowrap">
+              Rp {{ formatRupiah(prod.lastSellPrice) }}
+            </td>
+            <td class="text-center font-mono font-bold text-gray-800 whitespace-nowrap">
+              {{ prod.stock }}
+            </td>
+            <!-- Sticky Action Cell -->
+            <td class="td-action-sticky text-center whitespace-nowrap" @click.stop>
+              <div class="flex items-center justify-center">
                 <button
                   type="button"
-                  class="p-1 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded cursor-pointer transition-colors"
-                  title="Edit SKU Produk"
-                  @click.stop="emit('edit-product', prod)"
-                >
-                  <Edit2 :size="13" />
-                </button>
-                <button
-                  type="button"
-                  class="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer transition-colors"
+                  class="p-1 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer transition-colors"
                   title="Hapus SKU"
                   @click.stop="inventoryStore.deleteProduct(prod.id)"
                 >

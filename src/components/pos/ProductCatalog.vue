@@ -3,36 +3,51 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useInventoryStore } from '../../stores/inventoryStore';
 import { usePosStore } from '../../stores/posStore';
 import { SupplierCategory, Product } from '../../types';
-import { Search, LayoutGrid, List, Plus, Package } from 'lucide-vue-next';
+import { formatRupiah } from '../../utils/formatters';
+import {
+  Folder,
+  ChevronLeft,
+  ChevronRight
+} from 'lucide-vue-next';
+
+const props = withDefaults(defineProps<{
+  searchQuery?: string;
+  viewMode?: 'icons' | 'list';
+  isActive?: boolean;
+}>(), {
+  searchQuery: '',
+  viewMode: 'icons',
+  isActive: true
+});
+
+const emit = defineEmits<{
+  (e: 'category-changed', cat: SupplierCategory | 'Semua'): void;
+}>();
 
 const inventoryStore = useInventoryStore();
 const posStore = usePosStore();
 
-const searchQuery = ref('');
 const selectedCategory = ref<SupplierCategory | 'Semua'>('Semua');
-const viewMode = ref<'grid' | 'table'>('grid');
+const selectedProductId = ref<string | null>(null);
 const activeMultiplier = ref<number>(1);
-const searchInputRef = ref<HTMLInputElement | null>(null);
 
-const categories: Array<SupplierCategory | 'Semua'> = [
-  'Semua',
-  'Hari Barokah',
-  'Sayur Tufel',
-  'Haff Pro Jaya',
-  'Pantry Co',
-  'Koko Didid',
-  'Fadhil Food',
-  'Pak Agus',
-  'APD & Sabun',
-  'ATK & Kertas'
-];
+// Category Scroll & Drag state
+const categoryScrollRef = ref<HTMLDivElement | null>(null);
+const isDraggingCategory = ref(false);
+const startX = ref(0);
+const scrollLeftStart = ref(0);
 
-const multipliers = [1, 5, 10, 25, 50];
+const categories = computed(() => inventoryStore.categoryMarkups.map(c => c.category));
+
+function selectCategory(cat: SupplierCategory | 'Semua') {
+  selectedCategory.value = cat;
+  emit('category-changed', cat);
+}
 
 const filteredProducts = computed(() => {
   return inventoryStore.products.filter(p => {
     const matchCat = selectedCategory.value === 'Semua' || p.category === selectedCategory.value;
-    const q = searchQuery.value.toLowerCase().trim();
+    const q = (props.searchQuery || '').toLowerCase().trim();
     const matchSearch =
       !q ||
       p.name.toLowerCase().includes(q) ||
@@ -42,183 +57,310 @@ const filteredProducts = computed(() => {
   });
 });
 
-function handleAddProduct(product: Product) {
-  posStore.addProductToCart(product, activeMultiplier.value);
+function handleProductClick(prod: Product) {
+  selectedProductId.value = prod.id;
 }
 
-const formatRupiah = (val: number) => {
-  return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(val);
-};
+function handleProductDoubleClick(prod: Product) {
+  posStore.addProductToCart(prod, activeMultiplier.value);
+}
 
-// Global keyboard shortcut '/' to focus search
-function handleKeydown(e: KeyboardEvent) {
-  if (e.key === '/' && document.activeElement !== searchInputRef.value) {
+function handleAddSelected() {
+  if (!selectedProductId.value) return;
+  const prod = inventoryStore.products.find(p => p.id === selectedProductId.value);
+  if (prod) {
+    posStore.addProductToCart(prod, activeMultiplier.value);
+  }
+}
+
+function handleCategoryWheel(e: WheelEvent) {
+  if (!categoryScrollRef.value) return;
+  if (e.deltaY !== 0) {
     e.preventDefault();
-    searchInputRef.value?.focus();
-    searchInputRef.value?.select();
+    categoryScrollRef.value.scrollLeft += e.deltaY;
+  }
+}
+
+function handleCategoryMouseDown(e: MouseEvent) {
+  if (!categoryScrollRef.value) return;
+  isDraggingCategory.value = true;
+  startX.value = e.pageX - categoryScrollRef.value.offsetLeft;
+  scrollLeftStart.value = categoryScrollRef.value.scrollLeft;
+}
+
+function handleCategoryMouseMove(e: MouseEvent) {
+  if (!isDraggingCategory.value || !categoryScrollRef.value) return;
+  e.preventDefault();
+  const x = e.pageX - categoryScrollRef.value.offsetLeft;
+  const walk = (x - startX.value) * 1.5;
+  categoryScrollRef.value.scrollLeft = scrollLeftStart.value - walk;
+}
+
+function handleCategoryMouseUp() {
+  isDraggingCategory.value = false;
+}
+
+function scrollCategory(direction: 'left' | 'right') {
+  if (!categoryScrollRef.value) return;
+  const distance = 250;
+  categoryScrollRef.value.scrollBy({
+    left: direction === 'left' ? -distance : distance,
+    behavior: 'smooth'
+  });
+}
+
+function handleKeyDown(e: KeyboardEvent) {
+  if (!props.isActive) return;
+  const activeEl = document.activeElement;
+  const isInputActive = activeEl instanceof HTMLInputElement || activeEl instanceof HTMLTextAreaElement;
+  if (isInputActive) return;
+
+  const prods = filteredProducts.value;
+  if (prods.length === 0) return;
+
+  const currentIndex = prods.findIndex(p => p.id === selectedProductId.value);
+  const screenWidth = window.innerWidth;
+  const cols = screenWidth >= 1280 ? 6 : screenWidth >= 1024 ? 5 : screenWidth >= 768 ? 4 : 3;
+
+  if (e.key === 'ArrowRight') {
+    e.preventDefault();
+    const nextIdx = currentIndex < prods.length - 1 ? currentIndex + 1 : 0;
+    selectedProductId.value = prods[nextIdx].id;
+  } else if (e.key === 'ArrowLeft') {
+    e.preventDefault();
+    const prevIdx = currentIndex > 0 ? currentIndex - 1 : prods.length - 1;
+    selectedProductId.value = prods[prevIdx].id;
+  } else if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    const downIdx = currentIndex + cols < prods.length ? currentIndex + cols : currentIndex;
+    selectedProductId.value = prods[downIdx].id;
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    const upIdx = currentIndex - cols >= 0 ? currentIndex - cols : currentIndex;
+    selectedProductId.value = prods[upIdx].id;
+  } else if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    handleAddSelected();
+  } else if (['1', '2', '3', '4', '5'].includes(e.key) && (e.altKey || (!e.ctrlKey && !e.metaKey))) {
+    const multiplierMap: Record<string, number> = { '1': 1, '2': 5, '3': 10, '4': 25, '5': 50 };
+    if (e.altKey && multiplierMap[e.key]) {
+      e.preventDefault();
+      activeMultiplier.value = multiplierMap[e.key];
+    }
   }
 }
 
 onMounted(() => {
-  window.addEventListener('keydown', handleKeydown);
+  window.addEventListener('keydown', handleKeyDown);
+  if (filteredProducts.value.length > 0 && !selectedProductId.value) {
+    selectedProductId.value = filteredProducts.value[0].id;
+  }
 });
 
 onUnmounted(() => {
-  window.removeEventListener('keydown', handleKeydown);
+  window.removeEventListener('keydown', handleKeyDown);
+});
+
+defineExpose({
+  selectCategory,
+  handleAddSelected
 });
 </script>
 
 <template>
-  <div class="product-catalog-panel">
-    <!-- Top Search & Quick Action Toolbar -->
-    <div class="catalog-toolbar">
-      <div class="search-box">
-        <Search :size="16" class="search-icon" />
-        <input
-          ref="searchInputRef"
-          v-model="searchQuery"
-          type="text"
-          placeholder="Cari barang, kode, atau satuan... (tekan '/')"
-          class="search-input"
-        />
-        <kbd class="shortcut-kbd">/</kbd>
-      </div>
-
-      <!-- Quick Multiplier Chips -->
-      <div class="multiplier-group">
-        <span class="multiplier-label">Qty:</span>
-        <button
-          v-for="m in multipliers"
-          :key="m"
-          class="mult-chip"
-          :class="{ active: activeMultiplier === m }"
-          @click="activeMultiplier = m"
-        >
-          +{{ m }}
-        </button>
-      </div>
-
-      <!-- View Toggle -->
-      <div class="view-toggle">
-        <button
-          class="toggle-btn"
-          :class="{ active: viewMode === 'grid' }"
-          @click="viewMode = 'grid'"
-          title="Tampilan Grid Kartu"
-        >
-          <LayoutGrid :size="16" />
-        </button>
-        <button
-          class="toggle-btn"
-          :class="{ active: viewMode === 'table' }"
-          @click="viewMode = 'table'"
-          title="Tampilan Tabel Baris Padat"
-        >
-          <List :size="16" />
-        </button>
-      </div>
-    </div>
-
-    <!-- 1-Click Supplier / Category Filter Tabs -->
-    <div class="category-filters">
+  <div class="flex-1 flex flex-col overflow-hidden bg-white select-none text-xs">
+    <!-- Horizontal Category Filter Pills with Drag, Wheel, and Arrow Navigation -->
+    <div
+      class="relative flex items-center border-b px-2 py-1 select-none shrink-0 group"
+      style="background-color: var(--surface-ribbon); border-color: var(--surface-ribbon-border);"
+    >
+      <!-- Left Arrow Button -->
       <button
-        v-for="cat in categories"
-        :key="cat"
-        class="cat-chip"
-        :class="{ active: selectedCategory === cat }"
-        @click="selectedCategory = cat"
+        type="button"
+        class="p-1 bg-white hover:bg-gray-100 active:bg-gray-200 text-gray-600 rounded border border-gray-300 shadow-2xs mr-1.5 shrink-0 cursor-pointer transition-colors"
+        title="Geser ke kiri"
+        @click="scrollCategory('left')"
       >
-        <span>{{ cat }}</span>
-        <span v-if="cat !== 'Semua'" class="cat-count">
-          {{ inventoryStore.products.filter(p => p.category === cat).length }}
-        </span>
+        <ChevronLeft :size="13" />
+      </button>
+
+      <span class="text-gray-500 font-bold text-[11px] uppercase tracking-wider shrink-0 flex items-center gap-1 mr-2">
+        <Folder :size="13" class="text-amber-600" />
+        <span>Kategori:</span>
+      </span>
+
+      <!-- Scrollable & Draggable Container -->
+      <div
+        ref="categoryScrollRef"
+        class="flex items-center gap-1.5 overflow-x-auto overflow-y-hidden no-scrollbar text-xs flex-1 scroll-smooth py-0.5"
+        @wheel="handleCategoryWheel"
+        @mousedown="handleCategoryMouseDown"
+        @mousemove="handleCategoryMouseMove"
+        @mouseup="handleCategoryMouseUp"
+        @mouseleave="handleCategoryMouseUp"
+      >
+        <button
+          type="button"
+          class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 select-none"
+          :class="selectedCategory === 'Semua' ? 'bg-blue-600 text-white font-bold shadow-xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+          @click="selectCategory('Semua')"
+        >
+          Semua Barang ({{ inventoryStore.products.length }})
+        </button>
+        <button
+          v-for="cat in categories"
+          :key="cat"
+          type="button"
+          class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 flex items-center gap-1 select-none"
+          :class="selectedCategory === cat ? 'bg-blue-600 text-white font-bold shadow-xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+          @click="selectCategory(cat)"
+        >
+          <span>{{ cat }}</span>
+          <span class="text-[10px] opacity-75 font-mono">({{ inventoryStore.products.filter(p => p.category === cat).length }})</span>
+        </button>
+      </div>
+
+      <!-- Right Arrow Button -->
+      <button
+        type="button"
+        class="p-1 bg-white hover:bg-gray-100 active:bg-gray-200 text-gray-600 rounded border border-gray-300 shadow-2xs ml-1.5 shrink-0 cursor-pointer transition-colors"
+        title="Geser ke kanan"
+        @click="scrollCategory('right')"
+      >
+        <ChevronRight :size="13" />
       </button>
     </div>
 
-    <!-- Catalog Content -->
-    <div class="catalog-scroll-area">
-      <!-- Empty State -->
-      <div v-if="filteredProducts.length === 0" class="empty-state">
-        <Package :size="36" class="empty-icon" />
-        <p>Tidak ada barang yang cocok dengan pencarian <strong>"{{ searchQuery }}"</strong></p>
-      </div>
-
-      <!-- Grid View (Default) -->
-      <div v-else-if="viewMode === 'grid'" class="products-grid">
-        <div
-          v-for="prod in filteredProducts"
-          :key="prod.id"
-          class="product-card"
-          @click="handleAddProduct(prod)"
-        >
-          <div class="card-header">
-            <span class="card-code">{{ prod.code }}</span>
-            <span class="card-unit">{{ prod.unit }}</span>
+    <!-- Multiplier & Sub-Toolbar with Keyboard Controls Guide -->
+    <div
+      class="flex items-center justify-between px-3 py-1.5 border-b text-xs select-none"
+      style="background-color: var(--surface-ribbon); border-color: var(--surface-ribbon-border);"
+    >
+      <div class="flex items-center gap-3">
+        <div class="flex items-center gap-1.5">
+          <span class="text-gray-500 font-medium">Beli Qty:</span>
+          <div class="flex gap-1">
+            <button
+              v-for="(m, i) in [1, 5, 10, 25, 50]"
+              :key="m"
+              class="px-2 py-0.5 rounded text-xs font-semibold cursor-pointer transition-colors flex items-center gap-0.5"
+              :class="activeMultiplier === m ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'"
+              :title="`Pilih Qty ${m} (Alt+${i+1})`"
+              @click="activeMultiplier = m"
+            >
+              <span>+{{ m }}</span>
+            </button>
           </div>
+        </div>
 
-          <h3 class="card-name" :title="prod.name">{{ prod.name }}</h3>
-          
-          <div class="card-category">
-            <span class="cat-tag">{{ prod.category }}</span>
-            <span class="markup-tag">+{{ prod.defaultMarkupPercent || inventoryStore.getCategoryMarkup(prod.category) }}%</span>
-          </div>
-
-          <div class="card-pricing">
-            <div class="price-col">
-              <span class="price-label">Stok Gudang</span>
-              <span class="stock-badge num-mono" :class="{ 'low-stock': prod.stock < 10 }">
-                {{ prod.stock }} {{ prod.unit }}
-              </span>
-            </div>
-            <div class="price-col text-right">
-              <span class="price-label">Harga Jual</span>
-              <span class="price-val sell-primary num-mono">Rp {{ formatRupiah(prod.lastSellPrice) }}</span>
-            </div>
-          </div>
-
-          <button class="card-add-btn" title="Tambah ke Keranjang">
-            <Plus :size="14" />
-            <span>+{{ activeMultiplier }} Masuk Struk</span>
-          </button>
+        <!-- Keyboard Nav Hints -->
+        <div class="hidden lg:flex items-center gap-1 text-[11px] text-gray-500 bg-gray-100 border border-gray-200 rounded px-2 py-0.5 font-mono">
+          <span class="text-gray-400">Navigasi:</span>
+          <kbd class="px-1 bg-white border border-gray-300 rounded text-[10px] font-bold">↑</kbd>
+          <kbd class="px-1 bg-white border border-gray-300 rounded text-[10px] font-bold">↓</kbd>
+          <kbd class="px-1 bg-white border border-gray-300 rounded text-[10px] font-bold">←</kbd>
+          <kbd class="px-1 bg-white border border-gray-300 rounded text-[10px] font-bold">→</kbd>
+          <span class="text-gray-400 ml-1">Pilih | Masukkan:</span>
+          <kbd class="px-1.5 bg-blue-50 text-blue-700 border border-blue-300 rounded text-[10px] font-bold">Enter ↵</kbd>
         </div>
       </div>
 
-      <!-- Dense Table View -->
-      <div v-else class="products-table-wrapper">
-        <table class="dense-table">
-          <thead>
+      <div class="flex items-center gap-2">
+        <button
+          class="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-3 py-1 rounded text-xs font-bold cursor-pointer disabled:opacity-40 flex items-center gap-1.5 shadow-2xs transition-colors"
+          :disabled="!selectedProductId"
+          title="Masukkan barang terpilih ke keranjang (Enter)"
+          @click="handleAddSelected"
+        >
+          <span>+ Tambah (+{{ activeMultiplier }})</span>
+          <kbd class="px-1 bg-blue-700 text-blue-100 rounded text-[9.5px] font-mono font-normal">Enter</kbd>
+        </button>
+      </div>
+    </div>
+
+    <!-- Folder & File Tiles Grid -->
+    <div class="flex-1 overflow-y-auto">
+      <!-- Empty state -->
+      <div v-if="filteredProducts.length === 0" class="h-64 flex flex-col items-center justify-center text-gray-400 gap-2">
+        <Folder :size="48" class="text-gray-300" />
+        <p>Tidak ada barang yang cocok dalam folder ini.</p>
+      </div>
+
+      <!-- Icon Grid View -->
+      <div
+        v-else-if="viewMode === 'icons'"
+        class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 border-b border-r border-[#d4d1cb] bg-white"
+      >
+        <div
+          v-for="prod in filteredProducts"
+          :key="prod.id"
+          class="flex flex-col items-center justify-between p-3 border-t border-l border-[#d4d1cb] bg-white hover:bg-blue-50/70 cursor-pointer transition-colors select-none group relative"
+          :class="selectedProductId === prod.id ? 'bg-[#ebf2ff] ring-2 ring-inset ring-blue-500 z-10 font-semibold' : ''"
+          @click="handleProductClick(prod)"
+          @dblclick="handleProductDoubleClick(prod)"
+        >
+          <!-- File / Folder Graphic Icon with Stock in Top Tab & Unit in Center Label -->
+          <div class="relative w-16 h-14 flex items-center justify-center mb-1.5 group-hover:scale-105 transition-transform">
+            <div class="w-14 h-11 bg-gradient-to-b from-[#e8cf9b] to-[#cba366] rounded-md shadow-2xs border border-[#b89154] flex flex-col justify-end p-1">
+              <div class="bg-[#f7eedc] h-5 rounded-xs flex items-center justify-center text-[10px] font-bold text-amber-950 truncate px-1">
+                {{ prod.unit }}
+              </div>
+            </div>
+
+            <div
+              class="absolute -top-0.5 left-2 min-w-7 px-1.5 h-3.5 rounded-t-sm border-t border-l border-r flex items-center justify-center text-[9px] font-bold font-mono tracking-tight shadow-2xs"
+              :class="prod.stock <= 10 ? 'bg-red-500 text-white border-red-600' : 'bg-white text-gray-800 border-[#b89154]'"
+              title="Sisa Stok Barang"
+            >
+              {{ prod.stock }}
+            </div>
+          </div>
+
+          <!-- Name Label -->
+          <span class="text-xs font-semibold text-center text-gray-800 line-clamp-2 leading-tight w-full mb-1.5">
+            {{ prod.name }}
+          </span>
+
+          <!-- Price Label at Bottom -->
+          <div class="mt-auto w-full flex justify-center items-center">
+            <span class="text-xs font-bold text-blue-600 font-mono">
+              Rp {{ formatRupiah(prod.lastSellPrice) }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- List Details View -->
+      <div v-else class="border border-gray-200 rounded overflow-hidden">
+        <table class="w-full text-xs text-left">
+          <thead class="bg-[#f0ede8] border-b border-gray-200 text-gray-600 font-semibold">
             <tr>
-              <th style="width: 80px">KODE</th>
-              <th>NAMA BARANG</th>
-              <th style="width: 110px">SUPPLIER</th>
-              <th style="width: 70px">SATUAN</th>
-              <th style="width: 110px" class="text-right">BELI TERAKHIR</th>
-              <th style="width: 70px" class="text-center">MARKUP</th>
-              <th style="width: 110px" class="text-right">HARGA JUAL</th>
-              <th style="width: 90px" class="text-center">AKSI</th>
+              <th class="p-2 w-20">KODE</th>
+              <th class="p-2">NAMA BARANG</th>
+              <th class="p-2 w-32">VENDOR</th>
+              <th class="p-2 w-20 text-center">SATUAN</th>
+              <th class="p-2 w-28 text-right">HARGA JUAL</th>
+              <th class="p-2 w-24 text-center">STOK</th>
             </tr>
           </thead>
           <tbody>
             <tr
               v-for="prod in filteredProducts"
               :key="prod.id"
-              class="table-row"
-              @click="handleAddProduct(prod)"
+              class="border-b border-gray-100 hover:bg-blue-50 cursor-pointer"
+              :class="selectedProductId === prod.id ? 'bg-blue-100 font-semibold' : ''"
+              @click="handleProductClick(prod)"
+              @dblclick="handleProductDoubleClick(prod)"
             >
-              <td class="num-mono font-medium text-dim">{{ prod.code }}</td>
-              <td class="font-semibold">{{ prod.name }}</td>
-              <td><span class="cat-tag-sm">{{ prod.category }}</span></td>
-              <td><span class="unit-badge">{{ prod.unit }}</span></td>
-              <td class="text-right num-mono text-dim">Rp {{ formatRupiah(prod.lastBuyPrice) }}</td>
-              <td class="text-center font-semibold text-emerald-400">
-                +{{ prod.defaultMarkupPercent || inventoryStore.getCategoryMarkup(prod.category) }}%
+              <td class="p-2 font-mono text-gray-500">{{ prod.code }}</td>
+              <td class="p-2 font-medium flex items-center gap-1.5">
+                <Folder :size="14" class="text-amber-500 shrink-0" />
+                <span>{{ prod.name }}</span>
               </td>
-              <td class="text-right num-mono font-bold text-blue-400">Rp {{ formatRupiah(prod.lastSellPrice) }}</td>
-              <td class="text-center">
-                <button class="table-add-btn">
-                  <Plus :size="13" /> +{{ activeMultiplier }}
-                </button>
-              </td>
+              <td class="p-2 text-gray-500">{{ prod.category }}</td>
+              <td class="p-2 text-center">{{ prod.unit }}</td>
+              <td class="p-2 text-right font-bold text-blue-600 font-mono">Rp {{ formatRupiah(prod.lastSellPrice) }}</td>
+              <td class="p-2 text-center font-mono">{{ prod.stock }}</td>
             </tr>
           </tbody>
         </table>
@@ -226,389 +368,3 @@ onUnmounted(() => {
     </div>
   </div>
 </template>
-
-<style scoped>
-.product-catalog-panel {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  background: var(--bg-surface);
-  border-right: 1px solid var(--border-subtle);
-  overflow: hidden;
-}
-
-/* Toolbar */
-.catalog-toolbar {
-  padding: 10px 14px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: var(--bg-app);
-  border-bottom: 1px solid var(--border-subtle);
-  flex-shrink: 0;
-}
-
-.search-box {
-  flex: 1;
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.search-icon {
-  position: absolute;
-  left: 10px;
-  color: var(--text-dim);
-  pointer-events: none;
-}
-
-.search-input {
-  width: 100%;
-  padding-left: 32px;
-  padding-right: 36px;
-  height: 36px;
-  background: var(--bg-surface-elevated);
-  border: 1px solid var(--border-subtle);
-  font-size: 0.84rem;
-}
-
-.shortcut-kbd {
-  position: absolute;
-  right: 10px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid var(--border-subtle);
-  border-radius: 4px;
-  padding: 1px 6px;
-  font-size: 0.72rem;
-  font-family: var(--font-mono);
-  color: var(--text-dim);
-}
-
-.multiplier-group {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  background: var(--bg-surface-elevated);
-  padding: 2px 4px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-subtle);
-}
-
-.multiplier-label {
-  font-size: 0.72rem;
-  color: var(--text-dim);
-  padding: 0 4px;
-}
-
-.mult-chip {
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 3px 7px;
-  border-radius: 4px;
-  color: var(--text-muted);
-}
-
-.mult-chip:hover {
-  color: var(--text-main);
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.mult-chip.active {
-  background: var(--primary);
-  color: white;
-}
-
-.view-toggle {
-  display: flex;
-  background: var(--bg-surface-elevated);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-subtle);
-  padding: 2px;
-}
-
-.toggle-btn {
-  padding: 4px 7px;
-  color: var(--text-muted);
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-}
-
-.toggle-btn.active {
-  background: var(--bg-surface-hover);
-  color: white;
-}
-
-/* Category Filter Chips */
-.category-filters {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  overflow-x: auto;
-  white-space: nowrap;
-  background: var(--bg-surface);
-  border-bottom: 1px solid var(--border-subtle);
-  flex-shrink: 0;
-}
-
-.cat-chip {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 0.76rem;
-  padding: 4px 10px;
-  border-radius: var(--radius-pill);
-  background: var(--bg-surface-elevated);
-  color: var(--text-muted);
-  border: 1px solid var(--border-subtle);
-}
-
-.cat-chip:hover {
-  color: var(--text-main);
-  border-color: var(--border-medium);
-}
-
-.cat-chip.active {
-  background: #1e3a8a;
-  color: #93c5fd;
-  border-color: #3b82f6;
-  font-weight: 600;
-}
-
-.cat-count {
-  font-size: 0.65rem;
-  opacity: 0.75;
-}
-
-/* Scroll Area */
-.catalog-scroll-area {
-  flex: 1;
-  overflow-y: auto;
-  padding: 12px;
-}
-
-/* Grid Layout */
-.products-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(185px, 1fr));
-  gap: 10px;
-}
-
-.product-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 11px;
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  position: relative;
-}
-
-.product-card:hover {
-  transform: translateY(-2px);
-  border-color: rgba(59, 130, 246, 0.4);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
-}
-
-.card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.card-code {
-  font-size: 0.7rem;
-  font-family: var(--font-mono);
-  color: var(--text-dim);
-}
-
-.card-unit {
-  font-size: 0.68rem;
-  font-weight: 700;
-  background: rgba(255, 255, 255, 0.08);
-  padding: 2px 5px;
-  border-radius: 4px;
-  color: #d1d5db;
-}
-
-.card-name {
-  font-size: 0.82rem;
-  font-weight: 600;
-  line-height: 1.3;
-  color: var(--text-main);
-  min-height: 32px;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.card-category {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.cat-tag {
-  font-size: 0.68rem;
-  color: #94a3b8;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 110px;
-}
-
-.markup-tag {
-  font-size: 0.68rem;
-  font-weight: 700;
-  color: #34d399;
-}
-
-.card-pricing {
-  display: flex;
-  justify-content: space-between;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  padding-top: 6px;
-  margin-top: 2px;
-}
-
-.price-col {
-  display: flex;
-  flex-direction: column;
-}
-
-.price-label {
-  font-size: 0.62rem;
-  color: var(--text-dim);
-}
-
-.sell-primary {
-  color: #60a5fa;
-  font-weight: 800;
-  font-size: 0.88rem;
-}
-
-.stock-badge {
-  font-size: 0.72rem;
-  color: #34d399;
-  font-weight: 600;
-}
-
-.stock-badge.low-stock {
-  color: #f87171;
-}
-
-.card-add-btn {
-  margin-top: 2px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  width: 100%;
-  padding: 5px 0;
-  background: rgba(59, 130, 246, 0.12);
-  color: #93c5fd;
-  border: 1px solid rgba(59, 130, 246, 0.25);
-  border-radius: var(--radius-sm);
-  font-size: 0.74rem;
-  font-weight: 600;
-}
-
-.product-card:hover .card-add-btn {
-  background: var(--primary);
-  color: white;
-  border-color: var(--primary);
-}
-
-/* Dense Table View */
-.products-table-wrapper {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-}
-
-.dense-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.8rem;
-}
-
-.dense-table th {
-  background: var(--bg-app);
-  padding: 8px 10px;
-  font-size: 0.68rem;
-  color: var(--text-dim);
-  font-weight: 600;
-  border-bottom: 1px solid var(--border-subtle);
-  text-align: left;
-}
-
-.dense-table td {
-  padding: 7px 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-}
-
-.table-row {
-  cursor: pointer;
-  transition: background var(--transition-fast);
-}
-
-.table-row:hover {
-  background: rgba(59, 130, 246, 0.08);
-}
-
-.cat-tag-sm {
-  font-size: 0.68rem;
-  background: rgba(255, 255, 255, 0.05);
-  padding: 2px 6px;
-  border-radius: 4px;
-  color: #94a3b8;
-}
-
-.unit-badge {
-  font-size: 0.7rem;
-  color: var(--text-dim);
-}
-
-.table-add-btn {
-  background: rgba(59, 130, 246, 0.15);
-  color: #93c5fd;
-  padding: 3px 8px;
-  border-radius: 4px;
-  font-size: 0.72rem;
-  font-weight: 600;
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-}
-
-.table-row:hover .table-add-btn {
-  background: var(--primary);
-  color: white;
-}
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 20px;
-  color: var(--text-dim);
-  gap: 10px;
-  font-size: 0.85rem;
-}
-
-.empty-icon {
-  opacity: 0.4;
-}
-
-.text-right { text-align: right; }
-.text-center { text-align: center; }
-.text-dim { color: var(--text-dim); }
-</style>

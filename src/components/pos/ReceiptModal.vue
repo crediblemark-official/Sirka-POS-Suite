@@ -62,10 +62,10 @@ const waText = computed(() => {
     text += `🎁 Poin Member Diperoleh: +${tx.pointsEarned} Poin\n`;
   }
   if (isPreOrderTx(tx)) {
-    text += `_Keterangan: Barang sesuai nota pesanan / pre-order_\n`;
+    text += `_Keterangan: Barang sesuai nota pesanan langganan_\n`;
   }
   if (tx.paymentStatus === 'TEMPO') {
-    text += `_Catatan: Transaksi ini tercatat TEMPO (Piutang)_\n`;
+    text += `_Catatan: Transaksi ini tercatat BON / TEMPO (Piutang)_\n`;
   } else {
     text += isB2C
       ? `_Terima kasih telah berbelanja di toko kami (LUNAS)_\n`
@@ -208,10 +208,10 @@ function handlePrint() {
           </p>
           <p>
             {{ isPreOrderTx(transaction)
-              ? 'Barang yang sudah diterima sesuai nota pesanan / pre-order'
+              ? 'Barang yang sudah diterima sesuai nota pesanan pelanggan'
               : 'Barang yang sudah dibeli / diterima sesuai dengan rincian nota transaksi' }}
           </p>
-          <p class="text-[9.5px] text-gray-400 font-mono">Dicetak otomatis dari Native Tauri Rust Engine</p>
+          <p class="text-[9.5px] text-gray-400 font-mono">Struk Resmi Toko</p>
         </div>
       </div>
 

@@ -7,6 +7,9 @@ const STORAGE_KEY_BUYERS = 'kasir_citra_buyers_v3';
 const STORAGE_KEY_LOYALTY = 'kasir_citra_loyalty_settings_v1';
 
 export const useBuyerStore = defineStore('buyer', () => {
+  const showMemberDrawer = ref(true);
+  const showBuyerSidebar = ref(false);
+  const activeBuyerForSidebar = ref<Buyer | null>(null);
   const saved = localStorage.getItem(STORAGE_KEY_BUYERS);
   const buyers = ref<Buyer[]>(
     saved
@@ -205,6 +208,9 @@ export const useBuyerStore = defineStore('buyer', () => {
   }
 
   return {
+    showMemberDrawer,
+    showBuyerSidebar,
+    activeBuyerForSidebar,
     buyers,
     b2bBuyers,
     b2cBuyers,

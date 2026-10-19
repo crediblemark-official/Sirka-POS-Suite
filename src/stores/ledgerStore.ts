@@ -17,7 +17,7 @@ export const useLedgerStore = defineStore('ledger', () => {
   async function fetchTransactionsFromDb() {
     try {
       const data = await dbService.getTransactions();
-      if (data && data.length > 0) {
+      if (data) {
         transactions.value = data;
         saveLocal();
       }
@@ -28,15 +28,10 @@ export const useLedgerStore = defineStore('ledger', () => {
 
   fetchTransactionsFromDb();
 
-  async function addTransaction(tx: Transaction) {
-    transactions.value.unshift(tx);
+  async function addTransaction(tx: Transaction, memberId?: string) {
+    await dbService.createTransaction(tx, memberId);
+    transactions.value = [tx, ...transactions.value.filter(t => t.id !== tx.id)];
     saveLocal();
-
-    try {
-      await dbService.createTransaction(tx);
-    } catch (err) {
-      console.error('Failed to sync transaction to Rust backend:', err);
-    }
   }
 
   async function togglePaymentStatus(transactionId: string) {
@@ -62,19 +57,20 @@ export const useLedgerStore = defineStore('ledger', () => {
     }
   }
 
-  function deleteTransaction(transactionId: string) {
+  async function deleteTransaction(transactionId: string) {
+    await dbService.deleteTransaction(transactionId);
     transactions.value = transactions.value.filter(t => t.id !== transactionId);
     saveLocal();
   }
 
   // Summary Metrics
-  const totalRevenue = computed(() => transactions.value.reduce((acc, t) => acc + t.totalSell, 0));
+  const totalRevenue = computed(() => transactions.value.reduce((acc, t) => acc + (t.finalTotal ?? t.totalSell), 0));
   const totalCost = computed(() => transactions.value.reduce((acc, t) => acc + t.totalBuy, 0));
   const totalProfit = computed(() => transactions.value.reduce((acc, t) => acc + t.totalProfit, 0));
   const totalReceivables = computed(() =>
     transactions.value
       .filter(t => t.paymentStatus === 'TEMPO')
-      .reduce((acc, t) => acc + t.totalSell, 0)
+      .reduce((acc, t) => acc + (t.finalTotal ?? t.totalSell), 0)
   );
 
   // Flat ledger rows for spreadsheet-like view & export

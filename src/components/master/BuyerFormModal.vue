@@ -2,6 +2,14 @@
 import { ref, watch, computed } from 'vue';
 import { Buyer, CustomerType } from '../../types';
 import { X, Save, Plus, Edit2, Building, ShoppingBag, CreditCard } from 'lucide-vue-next';
+import SearchableSelect, { type SelectOption } from '../common/SearchableSelect.vue';
+
+const tierOptions: SelectOption[] = [
+  { value: 'REGULAR', label: 'Regular (Default)', badge: '1x Poin' },
+  { value: 'SILVER', label: 'Silver', badge: '1.2x Poin' },
+  { value: 'GOLD', label: 'Gold', badge: '1.5x Poin' },
+  { value: 'PLATINUM', label: 'Platinum', badge: '2x Poin' }
+];
 
 const props = withDefaults(
   defineProps<{
@@ -246,15 +254,13 @@ function handleSubmit() {
 
               <div>
                 <label class="text-[10px] font-semibold text-amber-800 block mb-0.5">Tier Member</label>
-                <select
+                <SearchableSelect
                   v-model="form.tier"
-                  class="w-full bg-white border border-amber-300 rounded px-2 py-1 text-xs font-bold outline-none focus:border-amber-600"
-                >
-                  <option value="REGULAR">Regular (Default)</option>
-                  <option value="SILVER">Silver</option>
-                  <option value="GOLD">Gold</option>
-                  <option value="PLATINUM">Platinum</option>
-                </select>
+                  :options="tierOptions"
+                  placeholder="Pilih Tier..."
+                  search-placeholder="Cari tier..."
+                  hotkey=""
+                />
               </div>
             </div>
 

@@ -12,11 +12,12 @@
   "app": {
     "windows": [
       {
-        "title": "Kasir Citra - Distribusi SPPG",
+        "title": "Kasir Citra",
         "width": 1280,
         "height": 820,
         "minWidth": 960,
-        "minHeight": 640
+        "minHeight": 640,
+        "decorations": false
       }
     ],
     "security": {

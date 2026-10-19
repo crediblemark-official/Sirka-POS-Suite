@@ -22,3 +22,27 @@ pub fn generate_receipt_text(
         invoice_no, buyer, total_sell, item_count
     )
 }
+
+/// Meminimalkan jendela aplikasi
+#[tauri::command]
+pub fn window_minimize(window: tauri::Window) -> Result<(), String> {
+    window.minimize().map_err(|e| e.to_string())
+}
+
+/// Toggle maximize / restore ukuran jendela
+#[tauri::command]
+pub fn window_toggle_maximize(window: tauri::Window) -> Result<bool, String> {
+    if window.is_maximized().map_err(|e| e.to_string())? {
+        window.unmaximize().map_err(|e| e.to_string())?;
+        Ok(false)
+    } else {
+        window.maximize().map_err(|e| e.to_string())?;
+        Ok(true)
+    }
+}
+
+/// Menutup aplikasi
+#[tauri::command]
+pub fn window_close(window: tauri::Window) -> Result<(), String> {
+    window.close().map_err(|e| e.to_string())
+}

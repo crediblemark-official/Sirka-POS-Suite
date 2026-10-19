@@ -317,7 +317,9 @@ export const usePosStore = defineStore('pos', () => {
   }
 
   // Proses Checkout Penjualan (F12)
-  function processCheckout(): Transaction | null {
+  const isCheckingOut = ref(false);
+  async function processCheckout(): Promise<Transaction | null> {
+    if (isCheckingOut.value) return null;
     if (cartItems.value.length === 0) return null;
 
     const invoiceNo = generateInvoiceNumber(transactionDate.value);
@@ -353,19 +355,14 @@ export const usePosStore = defineStore('pos', () => {
       createdAt: new Date().toISOString(),
     };
 
-    // 1. Simpan transaksi penjualan ke ledger & DB
-    ledgerStore.addTransaction(tx);
-    lastProcessedTransaction.value = tx;
-
-    // 2. Akumulasi Poin Member & Potong Poin jika digunakan
-    if (isMember.value) {
-      if (pointsToRedeem.value > 0) {
-        buyerStore.deductPoints(selectedBuyer.value, pointsToRedeem.value);
-      }
-      if (pointsToEarn.value > 0 || finalTotal.value > 0) {
-        buyerStore.addPointsAndSpend(selectedBuyer.value, pointsToEarn.value, finalTotal.value);
-      }
+    isCheckingOut.value = true;
+    try {
+      await ledgerStore.addTransaction(tx, isMember.value ? selectedBuyerData.value?.id : undefined);
+    } finally {
+      isCheckingOut.value = false;
     }
+    lastProcessedTransaction.value = tx;
+    await Promise.all([inventoryStore.fetchFromDb(), buyerStore.fetchBuyers()]);
 
     clearCart();
     transactionNotes.value = '';
@@ -421,5 +418,6 @@ export const usePosStore = defineStore('pos', () => {
     profitPercent,
     totalItemsCount,
     processCheckout,
+    isCheckingOut,
   };
 });

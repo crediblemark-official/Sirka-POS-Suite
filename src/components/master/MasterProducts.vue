@@ -1,206 +1,340 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { Product, Buyer, CustomerType } from '../../types';
+import { ref, computed, watch } from 'vue';
+import { Product, SupplierCategory } from '../../types';
 import { useInventoryStore } from '../../stores/inventoryStore';
-import { useBuyerStore } from '../../stores/buyerStore';
-import { Settings, Package, Percent, Store, Users } from 'lucide-vue-next';
+import { Settings, Package, RotateCcw } from 'lucide-vue-next';
 
 // Modular Sub-Tabs
 import MasterSkuTab from './MasterSkuTab.vue';
-import MasterVendorTab from './MasterVendorTab.vue';
-import MasterBuyerTab from './MasterBuyerTab.vue';
-import MasterBrandingTab from './MasterBrandingTab.vue';
 
-// Modular DRY Modals
-import ProductFormModal from './ProductFormModal.vue';
-import BuyerFormModal from './BuyerFormModal.vue';
-import VendorFormModal from './VendorFormModal.vue';
+// Modular DRY Form Drawer
+import FormSidebarDrawer from '../common/FormSidebarDrawer.vue';
+import SearchableSelect, { type SelectOption } from '../common/SearchableSelect.vue';
+import { formatRupiah } from '../../utils/formatters';
+
+const props = withDefaults(defineProps<{
+  searchQuery?: string;
+}>(), {
+  searchQuery: ''
+});
 
 const inventoryStore = useInventoryStore();
-const buyerStore = useBuyerStore();
-
-// Sub-tabs in Master Settings
-type MasterTab = 'sku' | 'vendors' | 'buyers' | 'branding';
-const activeMasterTab = ref<MasterTab>('buyers');
-
-// Modals State
-const showProductModal = ref(false);
-const activeProductForEdit = ref<Product | null>(null);
-
-const showBuyerModal = ref(false);
-const activeBuyerForEdit = ref<Buyer | null>(null);
-const defaultCustomerTypeForModal = ref<CustomerType>('B2B');
-
-const showVendorModal = ref(false);
-
 const categories = computed(() => inventoryStore.categoryMarkups.map(c => c.category));
+const categoryOptions = computed<SelectOption[]>(() =>
+  inventoryStore.categoryMarkups.map(c => ({
+    value: c.category,
+    label: c.category,
+    badge: `${c.defaultMarkupPercent}% markup`
+  }))
+);
 
-// Product Modal Handlers
+// Product Sidebar Drawer State (Gaya Diskon & Kulakan)
+const isEditProduct = computed(() => !!inventoryStore.activeProductForSidebar?.id);
+
+const productForm = ref<{
+  id: string;
+  code: string;
+  name: string;
+  category: SupplierCategory;
+  unit: string;
+  defaultMarkupPercent: number;
+  lastBuyPrice: number;
+  lastSellPrice: number;
+  stock: number;
+  notes: string;
+}>({
+  id: '',
+  code: '',
+  name: '',
+  category: 'Umum' as SupplierCategory,
+  unit: 'PCS',
+  defaultMarkupPercent: 20,
+  lastBuyPrice: 0,
+  lastSellPrice: 0,
+  stock: 100,
+  notes: ''
+});
+
 function handleOpenAddProduct() {
-  activeProductForEdit.value = null;
-  showProductModal.value = true;
+  inventoryStore.activeProductForSidebar = null;
+  const defaultCategory = categories.value[0] || 'Umum';
+  const defaultMarkup = inventoryStore.getCategoryMarkup(defaultCategory);
+  productForm.value = {
+    id: '',
+    code: '',
+    name: '',
+    category: defaultCategory,
+    unit: 'PCS',
+    defaultMarkupPercent: defaultMarkup,
+    lastBuyPrice: 0,
+    lastSellPrice: 0,
+    stock: 100,
+    notes: ''
+  };
+  inventoryStore.showProductSidebar = true;
 }
 
 function handleOpenEditProduct(prod: Product) {
-  activeProductForEdit.value = { ...prod };
-  showProductModal.value = true;
+  inventoryStore.activeProductForSidebar = { ...prod };
+  productForm.value = {
+    id: prod.id,
+    code: prod.code,
+    name: prod.name,
+    category: prod.category,
+    unit: prod.unit,
+    defaultMarkupPercent: prod.defaultMarkupPercent ?? inventoryStore.getCategoryMarkup(prod.category),
+    lastBuyPrice: prod.lastBuyPrice,
+    lastSellPrice: prod.lastSellPrice,
+    stock: prod.stock,
+    notes: prod.notes || ''
+  };
+  inventoryStore.showProductSidebar = true;
 }
 
-function handleSaveProduct(prodData: Omit<Product, 'id'> | Product) {
-  if ('id' in prodData && prodData.id) {
-    inventoryStore.updateProduct(prodData as Product);
-  } else {
-    inventoryStore.addProduct(prodData);
+watch(
+  () => inventoryStore.showProductSidebar,
+  (isOpen) => {
+    if (isOpen && !inventoryStore.activeProductForSidebar) {
+      handleOpenAddProduct();
+    }
+  }
+);
+
+function onCategoryChange() {
+  if (!isEditProduct.value) {
+    productForm.value.defaultMarkupPercent = inventoryStore.getCategoryMarkup(productForm.value.category);
+    recalculateSellPrice();
   }
 }
 
-// Buyer Modal Handlers
-function handleOpenAddBuyer(type: CustomerType = 'B2B') {
-  activeBuyerForEdit.value = null;
-  defaultCustomerTypeForModal.value = type;
-  showBuyerModal.value = true;
+function recalculateSellPrice() {
+  const markup = productForm.value.defaultMarkupPercent ?? 20;
+  productForm.value.lastSellPrice = Math.round((productForm.value.lastBuyPrice || 0) * (1 + markup / 100));
 }
 
-function handleOpenEditBuyer(buyer: Buyer) {
-  activeBuyerForEdit.value = { ...buyer };
-  defaultCustomerTypeForModal.value = buyer.customerType || 'B2B';
-  showBuyerModal.value = true;
-}
+function handleSaveProductSidebar() {
+  if (!productForm.value.name.trim() || !productForm.value.unit.trim()) return;
 
-function handleSaveBuyer(buyerData: Omit<Buyer, 'id'> | Buyer) {
-  if ('id' in buyerData && buyerData.id) {
-    buyerStore.updateBuyer(buyerData as Buyer);
+  const payload = {
+    ...productForm.value,
+    name: productForm.value.name.trim().toUpperCase(),
+    code: (productForm.value.code.trim() || `SKU-${Date.now().toString().slice(-4)}`).toUpperCase(),
+    unit: productForm.value.unit.trim().toUpperCase(),
+    lastBuyPrice: Number(productForm.value.lastBuyPrice) || 0,
+    lastSellPrice: Number(productForm.value.lastSellPrice) || 0,
+    stock: Number(productForm.value.stock) || 0
+  };
+
+  if (isEditProduct.value && productForm.value.id) {
+    inventoryStore.updateProduct(payload as Product);
   } else {
-    buyerStore.addBuyer(
-      buyerData.name,
-      buyerData.code,
-      buyerData.phone,
-      buyerData.address,
-      buyerData.customerType || 'B2B',
-      buyerData.memberCardNo,
-      buyerData.tier,
-      buyerData.points
-    );
+    inventoryStore.addProduct(payload);
   }
+  inventoryStore.showProductSidebar = false;
 }
 
-// Vendor Modal Handlers
-function handleSaveVendor(data: { name: string; defaultMarkup: number; description: string }) {
-  inventoryStore.addCategory(data.name, data.defaultMarkup, data.description);
+function handleDeleteProduct(id: string) {
+  inventoryStore.deleteProduct(id);
+  inventoryStore.activeProductForSidebar = null;
+  inventoryStore.showProductSidebar = false;
 }
 </script>
 
 <template>
   <div class="flex flex-col h-full bg-[#f8f7f5] text-[#2e2b28] select-none text-xs overflow-hidden">
-    <!-- Top Header -->
-    <header class="p-3 bg-white border-b border-[#dedbd6] flex items-center justify-between shadow-xs">
-      <div class="flex items-center gap-2.5">
-        <div class="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center text-purple-700">
-          <Settings :size="18" />
-        </div>
-        <div>
-          <h2 class="font-bold text-sm text-gray-900 leading-tight">
-            Master Data & Pengaturan Toko (White-Label Ready)
-          </h2>
-          <p class="text-[11px] text-gray-500">
-            Kelola katalog SKU barang, vendor supplier, pembeli grosir B2B, pelanggan eceran B2C, dan profil usaha.
-          </p>
-        </div>
+    <!-- 1. Top Ribbon: Daftar Barang (Katalog SKU) & Aksi Cepat -->
+    <div class="relative flex items-center justify-between bg-[#f6f5f2] border-b border-gray-200 px-3 py-1.5 select-none shrink-0 gap-1.5 overflow-x-auto no-scrollbar">
+      <div class="flex items-center gap-2 shrink-0">
+        <Package :size="15" class="text-purple-700" />
+        <span class="font-bold text-xs text-gray-800">Daftar Barang Dagangan (Katalog SKU)</span>
+        <span class="text-[10px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-bold font-mono">
+          {{ inventoryStore.products.length }} SKU
+        </span>
       </div>
 
-      <!-- Navigation Sub-Tabs -->
-      <nav class="flex bg-gray-100 p-0.5 rounded border border-gray-300">
-        <button
-          type="button"
-          class="flex items-center gap-1.5 px-3 py-1 rounded text-xs font-semibold cursor-pointer transition-all"
-          :class="activeMasterTab === 'sku' ? 'bg-white text-blue-700 shadow-xs' : 'text-gray-600 hover:text-black'"
-          @click="activeMasterTab = 'sku'"
-        >
-          <Package :size="13" />
-          <span>Katalog SKU ({{ inventoryStore.products.length }})</span>
-        </button>
+      <!-- Sisi Kanan: Reset Bawaan & Tambah Barang Baru -->
+      <div class="flex items-center gap-2 shrink-0 ml-auto">
+        <span v-if="props.searchQuery" class="text-[11px] text-purple-700 font-medium bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+          Cari: "{{ props.searchQuery }}"
+        </span>
 
         <button
           type="button"
-          class="flex items-center gap-1.5 px-3 py-1 rounded text-xs font-semibold cursor-pointer transition-all"
-          :class="activeMasterTab === 'vendors' ? 'bg-white text-blue-700 shadow-xs' : 'text-gray-600 hover:text-black'"
-          @click="activeMasterTab = 'vendors'"
+          class="flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-gray-100 text-gray-700 rounded text-xs font-semibold cursor-pointer border border-gray-300 transition-colors shadow-2xs"
+          title="Kembalikan data ke daftar bawaan"
+          @click="inventoryStore.resetToDefaults"
         >
-          <Percent :size="13" />
-          <span>Vendor & Markup ({{ inventoryStore.categoryMarkups.length }})</span>
+          <RotateCcw :size="11" />
+          <span>Reset Bawaan</span>
         </button>
+      </div>
+    </div>
 
-        <button
-          type="button"
-          class="flex items-center gap-1.5 px-3 py-1 rounded text-xs font-semibold cursor-pointer transition-all"
-          :class="activeMasterTab === 'buyers' ? 'bg-white text-blue-700 shadow-xs' : 'text-gray-600 hover:text-black'"
-          @click="activeMasterTab = 'buyers'"
-        >
-          <Users :size="13" />
-          <span>Pelanggan / Buyer ({{ buyerStore.buyers.length }})</span>
-        </button>
+    <!-- 2. Main Workspace: Split Layar (Kiri: Tabel SKU, Kanan: Sidebar Drawer) -->
+    <main class="flex-1 flex overflow-hidden">
+      <div class="flex-1 flex flex-col overflow-hidden">
+        <MasterSkuTab
+          :search-query="props.searchQuery"
+          @add-product="handleOpenAddProduct"
+          @edit-product="handleOpenEditProduct"
+        />
+      </div>
 
-        <button
-          type="button"
-          class="flex items-center gap-1.5 px-3 py-1 rounded text-xs font-semibold cursor-pointer transition-all"
-          :class="activeMasterTab === 'branding' ? 'bg-white text-blue-700 shadow-xs' : 'text-gray-600 hover:text-black'"
-          @click="activeMasterTab = 'branding'"
-        >
-          <Store :size="13" />
-          <span>Profil Toko & Branding</span>
-        </button>
-      </nav>
-    </header>
+      <!-- Sisi Kanan: Form Input & Edit Barang (Modular FormSidebarDrawer) -->
+      <FormSidebarDrawer
+        v-model="inventoryStore.showProductSidebar"
+        :is-editing="isEditProduct"
+        title="Barang"
+        :code-badge="productForm.code"
+        :can-edit="!!inventoryStore.activeProductForSidebar"
+        :can-save="!!productForm.name.trim() && !!productForm.unit.trim()"
+        :save-label="isEditProduct ? 'SIMPAN PERUBAHAN' : 'SIMPAN BARANG'"
+        theme-color="purple"
+        @switch-to-new="handleOpenAddProduct"
+        @switch-to-edit="inventoryStore.activeProductForSidebar && handleOpenEditProduct(inventoryStore.activeProductForSidebar)"
+        @save="handleSaveProductSidebar"
+        @delete="inventoryStore.activeProductForSidebar && handleDeleteProduct(inventoryStore.activeProductForSidebar.id)"
+        @cancel="inventoryStore.showProductSidebar = false"
+      >
+        <template #icon>
+          <Package :size="14" class="text-purple-700 shrink-0" />
+        </template>
 
-    <!-- Body Scrollable Content -->
-    <main class="flex-1 overflow-y-auto p-3">
-      <!-- 1. TAB SKU BARANG -->
-      <MasterSkuTab
-        v-if="activeMasterTab === 'sku'"
-        @add-product="handleOpenAddProduct"
-        @edit-product="handleOpenEditProduct"
-      />
+        <!-- Seksi 1: Identitas SKU & Kategori -->
+        <div class="space-y-2.5 pb-4 border-b border-gray-200">
+          <div class="flex items-center gap-1.5 font-bold text-purple-700 text-xs">
+            <Package :size="13" />
+            <span>Identitas Produk (SKU)</span>
+          </div>
 
-      <!-- 2. TAB VENDOR & MARKUP -->
-      <MasterVendorTab
-        v-if="activeMasterTab === 'vendors'"
-        @add-vendor="showVendorModal = true"
-      />
+          <div>
+            <label class="text-[11px] font-semibold text-gray-600 block mb-0.5">Kode SKU / Barcode</label>
+            <input
+              v-model="productForm.code"
+              type="text"
+              placeholder="Contoh: SKU-BRG-001 (Otomatis jika kosong)"
+              class="w-full bg-[#fcfbfa] border border-gray-300 rounded px-2.5 py-1 text-xs outline-none focus:border-purple-600 font-mono shadow-2xs"
+            />
+          </div>
 
-      <!-- 3. TAB PELANGGAN / BUYER (PEMBELI B2B & ECERAN B2C DENGAN FILTER TAB) -->
-      <MasterBuyerTab
-        v-if="activeMasterTab === 'buyers'"
-        @add-buyer="(type) => handleOpenAddBuyer(type || 'B2B')"
-        @edit-buyer="handleOpenEditBuyer"
-      />
+          <div>
+            <label class="text-[11px] font-semibold text-gray-600 block mb-0.5">Nama Barang / Produk *</label>
+            <input
+              v-model="productForm.name"
+              type="text"
+              placeholder="Contoh: BERAS RAJA LELE 5KG"
+              class="w-full bg-[#fcfbfa] border border-gray-300 rounded px-2.5 py-1 text-xs outline-none focus:border-purple-600 font-semibold shadow-2xs"
+            />
+          </div>
 
-      <!-- 4. TAB PROFIL TOKO & WHITE-LABEL BRANDING -->
-      <MasterBrandingTab
-        v-if="activeMasterTab === 'branding'"
-      />
+          <div>
+            <label class="text-[11px] font-semibold text-gray-600 block mb-0.5">Kategori / Vendor *</label>
+            <SearchableSelect
+              v-model="productForm.category"
+              :options="categoryOptions"
+              placeholder="Pilih Kategori / Vendor..."
+              search-placeholder="Cari kategori / vendor..."
+              hotkey=""
+              @change="onCategoryChange"
+            />
+          </div>
+
+          <div>
+            <label class="text-[11px] font-semibold text-gray-600 block mb-0.5">Satuan *</label>
+            <input
+              v-model="productForm.unit"
+              type="text"
+              placeholder="PCS / ZAK / DUS"
+              class="w-full bg-[#fcfbfa] border border-gray-300 rounded px-2.5 py-1 text-xs outline-none focus:border-purple-600 font-mono uppercase shadow-2xs"
+            />
+          </div>
+        </div>
+
+        <!-- Seksi 2: Harga Beli & Harga Jual Kasir -->
+        <div class="space-y-2.5 pb-4 border-b border-gray-200">
+          <div class="flex items-center gap-1.5 font-bold text-blue-700 text-xs">
+            <Percent :size="13" />
+            <span>Harga Modal & Penjualan</span>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="text-[11px] font-semibold text-gray-600 block mb-0.5">Modal Beli (HPP)</label>
+              <div class="relative">
+                <span class="absolute left-2 top-1 text-gray-400 font-mono text-[10px]">Rp</span>
+                <input
+                  v-model.number="productForm.lastBuyPrice"
+                  type="number"
+                  min="0"
+                  step="500"
+                  class="w-full bg-[#fcfbfa] border border-gray-300 rounded pl-7 pr-2 py-1 text-xs outline-none focus:border-blue-600 font-mono font-bold text-gray-800 shadow-2xs"
+                  @input="recalculateSellPrice"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label class="text-[11px] font-semibold text-gray-600 block mb-0.5">Margin Untung (%)</label>
+              <div class="relative">
+                <input
+                  v-model.number="productForm.defaultMarkupPercent"
+                  type="number"
+                  min="0"
+                  max="500"
+                  class="w-full bg-[#fcfbfa] border border-gray-300 rounded px-2 py-1 text-xs outline-none focus:border-blue-600 font-mono font-bold text-emerald-700 shadow-2xs"
+                  @input="recalculateSellPrice"
+                />
+                <span class="absolute right-2 top-1 text-gray-400 font-mono text-[10px]">%</span>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label class="text-[11px] font-semibold text-gray-600 block mb-0.5">Harga Jual Kasir *</label>
+            <div class="relative">
+              <span class="absolute left-2 top-1 text-gray-400 font-mono text-[10px]">Rp</span>
+              <input
+                v-model.number="productForm.lastSellPrice"
+                type="number"
+                min="0"
+                step="500"
+                class="w-full bg-[#fcfbfa] border border-blue-300 rounded pl-7 pr-2 py-1 text-xs outline-none focus:border-blue-600 font-mono font-bold text-blue-700 shadow-2xs"
+              />
+            </div>
+            <span class="text-[10px] text-gray-400 block mt-0.5">
+              Estimasi laba bersih: <strong class="text-emerald-700 font-mono">Rp {{ formatRupiah(Math.max(0, productForm.lastSellPrice - productForm.lastBuyPrice)) }}</strong> / {{ productForm.unit }}
+            </span>
+          </div>
+        </div>
+
+        <!-- Seksi 3: Stok Gudang & Catatan -->
+        <div class="space-y-2.5">
+          <div class="flex items-center gap-1.5 font-bold text-gray-700 text-xs">
+            <Settings :size="13" />
+            <span>Stok Fisik & Keterangan</span>
+          </div>
+
+          <div>
+            <label class="text-[11px] font-semibold text-gray-600 block mb-0.5">Jumlah Stok Fisik Saat Ini</label>
+            <input
+              v-model.number="productForm.stock"
+              type="number"
+              min="0"
+              class="w-full bg-[#fcfbfa] border border-gray-300 rounded px-2.5 py-1 text-xs outline-none focus:border-purple-600 font-mono font-bold shadow-2xs"
+            />
+          </div>
+
+          <div>
+            <label class="text-[11px] font-semibold text-gray-600 block mb-0.5">Catatan Tambahan (Opsional)</label>
+            <textarea
+              v-model="productForm.notes"
+              rows="2"
+              placeholder="Keterangan rak / distributor..."
+              class="w-full bg-[#fcfbfa] border border-gray-300 rounded p-2 text-xs outline-none focus:border-purple-600 shadow-2xs"
+            />
+          </div>
+        </div>
+      </FormSidebarDrawer>
     </main>
-
-    <!-- Reusable DRY Modals -->
-    <ProductFormModal
-      :is-open="showProductModal"
-      :initial-data="activeProductForEdit"
-      :categories="categories"
-      @close="showProductModal = false"
-      @save="handleSaveProduct"
-    />
-
-    <BuyerFormModal
-      :is-open="showBuyerModal"
-      :initial-data="activeBuyerForEdit"
-      :default-customer-type="defaultCustomerTypeForModal"
-      @close="showBuyerModal = false"
-      @save="handleSaveBuyer"
-    />
-
-    <VendorFormModal
-      :is-open="showVendorModal"
-      @close="showVendorModal = false"
-      @save="handleSaveVendor"
-    />
   </div>
 </template>

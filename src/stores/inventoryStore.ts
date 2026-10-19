@@ -8,6 +8,10 @@ const STORAGE_KEY_PRODUCTS = 'kasir_citra_products_v1';
 const STORAGE_KEY_MARKUPS = 'kasir_citra_markups_v1';
 
 export const useInventoryStore = defineStore('inventory', () => {
+  const showProductSidebar = ref(false);
+  const activeProductForSidebar = ref<Product | null>(null);
+  const showVendorSidebar = ref(false);
+  const activeVendorForSidebar = ref<CategoryMarkupSetting | null>(null);
   const savedProducts = localStorage.getItem(STORAGE_KEY_PRODUCTS);
   const products = ref<Product[]>(savedProducts ? JSON.parse(savedProducts) : INITIAL_PRODUCTS);
 
@@ -166,6 +170,10 @@ export const useInventoryStore = defineStore('inventory', () => {
   }
 
   return {
+    showProductSidebar,
+    activeProductForSidebar,
+    showVendorSidebar,
+    activeVendorForSidebar,
     products,
     categoryMarkups,
     isConnectedToPg,
