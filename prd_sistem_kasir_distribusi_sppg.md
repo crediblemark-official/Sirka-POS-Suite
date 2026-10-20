@@ -1,6 +1,6 @@
-# Product Requirements Document (PRD) Final v2.1: Sistem Kasir (POS) & Distribusi Hibrida (B2B Grosir & B2C Eceran)
+# Product Requirements Document (PRD) Final v2.3: Sistem Kasir (POS) & Distribusi Hibrida (B2B Grosir & B2C Eceran)
 
-**Status Dokumen:** Final v2.2 (Revisi Model Bisnis: Hibrida B2B Grosir / Suplai Institusi & B2C Eceran / Walk-in Retail, dengan Aturan Markup Dinamis, Dual Pricing, Input Harga Saat Nota Supplier Datang, Nota Per Transaksi, & Pembayaran Dinamis — ditambah Audit Gap Implementasi, lihat Section 7)
+**Status Dokumen:** Final v2.3 (Unified Core Scope: Integrasi Resmi Modul Kulakan Stok, Program Loyalitas Member & Poin, Kupon Promo Multi-Scope, Simulator Diskon, Ekspor Kartu Member PNG, Desain Tema White-Label, serta Sinkronisasi Offline-First PostgreSQL Cloud)
 
 **Dokumen Referensi Sumber Data Klien:**
 
@@ -115,9 +115,47 @@ Agar aplikasi terasa **compact, cepat, dan tidak ribet (minim form input)** laya
 * **1-Click Pelunasan Tempo:** Mengubah piutang menjadi `LUNAS` saat pembayaran tagihan diterima.
 * **Export CSV/Excel:** Mengunduh pembukuan dengan rincian laba kotor, laba bersih, dan tipe transaksi.
 
-### Modul 4: Master Barang, Vendor, Pelanggan & Identitas Toko (White-Label)
+### Modul 4: Master Inventori, Vendor Supplier & Pelanggan Hibrida
 
-* Mengelola data barang, vendor & margin %, pelanggan B2B dan B2C, serta profil identitas toko (nama toko, alamat, invoice prefix).
+* **Master SKU Produk:** Manajemen kode barang, barcode kasir, nama, kategori vendor, satuan (kg, box, pcs, sak, dll.), stok fisik, harga beli modal (HPP), dan harga jual default.
+* **Supplier & Margin Untung:** Konfigurasi mitra vendor/supplier beserta pengaturan persentase default markup laba dinamis per supplier.
+* **Data Pelanggan (B2B & B2C):** Manajemen pembeli grosir B2B (Dapur SPPG, katering, instansi) dan pelanggan eceran B2C, lengkap dengan kode pelanggan, kontak telepon, alamat, dan tipe relasi.
+
+### Modul 5: Kulakan & Penerimaan Barang Supplier (Inbound Receiving)
+
+* **Pencatatan Faktur Masuk:** Input nota penerimaan barang dari supplier (nomor faktur supplier, tanggal tiba, supplier terpilih).
+* **Otomasi Pembaruan Stok & HPP:** Mengupdate stok fisik gudang secara otomatis dan memperbarui harga beli terakhir (`lastBuyPrice`) tanpa menghapus riwayat sebelumnya.
+* **Manajemen Nota Kulakan:** Riwayat faktur tersimpan rapi dengan fitur koreksi/hapus nota yang otomatis menyeimbangkan (*rebalance*) stok barang secara aman.
+
+### Modul 6: Program Loyalitas, Poin Belanja & Desain Kartu Member
+
+* **Struktur Loyalitas:** Konfigurasi rasio akumulasi poin (misal: belanja Rp10.000 = 1 poin, 1 poin = Rp100 potongan tagihan).
+* **Tiering Bertingkat:** 4 tingkat membership (`REGULAR`, `SILVER`, `GOLD`, `PLATINUM`) dengan diskon otomatis per tier dan batas minimal pembelanjaan akumulatif.
+* **Visual Kartu Member & Ekspor PNG:** Antarmuka visual kartu member (tampak depan dan belakang) dilengkapi QR code, nomor kartu, dan data member, yang dapat diekspor menjadi berkas gambar PNG resolusi tinggi via native file dialog.
+* **Integrasi Kasir:** Scan kartu member di kasir via scanner barcode USB atau input manual nomor kartu, dengan opsi penukaran poin langsung untuk memotong nominal belanja.
+
+### Modul 7: Mesin Kupon & Voucher Promo (Multi-Scope Discount Engine)
+
+* **Multi-Scope Kupon:** Fleksibilitas sasaran kupon dalam 4 cakupan:
+  1. `ALL`: Berlaku untuk seluruh barang belanjaan.
+  2. `CATEGORY`: Berlaku khusus untuk barang dari kategori supplier tertentu.
+  3. `CUSTOMER_TYPE`: Berlaku khusus segmen `B2B` atau `B2C`.
+  4. `MEMBER_ONLY`: Berlaku eksklusif bagi pemegang kartu member.
+* **Tipe Potongan:** Persentase (dengan batas plafon maksimal rupiah) atau Potongan Tunai Tetap (dengan syarat minimal belanja).
+* **Simulator Diskon Interaktif:** Sarana uji coba dan simulasi perhitungan diskon di tab Master sebelum kupon diterbitkan ke pelanggan.
+* **Tracking Pemakaian:** Pencatatan otomatis frekuensi pemakaian kupon (`usage_count`) yang tersinkronisasi saat transaksi diproses maupun dibatalkan.
+
+### Modul 8: Kustomisasi Profil Toko & Mesin Tema White-Label
+
+* **Identitas & Branding:** Pengaturan nama toko, kode inisial, alamat, nomor telepon, slogan/tagline, logo toko, dan format prefix nomor invoice (`INV-B2B`).
+* **Mesin Tema Live:** Kustomisasi warna primer (*Primary Color*) dengan injeksi variabel CSS instan, gaya aksen header (*accent-line, filled, ghost*), serta preset tema permukaan (*bone-white, classic-gray, dark-charcoal*).
+* **Konfigurasi Hardware Printer:** Pemilihan lebar kertas nota (58mm atau 80mm) dan alamat printer jaringan thermal (IP/Port 9100) serta integrasi printer USB lokal.
+
+### Modul 9: Sinkronisasi Offline-First & Demo Data Standalone
+
+* **Arsitektur Dual Database:** SQLite lokal berfitur WAL dan tabel antrean outbox menjamin kasir tetap dapat bertransaksi lancar saat internet mati.
+* **Sinkronisasi Dua Arah Otomatis:** Push dan pull data otomatis ke PostgreSQL Cloud SumoBase (`port 6432`) dengan resolusi konflik deterministik.
+* **Fresh Install & Data Demo Terpisah:** Sistem beroperasi default dalam kondisi bersih (*fresh* murni tanpa data hardcoded). Tersedia berkas eksternal [`public/demo-data.json`](file:///media/rasyiqi/7653717A1C07B131/Kasir-Citra/public/demo-data.json) untuk memuat data demo percontohan secara on-demand, serta tombol reset total ke kondisi awal.
 
 ## 6. Alur Kerja End-to-End Pengguna di Aplikasi (User Journey)
 
@@ -218,12 +256,14 @@ Agar aplikasi terasa **compact, cepat, dan tidak ribet (minim form input)** laya
 4. **Dual sumber kebenaran localStorage vs DB:** semua store menulis lokal dulu dan menelan error DB (`buyerStore.ts:149-153`; `discountStore.ts:179-183`; `preOrderStore.ts:17-28`; `inventoryStore.ts:66-70`) → data terlihat ada di UI walau gagal tersimpan. Aksi: tampilkan feedback error DB ke UI, jadikan DB sumber utama.
 5. **Dead-code backend & frontend:** `generate_receipt_text`, `save_export_file`, `setManualDiscount`, `updateItemSellPrice` (posStore), `addPointsAndSpend`/`deductPoints` (`buyerStore.ts:174-203`), `setPaymentStatus` (`ledgerStore.ts:52-58`) — wire ke UI atau hapus.
 
-### 7.4. Fitur di Kode yang TIDAK Ada di PRD (Bonus Terdokumentasi, jadikan bagian resmi scope)
+### 7.4. Fitur Lanjutan Resmi Disahkan ke Dalam Cakupan Inti PRD v2.3
 
-- **Program member & poin loyalitas:** kartu member, tier REGULAR/SILVER/GOLD/PLATINUM, diskon otomatis per tier (`posStore.ts:244-252`), tukar poin, scan kartu via QR webcam + scanner USB (`MemberScanModal.vue`), modul Member lengkap.
-- **Voucher/kupon promo:** scope `ALL/CATEGORY/CUSTOMER_TYPE/MEMBER_ONLY`, min belanja, max diskon, simulator (`src/components/master/discount/*`).
-- **Modul Kulakan/Penerimaan Barang:** riwayat nota, edit nota dengan rebalancing stok (advisory lock), import historis (`src-tauri/src/commands/purchases.rs`; `SupplierReceiving.vue`).
-- **Mesin tema/white-label:** preset warna, tema latar, aksen header (`settingsStore.ts:75-103`; `src/utils/theme.ts`).
+Seluruh fitur lanjutan yang sebelumnya berstatus ekstra kini telah diintegrasikan secara resmi ke dalam spesifikasi Modul 5 s/d Modul 9:
+* **Modul Kulakan Stok (`SupplierReceiving.vue`):** Tercatat resmi di Modul 5 — riwayat nota, penambahan stok otomatis, dan perbaikan HPP modal.
+* **Program Loyalitas & Desain Kartu Member (`MasterMemberTab.vue`):** Tercatat resmi di Modul 6 — 4 tier loyalty, rasio tukar poin, dan ekspor PNG kartu fisik.
+* **Mesin Kupon Promo & Simulator Diskon (`MasterDiscountTab.vue`):** Tercatat resmi di Modul 7 — kupon multi-scope, batas min belanja/max diskon, dan simulator.
+* **Mesin Tema White-Label (`MasterBrandingTab.vue`):** Tercatat resmi di Modul 8 — kustomisasi warna primer, gaya header, dan preset tampilan.
+* **Sinkronisasi Offline-First & Demo Standalone (`SyncStatusModal.vue`):** Tercatat resmi di Modul 9 — dual DB (SQLite WAL + PostgreSQL Cloud SumoBase) & fresh zero-hardcoded state.
 
 ### 7.5. Roadmap Prioritas Pelengkapan
 
@@ -238,4 +278,4 @@ Agar aplikasi terasa **compact, cepat, dan tidak ribet (minim form input)** laya
 | **P3** | Barcode scan barang + field barcode master | GAP-7 |
 | **P3** | Hardening: invoice deterministik, reverse stok saat delete, badge DB asli, error DB ke UI | Bug 7.3 |
 
-> **Progress Log (19 Okt 2026):** Status perbaikan didokumentasikan di `BUG.md` (19 item). **Semua GAP kritis & mayor telah tertutup dan diverifikasi** (`bun test` 6 pass, `cargo test --lib` 3 pass, `vue-tsc` & `cargo check` bersih): GAP-1 (inline `Beli / % Markup / Jual` + baris kontrol markup dinamis via `updateItemBuyPrice`/`updateItemMarkup`/`applyTransactionMarkup`), GAP-2 (CSS print + **generator struk thermal 32 kolom di Rust** dengan preview/salin/simpan), GAP-3 (**kolom `pic_name` + input PIC di modal bayar B2B + blok tanda terima pengiriman pada faktur cetak & thermal**), GAP-4, GAP-5, GAP-6, **GAP-7** (fitur barcode: kolom `products.barcode` + migrasi otomatis `db/migrations.sql` via `ensure_migrations()` di `lib.rs`, field master, scanner engine di katalog & pencarian kasir), dan bug 7.3. **Sisa (by design):** normalisasi JSONB `PurchaseReceipt` (opsional, tunggu kebutuhan laporan SQL). Seluruh perbaikan telah di-commit ke branch `main` (lihat `BUG.md` untuk detail tracker).
+> **Progress Log (21 Okt 2026):** Status perbaikan didokumentasikan di `BUG.md` dan `BUG_ANALYSIS_REPORT.md` (24 item). **Semua GAP kritis, mayor, dan minor telah tertutup dan diverifikasi** (`bun test` 7 pass, `cargo test` 12 pass, `vue-tsc` & `cargo check` bersih): GAP-1 (inline `Beli / % Markup / Jual` + baris kontrol markup dinamis via `updateItemBuyPrice`/`updateItemMarkup`/`applyTransactionMarkup`), GAP-2 (CSS print + **generator struk thermal 32 kolom di Rust** dengan preview/salin/simpan), GAP-3 (**kolom `pic_name` + input PIC di modal bayar B2B + blok tanda terima pengiriman pada faktur cetak & thermal**), GAP-4, GAP-5, GAP-6, **GAP-7** (fitur barcode: kolom `products.barcode` + migrasi otomatis `db/migrations.sql` via `ensure_migrations()` di `lib.rs`, field master, scanner engine di katalog & pencarian kasir), bug 7.3, serta **normalisasi relasional tabel `purchase_receipt_items` (BUG-017)** dan mitigasi *head-of-line blocking* outbox (BUG-021) & penggandaan stok (BUG-020). Seluruh 24 bug terselesaikan 100%.

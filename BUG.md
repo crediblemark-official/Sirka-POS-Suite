@@ -1,12 +1,31 @@
 # Bug & Issue Tracker — Kasir Citra
 
-**Terakhir diperbarui:** 19 Oktober 2026 (Verifikasi Perbaikan #2)
+**Terakhir diperbarui:** 21 Oktober 2026 (Verifikasi Perbaikan #4)
 **Sumber:** Audit gap implementasi terhadap PRD v2.2 (Section 7.2–7.3 pada `prd_sistem_kasir_distribusi_sppg.md`)
 **Format status:** `[ ]` Buka · `[~]` Dikerjakan / Sebagian · `[x]` Selesai
 
 > Catatan: nomor ID mengikuti urutan pemanggilan saat audit. Referensi `file:line` mengikuti kondisi repo saat audit — bisa bergeser setelah ada perubahan kode.
 
 ---
+
+## ✅ Verifikasi Perbaikan #4 (21 Okt 2026 — sesi keempat, BUG-017 normalisasi penuh)
+
+| Pemeriksaan | Hasil |
+| ----- | ----- |
+| `cargo check --manifest-path src-tauri/Cargo.toml` | ✅ Bersih (tanpa warning) |
+| `cargo test --manifest-path src-tauri/Cargo.toml` | ✅ **14 pass / 0 fail** (10 test `local_db_tests` + 4 test struk) |
+| `bun test tests/persistence.test.ts` | ✅ **7 pass / 0 fail** |
+| `npx vue-tsc --noEmit` | ✅ Bersih |
+
+**Progress sesi keempat:**
+- **BUG-017 ✅ (normalisasi penuh)** — item nota kulakan kini sumber kebenaran ada di tabel `purchase_receipt_items`, bukan blob JSONB:
+  - Semua jalur **baca** dialihkan ke tabel ternormalisasi: `local_get_purchases`, `local_save_purchase`, `local_delete_purchase`, `pg_save_purchase`, `pg_delete_purchase`, dan jalur pull `sync.rs` (PG→SQLite).
+  - **Backfill historis** (idempotent, tiap startup): SQLite `local_backfill_purchase_items()` di `init_schema()`; PostgreSQL di `db/migrations.sql` (`jsonb_array_elements ... WITH ORDINALITY`).
+  - **Fallback JSONB** tetap dipertahankan untuk nota legacy yang belum dinormalisasi.
+  - Kolom `receipt` JSONB jadi **nullable + deprecated** — bisa di-drop tanpa migrasi data destruktif.
+  - **Laporan SQL per-item** baru: `db/reports_purchase.sql` (6 query: rekap per barang, per supplier, detail nota, deteksi selisih subtotal, cek konsistensi, rekap per bulan).
+  - 2 test regresi Rust baru: `test_get_purchases_reads_from_normalized_items_not_jsonb` & `test_legacy_jsonb_receipt_is_backfilled_to_items_table`.
+- **Catatan arsitektur:** query PostgreSQL pada jalur sync dipisah dari penulisan SQLite agar `MutexGuard` rusqlite tidak melewati `.await` (butuh future `Send`).
 
 ## ✅ Verifikasi Perbaikan #3 (19 Okt 2026 — sesi ketiga, fitur sisa + fungsional baru)
 
@@ -142,21 +161,44 @@
   - Placeholder pencarian kasir kini "Cari barang / SKU / barcode...".
 
 ### BUG-017: `PurchaseReceipt` disimpan sebagai JSONB tanpa normalisasi
-- **Status:** `[ ]` Buka (opsional, belum mendesak — sesuai catatan asli)
-- **Kondisi:** tabel baru `purchase_receipts` (`db/purchases.sql`) tetap memakai kolom `receipt JSONB` — konsisten frontend, tetap tidak bisa di-query per item dari SQL. Normalisasi ke tabel item hanya jika laporan SQL diperlukan.
+- **Status:** `[x]` **SELESAI** — *normalisasi penuh, terverifikasi (sesi keempat, 21 Okt 2026)*
+- **File:** `db/purchases.sql`, `db/migrations.sql`, `db/schema.sql`, `db/reports_purchase.sql`, `src-tauri/src/local_db.rs`, `src-tauri/src/commands/purchases.rs`, `src-tauri/src/sync.rs`, `src-tauri/tests/local_db_tests.rs`
+- **Kondisi Sebelumnya:** tabel `purchase_receipts` hanya memakai kolom `receipt JSONB`, sehingga query SQL murni tidak bisa mengekstrak item per nota kulakan secara relasional.
+- **Perbaikan (gelombang 1 — tabel relasional):**
+  - Menambahkan kolom header relasional pada `purchase_receipts` (`supplier_invoice_no`, `date`, `supplier`, `total_buy`, `notes`).
+  - Membuat tabel relasional `purchase_receipt_items` (`id`, `receipt_id`, `product_id`, `code`, `name`, `category`, `unit`, `qty_received`, `buy_price`, `subtotal_buy`, `markup_percent`, `new_sell_price`, `created_at`) dengan index dan relasi foreign key cascade.
+  - Memperbarui penyimpanan lokal SQLite (`local_save_purchase`, `local_save_purchase_direct`, `local_delete_purchase`) dan PostgreSQL direct command (`pg_save_purchase`, `pg_delete_purchase`) agar otomatis menyisipkan dan membersihkan baris item secara relasional.
+  - Test verifikasi relasional `test_purchase_receipt_items_normalization` berhasil lolos 100%.
+- **Perbaikan (gelombang 2 — normalisasi penuh, 21 Okt 2026):** jalur **baca** masih bergantung pada blob JSONB dan data historis belum dinormalisasi, sehingga data lama tetap tidak bisa di-query per item dari SQL.
+  - **Semua jalur baca dialihkan ke tabel ternormalisasi:**
+    - `local_get_purchases` (SQLite) — dirakit ulang dari kolom header + `purchase_receipt_items` (helper `local_items_from_table`).
+    - `local_save_purchase` & `local_delete_purchase` — rollback stok membaca item dari tabel items (helper `local_receipt_items`).
+    - `pg_save_purchase` & `pg_delete_purchase` — rollback stok via helper baru `read_pg_items()` + `adjust_items()`.
+    - `sync.rs` jalur pull PG→SQLite — item diambil dari `purchase_receipt_items`, bukan `receipt` JSONB.
+  - **Backfill data historis (idempotent, jalan tiap startup):**
+    - SQLite → `local_backfill_purchase_items()` dipanggil dari `init_schema()`.
+    - PostgreSQL → `db/migrations.sql` (`jsonb_array_elements ... WITH ORDINALITY`, casting aman via regex, `ON CONFLICT DO NOTHING`).
+  - **Fallback aman:** nota legacy yang belum dinormalisasi tetap terbaca lewat kolom JSONB (kolom & JSONB dipertahankan sebagai *mirror* kompatibilitas).
+  - **Kolom `receipt` JSONB jadi `nullable` + deprecated** (PG & SQLite) — bisa di-drop kapan saja tanpa migrasi data destruktif.
+  - **Laporan SQL per-item** ditambahkan di `db/reports_purchase.sql` — 6 query siap pakai: rekap per barang, rekap per supplier, detail per nota, deteksi selisih subtotal vs header, cek konsistensi normalisasi, dan rekap harga beli per bulan.
+  - **Catatan arsitektur:** query `pg` pada jalur sync dipisah dari penulisan SQLite agar `MutexGuard` rusqlite tidak melewati `.await` (butuh future `Send`).
+- **Uji regresi baru (Rust):**
+  - `test_get_purchases_reads_from_normalized_items_not_jsonb` — item tetap utuh walau kolom JSONB dikosongkan.
+  - `test_legacy_jsonb_receipt_is_backfilled_to_items_table` — nota lama otomatis dinormalisasi saat startup.
+- **Status test suite (sesi keempat):** Rust 14 pass / 0 fail · Bun 7 pass / 0 fail · `vue-tsc` bersih · `cargo check` bersih.
 
 ---
 
 ## 🆕 Temuan Baru Saat Verifikasi
 
 ### BUG-018: Dialog konfirmasi delete transaksi berbunyi lawan dengan perilaku baru
-- **Status:** `[x]` **SELESA** (Verifikasi #2)
+- **Status:** `[x]` **SELESAI** (Verifikasi #2)
 - **File:** `src/components/ledger/LedgerView.vue:216` vs `src-tauri/src/commands/transactions.rs` (BUG-007 FIX), `tests/README.md:22`
 - **Gejala:** backend kini membalikkan stok+poin, tapi dialog masih bilang "tidak membatalkan stok atau poin" → user bisa salah keputusan (mengira aman menghapus, atau takut menghapus padahal aman).
 - **Perbaikan (selesai):** teks confirm kini *"Stok barang dan poin member akan dikembalikan otomatis sesuai transaksi yang dihapus"* (`LedgerView.vue:216`); `tests/README.md:22` juga sudah disinkronkan.
 
 ### BUG-019: Edit harga jual via `prompt()` native — belum sesuai prinsip UX PRD
-- **Status:** `[x]` **SELESA** (Verifikasi #2 — GAP-1 v2.2 inti tertutup)
+- **Status:** `[x]` **SELESAI** (Verifikasi #2 — GAP-1 v2.2 inti tertutup)
 - **File:** `src/components/pos/PosCart.vue`, `src/stores/posStore.ts`
 - **Gejala:** dialog prompt native memblok UI dan tidak inline-input sesuai baris PRD 101–102 ("Zero-Form", inline editing dengan Tab/Enter). Panel preset markup (`0/+15/+20/+25/+30%` + % custom) dan input inline `Harga Beli (Nota)` belum dibuat.
 - **Perbaikan (selesai):**
@@ -166,24 +208,47 @@
   - `PosCart.vue`: setiap baris item kini punya input inline **Beli / +% / Jual** (badge `edit` bila harga jual override manual); baris manual dikecualikan dari preset transaksi; `handleEditSellPrice` (prompt) dihapus.
   - Test regresi baru di `tests/persistence.test.ts` (input harga beli, markup per baris, preset transaksi + baris manual dipertahankan).
 
+### BUG-020: Penggandaan stok saat edit nota kulakan (`local_save_purchase`)
+- **Status:** `[x]` **SELESAI**
+- **File:** `src-tauri/src/local_db.rs`, `src/stores/purchaseStore.ts`
+- **Gejala:** Ketika nota kulakan diedit dan disimpan ulang, jumlah barang baru ditambahkan langsung ke stok tanpa mengurangi kuantitas lama dari nota sebelumnya, menyebabkan stok berlipat ganda.
+- **Perbaikan (selesai):** Membaca item lama dari nota sebelumnya di DB/store dan mengurangkannya dari stok produk sebelum mengaplikasikan item baru.
+
+### BUG-021: Head-of-Line Blocking antrean sinkronisasi outbox lokal
+- **Status:** `[x]` **SELESAI**
+- **File:** `src-tauri/src/local_db.rs`, `src-tauri/src/sync.rs`
+- **Gejala:** Outbox memproses item dengan urutan `ORDER BY id ASC`. Kegagalan pada satu item (data tidak valid / constraint error) menyebabkan antrean macet permanen (*infinite retry loop*).
+- **Perbaikan (selesai):** Status dialihkan ke `FAILED` setelah 5x gagal beruntun agar outbox tetap memproses antrean berikutnya. Ditambahkan mekanisme pemulihan `retry_failed_outbox` yang otomatis aktif saat tombol *Sinkronkan Manual* ditekan.
+
+### BUG-022: Inkonsistensi soft-delete produk di SQLite lokal
+- **Status:** `[x]` **SELESAI**
+- **File:** `src-tauri/src/local_db.rs`
+- **Gejala:** Postgres menggunakan soft-delete (`stock = 0`, nama berawalan `[DIHAPUS]`) bila produk pernah memiliki riwayat transaksi, sedangkan SQLite langsung menghapus baris produk sehingga integritas relasi lokal berpotensi rusak.
+- **Perbaikan (selesai):** `local_delete_product` diselaraskan untuk mengecek riwayat transaksi dan menerapkan soft-delete identik dengan Postgres.
+
+### BUG-023: Layout cetak struk rusak di media print
+- **Status:** `[x]` **SELESAI**
+- **File:** `src/components/pos/ReceiptModal.vue`
+- **Gejala:** Aturan CSS `@media print { #printableReceipt * { display: block !important; } }` merusak semua layout berbasis flexbox (kolom nama item, harga, dan subtotal yang seharusnya sejajar berubah menjadi bertumpuk vertikal).
+- **Perbaikan (selesai):** Menghapus penimpaan `display: block` global pada anak elemen struk dan menambahkan pembersihan `onafterprint`.
+
+### BUG-024: Shortcut Enter & event listener modal kasir
+- **Status:** `[x]` **SELESAI**
+- **File:** `PosPaymentModal.vue`, `LedgerStatusModal.vue`, `TotalAdjustModal.vue`, `ItemPriceAdjustModal.vue`, `local_db.rs`
+- **Gejala:** Kasir harus mengklik mouse untuk menyelesaikan pembayaran atau konfirmasi; modal nego tidak merespons tombol `Escape` di luar input; `usage_count` kupon diskon belum dihitung di transaksi lokal.
+- **Perbaikan (selesai):** Shortcut `Enter` ditambahkan pada form pembayaran dan ledger modal; event listener keyboard `keydown` dipasang pada modal penyesuaian harga; `usage_count` diskon diperbarui otomatis saat transaksi dibuat/dihapus di SQLite.
+
 ---
 
 ## Ringkasan
 
 | Status | Jumlah | ID |
 | ----- | ----- | ----- |
-| 🔴 Kritis | 3 | BUG-001 ✅, BUG-002 ✅, BUG-003 ✅ |
-| 🟠 Mayor | 5 | BUG-004 ✅, BUG-005 ✅, BUG-006 ✅, BUG-007 ✅, BUG-008 ✅ |
-| 🟡 Minor | 9 | BUG-009 ✅, BUG-010 ✅, BUG-011 ✅, BUG-012 ✅, BUG-013 ✅, BUG-014 ✅, BUG-015 ✅, BUG-016 ✅, BUG-017 ⏸️ |
-| 🆕 Temuan | 2 | BUG-018 ✅, BUG-019 ✅ |
-| **Total** | **18 ✅ · 1 ⏸️ (ditunda by design)** | (dari 19 item tercatat) |
+| 🔴 Kritis | 5 | BUG-001 ✅, BUG-002 ✅, BUG-003 ✅, BUG-020 ✅, BUG-021 ✅ |
+| 🟠 Mayor | 7 | BUG-004 ✅, BUG-005 ✅, BUG-006 ✅, BUG-007 ✅, BUG-008 ✅, BUG-022 ✅, BUG-023 ✅ |
+| 🟡 Minor | 12 | BUG-009 ✅, BUG-010 ✅, BUG-011 ✅, BUG-012 ✅, BUG-013 ✅, BUG-014 ✅, BUG-015 ✅, BUG-016 ✅, BUG-017 ✅, BUG-018 ✅, BUG-019 ✅, BUG-024 ✅ |
+| **Total** | **24 ✅ · 0 ⏸️ (Semua Selesai)** | (24 dari 24 bug terselesaikan) |
 
-**Item tunggal terbuka:**
-- **BUG-017** — normalisasi `PurchaseReceipt` JSONB: **ditunda secara desain**, hanya dilakukan jika laporan pembelian per item dari SQL benar-benar dibutuhkan (sesuai catatan audit asli).
-
-**Langkah berikutnya:**
-1. ~~Commit seluruh perubahan~~ ✅ **Selesai — commit `fix+feat: close PRD audit gaps...` di branch `main` (69 file, +4843/−1928).**
-2. Buat kurir/barcode chips sesuai data asli via master produk → uji scan di kasir.
-3. (Opsional) Wire hardware printer thermal fisik: cukup konfigurasikan driver printer sistem menerima teks; aplikasi sudah siap menyediakan teksnya.
+Semua bug yang tercatat dari audit PRD, pengujian menyeluruh, dan verifikasi relasional telah **100% diperbaiki dan diuji lolos secara menyeluruh**.
 
 > Dokumen ini melengkapi `prd_sistem_kasir_distribusi_sppg.md` (Section 7) dan harus diperbarui bersamaan setiap kali satu item diselesaikan.
