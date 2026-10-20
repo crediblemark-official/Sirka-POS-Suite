@@ -68,7 +68,7 @@ const settingsStore = useSettingsStore();
 
         <!-- Short Disclaimer -->
         <p class="text-[8px] text-white/70 leading-tight">
-          Kartu ini diterbitkan oleh {{ settingsStore.storeName || 'Kasir Citra' }}. Scan QR code saat transaksi untuk perolehan poin.
+          Kartu ini diterbitkan oleh {{ settingsStore.storeName || 'Sirka' }}. Scan QR code saat transaksi untuk perolehan poin.
         </p>
       </div>
 

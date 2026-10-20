@@ -93,7 +93,7 @@ onMounted(async () => {
 
       <div data-tauri-drag-region class="flex items-center gap-2 min-w-0">
         <span class="font-bold tracking-tight text-xs truncate" style="color: var(--surface-text);">
-          {{ settingsStore.storeName || 'Kasir Citra' }}
+          {{ settingsStore.storeName || 'Sirka' }}
         </span>
         <span class="text-[10px] opacity-40 font-mono hidden sm:inline">|</span>
         <span class="text-[10.5px] opacity-70 hidden md:inline truncate">

@@ -70,7 +70,7 @@ async function handleTestNetworkPrint() {
   isTesting.value = true;
   testFeedback.value = null;
   try {
-    const text = `=== TEST PRINTER KASIR CITRA ===\nKoneksi: Network LAN / TCP Socket\nAlamat: ${tempAddress.value}\nLebar Kertas: ${tempPaperWidth.value}\nStatus: Berhasil Terhubung!\n================================\n\n\n`;
+    const text = `=== TEST PRINTER SIRKA ===\nKoneksi: Network LAN / TCP Socket\nAlamat: ${tempAddress.value}\nLebar Kertas: ${tempPaperWidth.value}\nStatus: Berhasil Terhubung!\n================================\n\n\n`;
     const res = await dbService.printToNetworkPrinter(text, tempAddress.value);
     testFeedback.value = { type: 'ok', msg: `✓ ${res}` };
   } catch (e: any) {

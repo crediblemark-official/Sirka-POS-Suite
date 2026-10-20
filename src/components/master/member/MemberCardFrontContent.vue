@@ -40,12 +40,12 @@ const settingsStore = useSettingsStore();
             class="w-full h-full object-contain p-0.5"
           />
           <span v-else>
-            {{ (settingsStore.storeAbbreviation || 'KC').slice(0, 2) }}
+            {{ (settingsStore.storeAbbreviation || 'SR').slice(0, 2) }}
           </span>
         </div>
         <div>
           <p class="font-black text-xs tracking-wider uppercase leading-none drop-shadow-sm">
-            {{ settingsStore.storeName || 'KASIR CITRA' }}
+            {{ settingsStore.storeName || 'SIRKA' }}
           </p>
           <p class="text-[9px] text-amber-200/90 font-medium tracking-widest mt-0.5">VIP REWARD MEMBER</p>
         </div>

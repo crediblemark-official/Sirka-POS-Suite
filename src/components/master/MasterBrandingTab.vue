@@ -127,7 +127,7 @@ function onHexTextInput(value: string) {
 }
 
 function resetToDefault() {
-  tempStore.value.code = 'CITRA';
+  tempStore.value.code = 'SIRKA';
   activeColor.value = '#2563eb';
   activePreset.value = 'blue';
   activeHeaderStyle.value = 'accent-line';
@@ -139,7 +139,7 @@ function resetToDefault() {
 async function handleSaveAll() {
   await Promise.all([
     settingsStore.updateSetting('store_name', tempStore.value.name.trim()),
-    settingsStore.updateSetting('store_code', tempStore.value.code.trim().toUpperCase() || 'CITRA'),
+    settingsStore.updateSetting('store_code', tempStore.value.code.trim().toUpperCase() || 'SIRKA'),
     settingsStore.updateSetting('store_tagline', tempStore.value.tagline.trim()),
     settingsStore.updateSetting('store_address', tempStore.value.address.trim()),
     settingsStore.updateSetting('store_phone', tempStore.value.phone.trim()),
@@ -163,7 +163,7 @@ async function handleSaveAll() {
       <div class="flex items-center gap-2 shrink-0">
         <Store :size="15" class="text-purple-700" />
         <span class="font-bold text-xs text-gray-800">Profil Usaha & Format Struk</span>
-        <span class="text-[10px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-semibold">{{ tempStore.name || 'Kasir Citra' }} ({{ (tempStore.code || 'CITRA').toUpperCase() }})</span>
+        <span class="text-[10px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-semibold">{{ tempStore.name || 'Sirka' }} ({{ (tempStore.code || 'SIRKA').toUpperCase() }})</span>
       </div>
 
       <div class="flex items-center gap-2 shrink-0 ml-auto">
@@ -206,7 +206,7 @@ async function handleSaveAll() {
         </div>
         <div class="min-w-0">
           <div class="text-[10px] text-gray-500 font-medium leading-none truncate">Nama Usaha / Toko</div>
-          <div class="text-xs font-bold text-gray-800 font-mono mt-0.5 truncate">{{ tempStore.name || 'Kasir Citra' }}</div>
+          <div class="text-xs font-bold text-gray-800 font-mono mt-0.5 truncate">{{ tempStore.name || 'Sirka' }}</div>
         </div>
       </div>
 
@@ -355,7 +355,7 @@ async function handleSaveAll() {
                 type="text"
                 required
                 class="w-full bg-white border border-gray-300 rounded px-3 py-1.5 text-xs outline-none focus:border-purple-600 font-bold text-gray-900"
-                placeholder="Misal: Kasir Citra / Toko Berkah"
+                placeholder="Misal: Sirka / Toko Berkah"
               />
             </div>
 
@@ -395,7 +395,7 @@ async function handleSaveAll() {
                   type="text"
                   maxlength="10"
                   class="w-full bg-white border border-gray-300 rounded px-2.5 py-1.5 text-xs outline-none focus:border-purple-600 font-mono uppercase font-bold text-blue-900"
-                  placeholder="CITRA"
+                  placeholder="SIRKA"
                 />
               </div>
             </div>
@@ -407,7 +407,7 @@ async function handleSaveAll() {
                 <span>Format Kartu Member:</span>
               </div>
               <span class="font-mono font-bold text-blue-700 bg-white px-2 py-0.5 rounded border border-blue-300 shadow-2xs">
-                {{ (tempStore.code || 'CITRA').toUpperCase() }}-XXXX
+                {{ (tempStore.code || 'SIRKA').toUpperCase() }}-XXXX
               </span>
             </div>
 
@@ -431,7 +431,7 @@ async function handleSaveAll() {
                   alt="Logo Toko"
                   class="w-8 h-8 object-contain mx-auto mb-1 rounded"
                 />
-                <div class="font-bold text-xs uppercase tracking-wider">{{ tempStore.name || 'KASIR CITRA' }}</div>
+                <div class="font-bold text-xs uppercase tracking-wider">{{ tempStore.name || 'SIRKA' }}</div>
                 <div class="text-[10px] text-gray-500">{{ tempStore.tagline || 'Pusat Kulakan & Eceran' }}</div>
                 <div class="text-[10px] text-gray-500">{{ tempStore.address || 'Jl. Raya Perdagangan No. 12' }}</div>
                 <div class="text-[10px] text-gray-500">WA: {{ tempStore.phone || '0812-3456-7890' }}</div>
@@ -441,7 +441,7 @@ async function handleSaveAll() {
                   <span>19/10/2026 14:30</span>
                 </div>
                 <div class="text-[9.5px] text-blue-700 font-mono text-left pt-1 border-t border-dashed border-gray-300 mt-1 flex justify-between">
-                  <span>Member: {{ (tempStore.code || 'CITRA').toUpperCase() }}-1024</span>
+                  <span>Member: {{ (tempStore.code || 'SIRKA').toUpperCase() }}-1024</span>
                   <span>Poin: +10</span>
                 </div>
               </div>

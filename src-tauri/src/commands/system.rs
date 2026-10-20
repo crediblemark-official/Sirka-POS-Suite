@@ -356,7 +356,7 @@ pub fn generate_receipt_text(
 
     let store = store_name
         .filter(|s| !s.trim().is_empty())
-        .unwrap_or_else(|| "KASIR CITRA".to_string())
+        .unwrap_or_else(|| "SIRKA".to_string())
         .to_uppercase();
 
     let customer_type = get_str("customerType");
