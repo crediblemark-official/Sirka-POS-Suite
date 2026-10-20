@@ -1,8 +1,13 @@
 import { Client } from 'pg';
-import { INITIAL_CATEGORY_MARKUPS, INITIAL_PRODUCTS } from '../src/data/initialProducts';
-import { INITIAL_PREORDERS } from '../src/data/initialPreOrders';
+import fs from 'fs';
+import path from 'path';
 
 async function seed() {
+  const demoDataPath = path.join(__dirname, '../public/demo-data.json');
+  const demoData = JSON.parse(fs.readFileSync(demoDataPath, 'utf-8'));
+  const INITIAL_CATEGORY_MARKUPS = demoData.categoryMarkups || [];
+  const INITIAL_PRODUCTS = demoData.products || [];
+  const INITIAL_PREORDERS = demoData.preOrders || [];
   const client = new Client({
     connectionString: 'postgres://kasir_citra_user:kasir_citra_password@localhost:5434/kasir_citra_db',
   });
