@@ -1,6 +1,7 @@
 import { dbService } from '../services/dbService';
+import { syncService } from '../services/syncService';
 import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { PurchaseReceipt, PurchaseReceiptItem, SupplierCategory, Product } from '../types';
 import { useInventoryStore } from './inventoryStore';
 
@@ -12,12 +13,7 @@ export const usePurchaseStore = defineStore('purchase', () => {
   const saved = localStorage.getItem(STORAGE_KEY_PURCHASES);
   const purchaseHistory = ref<PurchaseReceipt[]>(saved ? JSON.parse(saved) : []);
 
-  const migrationKey = 'kasir_citra_purchases_db_migrated_v1';
   async function fetchPurchases() {
-    if (!localStorage.getItem(migrationKey)) {
-      await dbService.importPurchases(purchaseHistory.value);
-      localStorage.setItem(migrationKey, 'true');
-    }
     purchaseHistory.value = await dbService.getPurchases();
     saveLocal();
   }
@@ -32,8 +28,24 @@ export const usePurchaseStore = defineStore('purchase', () => {
     }
   }
 
-  // Form State untuk penerimaan barang aktif
-  const selectedSupplier = ref<SupplierCategory>('Hari Barokah');
+  // Form State untuk penerimaan barang aktif (Dinamis dari kategori vendor yang terdaftar)
+  const selectedSupplier = ref<SupplierCategory>(
+    inventoryStore.categoryMarkups[0]?.category || ''
+  );
+
+  watch(
+    () => inventoryStore.categoryMarkups,
+    (markups) => {
+      if (markups.length > 0) {
+        const exists = markups.some(m => m.category === selectedSupplier.value);
+        if (!exists) {
+          selectedSupplier.value = markups[0].category;
+        }
+      }
+    },
+    { immediate: true }
+  );
+
   const supplierInvoiceNo = ref<string>('');
   const receiptDate = ref<string>(new Date().toISOString().slice(0, 10));
   const receiptNotes = ref<string>('');
@@ -157,13 +169,28 @@ export const usePurchaseStore = defineStore('purchase', () => {
       createdAt: new Date().toISOString(),
     };
 
-    await ensureReady();
-    await dbService.savePurchase(receipt);
-    await inventoryStore.fetchFromDb();
-
+    // Local-First: Simpan ke riwayat lokal & terapkan stok & HPP ke produk lokal langsung
     purchaseHistory.value.unshift(receipt);
+    for (const item of receipt.items) {
+      const prod = inventoryStore.products.find(p => p.id === item.productId);
+      if (prod) {
+        prod.stock += item.qtyReceived;
+        if (item.buyPrice > 0) prod.lastBuyPrice = item.buyPrice;
+        if (item.newSellPrice > 0) prod.lastSellPrice = item.newSellPrice;
+      }
+    }
+    inventoryStore.saveLocal();
     saveLocal();
     clearReceivingForm();
+
+    try {
+      await ensureReady();
+      await dbService.savePurchase(receipt);
+      await inventoryStore.fetchFromDb().catch(() => {});
+    } catch (err) {
+      console.warn('[Sync] Offline: enqueued purchase receipt for sync:', err);
+      syncService.enqueue('SAVE_PURCHASE', { receipt });
+    }
 
     return receipt;
   }
@@ -186,16 +213,38 @@ export const usePurchaseStore = defineStore('purchase', () => {
       notes: receiptNotes.value || undefined,
     };
 
-    await ensureReady();
-    await dbService.savePurchase(updatedReceipt);
-    await inventoryStore.fetchFromDb();
-
     const idx = purchaseHistory.value.findIndex(p => p.id === oldReceipt.id);
     if (idx !== -1) {
       purchaseHistory.value[idx] = updatedReceipt;
     }
+
+    // Local-First: Rollback stok lama dan terapkan stok & harga baru di memori
+    for (const item of oldReceipt.items) {
+      const prod = inventoryStore.products.find(p => p.id === item.productId);
+      if (prod) {
+        prod.stock = Math.max(0, prod.stock - item.qtyReceived);
+      }
+    }
+    for (const item of updatedReceipt.items) {
+      const prod = inventoryStore.products.find(p => p.id === item.productId);
+      if (prod) {
+        prod.stock += item.qtyReceived;
+        if (item.buyPrice > 0) prod.lastBuyPrice = item.buyPrice;
+        if (item.newSellPrice > 0) prod.lastSellPrice = item.newSellPrice;
+      }
+    }
+    inventoryStore.saveLocal();
     saveLocal();
     clearReceivingForm();
+
+    try {
+      await ensureReady();
+      await dbService.savePurchase(updatedReceipt);
+      await inventoryStore.fetchFromDb().catch(() => {});
+    } catch (err) {
+      console.warn('[Sync] Offline: enqueued update purchase for sync:', err);
+      syncService.enqueue('SAVE_PURCHASE', { receipt: updatedReceipt });
+    }
 
     return updatedReceipt;
   }
@@ -207,9 +256,14 @@ export const usePurchaseStore = defineStore('purchase', () => {
     const rcp = purchaseHistory.value.find(p => p.id === id);
     if (!rcp) return false;
 
-    await ensureReady();
-    await dbService.deletePurchase(id);
-    await inventoryStore.fetchFromDb();
+    // Rollback stok lokal
+    for (const item of rcp.items) {
+      const prod = inventoryStore.products.find(p => p.id === item.productId);
+      if (prod) {
+        prod.stock = Math.max(0, prod.stock - item.qtyReceived);
+      }
+    }
+    inventoryStore.saveLocal();
 
     purchaseHistory.value = purchaseHistory.value.filter(p => p.id !== id);
     saveLocal();
@@ -217,6 +271,16 @@ export const usePurchaseStore = defineStore('purchase', () => {
     if (activeReceiptForEdit.value?.id === id) {
       clearReceivingForm();
     }
+
+    try {
+      await ensureReady();
+      await dbService.deletePurchase(id);
+      await inventoryStore.fetchFromDb().catch(() => {});
+    } catch (err) {
+      console.warn('[Sync] Offline: enqueued delete purchase for sync:', err);
+      syncService.enqueue('DELETE_PURCHASE', { id });
+    }
+
     return true;
   }
 
@@ -243,5 +307,7 @@ export const usePurchaseStore = defineStore('purchase', () => {
     deleteReceipt,
     showHistoryDrawer,
     activeView,
+    fetchPurchases,
+    ensureReady
   };
 });

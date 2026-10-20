@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { PreOrderSchedule, BuyerName, SupplierCategory } from '../types';
-import { INITIAL_PREORDERS } from '../data/initialPreOrders';
 import { dbService } from '../services/dbService';
+import { syncService } from '../services/syncService';
 
 const STORAGE_KEY_PREORDERS = 'kasir_citra_preorders_v2';
 
@@ -10,7 +10,7 @@ export const usePreOrderStore = defineStore('preOrder', () => {
   const showPreOrderSidebar = ref(false);
   const activeScheduleForSidebar = ref<PreOrderSchedule | null>(null);
   const saved = localStorage.getItem(STORAGE_KEY_PREORDERS);
-  const schedules = ref<PreOrderSchedule[]>(saved ? JSON.parse(saved) : INITIAL_PREORDERS);
+  const schedules = ref<PreOrderSchedule[]>(saved ? JSON.parse(saved) : []);
 
   function saveLocal() {
     localStorage.setItem(STORAGE_KEY_PREORDERS, JSON.stringify(schedules.value));
@@ -19,10 +19,8 @@ export const usePreOrderStore = defineStore('preOrder', () => {
   async function fetchPreOrdersFromDb() {
     try {
       const data = await dbService.getPreOrders();
-      if (data) {
-        schedules.value = data as any;
-        saveLocal();
-      }
+      schedules.value = (data as any) || [];
+      saveLocal();
     } catch (e) {
       console.warn('[Sync] Using local pre-orders cache:', e);
     }
@@ -50,9 +48,15 @@ export const usePreOrderStore = defineStore('preOrder', () => {
       id
     };
 
-    await dbService.savePreOrder(newSchedule);
     schedules.value.unshift(newSchedule);
     saveLocal();
+
+    try {
+      await dbService.savePreOrder(newSchedule);
+    } catch (err) {
+      console.warn('[Sync] Offline: enqueued preorder for sync:', err);
+      syncService.enqueue('SAVE_PREORDER', { record: newSchedule });
+    }
 
     return newSchedule;
   }
@@ -60,16 +64,26 @@ export const usePreOrderStore = defineStore('preOrder', () => {
   async function updateSchedule(schedule: PreOrderSchedule): Promise<void> {
     const idx = schedules.value.findIndex(s => s.id === schedule.id);
     if (idx !== -1) {
-      await dbService.savePreOrder(schedule);
       schedules.value[idx] = { ...schedule };
       saveLocal();
+      try {
+        await dbService.savePreOrder(schedule);
+      } catch (err) {
+        console.warn('[Sync] Offline: enqueued update preorder for sync:', err);
+        syncService.enqueue('SAVE_PREORDER', { record: schedule });
+      }
     }
   }
 
   async function deleteSchedule(id: string): Promise<void> {
-    await dbService.deletePreOrder(id);
     schedules.value = schedules.value.filter(s => s.id !== id);
     saveLocal();
+    try {
+      await dbService.deletePreOrder(id);
+    } catch (err) {
+      console.warn('[Sync] Offline: enqueued delete preorder for sync:', err);
+      syncService.enqueue('DELETE_PREORDER', { id });
+    }
   }
 
   return {

@@ -18,11 +18,14 @@ export const useSettingsStore = defineStore('settings', () => {
           store_address: 'Jl. Sentral Distribusi No. 8',
           store_phone: '0812-3456-7890',
           invoice_prefix: 'INV-B2B',
+          store_logo: '',
           primary_color: '#2563eb',
           theme_preset: 'blue',
           header_accent_style: 'accent-line',
           surface_theme: 'bone-white',
-          custom_surface_color: '#fcfbfa'
+          custom_surface_color: '#fcfbfa',
+          printer_network_address: '127.0.0.1:9100',
+          receipt_paper_width: '58mm'
         }
   );
 
@@ -121,11 +124,14 @@ export const useSettingsStore = defineStore('settings', () => {
   const storeAddress = computed(() => settings.value.store_address || '');
   const storePhone = computed(() => settings.value.store_phone || '');
   const invoicePrefix = computed(() => settings.value.invoice_prefix || 'INV-B2B');
+  const storeLogo = computed(() => settings.value.store_logo || '');
   const primaryColor = computed(() => settings.value.primary_color || '#2563eb');
   const themePreset = computed(() => settings.value.theme_preset || 'blue');
   const headerAccentStyle = computed(() => settings.value.header_accent_style || 'accent-line');
   const surfaceTheme = computed(() => settings.value.surface_theme || 'classic-gray');
   const customSurfaceColor = computed(() => settings.value.custom_surface_color || '#ecebe9');
+  const printerNetworkAddress = computed(() => settings.value.printer_network_address || '127.0.0.1:9100');
+  const receiptPaperWidth = computed(() => settings.value.receipt_paper_width || '58mm');
 
   return {
     settings,
@@ -136,11 +142,14 @@ export const useSettingsStore = defineStore('settings', () => {
     storeAddress,
     storePhone,
     invoicePrefix,
+    storeLogo,
     primaryColor,
     themePreset,
     headerAccentStyle,
     surfaceTheme,
     customSurfaceColor,
+    printerNetworkAddress,
+    receiptPaperWidth,
     fetchSettings,
     updateSetting,
     setTheme,

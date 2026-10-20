@@ -4,6 +4,8 @@ import { Transaction, PaymentStatus } from '../types';
 import { dbService } from '../services/dbService';
 import * as XLSX from 'xlsx';
 
+import { syncService } from '../services/syncService';
+
 const STORAGE_KEY_LEDGER = 'kasir_citra_ledger_v1';
 
 export const useLedgerStore = defineStore('ledger', () => {
@@ -29,9 +31,15 @@ export const useLedgerStore = defineStore('ledger', () => {
   fetchTransactionsFromDb();
 
   async function addTransaction(tx: Transaction, memberId?: string) {
-    await dbService.createTransaction(tx, memberId);
     transactions.value = [tx, ...transactions.value.filter(t => t.id !== tx.id)];
     saveLocal();
+
+    try {
+      await dbService.createTransaction(tx, memberId);
+    } catch (err) {
+      console.warn('[Sync] Offline: enqueued transaction for sync:', err);
+      syncService.enqueue('CREATE_TRANSACTION', { tx, memberId });
+    }
   }
 
   async function togglePaymentStatus(transactionId: string) {
@@ -44,15 +52,22 @@ export const useLedgerStore = defineStore('ledger', () => {
       try {
         await dbService.updateTransactionStatus(transactionId, nextStatus);
       } catch (err) {
-        console.error('Failed to sync status update to Rust backend:', err);
+        console.warn('[Sync] Offline: enqueued payment status update for sync:', err);
+        syncService.enqueue('UPDATE_TRANSACTION_STATUS', { id: transactionId, paymentStatus: nextStatus });
       }
     }
   }
 
   async function deleteTransaction(transactionId: string) {
-    await dbService.deleteTransaction(transactionId);
     transactions.value = transactions.value.filter(t => t.id !== transactionId);
     saveLocal();
+
+    try {
+      await dbService.deleteTransaction(transactionId);
+    } catch (err) {
+      console.warn('[Sync] Offline: enqueued delete transaction for sync:', err);
+      syncService.enqueue('DELETE_TRANSACTION', { id: transactionId });
+    }
   }
 
   // Summary Metrics
@@ -139,8 +154,12 @@ export const useLedgerStore = defineStore('ledger', () => {
     try {
       const buffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
       const msg = await dbService.saveExportFile(filename, Array.from(new Uint8Array(buffer)));
-      alert(msg);
-    } catch (e) {
+      if (msg) alert(msg);
+    } catch (e: any) {
+      const errStr = String(e?.message || e);
+      if (errStr.includes('CANCELLED')) {
+        return; // Pengguna membatalkan pemilihan folder/file
+      }
       console.warn('Native export fallback ke browser download:', e);
       XLSX.writeFile(wb, filename);
     }

@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { Buyer, CustomerType, MembershipTier, LoyaltyProgramSetting } from '../types';
 import { dbService } from '../services/dbService';
+import { syncService } from '../services/syncService';
 import { useSettingsStore } from './settingsStore';
 
 const STORAGE_KEY_BUYERS = 'kasir_citra_buyers_v3';
@@ -12,57 +13,7 @@ export const useBuyerStore = defineStore('buyer', () => {
   const showBuyerSidebar = ref(false);
   const activeBuyerForSidebar = ref<Buyer | null>(null);
   const saved = localStorage.getItem(STORAGE_KEY_BUYERS);
-  const buyers = ref<Buyer[]>(
-    saved
-      ? JSON.parse(saved)
-      : [
-          {
-            id: 'buyer-1',
-            name: 'Pembeli Banjarsari',
-            code: 'BUYER-BJS',
-            customerType: 'B2B',
-            memberCardNo: 'CITRA-BJS-88',
-            tier: 'GOLD',
-            points: 150,
-            totalSpend: 7500000,
-            memberSince: '2026-01-15'
-          },
-          {
-            id: 'buyer-2',
-            name: 'Pembeli Pahlawan',
-            code: 'BUYER-PHL',
-            customerType: 'B2B',
-            memberCardNo: 'CITRA-PHL-21',
-            tier: 'SILVER',
-            points: 80,
-            totalSpend: 3200000,
-            memberSince: '2026-03-10'
-          },
-          {
-            id: 'buyer-3',
-            name: 'Pembeli Mangunharjo',
-            code: 'BUYER-MGH',
-            customerType: 'B2B',
-            memberCardNo: 'CITRA-MGH-07',
-            tier: 'REGULAR',
-            points: 25,
-            totalSpend: 850000,
-            memberSince: '2026-06-01'
-          },
-          {
-            id: 'buyer-b2c-umum',
-            name: 'Pelanggan Umum (Eceran)',
-            code: 'ECERAN',
-            customerType: 'B2C',
-            address: 'Walk-in Customer / Eceran Toko',
-            memberCardNo: 'CITRA-UMUM-01',
-            tier: 'REGULAR',
-            points: 10,
-            totalSpend: 250000,
-            memberSince: '2026-08-01'
-          }
-        ]
-  );
+  const buyers = ref<Buyer[]>(saved ? JSON.parse(saved) : []);
 
   const savedLoyalty = localStorage.getItem(STORAGE_KEY_LOYALTY);
   const loyaltySettings = ref<LoyaltyProgramSetting>(
@@ -106,9 +57,7 @@ export const useBuyerStore = defineStore('buyer', () => {
         dbService.getBuyers(),
         dbService.getSettings().catch(() => [])
       ]);
-      if (data && data.length > 0) {
-        buyers.value = data;
-      }
+      buyers.value = data || [];
       if (settings && settings.length > 0) {
         const loyalty = settings.find(s => s.key === 'loyalty_settings');
         if (loyalty && loyalty.value) {
@@ -176,43 +125,40 @@ export const useBuyerStore = defineStore('buyer', () => {
       memberSince: new Date().toISOString().slice(0, 10)
     };
 
+    buyers.value.push(newBuyer);
+    saveLocal();
+
     try {
       await dbService.upsertBuyer(newBuyer);
-      buyers.value.push(newBuyer);
-      saveLocal();
-      return newBuyer;
     } catch (err) {
-      console.error('Failed to save buyer to DB:', err);
-      throw err;
+      console.warn('[Sync] Offline: enqueued new buyer for sync:', err);
+      syncService.enqueue('UPSERT_BUYER', { buyer: newBuyer });
     }
+    return newBuyer;
   }
 
   async function updateBuyer(buyer: Buyer) {
     const idx = buyers.value.findIndex(b => b.id === buyer.id);
     if (idx !== -1) {
-      const old = { ...buyers.value[idx] };
+      buyers.value[idx] = { ...buyer };
+      saveLocal();
       try {
         await dbService.upsertBuyer(buyer);
-        buyers.value[idx] = { ...buyer };
-        saveLocal();
       } catch (err) {
-        buyers.value[idx] = old;
-        console.error('Failed to update buyer in DB:', err);
-        throw err;
+        console.warn('[Sync] Offline: enqueued update buyer for sync:', err);
+        syncService.enqueue('UPSERT_BUYER', { buyer });
       }
     }
   }
 
   async function deleteBuyer(id: string) {
-    const old = [...buyers.value];
+    buyers.value = buyers.value.filter(b => b.id !== id);
+    saveLocal();
     try {
       await dbService.deleteBuyer(id);
-      buyers.value = buyers.value.filter(b => b.id !== id);
-      saveLocal();
     } catch (err) {
-      buyers.value = old;
-      console.error('Failed to delete buyer in DB:', err);
-      throw err;
+      console.warn('[Sync] Offline: enqueued delete buyer for sync:', err);
+      syncService.enqueue('DELETE_BUYER', { id });
     }
   }
 
@@ -225,7 +171,8 @@ export const useBuyerStore = defineStore('buyer', () => {
     try {
       await dbService.updateSetting('loyalty_settings', JSON.stringify(newSettings));
     } catch (e) {
-      console.warn('[BuyerStore] Failed to persist loyalty_settings to DB:', e);
+      console.warn('[Sync] Offline: enqueued loyalty_settings for sync:', e);
+      syncService.enqueue('UPDATE_SETTING', { key: 'loyalty_settings', value: JSON.stringify(newSettings) });
     }
   }
 
@@ -262,6 +209,7 @@ export const useBuyerStore = defineStore('buyer', () => {
     updateBuyer,
     deleteBuyer,
     updateLoyaltySettings,
-    computeTierFromSpend
+    computeTierFromSpend,
+    saveLocal
   };
 });

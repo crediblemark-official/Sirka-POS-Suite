@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { Product, CategoryMarkupSetting, SupplierCategory } from '../types';
-import { INITIAL_PRODUCTS, INITIAL_CATEGORY_MARKUPS } from '../data/initialProducts';
 import { dbService } from '../services/dbService';
+import { syncService } from '../services/syncService';
 
 const STORAGE_KEY_PRODUCTS = 'kasir_citra_products_v1';
 const STORAGE_KEY_MARKUPS = 'kasir_citra_markups_v1';
@@ -13,11 +13,11 @@ export const useInventoryStore = defineStore('inventory', () => {
   const showVendorSidebar = ref(false);
   const activeVendorForSidebar = ref<CategoryMarkupSetting | null>(null);
   const savedProducts = localStorage.getItem(STORAGE_KEY_PRODUCTS);
-  const products = ref<Product[]>(savedProducts ? JSON.parse(savedProducts) : INITIAL_PRODUCTS);
+  const products = ref<Product[]>(savedProducts ? JSON.parse(savedProducts) : []);
 
   const savedMarkups = localStorage.getItem(STORAGE_KEY_MARKUPS);
   const categoryMarkups = ref<CategoryMarkupSetting[]>(
-    savedMarkups ? JSON.parse(savedMarkups) : INITIAL_CATEGORY_MARKUPS
+    savedMarkups ? JSON.parse(savedMarkups) : []
   );
 
   const isConnectedToPg = ref(false);
@@ -35,12 +35,8 @@ export const useInventoryStore = defineStore('inventory', () => {
         dbService.getMarkups()
       ]);
 
-      if (prodData && prodData.length > 0) {
-        products.value = prodData;
-      }
-      if (markupData && markupData.length > 0) {
-        categoryMarkups.value = markupData;
-      }
+      products.value = prodData || [];
+      categoryMarkups.value = markupData || [];
       isConnectedToPg.value = true;
       saveLocal();
     } catch (e) {
@@ -60,15 +56,13 @@ export const useInventoryStore = defineStore('inventory', () => {
   async function updateCategoryMarkup(category: SupplierCategory, percent: number) {
     const found = categoryMarkups.value.find(c => c.category === category);
     if (found) {
-      const oldPercent = found.defaultMarkupPercent;
+      found.defaultMarkupPercent = percent;
+      saveLocal();
       try {
         await dbService.updateMarkup(category, percent);
-        found.defaultMarkupPercent = percent;
-        saveLocal();
       } catch (err) {
-        found.defaultMarkupPercent = oldPercent;
-        console.error('Failed to sync markup to Rust backend:', err);
-        throw err;
+        console.warn('[Sync] Offline: enqueued category markup update for sync:', err);
+        syncService.enqueue('UPDATE_MARKUP', { category, markupPercent: percent });
       }
     }
   }
@@ -85,45 +79,41 @@ export const useInventoryStore = defineStore('inventory', () => {
       description: description || ''
     };
 
+    categoryMarkups.value.push(newMarkup);
+    saveLocal();
+
     try {
       await dbService.createMarkup(trimmed, defaultMarkupPercent, description);
-      categoryMarkups.value.push(newMarkup);
-      saveLocal();
     } catch (err) {
-      console.error('Failed to create category in Rust backend:', err);
-      throw err;
+      console.warn('[Sync] Offline: enqueued create category for sync:', err);
+      syncService.enqueue('CREATE_MARKUP', { category: trimmed, markupPercent: defaultMarkupPercent, description });
     }
   }
 
-  // BUG-003 FIX: Hapus kategori hanya setelah DB berhasil (DB-first)
   async function deleteCategory(category: string): Promise<boolean> {
+    categoryMarkups.value = categoryMarkups.value.filter(c => c.category !== category);
+    saveLocal();
     try {
       await dbService.deleteMarkup(category);
-      categoryMarkups.value = categoryMarkups.value.filter(c => c.category !== category);
-      saveLocal();
       return true;
     } catch (err: any) {
-      const msg = typeof err === 'string' ? err : err?.message || 'Gagal menghapus kategori';
-      alert(msg);
-      return false;
+      console.warn('[Sync] Offline: enqueued delete category for sync:', err);
+      syncService.enqueue('DELETE_MARKUP', { category });
+      return true;
     }
   }
 
   async function updateProductPrices(productId: string, lastBuyPrice: number, lastSellPrice: number) {
     const prod = products.value.find(p => p.id === productId);
     if (prod) {
-      const oldBuy = prod.lastBuyPrice;
-      const oldSell = prod.lastSellPrice;
+      prod.lastBuyPrice = lastBuyPrice;
+      prod.lastSellPrice = lastSellPrice;
+      saveLocal();
       try {
-        prod.lastBuyPrice = lastBuyPrice;
-        prod.lastSellPrice = lastSellPrice;
         await dbService.upsertProduct(prod);
-        saveLocal();
       } catch (err) {
-        prod.lastBuyPrice = oldBuy;
-        prod.lastSellPrice = oldSell;
-        console.error('Failed to sync price update to Rust backend:', err);
-        throw err;
+        console.warn('[Sync] Offline: enqueued product price update for sync:', err);
+        syncService.enqueue('UPSERT_PRODUCT', { product: prod });
       }
     }
   }
@@ -131,21 +121,15 @@ export const useInventoryStore = defineStore('inventory', () => {
   async function updateStockAndPrice(productId: string, addedStock: number, buyPrice: number, sellPrice: number) {
     const prod = products.value.find(p => p.id === productId);
     if (prod) {
-      const oldStock = prod.stock;
-      const oldBuy = prod.lastBuyPrice;
-      const oldSell = prod.lastSellPrice;
+      prod.stock += addedStock;
+      if (buyPrice > 0) prod.lastBuyPrice = buyPrice;
+      if (sellPrice > 0) prod.lastSellPrice = sellPrice;
+      saveLocal();
       try {
         await dbService.updateStockAndPrice(productId, addedStock, buyPrice, sellPrice);
-        prod.stock += addedStock;
-        if (buyPrice > 0) prod.lastBuyPrice = buyPrice;
-        if (sellPrice > 0) prod.lastSellPrice = sellPrice;
-        saveLocal();
       } catch (err) {
-        prod.stock = oldStock;
-        prod.lastBuyPrice = oldBuy;
-        prod.lastSellPrice = oldSell;
-        console.error('Failed to sync stock to Rust backend:', err);
-        throw err;
+        console.warn('[Sync] Offline: enqueued stock update for sync:', err);
+        syncService.enqueue('UPDATE_STOCK_AND_PRICE', { productId, addedStock, buyPrice, sellPrice });
       }
     }
   }
@@ -154,50 +138,48 @@ export const useInventoryStore = defineStore('inventory', () => {
     const id = `prod-${Date.now()}`;
     const product: Product = { ...newProd, id };
 
+    products.value.push(product);
+    saveLocal();
+
     try {
       await dbService.upsertProduct(product);
-      products.value.push(product);
-      saveLocal();
-      return product;
     } catch (err) {
-      console.error('Failed to sync new product to Rust backend:', err);
-      throw err;
+      console.warn('[Sync] Offline: enqueued new product for sync:', err);
+      syncService.enqueue('UPSERT_PRODUCT', { product });
     }
+    return product;
   }
 
   async function updateProduct(product: Product) {
     const idx = products.value.findIndex(p => p.id === product.id);
     if (idx !== -1) {
-      const old = { ...products.value[idx] };
+      products.value[idx] = { ...product };
+      saveLocal();
       try {
         await dbService.upsertProduct(product);
-        products.value[idx] = { ...product };
-        saveLocal();
       } catch (e) {
-        products.value[idx] = old;
-        console.error('Failed to update product in DB:', e);
-        throw e;
+        console.warn('[Sync] Offline: enqueued update product for sync:', e);
+        syncService.enqueue('UPSERT_PRODUCT', { product });
       }
     }
   }
 
-  // BUG-002 FIX: Hapus produk dengan sinkronisasi ke DB
   async function deleteProduct(id: string): Promise<boolean> {
+    products.value = products.value.filter(p => p.id !== id);
+    saveLocal();
     try {
       await dbService.deleteProduct(id);
-      products.value = products.value.filter(p => p.id !== id);
-      saveLocal();
       return true;
     } catch (err: any) {
-      const msg = typeof err === 'string' ? err : err?.message || 'Gagal menghapus produk';
-      alert(msg);
-      return false;
+      console.warn('[Sync] Offline: enqueued delete product for sync:', err);
+      syncService.enqueue('DELETE_PRODUCT', { id });
+      return true;
     }
   }
 
   function resetToDefaults() {
-    products.value = [...INITIAL_PRODUCTS];
-    categoryMarkups.value = [...INITIAL_CATEGORY_MARKUPS];
+    products.value = [];
+    categoryMarkups.value = [];
     saveLocal();
   }
 
@@ -220,5 +202,6 @@ export const useInventoryStore = defineStore('inventory', () => {
     updateProduct,
     deleteProduct,
     resetToDefaults,
+    saveLocal,
   };
 });

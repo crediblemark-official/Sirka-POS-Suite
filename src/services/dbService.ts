@@ -42,11 +42,55 @@ export const dbService = {
     await invoke('db_delete_product', { productId });
   },
 
-  // BUG-014 FIX: struk thermal (teks 32 kolom) dibangun di Rust dari data transaksi lengkap
-  async generateReceiptText(tx: Record<string, unknown>, storeName?: string): Promise<string> {
+  // Struk thermal (teks 32 atau 42 kolom) dibangun di Rust dari data transaksi lengkap
+  async generateReceiptText(tx: Record<string, unknown>, storeName?: string, paperWidth?: string): Promise<string> {
     return await invoke<string>('generate_receipt_text', {
       tx,
-      storeName: storeName || null
+      storeName: storeName || null,
+      paperWidth: paperWidth || null
+    });
+  },
+
+  // Mengirim byte ESC/POS langsung ke Network Thermal Printer / Simulator (default 127.0.0.1:9100)
+  async printToNetworkPrinter(text: string, address?: string): Promise<string> {
+    return await invoke<string>('print_to_network_printer', {
+      text,
+      address: address || null
+    });
+  },
+
+  // Mendapatkan daftar perangkat Bluetooth yang terpasang di sistem
+  async getBluetoothDevices(): Promise<Array<{ name: string; mac: string }>> {
+    return await invoke<Array<{ name: string; mac: string }>>('get_bluetooth_devices');
+  },
+
+  // Mengirim byte ESC/POS langsung ke Printer Thermal Bluetooth (RFCOMM SPP)
+  async printToBluetoothPrinter(text: string, mac?: string, channel?: number): Promise<string> {
+    return await invoke<string>('print_to_bluetooth_printer', {
+      text,
+      mac: mac || null,
+      channel: channel || null
+    });
+  },
+
+  // Mendeteksi printer thermal yang aktif secara dinamis (USB / Bluetooth / System)
+  async detectPrinterStatus(): Promise<{
+    recommended_mode: 'usb' | 'bluetooth' | 'system';
+    usb_available: boolean;
+    usb_device_path: string | null;
+    bluetooth_available: boolean;
+    bluetooth_device_name: string | null;
+    bluetooth_mac: string | null;
+    status_text: string;
+  }> {
+    return await invoke('detect_printer_status');
+  },
+
+  // Mencetak langsung ke printer USB (/dev/usb/lp0)
+  async printToUsbPrinter(text: string, devicePath?: string): Promise<string> {
+    return await invoke<string>('print_to_usb_printer', {
+      text,
+      devicePath: devicePath || null
     });
   },
 
@@ -142,8 +186,44 @@ export const dbService = {
     return await invoke<string>('db_save_preorder', { record });
   },
 
-  // 8. SYSTEM & EXPORT
+  // 8. SYSTEM, EXPORT & SYNC STATUS
   async saveExportFile(filename: string, data: number[]): Promise<string> {
     return await invoke<string>('save_export_file', { filename, data });
+  },
+
+  async getSyncStatus(): Promise<{
+    is_online: boolean;
+    pending_count: number;
+    last_sync_time: string | null;
+    last_error: string | null;
+  }> {
+    return await invoke('db_get_sync_status');
+  },
+
+  async triggerSync(): Promise<{
+    is_online: boolean;
+    pending_count: number;
+    last_sync_time: string | null;
+    last_error: string | null;
+  }> {
+    return await invoke('db_trigger_sync');
+  },
+
+  async resetCache(): Promise<{
+    is_online: boolean;
+    pending_count: number;
+    last_sync_time: string | null;
+    last_error: string | null;
+  }> {
+    return await invoke('db_reset_cache');
+  },
+
+  async wipeAllData(wipeCloud: boolean = true): Promise<{
+    is_online: boolean;
+    pending_count: number;
+    last_sync_time: string | null;
+    last_error: string | null;
+  }> {
+    return await invoke('db_wipe_all_data', { wipeCloud });
   }
 };

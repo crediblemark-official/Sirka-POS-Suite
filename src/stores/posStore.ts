@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import {
   BuyerName,
   CartItem,
@@ -25,7 +25,9 @@ export const usePosStore = defineStore('pos', () => {
   const discountStore = useDiscountStore();
 
   const saleMode = ref<CustomerType>('B2B');
-  const selectedBuyer = ref<BuyerName>('Pembeli Banjarsari');
+  const selectedBuyer = ref<BuyerName>(
+    buyerStore.b2bBuyers[0]?.name || ''
+  );
   const transactionDate = ref<string>(new Date().toISOString().slice(0, 10));
   const paymentStatus = ref<PaymentStatus>('LUNAS');
   const paymentMethod = ref<PaymentMethod>('Transfer Bank');
@@ -73,9 +75,27 @@ export const usePosStore = defineStore('pos', () => {
       paymentMethod.value = 'Tunai / Kas';
     } else {
       const b2b = buyerStore.b2bBuyers[0];
-      selectedBuyer.value = b2b ? b2b.name : 'Pembeli Banjarsari';
+      selectedBuyer.value = b2b ? b2b.name : 'Pelanggan Grosir / B2B';
     }
   }
+
+  // Sinkronisasi otomatis saat master pembeli selesai dimuat
+  watch(
+    () => buyerStore.buyers,
+    (newList) => {
+      if (newList.length > 0) {
+        const exists = newList.some(b => b.name === selectedBuyer.value);
+        if (!exists) {
+          if (saleMode.value === 'B2C') {
+            selectedBuyer.value = buyerStore.b2cBuyers[0]?.name || newList[0].name;
+          } else {
+            selectedBuyer.value = buyerStore.b2bBuyers[0]?.name || newList[0].name;
+          }
+        }
+      }
+    },
+    { immediate: true }
+  );
 
   const cartItems = ref<CartItem[]>([]);
   const lastProcessedTransaction = ref<Transaction | null>(null);
@@ -443,12 +463,33 @@ export const usePosStore = defineStore('pos', () => {
     isCheckingOut.value = true;
     try {
       await ledgerStore.addTransaction(tx, isMember.value ? selectedBuyerData.value?.id : undefined);
+
+      // Local-First: Kurangi stok lokal langsung agar kasir bisa melanjutkan transaksi berikutnya
+      for (const item of tx.items) {
+        const prod = inventoryStore.products.find(p => p.id === item.productId);
+        if (prod) {
+          prod.stock = Math.max(0, prod.stock - item.qty);
+          if (item.sellPrice > 0) prod.lastSellPrice = item.sellPrice;
+        }
+      }
+      inventoryStore.saveLocal();
+
+      // Local-First: Update poin dan akumulasi belanja member lokal
+      if (isMember.value && selectedBuyerData.value) {
+        const b = buyerStore.buyers.find(x => x.id === selectedBuyerData.value?.id);
+        if (b) {
+          b.points = Math.max(0, (b.points || 0) - (tx.pointsUsed || 0) + (tx.pointsEarned || 0));
+          b.totalSpend = (b.totalSpend || 0) + (tx.finalTotal ?? tx.totalSell);
+          b.tier = buyerStore.computeTierFromSpend(b.totalSpend);
+          buyerStore.saveLocal();
+        }
+      }
     } catch (error) {
       isCheckingOut.value = false;
       throw error;
     }
     lastProcessedTransaction.value = tx;
-    await Promise.all([inventoryStore.fetchFromDb(), buyerStore.fetchBuyers()]);
+    await Promise.all([inventoryStore.fetchFromDb(), buyerStore.fetchBuyers()]).catch(() => {});
 
     clearCart();
     transactionNotes.value = '';

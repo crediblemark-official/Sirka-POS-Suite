@@ -7,68 +7,7 @@ const STORAGE_KEY_DISCOUNTS = 'kasir_citra_discounts_v1';
 
 export const useDiscountStore = defineStore('discount', () => {
   const saved = localStorage.getItem(STORAGE_KEY_DISCOUNTS);
-  const discounts = ref<Discount[]>(
-    saved
-      ? JSON.parse(saved)
-      : [
-          {
-            id: 'disc-1',
-            code: 'HEMAT5K',
-            name: 'Voucher Belanja Hemat 5rb',
-            type: 'FIXED',
-            value: 5000,
-            minPurchase: 50000,
-            scope: 'ALL',
-            isActive: true,
-            description: 'Potongan langsung Rp 5.000 minimal belanja Rp 50.000',
-            usageCount: 0
-          },
-          {
-            id: 'disc-2',
-            code: 'PROMO10',
-            name: 'Diskon Spesial 10%',
-            type: 'PERCENT',
-            value: 10,
-            minPurchase: 100000,
-            maxDiscount: 50000,
-            scope: 'ALL',
-            isActive: true,
-            description: 'Diskon 10% maksimal potongan Rp 50.000 minimal belanja Rp 100.000',
-            usageCount: 0
-          },
-          {
-            id: 'disc-3',
-            code: 'MEMBER5',
-            name: 'Diskon Eksklusif Member 5%',
-            type: 'PERCENT',
-            value: 5,
-            minPurchase: 0,
-            scope: 'MEMBER_ONLY',
-            isActive: true,
-            description: 'Diskon khusus pemegang kartu member Citra tanpa minimal belanja',
-            usageCount: 0
-          },
-          {
-            id: 'disc-4',
-            code: 'GROSIR50K',
-            name: 'Potongan Grosir 50rb',
-            type: 'FIXED',
-            value: 50000,
-            minPurchase: 500000,
-            scope: 'CUSTOMER_TYPE',
-            targetCustomerType: 'B2B',
-            isActive: true,
-            description: 'Potongan Rp 50.000 khusus pembelian Grosir / B2B minimal Rp 500.000',
-            usageCount: 0
-          }
-        ]
-  );
-
-  // Ensure GROSIR50K has B2B customer type if loaded from older localStorage
-  const g4 = discounts.value.find(d => d.code === 'GROSIR50K');
-  if (g4 && g4.targetCustomerType !== 'B2B') {
-    g4.targetCustomerType = 'B2B';
-  }
+  const discounts = ref<Discount[]>(saved ? JSON.parse(saved) : []);
 
   const activeDiscounts = computed(() => discounts.value.filter(d => d.isActive));
 
@@ -79,10 +18,8 @@ export const useDiscountStore = defineStore('discount', () => {
   async function fetchDiscounts() {
     try {
       const data = await dbService.getDiscounts();
-      if (data && data.length > 0) {
-        discounts.value = data;
-        saveLocal();
-      }
+      discounts.value = data || [];
+      saveLocal();
     } catch (e) {
       console.warn('[DiscountStore] Failed to fetch discounts:', e);
     }
