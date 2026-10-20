@@ -1,9 +1,20 @@
 <script setup lang="ts">
+import { ref, onMounted, onUnmounted, watch } from 'vue';
 import { Buyer } from '../../../types';
-import { Printer, X, CreditCard } from 'lucide-vue-next';
+import {
+  Printer,
+  X,
+  CreditCard,
+  Download,
+  Loader2,
+  ChevronDown,
+  Image as ImageIcon,
+  Layers,
+  QrCode as QrIcon
+} from 'lucide-vue-next';
 import MemberCardVisual from './MemberCardVisual.vue';
 
-defineProps<{
+const props = defineProps<{
   isOpen: boolean;
   buyer: Buyer;
 }>();
@@ -12,9 +23,60 @@ const emit = defineEmits<{
   (e: 'close'): void;
 }>();
 
+const frontCardVisualRef = ref<InstanceType<typeof MemberCardVisual> | null>(null);
+const isDownloading = ref(false);
+const isDownloadMenuOpen = ref(false);
+
 function handleTriggerPrint() {
   window.print();
 }
+
+async function handleDownload(side: 'kedua_sisi' | 'depan' | 'belakang' | 'semua_terpisah') {
+  isDownloadMenuOpen.value = false;
+  if (!frontCardVisualRef.value) return;
+  isDownloading.value = true;
+  try {
+    await frontCardVisualRef.value.downloadSide(side);
+  } finally {
+    isDownloading.value = false;
+  }
+}
+
+function handleGlobalClick() {
+  if (isDownloadMenuOpen.value) {
+    isDownloadMenuOpen.value = false;
+  }
+}
+
+function handleKeyDown(e: KeyboardEvent) {
+  if (!props.isOpen) return;
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    e.stopPropagation();
+    emit('close');
+  }
+}
+
+watch(
+  () => props.isOpen,
+  (val) => {
+    if (val) {
+      window.addEventListener('keydown', handleKeyDown);
+    } else {
+      window.removeEventListener('keydown', handleKeyDown);
+    }
+  },
+  { immediate: true }
+);
+
+onMounted(() => {
+  document.addEventListener('click', handleGlobalClick);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleGlobalClick);
+  window.removeEventListener('keydown', handleKeyDown);
+});
 </script>
 
 <template>
@@ -31,7 +93,7 @@ function handleTriggerPrint() {
             <Printer :size="18" />
           </div>
           <div>
-            <h3 class="font-bold text-sm tracking-tight">Cetak Kartu Member Pelanggan</h3>
+            <h3 class="font-bold text-sm tracking-tight">Cetak / Unduh Kartu Member Pelanggan</h3>
             <p class="text-[11px] text-slate-300">Format Standar ID-1 ISO 7810 (Ukuran Kartu ATM / KTP)</p>
           </div>
         </div>
@@ -63,6 +125,7 @@ function handleTriggerPrint() {
               [ 1. Tampak Depan ]
             </span>
             <MemberCardVisual
+              ref="frontCardVisualRef"
               :buyer="buyer"
               :model-value="false"
               :interactive="false"
@@ -84,21 +147,21 @@ function handleTriggerPrint() {
           </div>
         </div>
 
-        <!-- Tips Cetak -->
+        <!-- Tips Cetak & Digital -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px] text-slate-600">
           <div class="p-3 bg-white rounded-lg border border-slate-200">
             <p class="font-bold text-slate-800 mb-0.5">🖨️ Printer Kartu PVC / Kertas Foto</p>
             <p class="leading-relaxed">Gunakan kertas foto tebal (230-260 gsm) atau printer khusus kartu PVC (Evolis/Zebra/Fargo) untuk hasil fisik terbaik.</p>
           </div>
           <div class="p-3 bg-white rounded-lg border border-slate-200">
-            <p class="font-bold text-slate-800 mb-0.5">📱 Digital Member Card</p>
-            <p class="leading-relaxed">QR Code pada sisi belakang dapat disimpan atau di-screenshot oleh pelanggan di smartphone untuk di-scan kasir.</p>
+            <p class="font-bold text-slate-800 mb-0.5">📱 Unduh Format PNG (Digital Card)</p>
+            <p class="leading-relaxed">Klik tombol <strong>Unduh PNG</strong> di bawah untuk menyimpan gambar kartu beresolusi tinggi yang bisa dikirim ke WhatsApp pelanggan.</p>
           </div>
         </div>
       </div>
 
       <!-- Footer Buttons -->
-      <div class="px-6 py-4 bg-white border-t border-gray-200 flex items-center justify-between">
+      <div class="px-6 py-4 bg-white border-t border-gray-200 flex items-center justify-between relative">
         <button
           type="button"
           class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-semibold cursor-pointer transition-colors"
@@ -107,14 +170,112 @@ function handleTriggerPrint() {
           Tutup
         </button>
 
-        <button
-          type="button"
-          class="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-lg font-bold cursor-pointer transition-all shadow-md active:scale-95 flex items-center gap-2"
-          @click="handleTriggerPrint"
-        >
-          <Printer :size="16" />
-          <span>Cetak Kartu Sekarang</span>
-        </button>
+        <div class="flex items-center gap-2.5">
+          <!-- Dropdown Unduh PNG -->
+          <div class="relative">
+            <div class="flex items-stretch rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white shadow-md transition-all">
+              <button
+                type="button"
+                :disabled="isDownloading"
+                class="px-4 py-2.5 font-bold cursor-pointer flex items-center gap-2 disabled:opacity-50"
+                title="Unduh Kedua Sisi Kartu Member sebagai PNG"
+                @click="handleDownload('kedua_sisi')"
+              >
+                <Loader2 v-if="isDownloading" :size="16" class="animate-spin" />
+                <Download v-else :size="16" />
+                <span>{{ isDownloading ? 'Mengunduh...' : 'Unduh PNG' }}</span>
+              </button>
+
+              <button
+                type="button"
+                :disabled="isDownloading"
+                class="px-2 py-2.5 border-l border-emerald-700/50 hover:bg-emerald-700/30 rounded-r-lg cursor-pointer transition-colors flex items-center justify-center disabled:opacity-50"
+                title="Pilihan Format Unduh PNG"
+                @click.stop="isDownloadMenuOpen = !isDownloadMenuOpen"
+              >
+                <ChevronDown :size="14" :class="{ 'rotate-180': isDownloadMenuOpen }" class="transition-transform duration-150" />
+              </button>
+            </div>
+
+            <!-- Dropdown Menu -->
+            <div
+              v-if="isDownloadMenuOpen"
+              class="absolute right-0 bottom-full mb-2 w-64 bg-white rounded-xl shadow-2xl border border-gray-200 py-1.5 z-50 text-slate-800 text-xs font-medium animate-in fade-in zoom-in-95 duration-100"
+              @click.stop
+            >
+              <div class="px-3 py-1 text-[10px] uppercase font-bold text-gray-400 tracking-wider">
+                Pilihan Export Gambar (PNG HD)
+              </div>
+
+              <button
+                type="button"
+                class="w-full px-3 py-2 text-left hover:bg-emerald-50 flex items-center gap-2.5 cursor-pointer transition-colors"
+                @click="handleDownload('kedua_sisi')"
+              >
+                <div class="w-6 h-6 rounded-md bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                  <ImageIcon :size="13" />
+                </div>
+                <div>
+                  <div class="font-bold text-slate-800 leading-tight">Kedua Sisi (Berdampingan)</div>
+                  <div class="text-[10px] text-gray-500">Depan & Belakang dalam 1 file</div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                class="w-full px-3 py-2 text-left hover:bg-emerald-50 flex items-center gap-2.5 cursor-pointer transition-colors"
+                @click="handleDownload('depan')"
+              >
+                <div class="w-6 h-6 rounded-md bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                  <CreditCard :size="13" />
+                </div>
+                <div>
+                  <div class="font-bold text-slate-800 leading-tight">Tampak Depan Saja</div>
+                  <div class="text-[10px] text-gray-500">Nama & nomor kartu</div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                class="w-full px-3 py-2 text-left hover:bg-emerald-50 flex items-center gap-2.5 cursor-pointer transition-colors"
+                @click="handleDownload('belakang')"
+              >
+                <div class="w-6 h-6 rounded-md bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
+                  <QrIcon :size="13" />
+                </div>
+                <div>
+                  <div class="font-bold text-slate-800 leading-tight">Tampak Belakang Saja</div>
+                  <div class="text-[10px] text-gray-500">QR Code scan kasir</div>
+                </div>
+              </button>
+
+              <div class="my-1 border-t border-gray-100"></div>
+
+              <button
+                type="button"
+                class="w-full px-3 py-2 text-left hover:bg-emerald-50 flex items-center gap-2.5 cursor-pointer transition-colors"
+                @click="handleDownload('semua_terpisah')"
+              >
+                <div class="w-6 h-6 rounded-md bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
+                  <Layers :size="13" />
+                </div>
+                <div>
+                  <div class="font-bold text-slate-800 leading-tight">Unduh Keduanya (2 File)</div>
+                  <div class="text-[10px] text-gray-500">File depan & belakang terpisah</div>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            class="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-lg font-bold cursor-pointer transition-all shadow-md active:scale-95 flex items-center gap-2"
+            @click="handleTriggerPrint"
+          >
+            <Printer :size="16" />
+            <span>Cetak Kartu Sekarang</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>

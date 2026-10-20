@@ -15,6 +15,7 @@ import {
 import FormSidebarDrawer from '../common/FormSidebarDrawer.vue';
 import AppEmptyState from '../common/AppEmptyState.vue';
 import MetricStatsStrip, { MetricStatItem } from '../common/MetricStatsStrip.vue';
+import { useConfirmDialog } from '../../composables/useConfirmDialog';
 
 const props = withDefaults(defineProps<{
   searchQuery?: string;
@@ -191,13 +192,24 @@ function handleSaveVendor() {
   showVendorDrawer.value = false;
 }
 
-function handleDeleteVendor(cat: string) {
+const { confirm: showConfirm } = useConfirmDialog();
+
+async function handleDeleteVendor(cat: string) {
   const count = getProductCountForVendor(cat);
   const msg = count > 0
     ? `Supplier "${cat}" terhubung dengan ${count} barang. Yakin ingin menghapus?`
     : `Yakin ingin menghapus supplier "${cat}"?`;
 
-  if (confirm(msg)) {
+  const isConfirmed = await showConfirm({
+    title: 'Hapus Supplier',
+    message: msg,
+    details: count > 0 ? `Perhatian: Ada ${count} barang yang saat ini menggunakan supplier ini.` : undefined,
+    confirmText: 'Ya, Hapus',
+    cancelText: 'Batal',
+    type: 'danger'
+  });
+
+  if (isConfirmed) {
     inventoryStore.deleteCategory(cat);
     if (activeVendorKey.value === cat) {
       showVendorDrawer.value = false;

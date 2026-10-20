@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue';
+import { ref, computed, watch, nextTick, onUnmounted } from 'vue';
 import { CartItem } from '../../types';
 import { formatRupiah } from '../../utils/formatters';
 import { useInventoryStore } from '../../stores/inventoryStore';
@@ -44,10 +44,20 @@ const isPriceModifiedFromMaster = computed(() => {
   return masterSellPrice.value > 0 && sellPriceInput.value !== masterSellPrice.value;
 });
 
+const discountFromMaster = computed(() => {
+  if (masterSellPrice.value > 0 && sellPriceInput.value < masterSellPrice.value) {
+    const nominal = masterSellPrice.value - sellPriceInput.value;
+    const percent = Number(((nominal / masterSellPrice.value) * 100).toFixed(1));
+    return { nominal, percent };
+  }
+  return null;
+});
+
 watch(
   () => [props.isOpen, props.item],
   ([open]) => {
     if (open && props.item) {
+      window.addEventListener('keydown', handleKeyDown);
       const sp = props.item.sellPrice || 0;
       const bp = props.item.buyPrice || 0;
       sellPriceInput.value = sp;
@@ -57,10 +67,16 @@ watch(
       nextTick(() => {
         focusCurrentInput();
       });
+    } else {
+      window.removeEventListener('keydown', handleKeyDown);
     }
   },
   { immediate: true }
 );
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeyDown);
+});
 
 function switchMode(mode: AdjustMode) {
   activeMode.value = mode;
@@ -120,9 +136,12 @@ function handleSave() {
 }
 
 function handleKeyDown(e: KeyboardEvent) {
+  if (!props.isOpen) return;
   if (e.key === 'Escape') {
+    e.preventDefault();
     emit('close');
   } else if (e.key === 'Enter') {
+    e.preventDefault();
     handleSave();
   }
 }
@@ -132,7 +151,7 @@ function handleKeyDown(e: KeyboardEvent) {
   <div
     v-if="isOpen && item"
     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-2xs animate-in fade-in duration-150"
-    @keydown="handleKeyDown"
+    @click.self="emit('close')"
   >
     <div
       class="bg-white rounded-lg shadow-xl border border-gray-300 w-full max-w-md overflow-hidden flex flex-col animate-in zoom-in-95 duration-150"
@@ -357,14 +376,27 @@ function handleKeyDown(e: KeyboardEvent) {
         <div class="p-3 bg-slate-100 rounded-lg flex items-center justify-between text-xs font-mono border border-slate-200">
           <div>
             <div class="text-[10px] text-gray-500 font-sans">Hasil Akhir Struk Ini:</div>
-            <div class="text-base font-bold text-amber-800">
-              Rp {{ formatRupiah(sellPriceInput) }} <span class="text-xs text-gray-500 font-normal">/ {{ item.unit }}</span>
+            <div class="flex items-baseline gap-1.5">
+              <span v-if="discountFromMaster" class="line-through text-xs text-gray-400 font-normal">
+                Rp {{ formatRupiah(masterSellPrice) }}
+              </span>
+              <span class="text-base font-bold text-amber-800">
+                Rp {{ formatRupiah(sellPriceInput) }}
+              </span>
+              <span class="text-xs text-gray-500 font-normal">/ {{ item.unit }}</span>
+            </div>
+            <div v-if="discountFromMaster" class="text-[10.5px] font-bold text-rose-600 font-sans flex items-center gap-1 mt-0.5">
+              <Tag :size="11" />
+              <span>Diskon: -Rp {{ formatRupiah(discountFromMaster.nominal) }} ({{ discountFromMaster.percent }}%)</span>
             </div>
           </div>
           <div class="text-right">
             <div class="text-[10px] text-gray-500 font-sans">Margin Untung:</div>
             <div class="text-xs font-bold text-emerald-700">
               +Rp {{ formatRupiah(markupNominalInput) }} ({{ markupPercentInput }}%)
+            </div>
+            <div v-if="discountFromMaster" class="text-[10px] text-emerald-600 font-sans font-medium mt-0.5">
+              Masih untung dari modal
             </div>
           </div>
         </div>

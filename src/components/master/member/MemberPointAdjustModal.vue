@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, onUnmounted } from 'vue';
 import { Buyer } from '../../../types';
 import { useBuyerStore } from '../../../stores/buyerStore';
 import { Coins, X } from 'lucide-vue-next';
@@ -20,16 +20,33 @@ const pointAdjustAmount = ref<number>(10);
 const pointAdjustType = ref<'ADD' | 'DEDUCT'>('ADD');
 const pointAdjustReason = ref('');
 
+function handleKeyDown(e: KeyboardEvent) {
+  if (!props.isOpen) return;
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    e.stopPropagation();
+    emit('close');
+  }
+}
+
 watch(
   () => props.isOpen,
   (open) => {
     if (open) {
+      window.addEventListener('keydown', handleKeyDown);
       pointAdjustAmount.value = 10;
       pointAdjustType.value = 'ADD';
       pointAdjustReason.value = '';
+    } else {
+      window.removeEventListener('keydown', handleKeyDown);
     }
-  }
+  },
+  { immediate: true }
 );
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeyDown);
+});
 
 function handleSave() {
   if (!props.buyer) return;

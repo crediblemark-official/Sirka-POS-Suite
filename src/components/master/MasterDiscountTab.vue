@@ -7,6 +7,7 @@ import MetricStatsStrip, { MetricStatItem } from '../common/MetricStatsStrip.vue
 import AppEmptyState from '../common/AppEmptyState.vue';
 import DiscountSimulator from './discount/DiscountSimulator.vue';
 import DiscountFormDrawer from './discount/DiscountFormDrawer.vue';
+import { useConfirmDialog } from '../../composables/useConfirmDialog';
 import {
   Tag,
   Pencil,
@@ -218,8 +219,19 @@ function handleOpenEdit(d: Discount) {
   emit('edit-discount', d);
 }
 
-function handleDelete(id: string, name: string) {
-  if (confirm(`Hapus kupon promo "${name}"?`)) {
+const { confirm: showConfirm } = useConfirmDialog();
+
+async function handleDelete(id: string, name: string) {
+  const isConfirmed = await showConfirm({
+    title: 'Hapus Kupon Promo',
+    message: `Yakin ingin menghapus kupon promo "${name}"?`,
+    details: 'Kupon promo yang dihapus tidak akan dapat digunakan lagi di transaksi kasir.',
+    confirmText: 'Ya, Hapus',
+    cancelText: 'Batal',
+    type: 'danger'
+  });
+
+  if (isConfirmed) {
     discountStore.deleteDiscount(id);
     discountStore.closeFormSidebar();
     if (selectedDiscountId.value === id) {

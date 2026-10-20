@@ -39,13 +39,6 @@ defineProps<{
         >
           {{ item.value }}
         </div>
-        <div
-          v-if="item.sublabel"
-          class="text-[10px] truncate leading-none mt-0.5"
-          :class="item.sublabelClass || 'text-gray-400'"
-        >
-          {{ item.sublabel }}
-        </div>
       </div>
     </div>
   </div>

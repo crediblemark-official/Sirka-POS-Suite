@@ -8,9 +8,11 @@ import {
   Folder,
   ChevronLeft,
   ChevronRight,
-  Barcode
+  Barcode,
+  Sparkles
 } from 'lucide-vue-next';
 import AppEmptyState from '../common/AppEmptyState.vue';
+import { demoDataService } from '../../services/demoDataService';
 
 const props = withDefaults(defineProps<{
   searchQuery?: string;
@@ -32,6 +34,18 @@ const posStore = usePosStore();
 const selectedCategory = ref<SupplierCategory | 'Semua'>('Semua');
 const selectedProductId = ref<string | null>(null);
 const activeMultiplier = ref<number>(1);
+const isLoadingDemo = ref(false);
+
+async function handleLoadDemo() {
+  isLoadingDemo.value = true;
+  try {
+    await demoDataService.loadDemoData();
+  } catch (err) {
+    console.error('Failed to load demo:', err);
+  } finally {
+    isLoadingDemo.value = false;
+  }
+}
 
 // BUG-016 FIX: Barcode scanner engine (USB HID memaku sesuai "ketikan cepat diikuti Enter")
 const scanBuffer = ref('');
@@ -176,14 +190,14 @@ function handleKeyDown(e: KeyboardEvent) {
 
   // 2) Enter di akhir sesi scanner (gap sangat kecil) = scan; selain itu = perilaku bawaan
   if (e.key === 'Enter') {
-    const isScan = scanBuffer.value.length >= 6 && (Date.now() - lastCharAt.value) <= SCAN_GAP_MS;
-    scanBuffer.value = '';
-    scanning.value = false;
+    const isScan = scanBuffer.value.length >= 2 && (Date.now() - lastCharAt.value) <= SCAN_GAP_MS;
     if (isScan) {
       e.preventDefault();
       commitScanBuffer();
       return;
     }
+    scanBuffer.value = '';
+    scanning.value = false;
     if (prods.length === 0) return;
     // bawaan: tambah barang terpilih
     e.preventDefault();
@@ -358,9 +372,27 @@ defineExpose({
 
     <!-- Folder & File Tiles Grid -->
     <div class="flex-1 overflow-y-auto">
-      <!-- Empty state -->
+      <!-- Empty state when catalog has no products at all -->
       <AppEmptyState
-        v-if="filteredProducts.length === 0"
+        v-if="inventoryStore.products.length === 0"
+        :icon="Sparkles"
+        title="Katalog Produk Masih Kosong (Fresh)"
+        description="Database belum memiliki data barang. Anda dapat menambah barang dari Master Barang atau muat data percontohan untuk mencoba kasir."
+      >
+        <button
+          type="button"
+          class="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs cursor-pointer transition-all active:scale-95 disabled:opacity-50 mt-1"
+          :disabled="isLoadingDemo"
+          @click="handleLoadDemo"
+        >
+          <Sparkles :size="14" :class="{ 'animate-spin': isLoadingDemo }" />
+          <span>{{ isLoadingDemo ? 'Memuat Data Demo...' : 'Muat Data Demo Kasir' }}</span>
+        </button>
+      </AppEmptyState>
+
+      <!-- Empty state when searching or filtering -->
+      <AppEmptyState
+        v-else-if="filteredProducts.length === 0"
         :icon="Folder"
         title="Tidak ada barang yang cocok dalam folder ini"
         description="Coba pilih kategori lain atau periksa kata kunci pencarian Anda"

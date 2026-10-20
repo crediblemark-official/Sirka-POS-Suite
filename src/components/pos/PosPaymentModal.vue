@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { watch, onUnmounted } from 'vue';
 import { usePosStore } from '../../stores/posStore';
 import { useBuyerStore } from '../../stores/buyerStore';
 import { PaymentMethod } from '../../types';
@@ -9,10 +10,14 @@ import {
   Coins,
   CheckCircle2,
   Clock,
-  Printer
+  Printer,
+  Landmark,
+  Banknote,
+  QrCode,
+  FileText
 } from 'lucide-vue-next';
 
-defineProps<{
+const props = defineProps<{
   isOpen: boolean;
 }>();
 
@@ -24,11 +29,17 @@ const emit = defineEmits<{
 const posStore = usePosStore();
 const buyerStore = useBuyerStore();
 
-const paymentMethods: PaymentMethod[] = [
-  'Transfer Bank',
-  'Tunai / Kas',
-  'QRIS',
-  'Nota Tempo'
+interface PaymentMethodOption {
+  id: PaymentMethod;
+  label: string;
+  icon: any;
+}
+
+const paymentMethodOptions: PaymentMethodOption[] = [
+  { id: 'Transfer Bank', label: 'Transfer Bank', icon: Landmark },
+  { id: 'Tunai / Kas', label: 'Tunai / Kas', icon: Banknote },
+  { id: 'QRIS', label: 'QRIS', icon: QrCode },
+  { id: 'Nota Tempo', label: 'Nota Tempo', icon: FileText }
 ];
 
 function toggleRedeemPoints() {
@@ -42,6 +53,37 @@ function toggleRedeemPoints() {
 function handleConfirm() {
   if (!posStore.isCheckingOut) emit('confirm');
 }
+
+function handleKeydown(e: KeyboardEvent) {
+  if (!props.isOpen) return;
+  if (e.key === 'Escape') {
+    if (!posStore.isCheckingOut) {
+      e.preventDefault();
+      e.stopPropagation();
+      emit('close');
+    }
+  } else if (e.key === 'Enter') {
+    if (!posStore.isCheckingOut) {
+      e.preventDefault();
+      handleConfirm();
+    }
+  }
+}
+
+watch(
+  () => props.isOpen,
+  (open) => {
+    if (open) {
+      window.addEventListener('keydown', handleKeydown);
+    } else {
+      window.removeEventListener('keydown', handleKeydown);
+    }
+  }
+);
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeydown);
+});
 </script>
 
 <template>
@@ -146,14 +188,15 @@ function handleConfirm() {
           <label class="text-xs font-bold text-gray-700 block mb-1.5">Metode Pembayaran:</label>
           <div class="grid grid-cols-2 gap-2">
             <button
-              v-for="m in paymentMethods"
-              :key="m"
+              v-for="item in paymentMethodOptions"
+              :key="item.id"
               type="button"
-              class="py-2 px-2.5 rounded-md border text-xs font-medium text-center cursor-pointer transition-all truncate"
-              :class="posStore.paymentMethod === m ? 'bg-blue-600 text-white border-blue-600 font-bold shadow-xs ring-2 ring-blue-300' : 'bg-gray-50 text-gray-700 border-gray-300 hover:bg-gray-100'"
-              @click="posStore.paymentMethod = m"
+              class="flex items-center justify-center gap-2 py-2 px-2.5 rounded-md border text-xs font-medium cursor-pointer transition-all"
+              :class="posStore.paymentMethod === item.id ? 'bg-blue-600 text-white border-blue-600 font-bold shadow-xs ring-2 ring-blue-300' : 'bg-gray-50 text-gray-700 border-gray-300 hover:bg-gray-100'"
+              @click="posStore.paymentMethod = item.id"
             >
-              {{ m }}
+              <component :is="item.icon" :size="15" class="shrink-0" />
+              <span>{{ item.label }}</span>
             </button>
           </div>
         </div>
@@ -164,28 +207,18 @@ function handleConfirm() {
           <input
             v-model="posStore.picName"
             type="text"
-            placeholder="Nama PIC dapur / pihak penerima (tercetak di faktur & tanda terima)"
+            placeholder="Nama Pihak Penerima (tercetak di faktur & tanda terima)"
             class="w-full px-2.5 py-1.5 text-xs bg-white border border-gray-300 rounded focus:border-blue-500 focus:outline-none placeholder:text-gray-400"
           />
         </div>
 
         <!-- Catatan / Keterangan Transaksi -->
         <div>
-          <div class="flex items-center justify-between mb-1.5">
-            <label class="text-xs font-bold text-gray-700">Catatan / Keterangan Nota:</label>
-            <label class="flex items-center gap-1.5 text-[11px] text-gray-600 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                v-model="posStore.isPreOrder"
-                class="rounded text-blue-600 focus:ring-0 cursor-pointer"
-              />
-              <span :class="posStore.isPreOrder ? 'text-blue-700 font-bold' : ''">Pesanan / Titipan Pelanggan</span>
-            </label>
-          </div>
+          <label class="text-xs font-bold text-gray-700 block mb-1.5">Catatan / Keterangan Nota (opsional):</label>
           <input
             v-model="posStore.transactionNotes"
             type="text"
-            placeholder="Contoh: Titipan Bu Siti, pesanan arisan, dll (opsional)..."
+            placeholder="Contoh: Titipan Bu Siti, pesanan arisan, antar jam 4 sore, dll..."
             class="w-full px-2.5 py-1.5 text-xs bg-white border border-gray-300 rounded focus:border-blue-500 focus:outline-none placeholder:text-gray-400"
           />
         </div>

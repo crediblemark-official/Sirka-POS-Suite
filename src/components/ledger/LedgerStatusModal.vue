@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { watch, onUnmounted } from 'vue';
 import { AlertCircle, X, Check } from 'lucide-vue-next';
 import { Transaction, PaymentStatus } from '../../types';
 import { formatRupiah } from '../../utils/formatters';
@@ -13,6 +14,35 @@ const emit = defineEmits<{
   (e: 'confirm'): void;
   (e: 'cancel'): void;
 }>();
+
+function handleKeyDown(e: KeyboardEvent) {
+  if (!props.isOpen) return;
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    e.stopPropagation();
+    emit('cancel');
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    e.stopPropagation();
+    emit('confirm');
+  }
+}
+
+watch(
+  () => props.isOpen,
+  (open) => {
+    if (open) {
+      window.addEventListener('keydown', handleKeyDown);
+    } else {
+      window.removeEventListener('keydown', handleKeyDown);
+    }
+  },
+  { immediate: true }
+);
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeyDown);
+});
 </script>
 
 <template>

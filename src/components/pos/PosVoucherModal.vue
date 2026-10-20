@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, onUnmounted } from 'vue';
 import { usePosStore } from '../../stores/posStore';
 import { useDiscountStore } from '../../stores/discountStore';
 import { formatRupiah } from '../../utils/formatters';
@@ -20,16 +20,32 @@ const couponInput = ref('');
 const couponError = ref('');
 const couponSuccess = ref('');
 
+function handleKeydown(e: KeyboardEvent) {
+  if (!props.isOpen) return;
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    e.stopPropagation();
+    emit('close');
+  }
+}
+
 watch(
   () => props.isOpen,
   (open) => {
     if (open) {
+      window.addEventListener('keydown', handleKeydown);
       couponInput.value = '';
       couponError.value = '';
       couponSuccess.value = '';
+    } else {
+      window.removeEventListener('keydown', handleKeydown);
     }
   }
 );
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeydown);
+});
 
 function handleApplyCoupon() {
   couponError.value = '';

@@ -24,6 +24,7 @@ import MasterBrandingTab from '../master/MasterBrandingTab.vue';
 import MasterDiscountTab from '../master/MasterDiscountTab.vue';
 import MasterMemberTab from '../master/MasterMemberTab.vue';
 import ReceiptModal from '../pos/ReceiptModal.vue';
+import AppConfirmModal from '../common/AppConfirmModal.vue';
 
 const posStore = usePosStore();
 
@@ -284,5 +285,8 @@ onUnmounted(() => {
       :transaction="activeModalTransaction"
       @close="activeModalTransaction = null"
     />
+
+    <!-- Global App Confirmation Modal -->
+    <AppConfirmModal />
   </div>
 </template>

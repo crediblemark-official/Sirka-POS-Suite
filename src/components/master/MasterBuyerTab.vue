@@ -20,6 +20,7 @@ import FormSidebarDrawer from '../common/FormSidebarDrawer.vue';
 import AppEmptyState from '../common/AppEmptyState.vue';
 import MetricStatsStrip, { MetricStatItem } from '../common/MetricStatsStrip.vue';
 import SearchableSelect, { type SelectOption } from '../common/SearchableSelect.vue';
+import { useConfirmDialog } from '../../composables/useConfirmDialog';
 
 const tierOptions: SelectOption[] = [
   { value: 'REGULAR', label: 'REGULAR', badge: '1x Poin' },
@@ -247,8 +248,19 @@ function handleSaveBuyer() {
   showBuyerDrawer.value = false;
 }
 
-function handleDeleteBuyer(id: string, name: string) {
-  if (confirm(`Yakin ingin menghapus data pelanggan "${name}"?`)) {
+const { confirm: showConfirm } = useConfirmDialog();
+
+async function handleDeleteBuyer(id: string, name: string) {
+  const isConfirmed = await showConfirm({
+    title: 'Hapus Data Pelanggan',
+    message: `Yakin ingin menghapus data pelanggan "${name}"?`,
+    details: 'Riwayat transaksi masa lalu tetap tersimpan, namun pelanggan tidak akan muncul lagi di daftar pilihan kasir.',
+    confirmText: 'Ya, Hapus',
+    cancelText: 'Batal',
+    type: 'danger'
+  });
+
+  if (isConfirmed) {
     buyerStore.deleteBuyer(id);
     if (activeBuyerId.value === id) {
       showBuyerDrawer.value = false;

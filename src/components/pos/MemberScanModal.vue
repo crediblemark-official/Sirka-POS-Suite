@@ -79,19 +79,48 @@ const scannedMemberMatch = computed<Buyer | undefined>(() => {
   });
 });
 
+function handleGlobalKeydown(e: KeyboardEvent) {
+  if (!props.isOpen) return;
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    e.stopPropagation();
+    handleClose();
+  }
+}
+
 watch(
   () => props.isOpen,
-  (open) => {
+  async (open) => {
     if (open) {
+      window.addEventListener('keydown', handleGlobalKeydown);
       scanInput.value = '';
       scanError.value = '';
       scanSuccess.value = '';
       cameraError.value = '';
       isCameraActive.value = false;
-      setTimeout(() => {
-        scanInputRef.value?.focus();
-      }, 100);
+
+      // Cek apakah komputer memiliki webcam terpasang
+      let hasWebcam = false;
+      if (typeof navigator !== 'undefined' && navigator.mediaDevices?.enumerateDevices) {
+        try {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          hasWebcam = devices.some(d => d.kind === 'videoinput');
+        } catch (e) {
+          console.warn('Gagal mendeteksi daftar webcam:', e);
+        }
+      }
+
+      if (hasWebcam) {
+        // Jika ada webcam terdeteksi, buka kamera langsung secara otomatis!
+        await startWebcamScanner();
+      } else {
+        // Jika tidak ada webcam, langsung fokuskan kursor ke input tembak barcode / keyboard
+        setTimeout(() => {
+          scanInputRef.value?.focus();
+        }, 100);
+      }
     } else {
+      window.removeEventListener('keydown', handleGlobalKeydown);
       stopWebcamScanner();
     }
   }
@@ -140,6 +169,9 @@ async function startWebcamScanner() {
       videoRef.value.setAttribute('playsinline', 'true');
       await videoRef.value.play();
       startScanLoop();
+      setTimeout(() => {
+        scanInputRef.value?.focus();
+      }, 150);
     }
   } catch (err: any) {
     console.warn('Webcam start error:', err);
@@ -151,6 +183,10 @@ async function startWebcamScanner() {
     } else {
       cameraError.value = err?.message || 'Gagal mengakses webcam. Silakan tembak dengan Scanner USB.';
     }
+    isCameraActive.value = false;
+    setTimeout(() => {
+      scanInputRef.value?.focus();
+    }, 150);
   }
 }
 
@@ -291,6 +327,12 @@ function handleApplyMember(buyer?: Buyer) {
 }
 
 function handleScanInputKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    e.stopPropagation();
+    handleClose();
+    return;
+  }
   if (e.key === 'Enter') {
     e.preventDefault();
     if (scannedMemberMatch.value) {
@@ -302,6 +344,7 @@ function handleScanInputKeydown(e: KeyboardEvent) {
 }
 
 onUnmounted(() => {
+  window.removeEventListener('keydown', handleGlobalKeydown);
   stopWebcamScanner();
 });
 </script>

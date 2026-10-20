@@ -4,6 +4,7 @@ import { Buyer, MembershipTier, CustomerType } from '../../../types';
 import { useBuyerStore } from '../../../stores/buyerStore';
 import { useSettingsStore } from '../../../stores/settingsStore';
 import { formatRupiah } from '../../../utils/formatters';
+import { useConfirmDialog } from '../../../composables/useConfirmDialog';
 import {
   CreditCard,
   Check,
@@ -101,8 +102,19 @@ async function handleSave() {
   }
 }
 
+const { confirm: showConfirm } = useConfirmDialog();
+
 async function handleRemoveCard() {
-  if (confirm(`Yakin ingin mencabut nomor kartu member "${props.buyer.memberCardNo}" dari ${props.buyer.name}? Pelanggan akan kembali menjadi non-member.`)) {
+  const isConfirmed = await showConfirm({
+    title: 'Cabut Nomor Kartu Member',
+    message: `Yakin ingin mencabut nomor kartu member "${props.buyer.memberCardNo}" dari ${props.buyer.name}?`,
+    details: 'Pelanggan akan kembali menjadi non-member dan tier kembali ke REGULAR.',
+    confirmText: 'Ya, Cabut Kartu',
+    cancelText: 'Batal',
+    type: 'warning'
+  });
+
+  if (isConfirmed) {
     isSaving.value = true;
     try {
       const updatedBuyer: Buyer = {

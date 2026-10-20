@@ -21,6 +21,7 @@ import LedgerRibbon from './LedgerRibbon.vue';
 import LedgerTransactionsTable from './LedgerTransactionsTable.vue';
 import LedgerItemsTable from './LedgerItemsTable.vue';
 import LedgerStatusModal from './LedgerStatusModal.vue';
+import { useConfirmDialog } from '../../composables/useConfirmDialog';
 
 const props = withDefaults(defineProps<{
   searchQuery?: string;
@@ -221,13 +222,23 @@ function handleCancelStatusConfirm() {
   statusConfirmModal.value.tx = null;
 }
 
+const { confirm: showConfirm } = useConfirmDialog();
+
 // 8. Delete transaction handler
 async function handleDeleteTransaction(id: string) {
-  if (!confirm('Hapus catatan transaksi ini? Stok barang dan poin member akan dikembalikan otomatis sesuai transaksi yang dihapus.')) return;
+  const isConfirmed = await showConfirm({
+    title: 'Hapus Catatan Transaksi',
+    message: 'Yakin ingin menghapus catatan transaksi ini?',
+    details: 'Stok barang dan poin member akan dikembalikan otomatis sesuai transaksi yang dihapus.',
+    confirmText: 'Ya, Hapus',
+    cancelText: 'Batal',
+    type: 'danger'
+  });
+  if (!isConfirmed) return;
   try {
     await ledgerStore.deleteTransaction(id);
   } catch (error) {
-    alert(`Gagal menghapus transaksi: ${error}`);
+    console.error(`Gagal menghapus transaksi:`, error);
   }
 }
 </script>

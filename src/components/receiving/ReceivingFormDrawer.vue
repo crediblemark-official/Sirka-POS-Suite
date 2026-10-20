@@ -12,6 +12,7 @@ import {
   FileText
 } from 'lucide-vue-next';
 import SearchableSelect, { type SelectOption } from '../common/SearchableSelect.vue';
+import { useConfirmDialog } from '../../composables/useConfirmDialog';
 
 defineProps<{
   isOpen: boolean;
@@ -120,11 +121,19 @@ async function handleSaveReceiving() {
   }
 }
 
+const { confirm: showConfirm } = useConfirmDialog();
+
 async function handleDeleteReceiving() {
   if (!purchaseStore.activeReceiptForEdit) return;
-  if (!confirm(`Hapus nota kulakan ${purchaseStore.activeReceiptForEdit.supplierInvoiceNo}? Stok barang akan dikembalikan ke kondisi sebelum nota ini dicatat.`)) {
-    return;
-  }
+  const isConfirmed = await showConfirm({
+    title: 'Hapus Nota Kulakan',
+    message: `Hapus nota kulakan ${purchaseStore.activeReceiptForEdit.supplierInvoiceNo}?`,
+    details: 'Stok barang akan dikembalikan ke kondisi sebelum nota ini dicatat.',
+    confirmText: 'Ya, Hapus',
+    cancelText: 'Batal',
+    type: 'danger'
+  });
+  if (!isConfirmed) return;
   try {
     const ok = await purchaseStore.deleteReceipt(purchaseStore.activeReceiptForEdit.id);
     if (ok) {
@@ -132,7 +141,7 @@ async function handleDeleteReceiving() {
       emit('close');
     }
   } catch (e) {
-    alert(`Gagal menghapus nota: ${e}`);
+    console.error(`Gagal menghapus nota:`, e);
   }
 }
 </script>

@@ -25,6 +25,7 @@ import MetricStatsStrip, { MetricStatItem } from '../common/MetricStatsStrip.vue
 import SearchableSelect, { type SelectOption } from '../common/SearchableSelect.vue';
 import AppEmptyState from '../common/AppEmptyState.vue';
 import PreOrderFormDrawer from './PreOrderFormDrawer.vue';
+import { useConfirmDialog } from '../../composables/useConfirmDialog';
 
 const props = withDefaults(defineProps<{
   searchQuery?: string;
@@ -181,10 +182,25 @@ const metricStats = computed<MetricStatItem[]>(() => [
   }
 ]);
 
+const { confirm: showConfirm } = useConfirmDialog();
+
 async function handleDeletePo(id: string, date: string, buyer: string) {
-  if (confirm(`Yakin ingin menghapus catatan pesanan untuk ${buyer} tanggal ${date}?`)) {
-    try { await preOrderStore.deleteSchedule(id); }
-    catch (error) { alert(`Gagal menghapus pesanan: ${error}`); return; }
+  const isConfirmed = await showConfirm({
+    title: 'Hapus Catatan Pesanan',
+    message: `Yakin ingin menghapus catatan pesanan untuk "${buyer}" tanggal ${date}?`,
+    details: 'Pesanan yang dihapus akan dihilangkan dari jadwal pre-order.',
+    confirmText: 'Ya, Hapus',
+    cancelText: 'Batal',
+    type: 'danger'
+  });
+
+  if (isConfirmed) {
+    try {
+      await preOrderStore.deleteSchedule(id);
+    } catch (error) {
+      console.error('Gagal menghapus pesanan:', error);
+      return;
+    }
     if (preOrderStore.activeScheduleForSidebar?.id === id) {
       preOrderStore.activeScheduleForSidebar = null;
       preOrderStore.showPreOrderSidebar = false;

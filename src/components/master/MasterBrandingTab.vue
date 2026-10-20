@@ -25,7 +25,10 @@ import {
   Monitor,
   Printer,
   FileText,
-  Phone
+  Phone,
+  Image as ImageIcon,
+  Upload,
+  Trash2
 } from 'lucide-vue-next';
 
 const settingsStore = useSettingsStore();
@@ -36,8 +39,48 @@ const tempStore = ref({
   tagline: settingsStore.storeTagline,
   address: settingsStore.storeAddress,
   phone: settingsStore.storePhone,
-  invoicePrefix: settingsStore.invoicePrefix
+  invoicePrefix: settingsStore.invoicePrefix,
+  logo: settingsStore.storeLogo
 });
+
+const logoFileInput = ref<HTMLInputElement | null>(null);
+
+function triggerLogoUpload() {
+  logoFileInput.value?.click();
+}
+
+function handleLogoFileChange(event: Event) {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+  if (!file) return;
+
+  if (!file.type.startsWith('image/')) {
+    alert('Harap pilih file gambar (PNG, JPG, SVG, WebP).');
+    return;
+  }
+
+  // Maksimal 2MB
+  if (file.size > 2 * 1024 * 1024) {
+    alert('Ukuran file logo maksimal 2 MB agar performa tetap cepat.');
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const result = e.target?.result as string;
+    if (result) {
+      tempStore.value.logo = result;
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+function handleRemoveLogo() {
+  tempStore.value.logo = '';
+  if (logoFileInput.value) {
+    logoFileInput.value.value = '';
+  }
+}
 
 // UI Brand Theme state
 const activeColor = ref(settingsStore.primaryColor);
@@ -101,6 +144,7 @@ async function handleSaveAll() {
     settingsStore.updateSetting('store_address', tempStore.value.address.trim()),
     settingsStore.updateSetting('store_phone', tempStore.value.phone.trim()),
     settingsStore.updateSetting('invoice_prefix', tempStore.value.invoicePrefix.trim() || 'INV-B2B'),
+    settingsStore.updateSetting('store_logo', tempStore.value.logo || ''),
     settingsStore.setTheme(activeColor.value, activePreset.value, activeHeaderStyle.value),
     settingsStore.setSurfaceTheme(activeSurface.value, customSurfaceColor.value)
   ]);
@@ -156,8 +200,9 @@ async function handleSaveAll() {
     <div class="flex items-center divide-x divide-gray-200 px-2 py-2 border-b border-gray-200 bg-white shrink-0">
       <!-- 1. Nama Usaha Terdaftar -->
       <div class="flex items-center gap-2 px-2.5 first:pl-1 flex-1 min-w-0">
-        <div class="w-7 h-7 rounded bg-blue-50 text-blue-700 flex items-center justify-center shrink-0">
-          <Store :size="15" />
+        <div class="w-7 h-7 rounded bg-blue-50 text-blue-700 flex items-center justify-center shrink-0 overflow-hidden border border-blue-100">
+          <img v-if="tempStore.logo" :src="tempStore.logo" alt="Logo" class="w-full h-full object-contain p-0.5" />
+          <Store v-else :size="15" />
         </div>
         <div class="min-w-0">
           <div class="text-[10px] text-gray-500 font-medium leading-none truncate">Nama Usaha / Toko</div>
@@ -240,6 +285,69 @@ async function handleSaveAll() {
         <!-- Form Vertikal Flat Tanpa Box Card -->
         <form @submit.prevent="handleSaveAll" class="flex-1 flex flex-col justify-between overflow-hidden">
           <div class="flex-1 overflow-y-auto p-4 space-y-3.5">
+            <!-- Pengaturan Logo Toko / Usaha -->
+            <div class="p-3 bg-purple-50/60 border border-purple-200/90 rounded-lg">
+              <div class="flex items-center justify-between mb-2">
+                <label class="text-[11px] font-bold text-purple-950 flex items-center gap-1.5">
+                  <ImageIcon :size="14" class="text-purple-700" />
+                  <span>Logo Toko & Kartu Member</span>
+                </label>
+                <span class="text-[10px] text-purple-700 bg-purple-100 px-1.5 py-0.5 rounded font-medium">
+                  Icon Kartu Member
+                </span>
+              </div>
+
+              <div class="flex items-center gap-3">
+                <!-- Preview Box Logo -->
+                <div class="w-14 h-14 rounded-lg bg-white border border-gray-300 shadow-inner flex items-center justify-center overflow-hidden shrink-0">
+                  <img
+                    v-if="tempStore.logo"
+                    :src="tempStore.logo"
+                    alt="Logo Toko"
+                    class="w-full h-full object-contain p-1"
+                  />
+                  <div v-else class="flex flex-col items-center justify-center text-gray-400">
+                    <ImageIcon :size="18" />
+                    <span class="text-[9px] font-bold uppercase mt-0.5">{{ (tempStore.code || 'KC').slice(0, 2) }}</span>
+                  </div>
+                </div>
+
+                <!-- Action Buttons & Details -->
+                <div class="flex-1 min-w-0">
+                  <input
+                    ref="logoFileInput"
+                    type="file"
+                    accept="image/png, image/jpeg, image/webp, image/svg+xml"
+                    class="hidden"
+                    @change="handleLogoFileChange"
+                  />
+                  <div class="flex items-center gap-2">
+                    <button
+                      type="button"
+                      class="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-gray-50 active:bg-gray-100 text-gray-700 border border-gray-300 rounded font-semibold text-xs cursor-pointer shadow-2xs transition-colors"
+                      @click="triggerLogoUpload"
+                    >
+                      <Upload :size="13" class="text-purple-700" />
+                      <span>{{ tempStore.logo ? 'Ganti Logo' : 'Upload Logo' }}</span>
+                    </button>
+                    <button
+                      v-if="tempStore.logo"
+                      type="button"
+                      class="flex items-center gap-1 px-2 py-1.5 text-red-600 hover:bg-red-50 rounded font-semibold text-xs cursor-pointer transition-colors border border-transparent hover:border-red-200"
+                      title="Hapus Logo"
+                      @click="handleRemoveLogo"
+                    >
+                      <Trash2 :size="13" />
+                      <span>Hapus</span>
+                    </button>
+                  </div>
+                  <p class="text-[10px] text-gray-500 mt-1 leading-snug">
+                    Format PNG, JPG, WebP, SVG. Otomatis tampil di pojok kiri atas Kartu Member menggantikan icon KC.
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <div>
               <label class="text-[11px] font-semibold text-gray-700 block mb-1">Nama Usaha / Toko / Hub *</label>
               <input
@@ -317,6 +425,12 @@ async function handleSaveAll() {
             <div class="pt-3 border-t border-gray-200">
               <span class="text-[11px] font-bold text-gray-700 block mb-1.5">Simulasi Header Struk Kasir:</span>
               <div class="bg-[#faf9f7] border border-gray-300 rounded p-3 font-mono text-center space-y-0.5 text-gray-800 text-[11px] select-text">
+                <img
+                  v-if="tempStore.logo"
+                  :src="tempStore.logo"
+                  alt="Logo Toko"
+                  class="w-8 h-8 object-contain mx-auto mb-1 rounded"
+                />
                 <div class="font-bold text-xs uppercase tracking-wider">{{ tempStore.name || 'KASIR CITRA' }}</div>
                 <div class="text-[10px] text-gray-500">{{ tempStore.tagline || 'Pusat Kulakan & Eceran' }}</div>
                 <div class="text-[10px] text-gray-500">{{ tempStore.address || 'Jl. Raya Perdagangan No. 12' }}</div>

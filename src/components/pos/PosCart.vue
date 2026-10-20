@@ -17,10 +17,12 @@ import {
   QrCode,
   ShoppingBag,
   ShoppingCart,
-  Percent
+  Percent,
+  Pencil
 } from 'lucide-vue-next';
 
 import { useBuyerStore } from '../../stores/buyerStore';
+import { useInventoryStore } from '../../stores/inventoryStore';
 import { formatRupiah } from '../../utils/formatters';
 import SearchableSelect, { type SelectOption } from '../common/SearchableSelect.vue';
 import BuyerFormModal from '../master/BuyerFormModal.vue';
@@ -28,6 +30,7 @@ import MemberScanModal from './MemberScanModal.vue';
 import PosPaymentModal from './PosPaymentModal.vue';
 import PosVoucherModal from './PosVoucherModal.vue';
 import ItemPriceAdjustModal from './ItemPriceAdjustModal.vue';
+import TotalAdjustModal from './TotalAdjustModal.vue';
 
 const emit = defineEmits<{
   (e: 'show-receipt'): void;
@@ -36,11 +39,18 @@ const emit = defineEmits<{
 
 const posStore = usePosStore();
 const buyerStore = useBuyerStore();
+const inventoryStore = useInventoryStore();
+
+function getMasterPrice(productId: string): number {
+  const prod = inventoryStore.products.find(p => p.id === productId);
+  return prod?.lastSellPrice || 0;
+}
 
 // Modal States
 const showVoucherModal = ref(false);
 const showPaymentModal = ref(false);
 const showScanMemberModal = ref(false);
+const showTotalAdjustModal = ref(false);
 
 function toggleRedeemPoints() {
   if (posStore.pointsToRedeem > 0) {
@@ -417,13 +427,27 @@ onUnmounted(() => {
           <!-- Kiri: Tampilan Bersih: Klik untuk buka modal 3-cara penyesuaian harga -->
           <div
             class="text-xs font-mono flex items-center gap-1.5 cursor-pointer hover:opacity-80 group/price min-w-0"
-            title="Klik untuk ubah harga (Harga Jual Langsung, Markup Rp, atau %)"
+            title="Klik untuk ubah harga / negosiasi"
             @click="openPriceAdjustModal(item)"
           >
-            <span class="font-bold text-amber-700 group-hover/price:underline">
-              Rp {{ formatRupiah(item.sellPrice) }}
-            </span>
-            <span class="text-[10px] text-gray-400 uppercase">/ {{ item.unit }}</span>
+            <!-- Jika harga dinego lebih rendah dari harga master: cukup 2 harga (coret & gak coret) -->
+            <template v-if="getMasterPrice(item.productId) > item.sellPrice">
+              <span class="line-through text-gray-400 text-[10.5px]">
+                {{ formatRupiah(getMasterPrice(item.productId)) }}
+              </span>
+              <span class="font-bold text-rose-700 group-hover/price:underline">
+                {{ formatRupiah(item.sellPrice) }}
+              </span>
+              <span class="text-[10px] text-gray-400 uppercase">/ {{ item.unit }}</span>
+            </template>
+
+            <!-- Normal -->
+            <template v-else>
+              <span class="font-bold text-amber-700 group-hover/price:underline">
+                {{ formatRupiah(item.sellPrice) }}
+              </span>
+              <span class="text-[10px] text-gray-400 uppercase">/ {{ item.unit }}</span>
+            </template>
           </div>
 
           <!-- Kanan: Qty Control & Subtotal -->
@@ -517,45 +541,6 @@ onUnmounted(() => {
             <span>+ Gunakan Voucher</span>
           </span>
         </div>
-        <!-- Diskon Manual Kasir (% atau Rp) -->
-        <div class="flex items-center justify-between px-2.5 py-1 bg-gray-50 border border-gray-200 rounded text-xs mt-1.5">
-          <span class="text-[11px] text-gray-600 flex items-center gap-1 font-medium">
-            <Percent :size="11" class="text-indigo-500" />
-            <span>Diskon Kasir:</span>
-          </span>
-          <div class="flex items-center gap-1.5 font-mono text-xs">
-            <input
-              type="text"
-              placeholder="% Disc"
-              :value="posStore.manualDiscountPercent || ''"
-              class="w-12 h-5 text-center text-[11px] border border-gray-300 rounded bg-white font-mono focus:border-indigo-500 focus:outline-none"
-              @change="(e: any) => {
-                const p = Number(e.target.value.replace(/\D/g, '')) || 0;
-                posStore.setManualDiscount(p, 0);
-              }"
-            />
-            <span class="text-[10px] text-gray-400">atau</span>
-            <input
-              type="text"
-              placeholder="Rp Disc"
-              :value="posStore.manualDiscountNominal ? formatRupiah(posStore.manualDiscountNominal) : ''"
-              class="w-20 h-5 text-right px-1 text-[11px] border border-gray-300 rounded bg-white font-mono focus:border-indigo-500 focus:outline-none"
-              @change="(e: any) => {
-                const rp = Number(e.target.value.replace(/\D/g, '')) || 0;
-                posStore.setManualDiscount(0, rp);
-              }"
-            />
-            <button
-              v-if="posStore.manualDiscountAmount > 0"
-              type="button"
-              class="text-gray-400 hover:text-rose-600 cursor-pointer p-0.5"
-              title="Reset diskon manual"
-              @click="posStore.setManualDiscount(0, 0)"
-            >
-              <X :size="11" />
-            </button>
-          </div>
-        </div>
       </div>
 
       <!-- Totals Breakdown -->
@@ -603,7 +588,7 @@ onUnmounted(() => {
         </div>
 
         <!-- Grand Total row -->
-        <div class="flex items-center justify-between pt-1 border-t border-gray-200">
+        <div class="flex items-center justify-between pt-2 border-t border-gray-200">
           <div>
             <span class="text-[11px] text-gray-500 block">Estimasi Margin Laba:</span>
             <span class="text-xs font-bold text-emerald-700 font-mono">
@@ -613,11 +598,27 @@ onUnmounted(() => {
               🎁 +{{ posStore.pointsToEarn }} Poin Didapat
             </span>
           </div>
-          <div class="text-right">
-            <span class="text-[11px] text-gray-500 block uppercase font-bold tracking-wider">Total Tagihan:</span>
-            <span class="text-lg font-black font-mono text-blue-700 leading-none">
+
+          <div
+            class="text-right cursor-pointer group/total py-1 px-2 rounded-lg hover:bg-black/5 transition-all select-none flex items-center justify-end gap-1.5"
+            title="Klik angka total untuk negosiasi / pembulatan tagihan"
+            @click="posStore.cartItems.length > 0 && (showTotalAdjustModal = true)"
+          >
+            <!-- Cukup 2 harga: harga coret dan harga nego aktif -->
+            <div v-if="posStore.manualDiscountAmount > 0" class="flex items-baseline justify-end gap-2">
+              <span class="line-through text-gray-400 text-xs font-mono">
+                Rp {{ formatRupiah(posStore.totalSell - posStore.voucherDiscountAmount - posStore.memberTierDiscountAmount - posStore.pointsDiscountAmount) }}
+              </span>
+              <span class="text-xl font-black font-mono text-blue-700 leading-none">
+                Rp {{ formatRupiah(posStore.finalTotal) }}
+              </span>
+            </div>
+            <!-- Normal -->
+            <div v-else class="text-xl font-black font-mono text-blue-700 leading-none group-hover/total:underline">
               Rp {{ formatRupiah(posStore.finalTotal) }}
-            </span>
+            </div>
+
+            <Pencil :size="12" class="text-gray-400 group-hover/total:text-blue-600 opacity-60 group-hover/total:opacity-100 transition-all shrink-0" />
           </div>
         </div>
       </div>
@@ -678,6 +679,12 @@ onUnmounted(() => {
       :item="selectedItemForPriceAdjust"
       @close="showItemPriceModal = false"
       @save="handleSaveItemPrice"
+    />
+
+    <!-- Modal Negosiasi Total Tagihan Akhir -->
+    <TotalAdjustModal
+      :is-open="showTotalAdjustModal"
+      @close="showTotalAdjustModal = false"
     />
   </div>
 </template>

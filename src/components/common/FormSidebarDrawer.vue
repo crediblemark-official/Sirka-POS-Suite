@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, watch, onUnmounted } from 'vue';
 import { X, Plus, Pencil, Trash2, Check } from 'lucide-vue-next';
 
 const props = withDefaults(
@@ -112,6 +112,31 @@ function handleClose() {
   emit('update:modelValue', false);
   emit('cancel');
 }
+
+function handleKeyDown(e: KeyboardEvent) {
+  if (!props.modelValue) return;
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    e.stopPropagation();
+    handleClose();
+  }
+}
+
+watch(
+  () => props.modelValue,
+  (val) => {
+    if (val) {
+      window.addEventListener('keydown', handleKeyDown);
+    } else {
+      window.removeEventListener('keydown', handleKeyDown);
+    }
+  },
+  { immediate: true }
+);
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeyDown);
+});
 </script>
 
 <template>

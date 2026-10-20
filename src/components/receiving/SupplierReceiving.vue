@@ -25,6 +25,7 @@ import MetricStatsStrip, { MetricStatItem } from '../common/MetricStatsStrip.vue
 import AppEmptyState from '../common/AppEmptyState.vue';
 import SearchableSelect, { type SelectOption } from '../common/SearchableSelect.vue';
 import ReceivingFormDrawer from './ReceivingFormDrawer.vue';
+import { useConfirmDialog } from '../../composables/useConfirmDialog';
 
 const props = withDefaults(defineProps<{
   searchQuery?: string;
@@ -190,11 +191,22 @@ function handleEditReceipt(rcp: PurchaseReceipt) {
   purchaseStore.loadReceiptForEdit(rcp);
 }
 
+const { confirm: showConfirm } = useConfirmDialog();
+
 async function handleDeleteReceipt(rcp: PurchaseReceipt) {
-  if (confirm(`Yakin ingin menghapus nota kulakan ${rcp.supplierInvoiceNo}? Stok barang akan dikembalikan ke kondisi sebelumnya.`)) {
+  const isConfirmed = await showConfirm({
+    title: 'Hapus Nota Kulakan',
+    message: `Yakin ingin menghapus nota kulakan "${rcp.supplierInvoiceNo}"?`,
+    details: 'Stok barang yang diterima pada nota ini akan otomatis dikurangi kembali.',
+    confirmText: 'Ya, Hapus',
+    cancelText: 'Batal',
+    type: 'danger'
+  });
+
+  if (isConfirmed) {
     let ok = false;
     try { ok = await purchaseStore.deleteReceipt(rcp.id); }
-    catch (error) { alert(`Gagal menghapus nota: ${error}`); return; }
+    catch (error) { console.error('Gagal menghapus nota:', error); return; }
     if (ok) {
       successMessage.value = `Nota ${rcp.supplierInvoiceNo} berhasil dihapus & stok barang telah disesuaikan.`;
       setTimeout(() => {

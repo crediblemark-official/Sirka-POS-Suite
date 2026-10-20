@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { Transaction } from '../../types';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { dbService } from '../../services/dbService';
-import { Printer, Copy, Check, X, ScanLine } from 'lucide-vue-next';
+import { Printer, Copy, Check, X, Loader2, Bluetooth, Cable, AlertCircle, Settings } from 'lucide-vue-next';
+import { formatRupiah } from '../../utils/formatters';
+import JsBarcode from 'jsbarcode';
+import PrinterConfigModal from '../settings/PrinterConfigModal.vue';
 
 const props = defineProps<{
   transaction: Transaction | null;
@@ -13,50 +16,152 @@ const emit = defineEmits<{
   (e: 'close'): void;
 }>();
 
-import { formatRupiah } from '../../utils/formatters';
-
 const settingsStore = useSettingsStore();
 const copied = ref(false);
-const copiedThermal = ref(false);
-const thermalPreview = ref(false);
-
-// BUG-014 FIX: Struk thermal (teks 32 kolom) dibuat di Rust dan dikirim ke printer thermal
-// atau driver label; hasil dapat dilihat (preview), disalin, atau disimpan ke file lewat sistem.
 const thermalText = ref<string>('');
+const barcodeSvgRef = ref<SVGSVGElement | null>(null);
+const showPrinterConfig = ref(false);
 
-async function handleThermalPrint() {
-  if (!props.transaction) return;
-  try {
-    thermalText.value = await dbService.generateReceiptText(
-      props.transaction as unknown as Record<string, unknown>,
-      settingsStore.storeName
-    );
-    thermalPreview.value = true;
-  } catch (error) {
-    alert(`Gagal membuat struk thermal: ${error}`);
+function renderBarcode() {
+  if (barcodeSvgRef.value && props.transaction?.invoiceNo) {
+    try {
+      JsBarcode(barcodeSvgRef.value, props.transaction.invoiceNo, {
+        format: 'CODE128',
+        width: 1.6,
+        height: 38,
+        displayValue: false,
+        margin: 0,
+        background: 'transparent',
+        lineColor: '#111827',
+      });
+    } catch (e) {
+      console.warn('Gagal render barcode:', e);
+    }
   }
 }
 
-async function copyThermalText() {
-  if (!navigator.clipboard || !thermalText.value) return;
-  try {
-    await navigator.clipboard.writeText(thermalText.value);
-    copiedThermal.value = true;
-    setTimeout(() => { copiedThermal.value = false; }, 2000);
-  } catch { /* clipboard tidak tersedia */ }
+// Smart Dynamic Hardware Detection State
+interface DetectedPrinterState {
+  recommended_mode: 'usb' | 'bluetooth' | 'system';
+  usb_available: boolean;
+  usb_device_path: string | null;
+  bluetooth_available: boolean;
+  bluetooth_device_name: string | null;
+  bluetooth_mac: string | null;
+  status_text: string;
 }
 
-async function saveThermalText() {
-  if (!props.transaction) return;
-  const filename = `struk_${props.transaction.invoiceNo}.txt`;
-  const encoder = new TextEncoder();
+const printerInfo = ref<DetectedPrinterState>({
+  recommended_mode: 'system',
+  usb_available: false,
+  usb_device_path: null,
+  bluetooth_available: false,
+  bluetooth_device_name: null,
+  bluetooth_mac: null,
+  status_text: 'Memeriksa perangkat printer...'
+});
+
+const isPrinting = ref(false);
+const printFeedback = ref<{ type: 'success' | 'error'; message: string } | null>(null);
+
+// Mode aktif otomatis: USB > Bluetooth > Dialog Sistem / PDF
+const activePrintMode = computed(() => {
+  return printerInfo.value.recommended_mode;
+});
+
+async function refreshPrinterDetection() {
   try {
-    const msg = await dbService.saveExportFile(filename, Array.from(encoder.encode(thermalText.value)));
-    alert(msg);
-  } catch (error) {
-    alert(`Gagal menyimpan teks struk: ${error}`);
+    const res = await dbService.detectPrinterStatus();
+    printerInfo.value = res;
+  } catch (e) {
+    console.warn('Gagal deteksi printer:', e);
   }
 }
+
+async function executeSmartPrint() {
+  if (isPrinting.value || !props.transaction) return;
+  isPrinting.value = true;
+  printFeedback.value = null;
+
+  try {
+    // Siapkan teks ESC/POS thermal jika target adalah printer hardware (USB atau Bluetooth)
+    if (activePrintMode.value === 'usb' || activePrintMode.value === 'bluetooth') {
+      if (!thermalText.value) {
+        thermalText.value = await dbService.generateReceiptText(
+          props.transaction as unknown as Record<string, unknown>,
+          settingsStore.storeName,
+          settingsStore.receiptPaperWidth
+        );
+      }
+    }
+
+    if (activePrintMode.value === 'usb') {
+      const msg = await dbService.printToUsbPrinter(thermalText.value, printerInfo.value.usb_device_path || undefined);
+      printFeedback.value = { type: 'success', message: `✓ ${msg}` };
+    } else if (activePrintMode.value === 'bluetooth') {
+      const msg = await dbService.printToBluetoothPrinter(thermalText.value, printerInfo.value.bluetooth_mac || undefined);
+      printFeedback.value = { type: 'success', message: `✓ ${msg}` };
+    } else {
+      // Fallback: Membuka dialog cetak sistem / simpan PDF
+      handlePrintGraphic();
+      printFeedback.value = { type: 'success', message: '✓ Membuka dialog cetak sistem / PDF' };
+    }
+
+    setTimeout(() => {
+      if (printFeedback.value?.type === 'success') {
+        printFeedback.value = null;
+      }
+    }, 4500);
+  } catch (err: any) {
+    console.warn('Hardware print encountered issue, auto-falling back to system print:', err);
+    printFeedback.value = {
+      type: 'error',
+      message: `Perangkat hardware tidak merespons. Mengalihkan otomatis ke dialog cetak sistem...`
+    };
+    handlePrintGraphic();
+  } finally {
+    isPrinting.value = false;
+  }
+}
+
+function handleKeydown(e: KeyboardEvent) {
+  if (!props.transaction) return;
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    emit('close');
+  } else if (e.key === 'Enter') {
+    const target = e.target as HTMLElement;
+    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) {
+      return;
+    }
+    e.preventDefault();
+    executeSmartPrint();
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', handleKeydown);
+  refreshPrinterDetection();
+  nextTick(() => {
+    renderBarcode();
+  });
+});
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeydown);
+  document.body.classList.remove('print-graphic');
+});
+
+watch(() => props.transaction, (tx) => {
+  thermalText.value = '';
+  printFeedback.value = null;
+  if (tx) {
+    refreshPrinterDetection();
+    nextTick(() => {
+      renderBarcode();
+    });
+  }
+});
 
 function isPreOrderTx(tx: Transaction): boolean {
   if (tx.isPreOrder) return true;
@@ -128,31 +233,45 @@ function copyToWhatsApp() {
   });
 }
 
-function handlePrint() {
-  window.print();
+function handlePrintGraphic() {
+  document.body.classList.add('print-graphic');
+  window.onafterprint = () => {
+    document.body.classList.remove('print-graphic');
+  };
+  nextTick(() => {
+    window.print();
+  });
 }
 </script>
 
 <template>
   <div
     v-if="transaction"
-    class="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 text-xs select-none"
+    class="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 z-50 text-xs select-none overflow-y-auto"
     @click.self="emit('close')"
   >
-    <div class="bg-white rounded-lg shadow-2xl border border-gray-300 w-full max-w-lg overflow-hidden flex flex-col">
-      <!-- Modal Header -->
-      <div class="px-4 py-2.5 bg-[#f6f5f2] border-b border-gray-200 flex items-center justify-between font-bold text-gray-800">
-        <div class="flex items-center gap-1.5 text-blue-700">
+    <div class="bg-white rounded-lg shadow-2xl border border-gray-300 w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden my-auto">
+      <!-- Modal Header (Pinned, Clean, No Tabs) -->
+      <div class="px-4 py-2.5 bg-gray-50 border-b border-gray-200 flex items-center justify-between font-bold text-gray-800 shrink-0">
+        <div class="flex items-center gap-2 text-blue-700">
           <Printer :size="16" />
-          <span>Faktur Nota Transaksi Kasir</span>
+          <span class="text-xs sm:text-sm font-bold">Struk Pembayaran — #{{ transaction.invoiceNo }}</span>
         </div>
-        <button class="p-1 text-gray-400 hover:text-black rounded cursor-pointer" @click="emit('close')">
+
+        <button
+          class="p-1 text-gray-400 hover:text-black rounded cursor-pointer transition-colors"
+          title="Tutup (Esc)"
+          @click="emit('close')"
+        >
           <X :size="16" />
         </button>
       </div>
 
-      <!-- Printable Receipt Body -->
-      <div class="p-5 overflow-y-auto max-h-[70vh] bg-white text-gray-900 font-sans" id="printableReceipt">
+      <!-- Printable Receipt Body (Scrollable, Clean Single View) -->
+      <div
+        class="p-4 sm:p-5 overflow-y-auto flex-1 min-h-0 bg-white text-gray-900 font-sans"
+        id="printableReceipt"
+      >
         <!-- Receipt Top Header -->
         <div class="text-center border-b border-gray-300 pb-3 mb-3">
           <div class="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase mb-1 tracking-wider" :class="transaction.customerType === 'B2C' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-blue-100 text-blue-800 border border-blue-300'">
@@ -249,26 +368,13 @@ function handlePrint() {
           <span class="text-gray-800">{{ transaction.notes }}</span>
         </div>
 
-        <!-- Tanda Terima Pengiriman (Faktur B2B) — GAP-3: PRD Aturan #4 -->
-        <div
-          v-if="transaction.customerType !== 'B2C'"
-          class="mt-4 pt-2.5 border-t-2 border-dashed border-gray-300"
-        >
-          <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1.5 text-center">
-            Tanda Terima Pengiriman
+        <!-- Barcode Faktur Transaksi (Code 128) -->
+        <div class="mt-4 pt-3 border-t-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-center">
+          <svg ref="barcodeSvgRef" class="max-w-[260px] h-12 my-1"></svg>
+          <span class="font-mono text-[11px] font-bold tracking-widest text-gray-800 -mt-0.5">
+            {{ transaction.invoiceNo }}
           </span>
-          <div class="grid grid-cols-2 gap-6 text-center text-[10.5px] text-gray-600">
-            <div>
-              <div class="pt-6 pb-0.5 border-b border-gray-500">
-                {{ transaction.picName || '' }}
-              </div>
-              <span class="block mt-0.5 font-semibold">Penerima (PIC Dapur)</span>
-            </div>
-            <div>
-              <div class="pt-6 pb-0.5 border-b border-gray-500"></div>
-              <span class="block mt-0.5 font-semibold">Pengirim (Toko)</span>
-            </div>
-          </div>
+          <span class="text-[9.5px] text-gray-400 mt-0.5 font-mono">Scan barcode untuk lacak nota / retur</span>
         </div>
 
         <!-- Receipt Footer Note -->
@@ -285,77 +391,91 @@ function handlePrint() {
         </div>
       </div>
 
-      <!-- Action Buttons Footer -->
-      <div class="px-4 py-3 bg-[#f6f5f2] border-t border-gray-200 flex items-center justify-between">
-        <button
-          class="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-xs cursor-pointer shadow-xs transition-colors"
-          @click="copyToWhatsApp"
-        >
-          <Check v-if="copied" :size="14" />
-          <Copy v-else :size="14" />
-          <span>{{ copied ? 'Disalin ke Clipboard!' : 'Salin Teks WhatsApp' }}</span>
-        </button>
-
+      <!-- Feedback Banner (Muncul saat mencetak atau jika ada pesan) -->
+      <div
+        v-if="printFeedback"
+        class="px-4 py-2 text-xs font-sans flex items-center justify-between shrink-0 transition-all"
+        :class="printFeedback.type === 'success' ? 'bg-emerald-50 text-emerald-800 border-t border-b border-emerald-200' : 'bg-rose-50 text-rose-800 border-t border-b border-rose-200'"
+      >
         <div class="flex items-center gap-2">
+          <Check v-if="printFeedback.type === 'success'" :size="14" class="text-emerald-600" />
+          <AlertCircle v-else :size="14" class="text-rose-600" />
+          <span>{{ printFeedback.message }}</span>
+        </div>
+        <button class="text-xs text-gray-400 hover:text-gray-700 cursor-pointer ml-2" @click="printFeedback = null">✕</button>
+      </div>
+
+      <!-- Clean Single Modal Footer -->
+      <div class="px-3.5 py-2.5 bg-white border-t border-gray-200 flex items-center justify-between gap-3 shrink-0">
+        <!-- Left: Quick Actions -->
+        <div class="flex items-center gap-1.5 shrink-0">
           <button
-            class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded font-bold text-xs cursor-pointer shadow-xs transition-colors"
-            title="Buat struk teks 32 kolom untuk printer thermal 58mm (preview, salin, atau simpan .txt)"
-            @click="handleThermalPrint"
+            type="button"
+            class="h-8 flex items-center gap-1 px-2.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-md font-semibold text-[11px] whitespace-nowrap cursor-pointer transition-colors shadow-xs shrink-0"
+            title="Salin rincian transaksi format WhatsApp"
+            @click="copyToWhatsApp"
           >
-            <ScanLine :size="14" />
-            <span>Struk Thermal</span>
+            <Check v-if="copied" :size="13" />
+            <Copy v-else :size="13" />
+            <span>{{ copied ? 'Tersalin' : 'Salin WA' }}</span>
           </button>
+
           <button
-            class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded font-semibold text-xs cursor-pointer border border-gray-300"
+            type="button"
+            class="h-8 flex items-center gap-1 px-2 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 rounded-md font-semibold text-[11px] whitespace-nowrap cursor-pointer border border-slate-300 transition-colors shadow-2xs shrink-0"
+            title="Pengaturan hardware printer & ukuran kertas"
+            @click="showPrinterConfig = true"
+          >
+            <Settings :size="12" />
+            <span class="hidden sm:inline">Printer</span>
+          </button>
+        </div>
+
+        <!-- Right: Actions (Tutup & Cetak Struk) -->
+        <div class="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            class="h-8 flex items-center gap-1 px-2.5 bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-gray-700 rounded-md font-semibold text-[11px] whitespace-nowrap cursor-pointer border border-gray-300 transition-colors"
+            title="Tutup nota (Esc)"
             @click="emit('close')"
           >
-            Tutup
+            <span>Tutup</span>
+            <kbd class="text-[9px] bg-white border border-gray-300 rounded px-1 text-gray-500 font-mono">Esc</kbd>
           </button>
+
+          <!-- Primary Smart Print Button -->
           <button
-            class="flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded font-bold text-xs cursor-pointer shadow-xs transition-colors"
-            @click="handlePrint"
+            type="button"
+            class="h-8 flex items-center gap-1.5 px-3 text-white rounded-md font-bold text-[11px] whitespace-nowrap cursor-pointer shadow-xs transition-all active:scale-95 disabled:opacity-50"
+            :class="{
+              'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800': activePrintMode === 'usb',
+              'bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800': activePrintMode === 'bluetooth',
+              'bg-blue-600 hover:bg-blue-700 active:bg-blue-800': activePrintMode === 'system',
+            }"
+            :disabled="isPrinting"
+            title="Cetak struk (Tekan Enter)"
+            @click="executeSmartPrint"
           >
-            <Printer :size="14" />
-            <span>Cetak Nota</span>
+            <Loader2 v-if="isPrinting" :size="13" class="animate-spin" />
+            <Cable v-else-if="activePrintMode === 'usb'" :size="13" />
+            <Bluetooth v-else-if="activePrintMode === 'bluetooth'" :size="13" />
+            <Printer v-else :size="13" />
+
+            <span v-if="isPrinting">Mencetak...</span>
+            <span v-else>Cetak</span>
+
+            <kbd class="text-[9px] bg-white/20 rounded px-1 py-0.2 text-white font-mono">↵ Enter</kbd>
           </button>
         </div>
       </div>
 
-      <!-- Preview Struk Thermal (Teks 32 Kolom) — BUG-014 FIX -->
-      <div v-if="thermalPreview" class="border-t border-gray-300 bg-gray-900 px-4 py-3">
-        <div class="flex items-center justify-between mb-2">
-          <span class="text-[10px] font-bold text-gray-300 uppercase tracking-wider">
-            Struk Thermal (Teks 32 Kolom) — kirim ke printer 58mm / driver label
-          </span>
-          <button
-            class="text-gray-400 hover:text-white cursor-pointer p-0.5"
-            title="Tutup preview struk thermal"
-            @click="thermalPreview = false"
-          >
-            <X :size="13" />
-          </button>
-        </div>
-        <pre
-          class="bg-black text-emerald-400 font-mono text-[10.5px] leading-relaxed p-3 rounded overflow-x-auto max-h-48"
-        >{{ thermalText || '(teks struk belum dibuat)' }}</pre>
-        <div class="flex items-center gap-2 mt-2">
-          <button
-            class="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-[11px] cursor-pointer transition-colors"
-            @click="copyThermalText"
-          >
-            <Check v-if="copiedThermal" :size="12" />
-            <Copy v-else :size="12" />
-            <span>{{ copiedThermal ? 'Tersalin!' : 'Salin Teks' }}</span>
-          </button>
-          <button
-            class="px-2.5 py-1 bg-white hover:bg-gray-100 border border-gray-300 rounded font-semibold text-[11px] text-gray-700 cursor-pointer transition-colors"
-            @click="saveThermalText"
-          >
-            Simpan .txt
-          </button>
-        </div>
-      </div>
     </div>
+
+    <!-- Modal Konfigurasi Hardware Printer (Modular Component) -->
+    <PrinterConfigModal
+      :is-open="showPrinterConfig"
+      @close="showPrinterConfig = false; refreshPrinterDetection()"
+    />
   </div>
 </template>
 
@@ -364,11 +484,12 @@ function handlePrint() {
   body * {
     visibility: hidden;
   }
-  #printableReceipt,
-  #printableReceipt * {
-    visibility: visible;
+
+  body.print-graphic #printableReceipt,
+  body.print-graphic #printableReceipt * {
+    visibility: visible !important;
   }
-  #printableReceipt {
+  body.print-graphic #printableReceipt {
     position: absolute;
     left: 0;
     top: 0;
@@ -382,10 +503,12 @@ function handlePrint() {
     box-shadow: none !important;
     max-height: none !important;
     overflow: visible !important;
+    display: block !important;
   }
+
   @page {
     size: auto;
-    margin: 4mm;
+    margin: 2mm;
   }
 }
 </style>

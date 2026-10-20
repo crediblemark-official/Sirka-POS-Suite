@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue';
+import { ref, watch, computed, onUnmounted } from 'vue';
 import { Buyer, CustomerType } from '../../types';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { X, Save, Plus, Edit2, Building, ShoppingBag, CreditCard } from 'lucide-vue-next';
@@ -54,10 +54,20 @@ const form = ref<{
   points: 0
 });
 
+function handleKeyDown(e: KeyboardEvent) {
+  if (!props.isOpen) return;
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    e.stopPropagation();
+    emit('close');
+  }
+}
+
 watch(
   () => props.isOpen,
   (open) => {
     if (open) {
+      window.addEventListener('keydown', handleKeyDown);
       if (props.initialData) {
         form.value = {
           id: props.initialData.id,
@@ -84,10 +94,16 @@ watch(
           points: 0
         };
       }
+    } else {
+      window.removeEventListener('keydown', handleKeyDown);
     }
   },
   { immediate: true }
 );
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeyDown);
+});
 
 function generateCardNumber() {
   const storeAbbr = settingsStore.storeCode || 'CITRA';

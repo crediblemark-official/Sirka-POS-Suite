@@ -1,15 +1,23 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import QRCode from 'qrcode';
 import {
   RotateCw,
   CreditCard,
   QrCode as QrIcon,
   Sparkles,
-  Phone
+  Download,
+  ChevronDown,
+  Loader2,
+  Image as ImageIcon,
+  CheckCircle2,
+  Layers
 } from 'lucide-vue-next';
 import { Buyer } from '../../../types';
 import { useSettingsStore } from '../../../stores/settingsStore';
+import { exportElementToPng, getMemberCardFilename } from '../../../utils/cardExporter';
+import MemberCardFrontContent from './MemberCardFrontContent.vue';
+import MemberCardBackContent from './MemberCardBackContent.vue';
 
 const props = withDefaults(
   defineProps<{
@@ -32,6 +40,43 @@ const emit = defineEmits<{
 const settingsStore = useSettingsStore();
 const isFlipped = ref(props.modelValue);
 const qrDataUrl = ref<string>('');
+
+// Export and Download State
+const exportFrontRef = ref<HTMLElement | null>(null);
+const exportBackRef = ref<HTMLElement | null>(null);
+const exportBothRef = ref<HTMLElement | null>(null);
+
+const isDownloading = ref(false);
+const isMenuOpen = ref(false);
+const downloadDropdownRef = ref<HTMLElement | null>(null);
+const feedbackToast = ref<string | null>(null);
+let toastTimer: ReturnType<typeof setTimeout> | null = null;
+
+function showToast(msg: string) {
+  if (toastTimer) clearTimeout(toastTimer);
+  feedbackToast.value = msg;
+  toastTimer = setTimeout(() => {
+    feedbackToast.value = null;
+  }, 3500);
+}
+
+function handleClickOutside(event: MouseEvent) {
+  if (
+    downloadDropdownRef.value &&
+    !downloadDropdownRef.value.contains(event.target as Node)
+  ) {
+    isMenuOpen.value = false;
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside);
+  if (toastTimer) clearTimeout(toastTimer);
+});
 
 watch(
   () => props.modelValue,
@@ -150,43 +195,219 @@ const tierClass = computed(() => {
       };
   }
 });
+
+// Download Logic
+async function downloadSide(side: 'depan' | 'belakang' | 'kedua_sisi' | 'semua_terpisah') {
+  isMenuOpen.value = false;
+  if (isDownloading.value) return;
+
+  isDownloading.value = true;
+  try {
+    if (side === 'depan' && exportFrontRef.value) {
+      const filename = getMemberCardFilename(props.buyer, 'depan');
+      const res = await exportElementToPng(exportFrontRef.value, filename);
+      if (res) showToast('✓ Kartu Tampak Depan berhasil diunduh');
+    } else if (side === 'belakang' && exportBackRef.value) {
+      const filename = getMemberCardFilename(props.buyer, 'belakang');
+      const res = await exportElementToPng(exportBackRef.value, filename);
+      if (res) showToast('✓ Kartu Tampak Belakang berhasil diunduh');
+    } else if (side === 'kedua_sisi' && exportBothRef.value) {
+      const filename = getMemberCardFilename(props.buyer, 'kedua_sisi');
+      const res = await exportElementToPng(exportBothRef.value, filename);
+      if (res) showToast('✓ Kartu Lengkap (2 Sisi) berhasil diunduh');
+    } else if (side === 'semua_terpisah' && exportFrontRef.value && exportBackRef.value) {
+      const fnFront = getMemberCardFilename(props.buyer, 'depan');
+      const fnBack = getMemberCardFilename(props.buyer, 'belakang');
+      const res1 = await exportElementToPng(exportFrontRef.value, fnFront);
+      if (res1) {
+        await new Promise((r) => setTimeout(r, 300));
+        const res2 = await exportElementToPng(exportBackRef.value, fnBack);
+        if (res2) {
+          showToast('✓ 2 File Kartu (Depan & Belakang) berhasil diunduh');
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Gagal mengunduh kartu member PNG:', err);
+    showToast('⚠️ Gagal mengunduh PNG. Silakan coba lagi.');
+  } finally {
+    isDownloading.value = false;
+  }
+}
+
+function handleQuickDownload() {
+  if (isFlipped.value) {
+    downloadSide('belakang');
+  } else {
+    downloadSide('depan');
+  }
+}
+
+defineExpose({
+  downloadSide,
+  handleQuickDownload
+});
 </script>
 
 <template>
-  <div class="flex flex-col items-center">
-    <!-- Controls (Toggle Tampak Depan / Belakang) -->
-    <div v-if="showControls" class="flex items-center gap-2 mb-3">
+  <div class="flex flex-col items-center relative">
+    <!-- Controls (Toggle Tampak Depan / Belakang & Unduh PNG) -->
+    <div v-if="showControls" class="flex flex-wrap items-center justify-between w-full max-w-[390px] gap-2 mb-3">
+      <!-- Toggle Sisi Depan / Belakang -->
       <div class="bg-slate-200 p-0.5 rounded-lg flex items-center text-xs font-semibold">
         <button
           type="button"
-          class="px-3 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5"
+          class="px-2.5 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5"
           :class="!isFlipped ? 'bg-white text-slate-900 shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'"
           @click="setSide(false)"
         >
           <CreditCard :size="13" />
-          <span>Tampak Depan</span>
+          <span>Depan</span>
         </button>
         <button
           type="button"
-          class="px-3 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5"
+          class="px-2.5 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5"
           :class="isFlipped ? 'bg-indigo-600 text-white shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'"
           @click="setSide(true)"
         >
           <QrIcon :size="13" />
-          <span>Tampak Belakang (QR Code)</span>
+          <span>Belakang (QR)</span>
         </button>
       </div>
 
-      <button
-        v-if="interactive"
-        type="button"
-        class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-200/70 rounded-md cursor-pointer transition-colors"
-        title="Putar / Balik Kartu (Klik Kartu)"
-        @click="toggleFlip"
-      >
-        <RotateCw :size="14" />
-      </button>
+      <div class="flex items-center gap-1.5">
+        <!-- Rotate / Flip Button -->
+        <button
+          v-if="interactive"
+          type="button"
+          class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-200/70 rounded-md cursor-pointer transition-colors"
+          title="Putar / Balik Kartu"
+          @click="toggleFlip"
+        >
+          <RotateCw :size="14" />
+        </button>
+
+        <!-- Download PNG Split Button with Dropdown -->
+        <div ref="downloadDropdownRef" class="relative">
+          <div class="flex items-stretch rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-xs transition-colors">
+            <!-- Main Button: Quick Download currently active side -->
+            <button
+              type="button"
+              :disabled="isDownloading"
+              class="px-2.5 py-1 text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 select-none"
+              :title="`Unduh PNG (${isFlipped ? 'Tampak Belakang' : 'Tampak Depan'})`"
+              @click="handleQuickDownload"
+            >
+              <Loader2 v-if="isDownloading" :size="13" class="animate-spin" />
+              <Download v-else :size="13" />
+              <span>{{ isDownloading ? 'Unduh...' : 'Unduh PNG' }}</span>
+            </button>
+
+            <!-- Dropdown Toggle Arrow -->
+            <button
+              type="button"
+              :disabled="isDownloading"
+              class="px-1.5 py-1 border-l border-amber-600/30 hover:bg-amber-600/20 rounded-r-lg cursor-pointer transition-colors flex items-center justify-center disabled:opacity-50"
+              title="Pilih Opsi Download PNG"
+              @click.stop="isMenuOpen = !isMenuOpen"
+            >
+              <ChevronDown :size="12" :class="{ 'rotate-180': isMenuOpen }" class="transition-transform duration-150" />
+            </button>
+          </div>
+
+          <!-- Dropdown Menu -->
+          <div
+            v-if="isMenuOpen"
+            class="absolute right-0 top-full mt-1.5 w-60 bg-white rounded-xl shadow-xl border border-gray-200 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100 text-slate-800 text-xs font-medium"
+            @click.stop
+          >
+            <div class="px-3 py-1 text-[10px] uppercase font-bold text-gray-400 tracking-wider">
+              Pilihan Format Unduh PNG (HD)
+            </div>
+
+            <!-- Option 1: Tampak Depan -->
+            <button
+              type="button"
+              class="w-full px-3 py-1.5 text-left hover:bg-amber-50/80 flex items-center gap-2.5 cursor-pointer transition-colors"
+              @click="downloadSide('depan')"
+            >
+              <div class="w-6 h-6 rounded-md bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                <CreditCard :size="13" />
+              </div>
+              <div class="flex-1">
+                <div class="font-bold text-slate-800 leading-tight">Tampak Depan</div>
+                <div class="text-[10px] text-gray-500">Nama member, No. kartu & Chip</div>
+              </div>
+            </button>
+
+            <!-- Option 2: Tampak Belakang -->
+            <button
+              type="button"
+              class="w-full px-3 py-1.5 text-left hover:bg-indigo-50/80 flex items-center gap-2.5 cursor-pointer transition-colors"
+              @click="downloadSide('belakang')"
+            >
+              <div class="w-6 h-6 rounded-md bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
+                <QrIcon :size="13" />
+              </div>
+              <div class="flex-1">
+                <div class="font-bold text-slate-800 leading-tight">Tampak Belakang</div>
+                <div class="text-[10px] text-gray-500">QR Code asli & Barcode scan</div>
+              </div>
+            </button>
+
+            <div class="my-1 border-t border-gray-100"></div>
+
+            <!-- Option 3: Kedua Sisi Berdampingan -->
+            <button
+              type="button"
+              class="w-full px-3 py-1.5 text-left hover:bg-emerald-50/80 flex items-center gap-2.5 cursor-pointer transition-colors"
+              @click="downloadSide('kedua_sisi')"
+            >
+              <div class="w-6 h-6 rounded-md bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                <ImageIcon :size="13" />
+              </div>
+              <div class="flex-1">
+                <div class="font-bold text-slate-800 leading-tight">Kedua Sisi (1 Gambar)</div>
+                <div class="text-[10px] text-gray-500">Depan & belakang berdampingan</div>
+              </div>
+            </button>
+
+            <!-- Option 4: Semua Terpisah (2 File) -->
+            <button
+              type="button"
+              class="w-full px-3 py-1.5 text-left hover:bg-purple-50/80 flex items-center gap-2.5 cursor-pointer transition-colors"
+              @click="downloadSide('semua_terpisah')"
+            >
+              <div class="w-6 h-6 rounded-md bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
+                <Layers :size="13" />
+              </div>
+              <div class="flex-1">
+                <div class="font-bold text-slate-800 leading-tight">Unduh Keduanya (2 File)</div>
+                <div class="text-[10px] text-gray-500">File depan & belakang terpisah</div>
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
+
+    <!-- Feedback Notification Toast -->
+    <transition
+      enter-active-class="transition duration-200 ease-out"
+      enter-from-class="transform -translate-y-2 opacity-0"
+      enter-to-class="transform translate-y-0 opacity-100"
+      leave-active-class="transition duration-150 ease-in"
+      leave-from-class="transform translate-y-0 opacity-100"
+      leave-to-class="transform -translate-y-2 opacity-0"
+    >
+      <div
+        v-if="feedbackToast"
+        class="mb-2 px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-semibold shadow-lg flex items-center gap-2 z-20"
+      >
+        <CheckCircle2 :size="14" class="text-emerald-400 shrink-0" />
+        <span>{{ feedbackToast }}</span>
+      </div>
+    </transition>
 
     <!-- 3D Flip Card Container -->
     <div
@@ -197,163 +418,22 @@ const tierClass = computed(() => {
     >
       <div class="card-flipper" :class="{ 'is-flipped': isFlipped }">
         <!-- ================= TAMPAK DEPAN (FRONT) ================= -->
-        <div
-          class="card-face card-front relative w-full h-full rounded-2xl p-5 shadow-2xl overflow-hidden text-white border flex flex-col justify-between"
-          :class="[
-            `bg-gradient-to-br ${tierClass.bg}`,
-            tierClass.border,
-            tierClass.glow
-          ]"
-        >
-          <!-- Holographic Sheen Layer -->
-          <div class="absolute inset-0 bg-gradient-to-tr from-white/10 via-transparent to-white/5 pointer-events-none"></div>
-
-          <!-- Top Row: Brand & Tier -->
-          <div class="flex items-center justify-between relative z-10">
-            <div class="flex items-center gap-2">
-              <div class="w-8 h-8 rounded-lg bg-amber-400/20 border border-amber-400/40 flex items-center justify-center font-black text-amber-300 text-xs shadow-inner">
-                KC
-              </div>
-              <div>
-                <p class="font-black text-xs tracking-wider uppercase leading-none drop-shadow-sm">
-                  {{ settingsStore.storeName || 'KASIR CITRA' }}
-                </p>
-                <p class="text-[9px] text-amber-200/90 font-medium tracking-widest mt-0.5">VIP REWARD MEMBER</p>
-              </div>
-            </div>
-
-            <div
-              class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm flex items-center gap-1 border"
-              :class="tierClass.badge"
-            >
-              <span>⭐ {{ buyer.tier || 'REGULAR' }}</span>
-            </div>
-          </div>
-
-          <!-- Middle: EMV Smart Chip & Contactless Wave -->
-          <div class="flex items-center gap-3 relative z-10 my-auto">
-            <!-- Metallic Chip Simulation -->
-            <div class="w-10 h-7 rounded bg-gradient-to-br from-amber-200 via-amber-400 to-amber-600 border border-amber-300/80 p-0.5 shadow-inner flex flex-col justify-around">
-              <div class="h-0.5 bg-amber-800/40 rounded-full"></div>
-              <div class="h-0.5 bg-amber-800/40 rounded-full"></div>
-              <div class="h-0.5 bg-amber-800/40 rounded-full"></div>
-            </div>
-
-            <!-- Contactless Icon -->
-            <svg class="w-5 h-5 text-white/50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M8.5 16.5a5 5 0 0 1 0-7M12 18a8 8 0 0 0 0-12M15.5 20a11 11 0 0 0 0-16" />
-            </svg>
-          </div>
-
-          <!-- Bottom: Card Number, Name & Points -->
-          <div class="relative z-10 pt-2 border-t border-white/15">
-            <!-- Embossed Card Number -->
-            <p class="font-mono text-base font-extrabold tracking-widest text-white drop-shadow-md">
-              {{ buyer.memberCardNo || `${settingsStore.storeCode}-0000` }}
-            </p>
-
-            <div class="flex items-end justify-between mt-1 text-xs">
-              <div>
-                <p class="text-[8.5px] uppercase tracking-wider text-white/60 font-medium leading-none">
-                  Pemegang Kartu
-                </p>
-                <p class="font-bold text-sm tracking-wide text-white truncate max-w-[210px] mt-0.5">
-                  {{ buyer.name }}
-                </p>
-              </div>
-
-              <div class="text-right">
-                <p v-if="buyer.memberSince" class="text-[9px] text-white/70 font-mono">
-                  SEJAK: {{ formatMemberSince(buyer.memberSince) }}
-                </p>
-                <p v-else class="text-[9px] text-white/70 font-mono tracking-wider">
-                  VALID MEMBER
-                </p>
-              </div>
-            </div>
-          </div>
+        <div class="card-face card-front">
+          <MemberCardFrontContent
+            :buyer="buyer"
+            :tier-class="tierClass"
+            :format-member-since="formatMemberSince"
+          />
         </div>
 
         <!-- ================= TAMPAK BELAKANG (BACK) ================= -->
-        <div
-          class="card-face card-back relative w-full h-full rounded-2xl shadow-2xl overflow-hidden text-white border flex flex-col justify-between"
-          :class="[
-            `bg-gradient-to-br ${tierClass.bg}`,
-            tierClass.border,
-            tierClass.glow
-          ]"
-        >
-          <!-- Magnetic Stripe -->
-          <div class="w-full h-9 bg-neutral-950 border-b border-neutral-800 shadow-inner mt-3"></div>
-
-          <!-- Signature Strip & Real QR Code Section -->
-          <div class="px-5 py-2 flex items-center justify-between gap-3 relative z-10 my-auto">
-            <!-- Left Info: Signature strip, Terms, and 1D Barcode -->
-            <div class="flex-1 space-y-2">
-              <!-- Authorized Signature Strip -->
-              <div class="flex items-center gap-2">
-                <div class="h-6 flex-1 bg-white/90 rounded px-2 flex items-center justify-between shadow-inner">
-                  <span class="font-cursive italic text-[11px] text-slate-800 font-bold truncate max-w-[120px]">
-                    {{ buyer.name }}
-                  </span>
-                  <span class="font-mono text-[9px] text-slate-400 tracking-wider">
-                    AUTHORIZED
-                  </span>
-                </div>
-                <!-- CVV / Security Digits -->
-                <div class="w-10 h-6 bg-white/20 border border-white/30 rounded flex items-center justify-center font-mono text-[10px] font-bold text-amber-300">
-                  {{ (buyer.memberCardNo || '000').slice(-3) }}
-                </div>
-              </div>
-
-              <!-- Barcode 1D Simulation -->
-              <div class="bg-white/95 p-1 rounded flex flex-col items-center shadow-xs">
-                <div class="flex items-end justify-center h-4 w-full gap-[1.5px] px-1">
-                  <span
-                    v-for="(b, idx) in barcodeBars"
-                    :key="idx"
-                    class="bg-slate-900 inline-block h-full"
-                    :style="{ width: `${b.width}px` }"
-                  ></span>
-                </div>
-                <span class="font-mono text-[8px] text-slate-900 tracking-widest font-black leading-none mt-0.5">
-                  {{ buyer.memberCardNo || `${settingsStore.storeCode}-0000` }}
-                </span>
-              </div>
-
-              <!-- Short Disclaimer -->
-              <p class="text-[8px] text-white/70 leading-tight">
-                Kartu ini diterbitkan oleh {{ settingsStore.storeName || 'Kasir Citra' }}. Scan QR code saat transaksi untuk perolehan poin.
-              </p>
-            </div>
-
-            <!-- Right Box: REAL QR CODE (Scannable by Camera/Webcam/HP) -->
-            <div class="shrink-0 flex flex-col items-center">
-              <div class="bg-white p-1 rounded-xl shadow-lg border-2 border-amber-400/80 flex items-center justify-center">
-                <img
-                  v-if="qrDataUrl"
-                  :src="qrDataUrl"
-                  alt="Member QR Code"
-                  class="w-[86px] h-[86px] object-contain rounded-lg"
-                />
-                <div v-else class="w-[86px] h-[86px] bg-slate-100 flex items-center justify-center text-slate-400 text-[10px]">
-                  Loading...
-                </div>
-              </div>
-              <span class="text-[8px] font-black uppercase tracking-wider text-amber-300 mt-1">
-                Scan QR Member
-              </span>
-            </div>
-          </div>
-
-          <!-- Bottom Back Footer: Store Contact -->
-          <div class="px-5 pb-3 pt-1 border-t border-white/10 flex items-center justify-between text-[8px] text-white/60">
-            <span class="flex items-center gap-1">
-              <Phone :size="9" />
-              <span>CS: {{ settingsStore.storePhone || '0812-3456-7890' }}</span>
-            </span>
-            <span class="font-mono tracking-widest uppercase">ID-1 ISO/IEC 7810</span>
-          </div>
+        <div class="card-face card-back">
+          <MemberCardBackContent
+            :buyer="buyer"
+            :tier-class="tierClass"
+            :qr-data-url="qrDataUrl"
+            :barcode-bars="barcodeBars"
+          />
         </div>
       </div>
     </div>
@@ -364,6 +444,55 @@ const tierClass = computed(() => {
       <span>
         {{ isFlipped ? 'Tampak Belakang: Dilengkapi QR Code asli yang siap di-scan kasir.' : 'Tampak Depan: Klik kartu atau tombol di atas untuk melihat tampak belakang.' }}
       </span>
+    </div>
+
+    <!-- ================= HIDDEN OFFSCREEN EXPORT CONTAINER ================= -->
+    <!-- Elemen flat murni berdimensi presisi (tanpa 3D perspective / rotation) untuk hasil export PNG resolusi tinggi -->
+    <div
+      class="fixed pointer-events-none -left-[9999px] -top-[9999px] z-[-100] flex flex-col gap-6"
+      aria-hidden="true"
+    >
+      <!-- 1. Single Flat Front Card -->
+      <div ref="exportFrontRef" style="width: 390px; height: 225px;" class="overflow-hidden rounded-2xl">
+        <MemberCardFrontContent
+          :buyer="buyer"
+          :tier-class="tierClass"
+          :format-member-since="formatMemberSince"
+        />
+      </div>
+
+      <!-- 2. Single Flat Back Card -->
+      <div ref="exportBackRef" style="width: 390px; height: 225px;" class="overflow-hidden rounded-2xl">
+        <MemberCardBackContent
+          :buyer="buyer"
+          :tier-class="tierClass"
+          :qr-data-url="qrDataUrl"
+          :barcode-bars="barcodeBars"
+        />
+      </div>
+
+      <!-- 3. Flat Both Sides Side-by-Side (Berdampingan) -->
+      <div
+        ref="exportBothRef"
+        style="width: 840px; padding: 24px;"
+        class="bg-slate-900 rounded-3xl flex items-center justify-center gap-6"
+      >
+        <div style="width: 390px; height: 225px;" class="overflow-hidden rounded-2xl shadow-2xl">
+          <MemberCardFrontContent
+            :buyer="buyer"
+            :tier-class="tierClass"
+            :format-member-since="formatMemberSince"
+          />
+        </div>
+        <div style="width: 390px; height: 225px;" class="overflow-hidden rounded-2xl shadow-2xl">
+          <MemberCardBackContent
+            :buyer="buyer"
+            :tier-class="tierClass"
+            :qr-data-url="qrDataUrl"
+            :barcode-bars="barcodeBars"
+          />
+        </div>
+      </div>
     </div>
   </div>
 </template>
