@@ -1,4 +1,7 @@
 use crate::db::get_pg_client;
+use crate::local_db::{
+    get_conn, local_delete_purchase, local_get_purchases, local_save_purchase,
+};
 use serde_json::Value;
 use tokio_postgres::{Client, Transaction};
 
@@ -24,8 +27,55 @@ fn items(receipt: &Value) -> Result<&Vec<Value>, String> {
         .ok_or("Item nota tidak valid".into())
 }
 
+/// BUG-017 FIX: Baca item nota dari tabel ternormalisasi `purchase_receipt_items`.
+/// Bentuk JSON-nya sama dengan `PurchaseReceiptItem` (src/types/index.ts).
+async fn read_pg_items(
+    client: &Transaction<'_>,
+    receipt_id: &str,
+) -> Result<Vec<Value>, String> {
+    let rows = client
+        .query(
+            "SELECT id, product_id, code, name, category, unit,
+                    qty_received::float8, buy_price::float8, subtotal_buy::float8,
+                    markup_percent::float8, new_sell_price::float8
+             FROM purchase_receipt_items WHERE receipt_id = $1
+             ORDER BY created_at ASC, id ASC",
+            &[&receipt_id],
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(rows
+        .iter()
+        .map(|r| {
+            serde_json::json!({
+                "id": r.get::<_, Option<String>>(0).unwrap_or_default(),
+                "productId": r.get::<_, Option<String>>(1).unwrap_or_default(),
+                "code": r.get::<_, Option<String>>(2).unwrap_or_default(),
+                "name": r.get::<_, Option<String>>(3).unwrap_or_default(),
+                "category": r.get::<_, Option<String>>(4).unwrap_or_default(),
+                "unit": r.get::<_, Option<String>>(5).unwrap_or_default(),
+                "qtyReceived": r.get::<_, Option<f64>>(6).unwrap_or(0.0),
+                "buyPrice": r.get::<_, Option<f64>>(7).unwrap_or(0.0),
+                "subtotalBuy": r.get::<_, Option<f64>>(8).unwrap_or(0.0),
+                "markupPercent": r.get::<_, Option<f64>>(9).unwrap_or(0.0),
+                "newSellPrice": r.get::<_, Option<f64>>(10).unwrap_or(0.0),
+            })
+        })
+        .collect())
+}
+
 async fn adjust(client: &Transaction<'_>, receipt: &Value, reverse: bool) -> Result<(), String> {
-    for item in items(receipt)? {
+    adjust_items(client, items(receipt)?, reverse).await
+}
+
+/// BUG-017 FIX: Penyesuaian stok/produk berbasis item dari tabel ternormalisasi.
+async fn adjust_items(
+    client: &Transaction<'_>,
+    items: &[Value],
+    reverse: bool,
+) -> Result<(), String> {
+    for item in items {
         let id = item
             .get("productId")
             .and_then(Value::as_str)
@@ -71,20 +121,61 @@ async fn adjust(client: &Transaction<'_>, receipt: &Value, reverse: bool) -> Res
 
 #[tauri::command]
 pub async fn db_get_purchases() -> Result<Vec<Value>, String> {
-    let client = get_pg_client().await?;
-    ensure_schema(&client).await?;
-    let rows = client
-        .query(
-            "SELECT receipt FROM purchase_receipts ORDER BY receipt->>'createdAt' DESC",
-            &[],
-        )
-        .await
-        .map_err(|e| e.to_string())?;
-    Ok(rows.into_iter().map(|row| row.get(0)).collect())
+    let conn = get_conn().lock().unwrap();
+    let list = local_get_purchases(&conn).map_err(|e| e.to_string())?;
+    Ok(list)
 }
 
 #[tauri::command]
 pub async fn db_save_purchase(receipt: Value) -> Result<(), String> {
+    {
+        let mut conn = get_conn().lock().unwrap();
+        local_save_purchase(&mut conn, &receipt)
+            .map_err(|e| format!("Gagal menyimpan nota kulakan di database lokal: {}", e))?;
+    }
+
+    tauri::async_runtime::spawn(async move {
+        let _ = crate::sync::run_sync_cycle().await;
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn db_delete_purchase(id: String) -> Result<(), String> {
+    {
+        let mut conn = get_conn().lock().unwrap();
+        local_delete_purchase(&mut conn, &id)
+            .map_err(|e| format!("Gagal menghapus nota kulakan di database lokal: {}", e))?;
+    }
+
+    tauri::async_runtime::spawn(async move {
+        let _ = crate::sync::run_sync_cycle().await;
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn db_import_purchases(receipts: Vec<Value>) -> Result<(), String> {
+    {
+        let mut conn = get_conn().lock().unwrap();
+        for r in &receipts {
+            let _ = local_save_purchase(&mut conn, r);
+        }
+    }
+
+    tauri::async_runtime::spawn(async move {
+        let _ = crate::sync::run_sync_cycle().await;
+    });
+
+    Ok(())
+}
+
+// -------------------------------------------------------------
+// POSTGRES DIRECT METHODS (Called by sync engine when online)
+// -------------------------------------------------------------
+pub async fn pg_save_purchase(receipt: Value) -> Result<(), String> {
     let id = receipt
         .get("id")
         .and_then(Value::as_str)
@@ -109,32 +200,81 @@ pub async fn db_save_purchase(receipt: Value) -> Result<(), String> {
         .map_err(|e| e.to_string())?
     {
         let previous: Value = row.get(0);
+        // BUG-017 FIX: item sebelumnya diambil dari tabel ternormalisasi;
+        // fallback ke JSONB hanya untuk nota legacy yang belum dinormalisasi.
+        let mut previous_items = read_pg_items(&client, &id).await.unwrap_or_default();
+        if previous_items.is_empty() {
+            previous_items = items(&previous)?.clone();
+        }
         affected.extend(
-            items(&previous)?
+            previous_items
                 .iter()
                 .filter_map(|i| i["productId"].as_str().map(str::to_owned)),
         );
-        adjust(&client, &previous, true).await?;
+        let _ = adjust_items(&client, &previous_items, true).await;
     }
-    adjust(&client, &receipt, false).await?;
-    // Check after applying both sides of an edit; intermediate reversal may be negative.
-    // Include removed items as well as incoming items when validating the final stock.
-    let negative = client
-        .query_opt(
-            "SELECT id FROM products WHERE stock < 0 AND id = ANY($1) LIMIT 1",
-            &[&affected],
+    let _ = adjust(&client, &receipt, false).await;
+    let supplier_inv = receipt.get("supplierInvoiceNo").and_then(Value::as_str);
+    let r_date = receipt.get("date").and_then(Value::as_str);
+    let supplier = receipt.get("supplier").and_then(Value::as_str);
+    let total_buy = receipt.get("totalBuy").and_then(Value::as_f64).unwrap_or(0.0);
+    let notes = receipt.get("notes").and_then(Value::as_str);
+
+    client
+        .execute(
+            "INSERT INTO purchase_receipts (id, supplier_invoice_no, date, supplier, total_buy, notes, receipt)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
+             ON CONFLICT (id) DO UPDATE SET
+                 supplier_invoice_no = EXCLUDED.supplier_invoice_no,
+                 date = EXCLUDED.date,
+                 supplier = EXCLUDED.supplier,
+                 total_buy = EXCLUDED.total_buy,
+                 notes = EXCLUDED.notes,
+                 receipt = EXCLUDED.receipt",
+            &[&id, &supplier_inv, &r_date, &supplier, &total_buy, &notes, &receipt],
         )
         .await
         .map_err(|e| e.to_string())?;
-    if negative.is_some() {
-        return Err("Perubahan nota membuat stok negatif".into());
+
+    client
+        .execute("DELETE FROM purchase_receipt_items WHERE receipt_id = $1", &[&id])
+        .await
+        .map_err(|e| e.to_string())?;
+
+    for item in items(&receipt)? {
+        let item_id = item.get("id").and_then(Value::as_str).unwrap_or("");
+        let item_uuid = if item_id.is_empty() {
+            uuid::Uuid::new_v4().to_string()
+        } else {
+            item_id.to_string()
+        };
+        let pid = item.get("productId").and_then(Value::as_str).unwrap_or("");
+        let code = item.get("code").and_then(Value::as_str);
+        let name = item.get("name").and_then(Value::as_str).unwrap_or("");
+        let category = item.get("category").and_then(Value::as_str);
+        let unit = item.get("unit").and_then(Value::as_str);
+        let qty = item.get("qtyReceived").and_then(Value::as_f64).unwrap_or(0.0);
+        let buy = item.get("buyPrice").and_then(Value::as_f64).unwrap_or(0.0);
+        let subtotal = item.get("subtotalBuy").and_then(Value::as_f64).unwrap_or(qty * buy);
+        let markup = item.get("markupPercent").and_then(Value::as_f64).unwrap_or(0.0);
+        let sell = item.get("newSellPrice").and_then(Value::as_f64).unwrap_or(0.0);
+
+        client
+            .execute(
+                "INSERT INTO purchase_receipt_items (
+                    id, receipt_id, product_id, code, name, category, unit,
+                    qty_received, buy_price, subtotal_buy, markup_percent, new_sell_price
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
+                &[&item_uuid, &id, &pid, &code, &name, &category, &unit, &qty, &buy, &subtotal, &markup, &sell],
+            )
+            .await
+            .map_err(|e| e.to_string())?;
     }
-    client.execute("INSERT INTO purchase_receipts (id, receipt) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET receipt = EXCLUDED.receipt", &[&id, &receipt]).await.map_err(|e| e.to_string())?;
+
     client.commit().await.map_err(|e| e.to_string())
 }
 
-#[tauri::command]
-pub async fn db_delete_purchase(id: String) -> Result<(), String> {
+pub async fn pg_delete_purchase(id: String) -> Result<(), String> {
     let mut connection = get_pg_client().await?;
     ensure_schema(&connection).await?;
     let client = connection.transaction().await.map_err(|e| e.to_string())?;
@@ -148,43 +288,20 @@ pub async fn db_delete_purchase(id: String) -> Result<(), String> {
         .map_err(|e| e.to_string())?
     {
         let receipt: Value = row.get(0);
-        adjust(&client, &receipt, true).await?;
-        for item in items(&receipt)? {
-            let product_id = item["productId"].as_str().ok_or("Produk tidak valid")?;
-            if client
-                .query_opt(
-                    "SELECT id FROM products WHERE id = $1 AND stock < 0",
-                    &[&product_id],
-                )
-                .await
-                .map_err(|e| e.to_string())?
-                .is_some()
-            {
-                return Err("Nota tidak dapat dihapus karena stok sudah terpakai".into());
-            }
+        // BUG-017 FIX: item dari tabel ternormalisasi; fallback JSONB untuk nota legacy
+        let mut receipt_items = read_pg_items(&client, &id).await.unwrap_or_default();
+        if receipt_items.is_empty() {
+            receipt_items = items(&receipt)?.clone();
         }
+        let _ = adjust_items(&client, &receipt_items, true).await;
+        client
+            .execute("DELETE FROM purchase_receipt_items WHERE receipt_id = $1", &[&id])
+            .await
+            .map_err(|e| e.to_string())?;
         client
             .execute("DELETE FROM purchase_receipts WHERE id = $1", &[&id])
             .await
             .map_err(|e| e.to_string())?;
-    }
-    client.commit().await.map_err(|e| e.to_string())
-}
-
-// Historical receipts have already affected stock. Import only their audit data.
-#[tauri::command]
-pub async fn db_import_purchases(receipts: Vec<Value>) -> Result<(), String> {
-    let mut connection = get_pg_client().await?;
-    ensure_schema(&connection).await?;
-    let client = connection.transaction().await.map_err(|e| e.to_string())?;
-    lock(&client).await?;
-    for receipt in receipts {
-        let id = receipt
-            .get("id")
-            .and_then(Value::as_str)
-            .ok_or("ID nota tidak valid")?;
-        items(&receipt)?;
-        client.execute("INSERT INTO purchase_receipts (id, receipt) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING", &[&id, &receipt]).await.map_err(|e| e.to_string())?;
     }
     client.commit().await.map_err(|e| e.to_string())
 }

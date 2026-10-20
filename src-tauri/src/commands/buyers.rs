@@ -1,47 +1,62 @@
 use crate::db::get_pg_client;
+use crate::local_db::{
+    enqueue_outbox, get_conn, local_delete_buyer, local_get_buyers, local_upsert_buyer,
+};
 use crate::models::BuyerRecord;
 
 #[tauri::command]
 pub async fn db_get_buyers() -> Result<Vec<BuyerRecord>, String> {
-    let client = get_pg_client().await?;
-    let rows = client
-        .query(
-            "SELECT id, name, code, phone, address, customer_type, 
-                    member_card_no, tier, COALESCE(points, 0)::float8, COALESCE(total_spend, 0)::float8, member_since::text 
-             FROM buyers ORDER BY created_at ASC",
-            &[],
-        )
-        .await
-        .map_err(|e| format!("Gagal memuat data pelanggan/buyer: {}", e))?;
-
-    let buyers = rows
-        .into_iter()
-        .map(|r| BuyerRecord {
-            id: r.get(0),
-            name: r.get(1),
-            code: r.get(2),
-            phone: r.get(3),
-            address: r.get(4),
-            customer_type: r.get(5),
-            member_card_no: r.get(6),
-            tier: r.get(7),
-            points: r.get(8),
-            total_spend: r.get(9),
-            member_since: r.get(10),
-        })
-        .collect();
-
+    let conn = get_conn().lock().unwrap();
+    let buyers = local_get_buyers(&conn).map_err(|e| e.to_string())?;
     Ok(buyers)
 }
 
 #[tauri::command]
 pub async fn db_upsert_buyer(buyer: BuyerRecord) -> Result<String, String> {
-    let client = get_pg_client().await?;
     let id = if buyer.id.is_empty() {
         format!("buyer-{}", chrono::Utc::now().timestamp_millis())
     } else {
-        buyer.id
+        buyer.id.clone()
     };
+    let mut b = buyer;
+    b.id = id.clone();
+
+    {
+        let conn = get_conn().lock().unwrap();
+        local_upsert_buyer(&conn, &b).map_err(|e| e.to_string())?;
+        enqueue_outbox(&conn, "UPSERT_BUYER", &serde_json::json!({ "buyer": b }))
+            .map_err(|e| e.to_string())?;
+    }
+
+    tauri::async_runtime::spawn(async move {
+        let _ = crate::sync::run_sync_cycle().await;
+    });
+
+    Ok(id)
+}
+
+#[tauri::command]
+pub async fn db_delete_buyer(id: String) -> Result<(), String> {
+    {
+        let conn = get_conn().lock().unwrap();
+        local_delete_buyer(&conn, &id).map_err(|e| e.to_string())?;
+        enqueue_outbox(&conn, "DELETE_BUYER", &serde_json::json!({ "id": id }))
+            .map_err(|e| e.to_string())?;
+    }
+
+    tauri::async_runtime::spawn(async move {
+        let _ = crate::sync::run_sync_cycle().await;
+    });
+
+    Ok(())
+}
+
+// -------------------------------------------------------------
+// POSTGRES DIRECT METHODS
+// -------------------------------------------------------------
+pub async fn pg_upsert_buyer(buyer: BuyerRecord) -> Result<String, String> {
+    let client = get_pg_client().await?;
+    let id = buyer.id;
     let customer_type = buyer.customer_type.unwrap_or_else(|| "B2B".to_string());
     let tier = buyer.tier.unwrap_or_else(|| "REGULAR".to_string());
     let points = buyer.points.unwrap_or(0.0);
@@ -75,18 +90,17 @@ pub async fn db_upsert_buyer(buyer: BuyerRecord) -> Result<String, String> {
             ],
         )
         .await
-        .map_err(|e| format!("Gagal menyimpan data buyer: {}", e))?;
+        .map_err(|e| format!("Gagal menyimpan data buyer ke PostgreSQL: {}", e))?;
 
     Ok(id)
 }
 
-#[tauri::command]
-pub async fn db_delete_buyer(id: String) -> Result<(), String> {
+pub async fn pg_delete_buyer(id: String) -> Result<(), String> {
     let client = get_pg_client().await?;
     client
         .execute("DELETE FROM buyers WHERE id = $1", &[&id])
         .await
-        .map_err(|e| format!("Gagal menghapus data buyer: {}", e))?;
+        .map_err(|e| format!("Gagal menghapus data buyer dari PostgreSQL: {}", e))?;
 
     Ok(())
 }

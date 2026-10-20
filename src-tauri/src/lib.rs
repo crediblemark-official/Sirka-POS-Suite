@@ -3,17 +3,26 @@
 
 pub mod commands;
 pub mod db;
+pub mod local_db;
 pub mod models;
+pub mod sync;
 
 use commands::*;
+use tauri::Manager;
 
 /// Migrasi idempotent (db/migrations.sql) dijalankan otomatis saat aplikasi start,
 /// agar kolom baru (barcode, pic_name, is_pre_order) tersedia di database lama tanpa setup manual.
 async fn ensure_migrations() -> Result<(), String> {
     let client = db::get_pg_client().await?;
-    let sql = include_str!("../../db/migrations.sql");
+    let schema_sql = include_str!("../../db/schema.sql");
     client
-        .batch_execute(sql)
+        .batch_execute(schema_sql)
+        .await
+        .map_err(|e| format!("Inisialisasi schema gagal: {}", e))?;
+
+    let migrations_sql = include_str!("../../db/migrations.sql");
+    client
+        .batch_execute(migrations_sql)
         .await
         .map_err(|e| format!("Migrasi database gagal: {}", e))
 }
@@ -25,21 +34,38 @@ pub fn run() {
         .on_permission_request(|_webview, _kind| {
             tauri::webview::PermissionResponse::Allow
         })
-        .setup(|_app| {
+        .setup(|app| {
+            let app_data = app.path().app_data_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+            let db_path = app_data.join("kasir_citra.db");
+            if let Err(e) = local_db::init_local_db(&db_path) {
+                eprintln!("[SQLite Init Error] {}", e);
+            }
+
             tauri::async_runtime::spawn(async move {
                 if let Err(e) = ensure_migrations().await {
                     eprintln!("[Rust Migration] {}", e);
                 }
             });
+
+            sync::start_background_sync();
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             // 1. Hardware & System
             save_export_file,
             generate_receipt_text,
+            print_to_network_printer,
+            get_bluetooth_devices,
+            print_to_bluetooth_printer,
+            detect_printer_status,
+            print_to_usb_printer,
             window_minimize,
             window_toggle_maximize,
             window_close,
+            db_get_sync_status,
+            db_trigger_sync,
+            db_reset_cache,
+            db_wipe_all_data,
             // 2. Products & Inventory
             db_get_products,
             db_upsert_product,

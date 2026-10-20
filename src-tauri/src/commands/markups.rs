@@ -1,33 +1,92 @@
 use crate::db::get_pg_client;
+use crate::local_db::{
+    enqueue_outbox, get_conn, local_delete_markup, local_get_markups, local_upsert_markup,
+};
 use crate::models::CategoryMarkupRecord;
 
 #[tauri::command]
 pub async fn db_get_markups() -> Result<Vec<CategoryMarkupRecord>, String> {
-    let client = get_pg_client().await?;
-    let rows = client
-        .query(
-            "SELECT category, default_markup_percent::float8, description 
-             FROM category_markups 
-             ORDER BY category",
-            &[],
-        )
-        .await
-        .map_err(|e| format!("Gagal memuat markup: {}", e))?;
-
-    let markups = rows
-        .into_iter()
-        .map(|r| CategoryMarkupRecord {
-            category: r.get(0),
-            default_markup_percent: r.get(1),
-            description: r.get(2),
-        })
-        .collect();
-
+    let conn = get_conn().lock().unwrap();
+    let markups = local_get_markups(&conn).map_err(|e| e.to_string())?;
     Ok(markups)
 }
 
 #[tauri::command]
 pub async fn db_update_markup(category: String, markup_percent: f64) -> Result<(), String> {
+    {
+        let conn = get_conn().lock().unwrap();
+        local_upsert_markup(&conn, &category, markup_percent, None).map_err(|e| e.to_string())?;
+        enqueue_outbox(
+            &conn,
+            "UPDATE_MARKUP",
+            &serde_json::json!({
+                "category": category,
+                "markupPercent": markup_percent
+            }),
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    tauri::async_runtime::spawn(async move {
+        let _ = crate::sync::run_sync_cycle().await;
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn db_create_markup(
+    category: String,
+    markup_percent: f64,
+    description: Option<String>,
+) -> Result<(), String> {
+    {
+        let conn = get_conn().lock().unwrap();
+        local_upsert_markup(&conn, &category, markup_percent, description.as_deref())
+            .map_err(|e| e.to_string())?;
+        enqueue_outbox(
+            &conn,
+            "CREATE_MARKUP",
+            &serde_json::json!({
+                "category": category,
+                "markupPercent": markup_percent,
+                "description": description
+            }),
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    tauri::async_runtime::spawn(async move {
+        let _ = crate::sync::run_sync_cycle().await;
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn db_delete_markup(category: String) -> Result<(), String> {
+    {
+        let conn = get_conn().lock().unwrap();
+        local_delete_markup(&conn, &category).map_err(|e| e.to_string())?;
+        enqueue_outbox(
+            &conn,
+            "DELETE_MARKUP",
+            &serde_json::json!({ "category": category }),
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    tauri::async_runtime::spawn(async move {
+        let _ = crate::sync::run_sync_cycle().await;
+    });
+
+    Ok(())
+}
+
+// -------------------------------------------------------------
+// POSTGRES DIRECT METHODS
+// -------------------------------------------------------------
+pub async fn pg_update_markup(category: String, markup_percent: f64) -> Result<(), String> {
     let client = get_pg_client().await?;
     client
         .execute(
@@ -37,13 +96,12 @@ pub async fn db_update_markup(category: String, markup_percent: f64) -> Result<(
             &[&markup_percent, &category],
         )
         .await
-        .map_err(|e| format!("Gagal update markup: {}", e))?;
+        .map_err(|e| format!("Gagal update markup di PostgreSQL: {}", e))?;
 
     Ok(())
 }
 
-#[tauri::command]
-pub async fn db_create_markup(
+pub async fn pg_create_markup(
     category: String,
     markup_percent: f64,
     description: Option<String>,
@@ -59,17 +117,13 @@ pub async fn db_create_markup(
             &[&category, &markup_percent, &description],
         )
         .await
-        .map_err(|e| format!("Gagal menambah kategori/vendor: {}", e))?;
+        .map_err(|e| format!("Gagal menambah kategori/vendor ke PostgreSQL: {}", e))?;
 
     Ok(())
 }
 
-// BUG-003 FIX: Cek apakah kategori masih dipakai produk sebelum hapus
-#[tauri::command]
-pub async fn db_delete_markup(category: String) -> Result<(), String> {
+pub async fn pg_delete_markup(category: String) -> Result<(), String> {
     let client = get_pg_client().await?;
-
-    // Cek FK: apakah ada produk yang masih menggunakan kategori ini
     let usage = client
         .query_one(
             "SELECT COUNT(*) FROM products WHERE category = $1",
@@ -81,7 +135,7 @@ pub async fn db_delete_markup(category: String) -> Result<(), String> {
     let count: i64 = usage.get(0);
     if count > 0 {
         return Err(format!(
-            "Kategori '{}' masih digunakan oleh {} produk. Pindahkan atau hapus produk terkait terlebih dahulu.",
+            "Kategori '{}' masih digunakan oleh {} produk di PostgreSQL.",
             category, count
         ));
     }
@@ -89,8 +143,7 @@ pub async fn db_delete_markup(category: String) -> Result<(), String> {
     client
         .execute("DELETE FROM category_markups WHERE category = $1", &[&category])
         .await
-        .map_err(|e| format!("Gagal menghapus kategori/vendor: {}", e))?;
+        .map_err(|e| format!("Gagal menghapus kategori/vendor dari PostgreSQL: {}", e))?;
 
     Ok(())
 }
-

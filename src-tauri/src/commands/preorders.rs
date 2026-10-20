@@ -1,36 +1,49 @@
 use crate::db::get_pg_client;
+use crate::local_db::{
+    get_conn, local_delete_preorder, local_get_preorders, local_save_preorder,
+};
 use crate::models::PreOrderRecord;
 
 #[tauri::command]
 pub async fn db_get_preorders() -> Result<Vec<PreOrderRecord>, String> {
-    let client = get_pg_client().await?;
-    let rows = client
-        .query(
-            "SELECT id, date::text, day_name, buyer, items, is_loaded_to_pos 
-             FROM pre_orders 
-             ORDER BY date, buyer",
-            &[],
-        )
-        .await
-        .map_err(|e| format!("Gagal memuat pre-orders: {}", e))?;
-
-    let pos = rows
-        .into_iter()
-        .map(|r| PreOrderRecord {
-            id: r.get(0),
-            date: r.get(1),
-            day_name: r.get(2),
-            buyer: r.get(3),
-            items: r.get(4),
-            is_loaded_to_pos: r.get(5),
-        })
-        .collect();
-
+    let conn = get_conn().lock().unwrap();
+    let pos = local_get_preorders(&conn).map_err(|e| e.to_string())?;
     Ok(pos)
 }
 
 #[tauri::command]
 pub async fn db_save_preorder(record: PreOrderRecord) -> Result<String, String> {
+    let id = record.id.clone();
+    {
+        let conn = get_conn().lock().unwrap();
+        local_save_preorder(&conn, &record).map_err(|e| e.to_string())?;
+    }
+
+    tauri::async_runtime::spawn(async move {
+        let _ = crate::sync::run_sync_cycle().await;
+    });
+
+    Ok(id)
+}
+
+#[tauri::command]
+pub async fn db_delete_preorder(id: String) -> Result<(), String> {
+    {
+        let conn = get_conn().lock().unwrap();
+        local_delete_preorder(&conn, &id).map_err(|e| e.to_string())?;
+    }
+
+    tauri::async_runtime::spawn(async move {
+        let _ = crate::sync::run_sync_cycle().await;
+    });
+
+    Ok(())
+}
+
+// -------------------------------------------------------------
+// POSTGRES DIRECT METHODS
+// -------------------------------------------------------------
+pub async fn pg_save_preorder(record: PreOrderRecord) -> Result<String, String> {
     let client = get_pg_client().await?;
     client
         .execute(
@@ -52,13 +65,12 @@ pub async fn db_save_preorder(record: PreOrderRecord) -> Result<String, String> 
             ],
         )
         .await
-        .map_err(|e| format!("Gagal simpan pre-order: {}", e))?;
+        .map_err(|e| format!("Gagal simpan pre-order ke PostgreSQL: {}", e))?;
 
     Ok(record.id)
 }
 
-#[tauri::command]
-pub async fn db_delete_preorder(id: String) -> Result<(), String> {
+pub async fn pg_delete_preorder(id: String) -> Result<(), String> {
     let client = get_pg_client().await?;
     client
         .execute("DELETE FROM pre_orders WHERE id = $1", &[&id])

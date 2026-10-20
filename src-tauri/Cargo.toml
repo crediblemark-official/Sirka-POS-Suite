@@ -26,6 +26,8 @@ tokio-postgres = { version = "0.7.18", features = ["with-chrono-0_4", "with-serd
 tokio = { version = "1.53.3", features = ["full"] }
 chrono = { version = "0.4.45", features = ["serde"] }
 uuid = { version = "1.28.0", features = ["v4", "serde"] }
+rfd = "0.17.2"
+rusqlite = { version = "0.32", features = ["bundled", "chrono", "serde_json"] }
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

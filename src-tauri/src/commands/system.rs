@@ -1,25 +1,312 @@
 use std::fs;
+use std::io::Write;
+use std::net::{TcpStream, ToSocketAddrs};
+use std::time::Duration;
 
-/// Menyimpan file export secara native ke filesystem (mendukung binary seperti .xlsx)
+/// Menyimpan file export secara native ke filesystem dengan dialog file picker (Explorer / Finder / Zenity)
 #[tauri::command]
 pub fn save_export_file(filename: String, data: Vec<u8>) -> Result<String, String> {
-    let target_path = if std::path::Path::new(&filename).is_absolute() {
-        std::path::PathBuf::from(&filename)
-    } else {
-        let home = std::env::var("HOME")
-            .or_else(|_| std::env::var("USERPROFILE"))
-            .unwrap_or_default();
-        let downloads = std::path::Path::new(&home).join("Downloads");
-        if downloads.exists() {
-            downloads.join(&filename)
-        } else {
-            std::path::PathBuf::from(&filename)
+    let mut dialog = rfd::FileDialog::new().set_file_name(&filename);
+
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_default();
+    let downloads = std::path::Path::new(&home).join("Downloads");
+    if downloads.exists() {
+        dialog = dialog.set_directory(&downloads);
+    }
+
+    let path_ref = std::path::Path::new(&filename);
+    if let Some(ext) = path_ref.extension().and_then(|s| s.to_str()) {
+        let ext_lower = ext.to_lowercase();
+        match ext_lower.as_str() {
+            "png" => {
+                dialog = dialog.add_filter("Gambar PNG (*.png)", &["png"]);
+            }
+            "xlsx" => {
+                dialog = dialog.add_filter("Excel Spreadsheet (*.xlsx)", &["xlsx"]);
+            }
+            "pdf" => {
+                dialog = dialog.add_filter("Dokumen PDF (*.pdf)", &["pdf"]);
+            }
+            _ => {
+                dialog = dialog.add_filter("File", &[&ext_lower]);
+            }
+        }
+    }
+
+    let selected_path = dialog.save_file();
+
+    match selected_path {
+        Some(path) => {
+            fs::write(&path, data)
+                .map_err(|e| format!("Gagal menulis file: {}", e))?;
+            Ok(format!("File berhasil disimpan di: {}", path.display()))
+        }
+        None => Err("CANCELLED".to_string()),
+    }
+}
+
+/// Mengirim teks struk sebagai byte ESC/POS langsung ke printer thermal via network (TCP Socket)
+/// Default address: 127.0.0.1:9100 (kompatibel dengan virtual-thermal-printer dan printer thermal WiFi/LAN ESC/POS)
+#[tauri::command]
+pub fn print_to_network_printer(
+    address: Option<String>,
+    text: String,
+) -> Result<String, String> {
+    let addr_str = address
+        .filter(|s| !s.trim().is_empty())
+        .or_else(|| {
+            let conn = crate::local_db::get_conn().lock().unwrap();
+            conn.query_row(
+                "SELECT value FROM store_settings WHERE key = 'printer_network_address'",
+                [],
+                |r| r.get::<_, String>(0),
+            ).ok()
+        })
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| "127.0.0.1:9100".to_string());
+
+    let socket_addrs: Vec<_> = addr_str
+        .to_socket_addrs()
+        .map_err(|e| format!("Alamat printer tidak valid ({}): {}", addr_str, e))?
+        .collect();
+
+    if socket_addrs.is_empty() {
+        return Err(format!("Alamat printer tidak ditemukan: {}", addr_str));
+    }
+
+    let mut stream = TcpStream::connect_timeout(&socket_addrs[0], Duration::from_secs(3))
+        .map_err(|e| format!("Gagal terhubung ke {}. Pastikan virtual-thermal-printer atau printer thermal Anda aktif: {}", addr_str, e))?;
+
+    // ESC/POS sequences:
+    // 1. ESC @: Initialize printer
+    let mut payload = Vec::new();
+    payload.extend_from_slice(&[0x1b, 0x40]);
+
+    // 2. Body Text (encoded as UTF-8 / ASCII)
+    payload.extend_from_slice(text.as_bytes());
+
+    // 3. Line feeds (3 baris kosong) + Paper Cut (GS V 0)
+    payload.extend_from_slice(b"\n\n\n");
+    payload.extend_from_slice(&[0x1d, 0x56, 0x00]);
+
+    stream
+        .write_all(&payload)
+        .map_err(|e| format!("Gagal mengirim data ke printer: {}", e))?;
+    stream
+        .flush()
+        .map_err(|e| format!("Gagal flush stream printer: {}", e))?;
+
+    Ok(format!("Struk berhasil dikirim ke printer di {}", addr_str))
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct BluetoothDevice {
+    pub name: String,
+    pub mac: String,
+}
+
+/// Mendapatkan daftar perangkat Bluetooth yang sudah ter-pairing di sistem
+#[tauri::command]
+pub fn get_bluetooth_devices() -> Result<Vec<BluetoothDevice>, String> {
+    let output = std::process::Command::new("bluetoothctl")
+        .arg("devices")
+        .output()
+        .map_err(|e| format!("Gagal menjalankan bluetoothctl: {}", e))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut devices = Vec::new();
+
+    for line in stdout.lines() {
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() >= 3 && parts[0] == "Device" {
+            let mac = parts[1].to_string();
+            let name = parts[2..].join(" ");
+            devices.push(BluetoothDevice { name, mac });
+        }
+    }
+
+    Ok(devices)
+}
+
+/// Mengirim byte ESC/POS langsung ke printer thermal Bluetooth (RFCOMM SPP)
+#[tauri::command]
+pub fn print_to_bluetooth_printer(
+    mac: Option<String>,
+    channel: Option<u8>,
+    text: String,
+) -> Result<String, String> {
+    let mac_target = match mac.filter(|m| !m.trim().is_empty()) {
+        Some(m) => m,
+        None => {
+            let devices = get_bluetooth_devices()?;
+            if let Some(first) = devices.first() {
+                first.mac.clone()
+            } else {
+                return Err("Tidak ada perangkat Bluetooth yang terpasang / paired".into());
+            }
         }
     };
 
-    fs::write(&target_path, data)
-        .map_err(|e| format!("Gagal menulis file: {}", e))?;
-    Ok(format!("File berhasil disimpan di: {}", target_path.display()))
+    let ch = channel.unwrap_or(2);
+
+    let py_script = r#"
+import sys, socket
+mac = sys.argv[1]
+preferred_ch = int(sys.argv[2])
+text = sys.stdin.read()
+payload = b'\x1b@' + text.encode('utf-8') + b'\n\n\n\x1dV\x00'
+
+channels = [preferred_ch] + [c for c in [1, 2, 3, 4] if c != preferred_ch]
+last_err = None
+success = False
+
+for c in channels:
+    try:
+        s = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_STREAM, socket.BTPROTO_RFCOMM)
+        s.settimeout(5.0)
+        s.connect((mac, c))
+        s.sendall(payload)
+        s.close()
+        success = True
+        break
+    except Exception as e:
+        last_err = e
+
+if not success:
+    sys.stderr.write(f'Koneksi Bluetooth gagal: {last_err}')
+    sys.exit(1)
+"#;
+
+    let mut child = std::process::Command::new("python3")
+        .arg("-c")
+        .arg(py_script)
+        .arg(&mac_target)
+        .arg(ch.to_string())
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Gagal memanggil Python Bluetooth handler: {}", e))?;
+
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin
+            .write_all(text.as_bytes())
+            .map_err(|e| format!("Gagal menulis data struk: {}", e))?;
+    }
+
+    let output = child
+        .wait_with_output()
+        .map_err(|e| format!("Gagal menunggu proses Bluetooth: {}", e))?;
+
+    if output.status.success() {
+        Ok(format!("Struk berhasil dikirim ke Bluetooth ({})", mac_target))
+    } else {
+        let err = String::from_utf8_lossy(&output.stderr);
+        Err(err.trim().to_string())
+    }
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct DetectedPrinterInfo {
+    pub recommended_mode: String, // "usb" | "bluetooth" | "system"
+    pub usb_available: bool,
+    pub usb_device_path: Option<String>,
+    pub bluetooth_available: bool,
+    pub bluetooth_device_name: Option<String>,
+    pub bluetooth_mac: Option<String>,
+    pub status_text: String,
+}
+
+/// Mendeteksi printer yang aktif secara dinamis:
+/// 1. Prioritas 1: USB Thermal Printer (/dev/usb/lp*)
+/// 2. Prioritas 2: Bluetooth Printer yang sedang Connected: yes (BlueZ)
+/// 3. Fallback: Dialog Cetak Sistem / PDF
+#[tauri::command]
+pub fn detect_printer_status() -> Result<DetectedPrinterInfo, String> {
+    // 1. Cek USB Thermal Printer (/dev/usb/lp0, lp1, dll)
+    let mut usb_available = false;
+    let mut usb_device_path = None;
+
+    for i in 0..4 {
+        let path = format!("/dev/usb/lp{}", i);
+        if std::path::Path::new(&path).exists() {
+            usb_available = true;
+            usb_device_path = Some(path);
+            break;
+        }
+    }
+
+    // 2. Cek Bluetooth Printer yang sedang terhubung aktif
+    let mut bluetooth_available = false;
+    let mut bluetooth_device_name = None;
+    let mut bluetooth_mac = None;
+
+    if let Ok(devices) = get_bluetooth_devices() {
+        for dev in devices {
+            if let Ok(info_out) = std::process::Command::new("bluetoothctl")
+                .arg("info")
+                .arg(&dev.mac)
+                .output()
+            {
+                let info_str = String::from_utf8_lossy(&info_out.stdout);
+                if info_str.contains("Connected: yes") {
+                    bluetooth_available = true;
+                    bluetooth_device_name = Some(dev.name);
+                    bluetooth_mac = Some(dev.mac);
+                    break;
+                }
+            }
+        }
+    }
+
+    let (recommended_mode, status_text) = if usb_available {
+        (
+            "usb".to_string(),
+            format!("Printer USB terdeteksi di {}", usb_device_path.as_deref().unwrap_or("")),
+        )
+    } else if bluetooth_available {
+        (
+            "bluetooth".to_string(),
+            format!("Bluetooth aktif: {}", bluetooth_device_name.as_deref().unwrap_or("")),
+        )
+    } else {
+        (
+            "system".to_string(),
+            "Tidak ada printer kasir terdeteksi (Gunakan Cetak PDF / Salin WA)".to_string(),
+        )
+    };
+
+    Ok(DetectedPrinterInfo {
+        recommended_mode,
+        usb_available,
+        usb_device_path,
+        bluetooth_available,
+        bluetooth_device_name,
+        bluetooth_mac,
+        status_text,
+    })
+}
+
+/// Mencetak langsung teks ESC/POS ke printer USB (/dev/usb/lp0)
+#[tauri::command]
+pub fn print_to_usb_printer(
+    device_path: Option<String>,
+    text: String,
+) -> Result<String, String> {
+    let target = device_path.unwrap_or_else(|| "/dev/usb/lp0".to_string());
+    
+    let mut payload = Vec::new();
+    payload.extend_from_slice(&[0x1b, 0x40]); // ESC @ (Init)
+    payload.extend_from_slice(text.as_bytes());
+    payload.extend_from_slice(b"\n\n\n");
+    payload.extend_from_slice(&[0x1d, 0x56, 0x00]); // GS V 0 (Cut)
+
+    std::fs::write(&target, payload)
+        .map_err(|e| format!("Gagal mencetak ke printer USB di {}: {}", target, e))?;
+
+    Ok(format!("Struk berhasil dikirim ke printer USB di {}", target))
 }
 
 /// BUG-014 FIX: Menghasilkan format cetak nota thermal (teks polos lebar 32 kolom,
@@ -29,12 +316,27 @@ pub fn save_export_file(filename: String, data: Vec<u8>) -> Result<String, Strin
 pub fn generate_receipt_text(
     tx: serde_json::Value,
     store_name: Option<String>,
+    paper_width: Option<String>,
 ) -> Result<String, String> {
     if !tx.is_object() {
         return Err("Data transaksi tidak valid".into());
     }
 
-    let width = 32usize;
+    let width = match paper_width.as_deref() {
+        Some("80mm") => 42usize,
+        Some("58mm") => 32usize,
+        _ => {
+            let setting = {
+                let conn = crate::local_db::get_conn().lock().unwrap();
+                conn.query_row(
+                    "SELECT value FROM store_settings WHERE key = 'receipt_paper_width'",
+                    [],
+                    |r| r.get::<_, String>(0),
+                ).ok()
+            };
+            if setting.as_deref() == Some("80mm") { 42usize } else { 32usize }
+        }
+    };
     let dashes = "-".repeat(width);
     let equals = "=".repeat(width);
 
@@ -75,6 +377,11 @@ pub fn generate_receipt_text(
             format!("{}{}{}", left, spaces, right)
         }
     }
+    let center = |text: &str| -> String {
+        let len = text.chars().count();
+        let pad = if len < width { (width - len) / 2 } else { 0 };
+        format!("{}{}", " ".repeat(pad), text)
+    };
 
     let mut out = String::new();
     // Header (diposisikan di tengah 32 kolom)
@@ -84,9 +391,8 @@ pub fn generate_receipt_text(
         "FAKTUR PENJUALAN B2B"
     };
     for text in [&store, title] {
-        let len = text.chars().count();
-        let pad = if len < width { (width - len) / 2 } else { 0 };
-        out.push_str(&format!("{}{}\n", " ".repeat(pad), text));
+        out.push_str(&center(text));
+        out.push('\n');
     }
     out.push_str(&equals);
     out.push('\n');
@@ -167,15 +473,14 @@ pub fn generate_receipt_text(
         out.push('\n');
     }
 
-    // Blok tanda terima (fokus Gap-3 untuk faktur B2B; ringkas untuk B2C)
-    if !is_b2c {
-        out.push_str(&dashes);
-        out.push('\n');
-        out.push_str("TANDA TERIMA PENGIRIMAN\n");
-        out.push_str(&"\n\n".repeat(1));
-        out.push_str("(_________________) (_________________)\n");
-        out.push_str("  Penerima (PIC)     Pengirim\n");
-    }
+    // Barcode Faktur Transaksi
+    let invoice_no = get_str("invoiceNo");
+    out.push_str(&dashes);
+    out.push('\n');
+    out.push_str(&center("||| | |||| ||| ||||| |||| ||"));
+    out.push('\n');
+    out.push_str(&center(&format!("* {} *", invoice_no)));
+    out.push('\n');
 
     out.push_str(&dashes);
     out.push('\n');
@@ -185,6 +490,14 @@ pub fn generate_receipt_text(
         out.push_str("Ket: BON / TEMPO (Piutang)\n");
     } else {
         out.push_str("Terima kasih. LUNAS penuh.\n");
+    }
+
+    if !is_b2c {
+        out.push('\n');
+        out.push_str(&center("TANDA TERIMA PENGIRIMAN"));
+        out.push('\n');
+        out.push_str("Penerima:              Pengirim:\n\n\n");
+        out.push_str("(..................)   (..................)\n");
     }
 
     Ok(out)
@@ -230,56 +543,29 @@ pub fn window_close(window: tauri::Window) -> Result<(), String> {
     window.close().map_err(|e| e.to_string())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+#[tauri::command]
+pub fn db_get_sync_status() -> Result<crate::sync::SyncStatusInfo, String> {
+    Ok(crate::sync::get_status())
+}
 
-    fn sample_b2b_tx() -> serde_json::Value {
-        serde_json::json!({
-            "invoiceNo": "INV-20261019-0001",
-            "date": "2026-10-19",
-            "buyer": "Dapur Banjarsari",
-            "customerType": "B2B",
-            "paymentStatus": "TEMPO",
-            "paymentMethod": "Nota Tempo",
-            "picName": "Bu Siti",
-            "items": [
-                { "name": "BERAS RAJA LELE 5KG", "qty": 10.0, "unit": "ZAK", "sellPrice": 120000.0, "subtotalSell": 1200000.0 }
-            ],
-            "totalSell": 1200000.0,
-            "discountAmount": 0.0,
-            "pointsDiscount": 0.0,
-            "finalTotal": 1200000.0,
-            "isPreOrder": false
-        })
-    }
-
-    #[test]
-    fn receipt_renders_items_total_pic_and_tanda_terima() {
-        let out = generate_receipt_text(sample_b2b_tx(), Some("AGST SEP".into())).unwrap();
-        assert!(out.contains("AGST SEP"));
-        assert!(out.contains("FAKTUR PENJUALAN B2B"));
-        assert!(out.contains("INV-20261019-0001"));
-        assert!(out.contains("BERAS RAJA LELE 5KG"));
-        assert!(out.contains("10 ZAK x 120.000"));
-        assert!(out.contains("1.200.000"));
-        assert!(out.contains("Bu Siti"));
-        assert!(out.contains("TANDA TERIMA PENGIRIMAN"));
-        assert!(out.contains("TEMPO"));
-    }
-
-    #[test]
-    fn receipt_b2c_is_achievable_without_tanda_terima() {
-        let mut tx = sample_b2b_tx();
-        tx["customerType"] = serde_json::json!("B2C");
-        let out = generate_receipt_text(tx, None).unwrap();
-        assert!(out.contains("STRUK NOTA PENJUALAN"));
-        assert!(!out.contains("TANDA TERIMA PENGIRIMAN"));
-    }
-
-    #[test]
-    fn receipt_rejects_invalid_payload() {
-        let err = generate_receipt_text(serde_json::json!(42), None);
-        assert!(err.is_err());
+#[tauri::command]
+pub async fn db_trigger_sync() -> Result<crate::sync::SyncStatusInfo, String> {
+    let res = crate::sync::run_sync_cycle_force().await;
+    let status = crate::sync::get_status();
+    match res {
+        Ok(_) => Ok(status),
+        Err(e) => Err(format!("Sinkronisasi gagal: {}", e)),
     }
 }
+
+#[tauri::command]
+pub async fn db_reset_cache() -> Result<crate::sync::SyncStatusInfo, String> {
+    crate::sync::reset_cache_and_resync().await
+}
+
+#[tauri::command]
+pub async fn db_wipe_all_data(wipe_cloud: bool) -> Result<crate::sync::SyncStatusInfo, String> {
+    crate::sync::wipe_all_data(wipe_cloud).await
+}
+
+

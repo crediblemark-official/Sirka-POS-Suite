@@ -1,53 +1,98 @@
 use crate::db::get_pg_client;
+use crate::local_db::{
+    enqueue_outbox, get_conn, local_delete_product, local_get_products,
+    local_update_stock_and_price, local_upsert_product,
+};
 use crate::models::ProductRecord;
 
 #[tauri::command]
 pub async fn db_get_products() -> Result<Vec<ProductRecord>, String> {
-    let client = get_pg_client().await?;
-    let rows = client
-        .query(
-            "SELECT id, code, name, category, unit, 
-                    default_markup_percent::float8, 
-                    last_buy_price::float8, 
-                    last_sell_price::float8, 
-                    stock::float8, 
-                    notes,
-                    barcode
-             FROM products 
-             ORDER BY category, name",
-            &[],
-        )
-        .await
-        .map_err(|e| format!("Gagal memuat produk: {}", e))?;
-
-    let products = rows
-        .into_iter()
-        .map(|r| ProductRecord {
-            id: r.get(0),
-            code: r.get(1),
-            name: r.get(2),
-            category: r.get(3),
-            unit: r.get(4),
-            default_markup_percent: r.get(5),
-            last_buy_price: r.get(6),
-            last_sell_price: r.get(7),
-            stock: r.get(8),
-            notes: r.get(9),
-            barcode: r.get(10),
-        })
-        .collect();
-
-    Ok(products)
+    let conn = get_conn().lock().unwrap();
+    let prods = local_get_products(&conn).map_err(|e| e.to_string())?;
+    Ok(prods)
 }
 
 #[tauri::command]
 pub async fn db_upsert_product(product: ProductRecord) -> Result<String, String> {
-    let client = get_pg_client().await?;
     let id = if product.id.is_empty() {
         format!("prod-{}", chrono::Utc::now().timestamp_millis())
     } else {
-        product.id
+        product.id.clone()
     };
+    let mut p = product;
+    p.id = id.clone();
+
+    {
+        let conn = get_conn().lock().unwrap();
+        local_upsert_product(&conn, &p).map_err(|e| e.to_string())?;
+        enqueue_outbox(&conn, "UPSERT_PRODUCT", &serde_json::json!({ "product": p }))
+            .map_err(|e| e.to_string())?;
+    }
+
+    tauri::async_runtime::spawn(async move {
+        let _ = crate::sync::run_sync_cycle().await;
+    });
+
+    Ok(id)
+}
+
+#[tauri::command]
+pub async fn db_update_stock_and_price(
+    product_id: String,
+    added_stock: f64,
+    buy_price: f64,
+    sell_price: f64,
+) -> Result<(), String> {
+    {
+        let conn = get_conn().lock().unwrap();
+        local_update_stock_and_price(&conn, &product_id, added_stock, buy_price, sell_price)
+            .map_err(|e| e.to_string())?;
+        enqueue_outbox(
+            &conn,
+            "UPDATE_STOCK_AND_PRICE",
+            &serde_json::json!({
+                "productId": product_id,
+                "addedStock": added_stock,
+                "buyPrice": buy_price,
+                "sellPrice": sell_price,
+            }),
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    tauri::async_runtime::spawn(async move {
+        let _ = crate::sync::run_sync_cycle().await;
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn db_delete_product(product_id: String) -> Result<(), String> {
+    {
+        let conn = get_conn().lock().unwrap();
+        local_delete_product(&conn, &product_id).map_err(|e| e.to_string())?;
+        enqueue_outbox(
+            &conn,
+            "DELETE_PRODUCT",
+            &serde_json::json!({ "id": product_id }),
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    tauri::async_runtime::spawn(async move {
+        let _ = crate::sync::run_sync_cycle().await;
+    });
+
+    Ok(())
+}
+
+// -------------------------------------------------------------
+// POSTGRES DIRECT METHODS (Called by sync engine when online)
+// -------------------------------------------------------------
+pub async fn pg_upsert_product(product: ProductRecord) -> Result<String, String> {
+    let client = get_pg_client().await?;
+    let id = product.id;
 
     client
         .execute(
@@ -80,13 +125,12 @@ pub async fn db_upsert_product(product: ProductRecord) -> Result<String, String>
             ],
         )
         .await
-        .map_err(|e| format!("Gagal menyimpan produk: {}", e))?;
+        .map_err(|e| format!("Gagal menyimpan produk ke PostgreSQL: {}", e))?;
 
     Ok(id)
 }
 
-#[tauri::command]
-pub async fn db_update_stock_and_price(
+pub async fn pg_update_stock_and_price(
     product_id: String,
     added_stock: f64,
     buy_price: f64,
@@ -104,17 +148,14 @@ pub async fn db_update_stock_and_price(
             &[&added_stock, &buy_price, &sell_price, &product_id],
         )
         .await
-        .map_err(|e| format!("Gagal update stok supplier: {}", e))?;
+        .map_err(|e| format!("Gagal update stok ke PostgreSQL: {}", e))?;
 
     Ok(())
 }
 
-/// BUG-002 FIX: Hapus produk dari database
-#[tauri::command]
-pub async fn db_delete_product(product_id: String) -> Result<(), String> {
+pub async fn pg_delete_product(product_id: String) -> Result<(), String> {
     let client = get_pg_client().await?;
 
-    // Cek apakah produk digunakan dalam transaksi yang ada
     let usage = client
         .query_one(
             "SELECT COUNT(*) FROM transactions WHERE items::text LIKE '%' || $1 || '%'",
@@ -125,19 +166,18 @@ pub async fn db_delete_product(product_id: String) -> Result<(), String> {
 
     let count: i64 = usage.get(0);
     if count > 0 {
-        // Soft delete: set stok ke 0 saja agar histori transaksi tetap valid
         client
             .execute(
                 "UPDATE products SET stock = 0, notes = COALESCE(notes, '') || ' [DIHAPUS]', updated_at = NOW() WHERE id = $1",
                 &[&product_id],
             )
             .await
-            .map_err(|e| format!("Gagal menonaktifkan produk: {}", e))?;
+            .map_err(|e| format!("Gagal menonaktifkan produk di PostgreSQL: {}", e))?;
     } else {
         client
             .execute("DELETE FROM products WHERE id = $1", &[&product_id])
             .await
-            .map_err(|e| format!("Gagal menghapus produk: {}", e))?;
+            .map_err(|e| format!("Gagal menghapus produk di PostgreSQL: {}", e))?;
     }
 
     Ok(())

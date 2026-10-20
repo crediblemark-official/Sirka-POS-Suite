@@ -1,27 +1,32 @@
 use crate::db::get_pg_client;
+use crate::local_db::{get_conn, local_get_settings, local_update_setting};
 use crate::models::StoreSettingRecord;
 
 #[tauri::command]
 pub async fn db_get_settings() -> Result<Vec<StoreSettingRecord>, String> {
-    let client = get_pg_client().await?;
-    let rows = client
-        .query("SELECT key, value FROM store_settings ORDER BY key", &[])
-        .await
-        .map_err(|e| format!("Gagal memuat pengaturan toko: {}", e))?;
-
-    let settings = rows
-        .into_iter()
-        .map(|r| StoreSettingRecord {
-            key: r.get(0),
-            value: r.get(1),
-        })
-        .collect();
-
-    Ok(settings)
+    let conn = get_conn().lock().unwrap();
+    let list = local_get_settings(&conn).map_err(|e| e.to_string())?;
+    Ok(list)
 }
 
 #[tauri::command]
 pub async fn db_update_setting(key: String, value: String) -> Result<(), String> {
+    {
+        let conn = get_conn().lock().unwrap();
+        local_update_setting(&conn, &key, &value).map_err(|e| e.to_string())?;
+    }
+
+    tauri::async_runtime::spawn(async move {
+        let _ = crate::sync::run_sync_cycle().await;
+    });
+
+    Ok(())
+}
+
+// -------------------------------------------------------------
+// POSTGRES DIRECT METHODS
+// -------------------------------------------------------------
+pub async fn pg_update_setting(key: String, value: String) -> Result<(), String> {
     let client = get_pg_client().await?;
     client
         .execute(
@@ -31,7 +36,7 @@ pub async fn db_update_setting(key: String, value: String) -> Result<(), String>
             &[&key, &value],
         )
         .await
-        .map_err(|e| format!("Gagal menyimpan pengaturan {}: {}", key, e))?;
+        .map_err(|e| format!("Gagal menyimpan pengaturan ke PostgreSQL {}: {}", key, e))?;
 
     Ok(())
 }
