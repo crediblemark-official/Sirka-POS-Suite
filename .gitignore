@@ -25,3 +25,9 @@ dist-ssr
 .emocis
 target/
 src-tauri/target/
+.virtual-thermal-printer/
+*.db
+*.db-wal
+*.db-shm
+.env
+.env.*
