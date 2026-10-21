@@ -53,6 +53,11 @@ export const useInventoryStore = defineStore('inventory', () => {
     return found ? found.defaultMarkupPercent : 20;
   }
 
+  function getCategoryColor(category: SupplierCategory): string | undefined {
+    const found = categoryMarkups.value.find(c => c.category === category);
+    return found?.color;
+  }
+
   async function updateCategoryMarkup(category: SupplierCategory, percent: number) {
     const found = categoryMarkups.value.find(c => c.category === category);
     if (found) {
@@ -67,16 +72,37 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
   }
 
-  async function addCategory(category: string, defaultMarkupPercent = 20, description?: string) {
+  async function updateCategory(category: SupplierCategory, updates: Partial<CategoryMarkupSetting>) {
+    const found = categoryMarkups.value.find(c => c.category === category);
+    if (found) {
+      Object.assign(found, updates);
+      saveLocal();
+      try {
+        if (updates.defaultMarkupPercent !== undefined) {
+          await dbService.updateMarkup(category, updates.defaultMarkupPercent);
+        }
+      } catch (err) {
+        console.warn('[Sync] Offline: enqueued category update for sync:', err);
+      }
+    }
+  }
+
+  async function addCategory(category: string, defaultMarkupPercent = 20, description?: string, color?: string) {
     const trimmed = category.trim();
     if (!trimmed) return;
     const existing = categoryMarkups.value.find(c => c.category.toLowerCase() === trimmed.toLowerCase());
-    if (existing) return;
+    if (existing) {
+      if (color) existing.color = color;
+      if (description) existing.description = description;
+      saveLocal();
+      return;
+    }
 
     const newMarkup: CategoryMarkupSetting = {
       category: trimmed,
       defaultMarkupPercent,
-      description: description || ''
+      description: description || '',
+      color
     };
 
     categoryMarkups.value.push(newMarkup);
@@ -193,7 +219,9 @@ export const useInventoryStore = defineStore('inventory', () => {
     isConnectedToPg,
     fetchFromDb,
     getCategoryMarkup,
+    getCategoryColor,
     updateCategoryMarkup,
+    updateCategory,
     addCategory,
     deleteCategory,
     updateProductPrices,

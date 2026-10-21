@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { ref, computed } from 'vue';
 import { Product } from '../../types';
 import { useInventoryStore } from '../../stores/inventoryStore';
+import { useSupplierStore } from '../../stores/supplierStore';
+import { useStockMovementStore } from '../../stores/stockMovementStore';
 import { formatRupiah } from '../../utils/formatters';
 import {
   Trash2,
@@ -11,10 +13,15 @@ import {
   TrendingUp,
   Coins,
   Truck,
-  RotateCcw
+  Scale,
+  AlertTriangle,
+  FileText
 } from 'lucide-vue-next';
 import AppEmptyState from '../common/AppEmptyState.vue';
 import MetricStatsStrip, { MetricStatItem } from '../common/MetricStatsStrip.vue';
+import SearchableSelect, { type SelectOption } from '../common/SearchableSelect.vue';
+import { useConfirmDialog } from '../../composables/useConfirmDialog';
+import { useReturnStore } from '../../stores/returnStore';
 
 const props = withDefaults(defineProps<{
   searchQuery?: string;
@@ -28,14 +35,73 @@ const emit = defineEmits<{
 }>();
 
 const inventoryStore = useInventoryStore();
+const supplierStore = useSupplierStore();
+const movementStore = useStockMovementStore();
+const returnStore = useReturnStore();
+const { confirm: showConfirm } = useConfirmDialog();
+
+async function handleDeleteProduct(prod: Product) {
+  const isConfirmed = await showConfirm({
+    title: 'Hapus Barang dari Katalog?',
+    message: `Hapus "${prod.name}" (${prod.code}) secara permanen?`,
+    details: 'Barang yang dihapus tidak akan dapat dipilih lagi di transaksi Kasir maupun laporan stok.',
+    confirmText: 'Ya, Hapus Barang',
+    cancelText: 'Batal',
+    type: 'danger'
+  });
+  if (isConfirmed) {
+    inventoryStore.deleteProduct(prod.id);
+  }
+}
+
+const selectedCategory = ref<string>('Semua');
+const selectedSupplier = ref<string>('Semua');
+
+const categoryOptions = computed<SelectOption[]>(() => [
+  { value: 'Semua', label: 'Semua Kategori' },
+  ...inventoryStore.categoryMarkups.map(c => ({
+    value: c.category,
+    label: c.category
+  }))
+]);
+
+const supplierOptions = computed<SelectOption[]>(() => [
+  { value: 'Semua', label: 'Semua Supplier' },
+  ...supplierStore.suppliers.map(s => ({
+    value: s.name,
+    label: s.name,
+    badge: s.phone || undefined
+  }))
+]);
 
 const filteredProducts = computed(() => {
   const q = (props.searchQuery || '').toLowerCase().trim();
-  if (!q) return inventoryStore.products;
-  return inventoryStore.products.filter(
-    p => p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q) || p.category.toLowerCase().includes(q)
-  );
+  return inventoryStore.products.filter(p => {
+    // Filter pencarian teks
+    if (q) {
+      const matchQuery =
+        p.name.toLowerCase().includes(q) ||
+        p.code.toLowerCase().includes(q) ||
+        p.category.toLowerCase().includes(q) ||
+        (p.supplier && p.supplier.toLowerCase().includes(q));
+      if (!matchQuery) return false;
+    }
+
+    // Filter Kategori
+    if (selectedCategory.value !== 'Semua') {
+      if (p.category !== selectedCategory.value) return false;
+    }
+
+    // Filter Supplier
+    if (selectedSupplier.value !== 'Semua') {
+      if ((p.supplier || '') !== selectedSupplier.value) return false;
+    }
+
+    return true;
+  });
 });
+
+
 
 // Metrik Lengkap Aset Stok Barang
 const totalStockQty = computed(() => {
@@ -117,33 +183,81 @@ function handleDblClick(prod: Product) {
 
 <template>
   <div class="flex-1 flex flex-col h-full bg-white select-none text-xs overflow-hidden">
-    <!-- 1. Top Ribbon: Title, Counter & Action -->
+    <!-- 1. Top Ribbon: Title, Counter & Filters (Left-aligned) -->
     <div
       v-horizontal-scroll
-      class="h-10 relative flex items-center justify-between bg-[#f6f5f2] border-b border-gray-200 px-3 select-none shrink-0 gap-1.5 overflow-x-auto no-scrollbar"
+      class="h-10 relative flex items-center bg-[#f6f5f2] border-b border-gray-200 px-3 select-none shrink-0 gap-3 overflow-x-auto no-scrollbar"
     >
+      <!-- Judul & Badge Counter -->
       <div class="flex items-center gap-2 shrink-0">
         <Package :size="15" class="text-purple-700" />
-        <span class="font-bold text-xs text-gray-800">Daftar Barang Dagangan (Katalog SKU)</span>
+        <span class="font-bold text-xs text-gray-800">Daftar Barang (SKU)</span>
         <span class="text-[10px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-bold font-mono">
-          {{ inventoryStore.products.length }} SKU
+          {{ filteredProducts.length }} / {{ inventoryStore.products.length }}
         </span>
       </div>
 
-      <!-- Sisi Kanan: Search indicator, Reset Bawaan & Action Tambah Barang -->
+      <div class="h-4 w-px bg-gray-300 shrink-0"></div>
+
+      <!-- Filter Kategori (Di Kiri) -->
+      <div class="flex items-center gap-1.5 shrink-0">
+        <span class="text-[11px] text-gray-500 font-medium">Kategori:</span>
+        <div class="w-44">
+          <SearchableSelect
+            v-model="selectedCategory"
+            :options="categoryOptions"
+            placeholder="Semua Kategori"
+            search-placeholder="Cari kategori..."
+            hotkey=""
+            size="sm"
+          />
+        </div>
+      </div>
+
+      <!-- Filter Supplier (Di Kiri) -->
+      <div class="flex items-center gap-1.5 shrink-0">
+        <span class="text-[11px] text-gray-500 font-medium">Supplier:</span>
+        <div class="w-44">
+          <SearchableSelect
+            v-model="selectedSupplier"
+            :options="supplierOptions"
+            placeholder="Semua Supplier"
+            search-placeholder="Cari supplier..."
+            hotkey=""
+            size="sm"
+          />
+        </div>
+      </div>
+
+      <!-- Sisi Kanan: Indikator Pencarian & Tombol Aksi (Adjust Stok & Barang Rusak) -->
       <div class="flex items-center gap-2 shrink-0 ml-auto">
-        <span v-if="props.searchQuery" class="text-[11px] text-gray-600 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 font-medium">
+        <span
+          v-if="props.searchQuery"
+          class="text-[11px] text-gray-600 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 font-medium"
+        >
           Cari: "<span class="font-bold text-gray-800">{{ props.searchQuery }}</span>"
         </span>
 
+        <!-- Tombol Adjust Stok (Opname) -->
         <button
           type="button"
-          class="flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-gray-100 text-gray-700 rounded text-xs font-semibold cursor-pointer border border-gray-300 transition-colors shadow-2xs"
-          title="Kembalikan data ke daftar bawaan"
-          @click="inventoryStore.resetToDefaults"
+          class="flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold rounded border cursor-pointer transition-colors shadow-2xs bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 text-indigo-700 border-indigo-300"
+          title="Sesuaikan stok fisik dengan sistem (Stock Opname)"
+          @click="movementStore.openAdjustModal()"
         >
-          <RotateCcw :size="11" />
-          <span>Reset Bawaan</span>
+          <Scale :size="13" />
+          <span>Adjust Stok</span>
+        </button>
+
+        <!-- Tombol Barang Rusak (Waste) -->
+        <button
+          type="button"
+          class="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded border cursor-pointer transition-colors shadow-2xs bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-700 border-rose-300"
+          title="Catat barang rusak / pecah / susut / expired"
+          @click="returnStore.openWasteModal()"
+        >
+          <AlertTriangle :size="13" />
+          <span>Barang Rusak</span>
         </button>
       </div>
     </div>
@@ -152,7 +266,7 @@ function handleDblClick(prod: Product) {
     <MetricStatsStrip :items="metricStats" />
 
     <!-- Table of SKUs (Edge-to-Edge) -->
-    <div class="flex-1" :class="inventoryStore.showProductSidebar ? 'overflow-auto' : 'overflow-y-auto overflow-x-hidden'">
+    <div class="flex-1 overflow-auto">
       <AppEmptyState
         v-if="filteredProducts.length === 0"
         :icon="Package"
@@ -165,14 +279,15 @@ function handleDblClick(prod: Product) {
           <tr>
             <th class="w-28">KODE</th>
             <th>NAMA BARANG</th>
-            <th class="w-36">PEMASOK / SUPPLIER</th>
+            <th class="w-32">KATEGORI</th>
+            <th class="w-32">MITRA SUPPLIER</th>
             <th class="w-16 text-center">SATUAN</th>
             <th class="w-24 text-center">MARGIN (%)</th>
             <th class="w-28 text-right">MODAL BELI</th>
             <th class="w-28 text-right">HARGA JUAL</th>
-            <th class="w-16 text-center">STOK</th>
+            <th class="w-24 text-center">STOK FISIK</th>
             <!-- Sticky Action Header -->
-            <th class="th-action-sticky w-16 text-center">AKSI</th>
+            <th class="th-action-sticky w-24 text-center">KARTU & AKSI</th>
           </tr>
         </thead>
         <tbody>
@@ -187,8 +302,13 @@ function handleDblClick(prod: Product) {
             <td class="font-mono text-gray-600 font-bold truncate whitespace-nowrap" :title="prod.code">{{ prod.code }}</td>
             <td class="font-semibold text-gray-900 truncate" :title="prod.name">{{ prod.name }}</td>
             <td class="truncate" :title="prod.category">
-              <span class="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-[11px] font-medium border border-gray-200 truncate block">
+              <span class="px-2 py-0.5 bg-purple-50 text-purple-700 rounded text-[11px] font-medium border border-purple-200 truncate block">
                 {{ prod.category }}
+              </span>
+            </td>
+            <td class="truncate" :title="prod.supplier || '-'">
+              <span class="px-2 py-0.5 bg-gray-50 text-gray-700 rounded text-[11px] font-medium border border-gray-200 truncate block">
+                {{ prod.supplier || '-' }}
               </span>
             </td>
             <td class="text-center font-bold text-gray-600 font-mono whitespace-nowrap">{{ prod.unit }}</td>
@@ -201,17 +321,51 @@ function handleDblClick(prod: Product) {
             <td class="text-right font-mono font-bold text-blue-700 whitespace-nowrap">
               Rp {{ formatRupiah(prod.lastSellPrice) }}
             </td>
-            <td class="text-center font-mono font-bold text-gray-800 whitespace-nowrap">
-              {{ prod.stock }}
+            <!-- Stok Fisik dengan Indikator Status -->
+            <td class="text-center font-mono font-bold whitespace-nowrap">
+              <span
+                class="px-2 py-0.5 rounded-full text-[11px] font-bold inline-block"
+                :class="
+                  prod.stock === 0
+                    ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                    : prod.stock <= 5
+                    ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                    : 'bg-emerald-50 text-emerald-800'
+                "
+                :title="prod.stock === 0 ? 'Stok Habis!' : prod.stock <= 5 ? 'Stok Menipis' : 'Stok Aman'"
+              >
+                {{ prod.stock }} {{ prod.unit }}
+              </span>
             </td>
             <!-- Sticky Action Cell -->
             <td class="td-action-sticky text-center whitespace-nowrap" @click.stop>
-              <div class="flex items-center justify-center">
+              <div class="flex items-center justify-center gap-1">
+                <!-- Kartu Stok -->
+                <button
+                  type="button"
+                  class="p-1 text-purple-700 hover:text-purple-900 hover:bg-purple-100 rounded cursor-pointer transition-colors"
+                  title="Lihat Kartu Stok & Mutasi"
+                  @click.stop="movementStore.openStockCard(prod)"
+                >
+                  <FileText :size="13" />
+                </button>
+
+                <!-- Adjust Stok -->
+                <button
+                  type="button"
+                  class="p-1 text-indigo-700 hover:text-indigo-900 hover:bg-indigo-100 rounded cursor-pointer transition-colors"
+                  title="Koreksi / Adjust Stok (Opname)"
+                  @click.stop="movementStore.openAdjustModal(prod)"
+                >
+                  <Scale :size="13" />
+                </button>
+
+                <!-- Hapus SKU -->
                 <button
                   type="button"
                   class="p-1 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer transition-colors"
                   title="Hapus SKU"
-                  @click.stop="inventoryStore.deleteProduct(prod.id)"
+                  @click.stop="handleDeleteProduct(prod)"
                 >
                   <Trash2 :size="13" />
                 </button>

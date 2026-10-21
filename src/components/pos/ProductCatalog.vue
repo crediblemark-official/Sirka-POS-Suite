@@ -1,17 +1,20 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useInventoryStore } from '../../stores/inventoryStore';
 import { usePosStore } from '../../stores/posStore';
 import { SupplierCategory, Product } from '../../types';
 import { formatRupiah } from '../../utils/formatters';
+import { getCategoryTheme } from '../../utils/categoryColor';
 import {
   Folder,
   ChevronLeft,
   ChevronRight,
   Barcode,
-  Sparkles
+  Sparkles,
+  Coins
 } from 'lucide-vue-next';
 import AppEmptyState from '../common/AppEmptyState.vue';
+import CashInflowModal from './CashInflowModal.vue';
 import { demoDataService } from '../../services/demoDataService';
 
 const props = withDefaults(defineProps<{
@@ -35,6 +38,7 @@ const selectedCategory = ref<SupplierCategory | 'Semua'>('Semua');
 const selectedProductId = ref<string | null>(null);
 const activeMultiplier = ref<number>(1);
 const isLoadingDemo = ref(false);
+const showCashInflowModal = ref(false);
 
 async function handleLoadDemo() {
   isLoadingDemo.value = true;
@@ -64,24 +68,40 @@ function handleScanBuffer(e: KeyboardEvent) {
   lastCharAt.value = now;
 }
 
-function lookupByBarcode(buffer: string): Product | undefined {
+interface ScanResult {
+  product: Product;
+  unitName?: string;
+}
+
+function lookupByBarcode(buffer: string): ScanResult | undefined {
   const key = buffer.trim();
   if (!key) return undefined;
   const prods = inventoryStore.products;
-  return (
-    prods.find(p => (p.barcode || '').trim() === key) ||
-    prods.find(p => p.code.trim().toUpperCase() === key.toUpperCase())
-  );
+
+  // 1. Cek barcode base product atau SKU
+  for (const p of prods) {
+    if ((p.barcode || '').trim() === key || p.code.trim().toUpperCase() === key.toUpperCase()) {
+      return { product: p };
+    }
+    // 2. Cek barcode kemasan sekunder (misal scan barcode di kardus DUS)
+    if (p.units && Array.isArray(p.units)) {
+      const matchUnit = p.units.find(u => (u.barcode || '').trim() === key);
+      if (matchUnit) {
+        return { product: p, unitName: matchUnit.unitName };
+      }
+    }
+  }
+  return undefined;
 }
 
 function commitScanBuffer() {
   const buffer = scanBuffer.value;
   scanBuffer.value = '';
   if (!buffer) return;
-  const prod = lookupByBarcode(buffer);
-  if (prod) {
-    posStore.addProductToCart(prod, 1);
-    selectedProductId.value = prod.id;
+  const match = lookupByBarcode(buffer);
+  if (match) {
+    posStore.addProductToCart(match.product, 1, match.unitName);
+    selectedProductId.value = match.product.id;
     scanFeedback.value = 'ok';
   } else {
     scanFeedback.value = 'notfound';
@@ -97,6 +117,16 @@ const startX = ref(0);
 const scrollLeftStart = ref(0);
 
 const categories = computed(() => inventoryStore.categoryMarkups.map(c => c.category));
+
+function getProductTheme(prod: Product) {
+  const customColor = inventoryStore.getCategoryColor(prod.category);
+  return getCategoryTheme(prod.category, customColor);
+}
+
+function getCategoryColorTheme(cat: SupplierCategory) {
+  const customColor = inventoryStore.getCategoryColor(cat);
+  return getCategoryTheme(cat, customColor);
+}
 
 function selectCategory(cat: SupplierCategory | 'Semua') {
   selectedCategory.value = cat;
@@ -115,6 +145,42 @@ const filteredProducts = computed(() => {
       (p.barcode || '').toLowerCase().includes(q);
     return matchCat && matchSearch;
   });
+});
+
+const selectedProduct = computed(() => {
+  if (!selectedProductId.value) return null;
+  return inventoryStore.products.find(p => p.id === selectedProductId.value) || null;
+});
+
+// Multiplier dinamis yang otomatis menyesuaikan satuan produk yang sedang dipilih kasir (Kiloan vs Satuan Bijian)
+const dynamicMultipliers = computed(() => {
+  const prod = selectedProduct.value;
+  const unit = prod?.unit?.toUpperCase() || '';
+
+  if (unit === 'KG' || unit === 'LITER' || unit === 'LTR') {
+    return [
+      { label: '¼ kg', value: 0.25 },
+      { label: '½ kg', value: 0.5 },
+      { label: '1 kg', value: 1 },
+      { label: '2 kg', value: 2 },
+      { label: '5 kg', value: 5 }
+    ];
+  }
+
+  return [
+    { label: '+1', value: 1 },
+    { label: '+5', value: 5 },
+    { label: '+10', value: 10 },
+    { label: '+25', value: 25 },
+    { label: '+50', value: 50 }
+  ];
+});
+
+watch(selectedProductId, () => {
+  const unit = selectedProduct.value?.unit?.toUpperCase();
+  if (activeMultiplier.value < 1 && unit !== 'KG' && unit !== 'LITER' && unit !== 'LTR') {
+    activeMultiplier.value = 1;
+  }
 });
 
 function handleProductClick(prod: Product) {
@@ -301,11 +367,15 @@ defineExpose({
           v-for="cat in categories"
           :key="cat"
           type="button"
-          class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 flex items-center gap-1 select-none"
+          class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 flex items-center gap-1.5 select-none"
           :class="selectedCategory === cat ? 'text-white font-bold shadow-xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
           :style="selectedCategory === cat ? 'background-color: var(--brand-primary);' : ''"
           @click="selectCategory(cat)"
         >
+          <span
+            class="w-2 h-2 rounded-full shrink-0 shadow-2xs"
+            :style="{ backgroundColor: getCategoryColorTheme(cat).hex }"
+          ></span>
           <span>{{ cat }}</span>
           <span class="text-[10px] opacity-75 font-mono">({{ inventoryStore.products.filter(p => p.category === cat).length }})</span>
         </button>
@@ -332,15 +402,15 @@ defineExpose({
           <span class="text-gray-500 font-medium">Beli Qty:</span>
           <div class="flex gap-1">
             <button
-              v-for="(m, i) in [1, 5, 10, 25, 50]"
-              :key="m"
+              v-for="(opt, i) in dynamicMultipliers"
+              :key="opt.value"
               class="px-2 py-0.5 rounded text-xs font-semibold cursor-pointer transition-colors flex items-center gap-0.5"
-              :class="activeMultiplier === m ? 'text-white shadow-2xs' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'"
-              :style="activeMultiplier === m ? 'background-color: var(--brand-primary);' : ''"
-              :title="`Pilih Qty ${m} (Alt+${i+1})`"
-              @click="activeMultiplier = m"
+              :class="activeMultiplier === opt.value ? 'text-white shadow-2xs' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'"
+              :style="activeMultiplier === opt.value ? 'background-color: var(--brand-primary);' : ''"
+              :title="`Pilih Qty ${opt.label} (Alt+${i+1})`"
+              @click="activeMultiplier = opt.value"
             >
-              <span>+{{ m }}</span>
+              <span>{{ opt.label }}</span>
             </button>
           </div>
         </div>
@@ -357,6 +427,15 @@ defineExpose({
         >
           {{ scanFeedback === 'ok' ? '✓ Barcode masuk keranjang' : '✗ Barcode tidak terdaftar' }}
         </span>
+        <button
+          type="button"
+          class="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+          title="Catat Infaq, Tip Kasir, atau Penerimaan Kas Non-Jual (Poin 9)"
+          @click="showCashInflowModal = true"
+        >
+          <Coins :size="13" class="text-emerald-600" />
+          <span>+ Infaq / Tip</span>
+        </button>
         <button
           class="text-white px-3 py-1 rounded text-xs font-bold cursor-pointer disabled:opacity-40 flex items-center gap-1.5 shadow-2xs transition-colors hover:brightness-110 active:brightness-95"
           style="background-color: var(--brand-primary);"
@@ -398,30 +477,50 @@ defineExpose({
         description="Coba pilih kategori lain atau periksa kata kunci pencarian Anda"
       />
 
-      <!-- Icon Grid View -->
+      <!-- Icon Grid View: Background Kotak Berwarna Sesuai Kategori, Bukan Garis Tebal -->
       <div
         v-else-if="viewMode === 'icons'"
-        class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 border-b border-r border-[#d4d1cb] bg-white"
+        class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 border-b border-r border-gray-200 bg-gray-50"
       >
         <div
           v-for="prod in filteredProducts"
           :key="prod.id"
-          class="flex flex-col items-center justify-between p-3 border-t border-l border-[#d4d1cb] bg-white hover:bg-blue-50/70 cursor-pointer transition-colors select-none group relative"
-          :class="selectedProductId === prod.id ? 'bg-[#ebf2ff] ring-2 ring-inset ring-blue-500 z-10 font-semibold' : ''"
+          class="flex flex-col items-center justify-between p-3 border-t border-l border-gray-200/80 cursor-pointer transition-all select-none group relative overflow-hidden"
+          :style="{
+            backgroundColor: selectedProductId === prod.id ? getProductTheme(prod).badgeBg : (getProductTheme(prod).badgeBg || getProductTheme(prod).bgLightHex)
+          }"
+          :class="[
+            selectedProductId === prod.id
+              ? 'ring-2 ring-inset ring-black/30 z-10 font-bold shadow-xs'
+              : 'hover:brightness-96 active:brightness-92'
+          ]"
           @click="handleProductClick(prod)"
           @dblclick="handleProductDoubleClick(prod)"
         >
-          <!-- File / Folder Graphic Icon with Stock in Top Tab & Unit in Center Label -->
-          <div class="relative w-16 h-14 flex items-center justify-center mb-1.5 group-hover:scale-105 transition-transform">
-            <div class="w-14 h-11 bg-gradient-to-b from-[#e8cf9b] to-[#cba366] rounded-md shadow-2xs border border-[#b89154] flex flex-col justify-end p-1">
-              <div class="bg-[#f7eedc] h-5 rounded-xs flex items-center justify-center text-[10px] font-bold text-amber-950 truncate px-1">
+          <!-- Graphic Icon with Stock in Top Tab & Unit in Center Label -->
+          <div class="relative w-16 h-14 flex items-center justify-center mb-1.5 mt-0.5 group-hover:scale-105 transition-transform">
+            <div
+              class="w-14 h-11 rounded-md shadow-2xs border flex flex-col justify-end p-1 transition-colors"
+              :style="{
+                background: `linear-gradient(to bottom, ${getProductTheme(prod).gradientFrom}, ${getProductTheme(prod).gradientTo})`,
+                borderColor: getProductTheme(prod).borderHex
+              }"
+            >
+              <div
+                class="h-5 rounded-xs flex items-center justify-center text-[10px] font-bold truncate px-1 transition-colors"
+                :style="{
+                  backgroundColor: '#ffffff',
+                  color: getProductTheme(prod).badgeText
+                }"
+              >
                 {{ prod.unit }}
               </div>
             </div>
 
             <div
               class="absolute -top-0.5 left-2 min-w-7 px-1.5 h-3.5 rounded-t-sm border-t border-l border-r flex items-center justify-center text-[9px] font-bold font-mono tracking-tight shadow-2xs"
-              :class="prod.stock <= 10 ? 'bg-red-500 text-white border-red-600' : 'bg-white text-gray-800 border-[#b89154]'"
+              :class="prod.stock <= 10 ? 'bg-red-500 text-white border-red-600' : 'bg-white text-gray-800'"
+              :style="prod.stock > 10 ? { borderColor: getProductTheme(prod).borderHex } : {}"
               title="Sisa Stok Barang"
             >
               {{ prod.stock }}
@@ -429,13 +528,13 @@ defineExpose({
           </div>
 
           <!-- Name Label -->
-          <span class="text-xs font-semibold text-center text-gray-800 line-clamp-2 leading-tight w-full mb-1.5">
+          <span class="text-xs font-semibold text-center text-gray-900 line-clamp-2 leading-tight w-full mb-1.5">
             {{ prod.name }}
           </span>
 
           <!-- Price Label at Bottom -->
           <div class="mt-auto w-full flex justify-center items-center">
-            <span class="text-xs font-bold text-blue-600 font-mono">
+            <span class="text-xs font-bold text-gray-900 font-mono">
               Rp {{ formatRupiah(prod.lastSellPrice) }}
             </span>
           </div>
@@ -466,7 +565,11 @@ defineExpose({
             >
               <td class="p-2 font-mono text-gray-500">{{ prod.code }}</td>
               <td class="p-2 font-medium flex items-center gap-1.5">
-                <Folder :size="14" class="text-amber-500 shrink-0" />
+                <Folder
+                  :size="14"
+                  class="shrink-0"
+                  :style="{ color: getProductTheme(prod).hex }"
+                />
                 <span>{{ prod.name }}</span>
                 <span
                   v-if="prod.barcode"
@@ -476,7 +579,22 @@ defineExpose({
                   <Barcode :size="12" class="text-amber-600" />
                 </span>
               </td>
-              <td class="p-2 text-gray-500">{{ prod.category }}</td>
+              <td class="p-2">
+                <span
+                  class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] font-semibold border"
+                  :style="{
+                    backgroundColor: getProductTheme(prod).bgLightHex,
+                    color: getProductTheme(prod).badgeText,
+                    borderColor: `${getProductTheme(prod).borderHex}30`
+                  }"
+                >
+                  <span
+                    class="w-1.5 h-1.5 rounded-full shrink-0"
+                    :style="{ backgroundColor: getProductTheme(prod).hex }"
+                  ></span>
+                  <span>{{ prod.category }}</span>
+                </span>
+              </td>
               <td class="p-2 text-center">{{ prod.unit }}</td>
               <td class="p-2 text-right font-bold text-blue-600 font-mono">Rp {{ formatRupiah(prod.lastSellPrice) }}</td>
               <td class="p-2 text-center font-mono">{{ prod.stock }}</td>
@@ -485,5 +603,11 @@ defineExpose({
         </table>
       </div>
     </div>
+
+    <!-- Modal Pemasukan Kas Non-Jual (Poin 9: Tip, Infaq, Donasi) -->
+    <CashInflowModal
+      :is-open="showCashInflowModal"
+      @close="showCashInflowModal = false"
+    />
   </div>
 </template>

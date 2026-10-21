@@ -190,6 +190,17 @@ pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
     let _ = conn.execute("ALTER TABLE purchase_receipts ADD COLUMN supplier TEXT", []);
     let _ = conn.execute("ALTER TABLE purchase_receipts ADD COLUMN total_buy REAL DEFAULT 0", []);
     let _ = conn.execute("ALTER TABLE purchase_receipts ADD COLUMN notes TEXT", []);
+    let _ = conn.execute("ALTER TABLE products ADD COLUMN supplier TEXT", []);
+    let _ = conn.execute("CREATE TABLE IF NOT EXISTS suppliers (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        phone TEXT,
+        contact_person TEXT,
+        address TEXT,
+        notes TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )", []);
 
     // BUG-017 FIX: normalisasi item nota lama (JSONB) ke tabel purchase_receipt_items
     local_backfill_purchase_items(conn);
@@ -279,7 +290,7 @@ pub fn count_pending_outbox(conn: &Connection) -> SqliteResult<i64> {
 // ---------------------------------------------------------
 pub fn local_get_products(conn: &Connection) -> SqliteResult<Vec<ProductRecord>> {
     let mut stmt = conn.prepare(
-        "SELECT id, code, name, category, unit, default_markup_percent, last_buy_price, last_sell_price, stock, barcode, notes FROM products ORDER BY name ASC",
+        "SELECT id, code, name, category, unit, default_markup_percent, last_buy_price, last_sell_price, stock, barcode, notes, supplier FROM products ORDER BY name ASC",
     )?;
     let rows = stmt.query_map([], |row| {
         Ok(ProductRecord {
@@ -294,6 +305,7 @@ pub fn local_get_products(conn: &Connection) -> SqliteResult<Vec<ProductRecord>>
             stock: row.get(8)?,
             barcode: row.get(9)?,
             notes: row.get(10)?,
+            supplier: row.get(11)?,
         })
     })?;
 
@@ -306,8 +318,8 @@ pub fn local_get_products(conn: &Connection) -> SqliteResult<Vec<ProductRecord>>
 
 pub fn local_upsert_product(conn: &Connection, p: &ProductRecord) -> SqliteResult<()> {
     conn.execute(
-        "INSERT INTO products (id, code, name, category, unit, default_markup_percent, last_buy_price, last_sell_price, stock, barcode, notes, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, datetime('now'))
+        "INSERT INTO products (id, code, name, category, unit, default_markup_percent, last_buy_price, last_sell_price, stock, barcode, notes, supplier, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, datetime('now'))
          ON CONFLICT (id) DO UPDATE SET
             code = excluded.code,
             name = excluded.name,
@@ -319,6 +331,7 @@ pub fn local_upsert_product(conn: &Connection, p: &ProductRecord) -> SqliteResul
             stock = excluded.stock,
             barcode = excluded.barcode,
             notes = excluded.notes,
+            supplier = excluded.supplier,
             updated_at = datetime('now')",
         params![
             p.id,
@@ -332,6 +345,7 @@ pub fn local_upsert_product(conn: &Connection, p: &ProductRecord) -> SqliteResul
             p.stock,
             p.barcode,
             p.notes,
+            p.supplier,
         ],
     )?;
     Ok(())

@@ -6,10 +6,14 @@ import {
   ChevronUp,
   ChevronsDownUp,
   ChevronsUpDown,
-  FileText
+  FileText,
+  RotateCcw
 } from 'lucide-vue-next';
 import { Transaction } from '../../types';
 import { formatRupiah } from '../../utils/formatters';
+import { useReturnStore } from '../../stores/returnStore';
+
+const returnStore = useReturnStore();
 
 const props = defineProps<{
   transactions: Transaction[];
@@ -65,7 +69,17 @@ const emit = defineEmits<{
             <ChevronUp v-if="expandedTxIds.has(tx.id)" :size="14" class="inline text-indigo-700" />
             <ChevronDown v-else :size="14" class="inline" />
           </td>
-          <td class="font-mono font-bold text-blue-700 whitespace-nowrap" :title="tx.invoiceNo">{{ tx.invoiceNo }}</td>
+          <td class="font-mono font-bold text-blue-700 whitespace-nowrap" :title="tx.invoiceNo">
+            <div>{{ tx.invoiceNo }}</div>
+            <div v-if="tx.refundStatus" class="mt-0.5">
+              <span
+                class="px-1.5 py-0.2 rounded text-[9.5px] font-sans font-bold"
+                :class="tx.refundStatus === 'FULL' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'"
+              >
+                {{ tx.refundStatus === 'FULL' ? 'RETUR PENUH' : 'RETUR SEBAGIAN' }}
+              </span>
+            </div>
+          </td>
           <td class="font-mono text-gray-500 text-center whitespace-nowrap">{{ tx.date }}</td>
           <td class="text-center whitespace-nowrap">
             <span
@@ -84,7 +98,12 @@ const emit = defineEmits<{
             {{ tx.items.length }} Item
           </td>
           <td class="text-right font-mono text-gray-600 whitespace-nowrap">Rp {{ formatRupiah(tx.totalBuy) }}</td>
-          <td class="text-right font-mono font-bold text-blue-700 whitespace-nowrap">Rp {{ formatRupiah(tx.finalTotal ?? tx.totalSell) }}</td>
+          <td class="text-right font-mono font-bold text-blue-700 whitespace-nowrap">
+            <div>Rp {{ formatRupiah(tx.finalTotal ?? tx.totalSell) }}</div>
+            <div v-if="tx.refundTotal" class="text-[10px] text-rose-600 font-normal">
+              -Rp {{ formatRupiah(tx.refundTotal) }}
+            </div>
+          </td>
           <td class="text-right font-mono font-bold text-emerald-700 whitespace-nowrap">Rp {{ formatRupiah(tx.totalProfit) }}</td>
           <td class="text-center whitespace-nowrap" @click.stop>
             <button
@@ -100,6 +119,14 @@ const emit = defineEmits<{
           <!-- Sticky Action Cell (Right Anchor) -->
           <td class="td-action-sticky whitespace-nowrap" @click.stop>
             <div class="flex items-center justify-center gap-1">
+              <button
+                type="button"
+                class="p-1 text-gray-500 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer transition-colors"
+                title="Retur / Koreksi Nota Ini"
+                @click="returnStore.openRefundModal(tx)"
+              >
+                <RotateCcw :size="13" />
+              </button>
               <button
                 type="button"
                 class="p-1 text-gray-500 hover:text-blue-700 hover:bg-blue-50 rounded cursor-pointer transition-colors"
@@ -134,6 +161,15 @@ const emit = defineEmits<{
                   <span class="text-gray-500 font-mono font-normal">Tgl: {{ tx.date }}</span>
                 </div>
                 <div class="flex items-center gap-3">
+                  <button
+                    type="button"
+                    class="px-2 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded font-bold text-[10.5px] flex items-center gap-1 cursor-pointer transition-colors"
+                    @click="returnStore.openRefundModal(tx)"
+                  >
+                    <RotateCcw :size="11" />
+                    <span>Retur / Koreksi Nota</span>
+                  </button>
+                  <span class="text-gray-300">|</span>
                   <span class="text-gray-600 font-normal">Total: <strong>{{ tx.items.length }} barang</strong></span>
                   <span class="text-gray-300">|</span>
                   <span class="font-mono text-gray-600 font-normal">Modal: Rp {{ formatRupiah(tx.totalBuy) }}</span>

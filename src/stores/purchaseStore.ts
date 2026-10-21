@@ -2,13 +2,18 @@ import { dbService } from '../services/dbService';
 import { syncService } from '../services/syncService';
 import { defineStore } from 'pinia';
 import { ref, computed, watch } from 'vue';
-import { PurchaseReceipt, PurchaseReceiptItem, SupplierCategory, Product } from '../types';
+import { PurchaseReceipt, PurchaseReceiptItem, Product } from '../types';
 import { useInventoryStore } from './inventoryStore';
+import { useBatchStore } from './batchStore';
+import { useSupplierStore } from './supplierStore';
+import { useStockMovementStore } from './stockMovementStore';
 
 const STORAGE_KEY_PURCHASES = 'kasir_citra_purchases_v1';
 
 export const usePurchaseStore = defineStore('purchase', () => {
   const inventoryStore = useInventoryStore();
+  const batchStore = useBatchStore();
+  const supplierStore = useSupplierStore();
 
   const saved = localStorage.getItem(STORAGE_KEY_PURCHASES);
   const purchaseHistory = ref<PurchaseReceipt[]>(saved ? JSON.parse(saved) : []);
@@ -28,18 +33,18 @@ export const usePurchaseStore = defineStore('purchase', () => {
     }
   }
 
-  // Form State untuk penerimaan barang aktif (Dinamis dari kategori vendor yang terdaftar)
-  const selectedSupplier = ref<SupplierCategory>(
-    inventoryStore.categoryMarkups[0]?.category || ''
+  // Form State untuk penerimaan barang aktif (Dinamis dari master supplier yang terdaftar)
+  const selectedSupplier = ref<string>(
+    supplierStore.suppliers[0]?.name || ''
   );
 
   watch(
-    () => inventoryStore.categoryMarkups,
-    (markups) => {
-      if (markups.length > 0) {
-        const exists = markups.some(m => m.category === selectedSupplier.value);
+    () => supplierStore.suppliers,
+    (supps) => {
+      if (supps.length > 0) {
+        const exists = supps.some(s => s.name === selectedSupplier.value);
         if (!exists) {
-          selectedSupplier.value = markups[0].category;
+          selectedSupplier.value = supps[0].name;
         }
       }
     },
@@ -57,17 +62,32 @@ export const usePurchaseStore = defineStore('purchase', () => {
     localStorage.setItem(STORAGE_KEY_PURCHASES, JSON.stringify(purchaseHistory.value));
   }
 
-  function addItemToReceiving(product: Product, qty = 1, customBuyPrice?: number) {
+  function addItemToReceiving(product: Product, qty = 1, customBuyPrice?: number, customSellPrice?: number, expiryDate?: string) {
     const existing = receivingItems.value.find(i => i.productId === product.id);
     if (existing) {
       existing.qtyReceived += qty;
       existing.subtotalBuy = existing.qtyReceived * existing.buyPrice;
+      if (expiryDate) existing.expiryDate = expiryDate;
+      if (customSellPrice !== undefined && customSellPrice > 0) {
+        existing.newSellPrice = customSellPrice;
+        if (existing.buyPrice > 0) {
+          existing.markupPercent = Number((((existing.newSellPrice - existing.buyPrice) / existing.buyPrice) * 100).toFixed(1));
+        }
+      }
       return;
     }
 
     const buyPrice = customBuyPrice !== undefined ? customBuyPrice : product.lastBuyPrice;
-    const markup = product.defaultMarkupPercent || inventoryStore.getCategoryMarkup(product.category);
-    const newSellPrice = Math.round(buyPrice * (1 + markup / 100));
+    let newSellPrice = customSellPrice !== undefined && customSellPrice > 0 
+      ? customSellPrice 
+      : product.lastSellPrice || 0;
+    
+    let markup = product.defaultMarkupPercent || inventoryStore.getCategoryMarkup(product.category);
+    if (newSellPrice > 0 && buyPrice > 0) {
+      markup = Number((((newSellPrice - buyPrice) / buyPrice) * 100).toFixed(1));
+    } else if (newSellPrice === 0 && buyPrice > 0) {
+      newSellPrice = Math.round(buyPrice * (1 + markup / 100));
+    }
 
     receivingItems.value.push({
       id: `rcv-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
@@ -81,6 +101,7 @@ export const usePurchaseStore = defineStore('purchase', () => {
       subtotalBuy: qty * buyPrice,
       markupPercent: markup,
       newSellPrice,
+      expiryDate,
     });
   }
 
@@ -171,13 +192,38 @@ export const usePurchaseStore = defineStore('purchase', () => {
 
     // Local-First: Simpan ke riwayat lokal & terapkan stok & HPP ke produk lokal langsung
     purchaseHistory.value.unshift(receipt);
+    const movementStore = useStockMovementStore();
     for (const item of receipt.items) {
       const prod = inventoryStore.products.find(p => p.id === item.productId);
       if (prod) {
+        const stockBefore = prod.stock;
         prod.stock += item.qtyReceived;
         if (item.buyPrice > 0) prod.lastBuyPrice = item.buyPrice;
         if (item.newSellPrice > 0) prod.lastSellPrice = item.newSellPrice;
+
+        movementStore.recordMovement({
+          product: prod,
+          type: 'KULAKAN',
+          refNo: receipt.supplierInvoiceNo || receipt.id,
+          qtyChange: item.qtyReceived,
+          stockBefore,
+          stockAfter: prod.stock,
+          costPrice: item.buyPrice,
+          notes: `Kulakan dari ${receipt.supplier}`,
+          operator: 'Kasir / Admin'
+        });
       }
+
+      // Catat Batch FIFO/FEFO Baru
+      batchStore.addBatch({
+        productId: item.productId,
+        batchNo: item.batchNo,
+        purchaseReceiptId: receipt.id,
+        qty: item.qtyReceived,
+        buyPrice: item.buyPrice,
+        sellPrice: item.newSellPrice,
+        expiryDate: item.expiryDate
+      });
     }
     inventoryStore.saveLocal();
     saveLocal();
@@ -308,6 +354,7 @@ export const usePurchaseStore = defineStore('purchase', () => {
     showHistoryDrawer,
     activeView,
     fetchPurchases,
-    ensureReady
+    ensureReady,
+    saveLocal
   };
 });

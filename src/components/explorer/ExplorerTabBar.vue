@@ -5,6 +5,7 @@ import { useInventoryStore } from '../../stores/inventoryStore';
 import { useBuyerStore } from '../../stores/buyerStore';
 import { useLedgerStore } from '../../stores/ledgerStore';
 import { usePurchaseStore } from '../../stores/purchaseStore';
+import { useSupplierStore } from '../../stores/supplierStore';
 import { usePreOrderStore } from '../../stores/preOrderStore';
 import { useDiscountStore } from '../../stores/discountStore';
 import type { ModuleTab } from './AppLauncherTab.vue';
@@ -18,10 +19,11 @@ import {
   Tag,
   CreditCard,
   Package,
-  Percent,
   Users,
   Store,
-  LayoutGrid
+  LayoutGrid,
+  FileSpreadsheet,
+  Palette
 } from 'lucide-vue-next';
 
 const props = defineProps<{
@@ -40,6 +42,7 @@ const inventoryStore = useInventoryStore();
 const buyerStore = useBuyerStore();
 const ledgerStore = useLedgerStore();
 const purchaseStore = usePurchaseStore();
+const supplierStore = useSupplierStore();
 const preOrderStore = usePreOrderStore();
 const discountStore = useDiscountStore();
 
@@ -52,6 +55,7 @@ function hasBadge(tabId: ModuleTab): boolean {
   if (tabId === 'pos') return posStore.cartItems.length > 0;
   if (tabId === 'products' || tabId === 'master') return inventoryStore.products.length > 0;
   if (tabId === 'vendors') return inventoryStore.categoryMarkups.length > 0;
+  if (tabId === 'suppliers') return supplierStore.suppliers.length > 0;
   if (tabId === 'buyers') return buyerStore.buyers.length > 0;
   if (tabId === 'ledger') return ledgerStore.totalReceivables > 0;
   if (tabId === 'receiving') return purchaseStore.receivingItems.length > 0 || purchaseStore.purchaseHistory.length > 0;
@@ -65,6 +69,7 @@ function getBadgeText(tabId: ModuleTab): string {
   if (tabId === 'pos') return String(posStore.cartItems.length);
   if (tabId === 'products' || tabId === 'master') return String(inventoryStore.products.length);
   if (tabId === 'vendors') return String(inventoryStore.categoryMarkups.length);
+  if (tabId === 'suppliers') return String(supplierStore.suppliers.length);
   if (tabId === 'buyers') return String(buyerStore.buyers.length);
   if (tabId === 'ledger') return `${ledgerStore.transactions.filter(t => t.paymentStatus === 'TEMPO').length} tempo`;
   if (tabId === 'receiving') return String(purchaseStore.receivingItems.length > 0 ? purchaseStore.receivingItems.length : purchaseStore.purchaseHistory.length);
@@ -138,10 +143,14 @@ function getTabShortTitle(tabId: ModuleTab): string {
       return 'Pesanan';
     case 'ledger':
       return 'Buku Kas';
+    case 'reports':
+      return 'Laporan';
     case 'products':
     case 'master':
-      return 'Barang';
+      return 'Inventaris';
     case 'vendors':
+      return 'Kategori';
+    case 'suppliers':
       return 'Supplier';
     case 'buyers':
       return 'Pelanggan';
@@ -165,12 +174,16 @@ function getTabFullTitle(tabId: ModuleTab): string {
     case 'preorder':
       return 'Rekap Pesanan Mingguan';
     case 'ledger':
-      return 'Buku Kas & Piutang';
+      return 'Buku Kas & Ledger Nota';
+    case 'reports':
+      return 'Pusat Laporan Keuangan';
     case 'products':
     case 'master':
-      return 'Daftar Barang (SKU)';
+      return 'Pusat Inventaris & Audit Stok';
     case 'vendors':
-      return 'Supplier & Margin Untung';
+      return 'Satuan & Kategori';
+    case 'suppliers':
+      return 'Mitra Supplier (Pemasok)';
     case 'buyers':
       return 'Data Pelanggan & Mitra';
     case 'branding':
@@ -188,21 +201,21 @@ function getTabDisplayTitle(tabId: ModuleTab): string {
 <template>
   <div
     ref="tabBarRef"
-    class="explorer-tab-bar relative flex items-center px-1.5 pt-1 border-b gap-0.5 overflow-x-auto no-scrollbar select-none text-xs"
+    class="explorer-tab-bar relative flex items-stretch h-8.5 border-b overflow-x-auto no-scrollbar select-none text-xs"
     @wheel="handleWheel"
   >
     <!-- Hidden Ruler: Measures exact real pixel width needed if all tabs use FULL titles -->
     <div
       ref="measurerRef"
       aria-hidden="true"
-      class="invisible absolute -top-[9999px] left-0 flex items-center px-1.5 pt-1 gap-0.5 pointer-events-none select-none text-xs font-medium"
+      class="invisible absolute -top-[9999px] left-0 flex items-stretch h-8.5 pointer-events-none select-none text-xs font-medium"
       style="width: max-content;"
     >
-      <div class="p-1 shrink-0"><Plus :size="15" /></div>
+      <div class="px-2.5 flex items-center justify-center shrink-0"><Plus :size="14" /></div>
       <div
         v-for="tabId in openTabIds"
         :key="'measurer-' + tabId"
-        class="flex items-center gap-1.5 px-2.5 py-1 border-t border-l border-r shrink-0"
+        class="flex items-center gap-1.5 px-3 border-r shrink-0"
       >
         <span class="w-[13px] shrink-0"></span>
         <span class="whitespace-nowrap">{{ getTabFullTitle(tabId) }}</span>
@@ -216,7 +229,7 @@ function getTabDisplayTitle(tabId: ModuleTab): string {
       </div>
       <div
         v-if="activeTab === 'launcher'"
-        class="flex items-center gap-1.5 px-3 py-1 border-t border-l border-r text-xs shrink-0"
+        class="flex items-center gap-1.5 px-3 border-r text-xs shrink-0"
       >
         <span class="w-[13px] shrink-0"></span>
         <span class="whitespace-nowrap">Menu Baru</span>
@@ -224,29 +237,40 @@ function getTabDisplayTitle(tabId: ModuleTab): string {
       </div>
     </div>
 
-    <!-- Add New Tab Button (+) -->
+    <!-- Add New Tab Button (+) Full Cell Height -->
     <button
       type="button"
-      class="p-1 hover:bg-black/10 rounded mb-1 cursor-pointer transition-colors shrink-0"
-      style="color: var(--surface-text);"
+      class="h-full px-2.5 flex items-center justify-center hover:bg-black/10 border-r transition-colors shrink-0 cursor-pointer"
+      style="border-color: var(--surface-tab-border); color: var(--surface-text);"
       title="Buka Menu Baru / New Tab (+)"
       @click="emit('open-launcher')"
     >
-      <Plus :size="15" />
+      <Plus :size="14" />
     </button>
 
-    <!-- Elastic Dynamic Open Tabs (Adaptive Chrome/Edge Style) -->
+    <!-- Elastic Dynamic Open Tabs (Full Cell Height Chrome/VS Code Style) -->
     <div
       v-for="tabId in openTabIds"
       :key="tabId"
-      class="group relative flex items-center gap-1.5 py-1 rounded-t border-t border-l border-r cursor-pointer text-xs font-medium transition-all select-none"
+      class="group relative flex items-center gap-1.5 h-full border-r cursor-pointer text-xs font-medium transition-colors select-none"
       :class="[
-        activeTab === tabId ? 'shadow-xs font-semibold z-10' : 'border-transparent hover:opacity-90',
+        activeTab === tabId ? 'font-bold z-10' : 'hover:opacity-90',
         isCrowded
           ? 'flex-1 min-w-[95px] max-w-[170px] px-2'
-          : 'flex-initial shrink-0 min-w-fit max-w-[340px] px-2.5'
+          : 'flex-initial shrink-0 min-w-fit max-w-[340px] px-3'
       ]"
-      :style="activeTab === tabId ? { backgroundColor: 'var(--surface-tab-active)', borderColor: 'var(--surface-tab-border)', color: 'var(--surface-text)' } : { backgroundColor: 'var(--surface-tab-inactive)', color: 'var(--surface-text-muted)' }"
+      :style="activeTab === tabId
+        ? {
+            backgroundColor: 'var(--surface-tab-active)',
+            borderColor: 'var(--surface-tab-border)',
+            color: 'var(--surface-text)',
+            boxShadow: 'inset 0 2px 0 var(--brand-primary, #3b82f6)'
+          }
+        : {
+            backgroundColor: 'var(--surface-tab-inactive)',
+            borderColor: 'var(--surface-tab-border)',
+            color: 'var(--surface-text-muted)'
+          }"
       :title="getTabFullTitle(tabId)"
       @click="emit('select-tab', tabId)"
     >
@@ -257,8 +281,10 @@ function getTabDisplayTitle(tabId: ModuleTab): string {
       <Truck v-else-if="tabId === 'receiving'" :size="13" class="text-amber-600 shrink-0" />
       <Calendar v-else-if="tabId === 'preorder'" :size="13" class="text-emerald-600 shrink-0" />
       <BookOpen v-else-if="tabId === 'ledger'" :size="13" class="text-indigo-600 shrink-0" />
+      <FileSpreadsheet v-else-if="tabId === 'reports'" :size="13" class="text-emerald-600 shrink-0" />
       <Package v-else-if="tabId === 'products' || tabId === 'master'" :size="13" class="text-purple-600 shrink-0" />
-      <Percent v-else-if="tabId === 'vendors'" :size="13" class="text-emerald-600 shrink-0" />
+      <Palette v-else-if="tabId === 'vendors'" :size="13" class="text-purple-600 shrink-0" />
+      <Truck v-else-if="tabId === 'suppliers'" :size="13" class="text-rose-600 shrink-0" />
       <Users v-else-if="tabId === 'buyers'" :size="13" class="text-indigo-600 shrink-0" />
       <Store v-else-if="tabId === 'branding'" :size="13" class="text-amber-600 shrink-0" />
 
@@ -282,9 +308,15 @@ function getTabDisplayTitle(tabId: ModuleTab): string {
       </span>
       <span
         v-else-if="!isCrowded && tabId === 'vendors'"
-        class="bg-emerald-100 text-emerald-800 rounded-full px-1 text-[9px] font-bold shrink-0 font-mono hidden sm:inline-block"
+        class="bg-purple-100 text-purple-800 rounded-full px-1 text-[9px] font-bold shrink-0 font-mono hidden sm:inline-block"
       >
         {{ inventoryStore.categoryMarkups.length }}
+      </span>
+      <span
+        v-else-if="!isCrowded && tabId === 'suppliers'"
+        class="bg-rose-100 text-rose-800 rounded-full px-1 text-[9px] font-bold shrink-0 font-mono hidden sm:inline-block"
+      >
+        {{ supplierStore.suppliers.length }}
       </span>
       <span
         v-else-if="!isCrowded && tabId === 'buyers'"
@@ -298,11 +330,11 @@ function getTabDisplayTitle(tabId: ModuleTab): string {
         title="Ada Piutang/Tempo Aktif"
       ></span>
 
-      <!-- Close Tab Button: Always visible on active, or on hover for background tabs -->
+      <!-- Close Tab Button -->
       <button
         type="button"
         class="rounded p-0.5 cursor-pointer transition-opacity shrink-0 ml-0.5"
-        :class="activeTab === tabId ? 'opacity-60 hover:opacity-100 hover:bg-black/10' : 'opacity-0 group-hover:opacity-100 hover:bg-black/10'"
+        :class="activeTab === tabId ? 'opacity-70 hover:opacity-100 hover:bg-black/10' : 'opacity-0 group-hover:opacity-100 hover:bg-black/10'"
         style="color: var(--surface-text-muted);"
         :title="`Tutup Tab`"
         @click.stop="emit('close-tab', tabId, $event)"
@@ -311,11 +343,11 @@ function getTabDisplayTitle(tabId: ModuleTab): string {
       </button>
     </div>
 
-    <!-- New Tab / Launcher Tab indicator if active -->
+    <!-- New Tab / Launcher Tab indicator if active (Full Cell Height) -->
     <div
       v-if="activeTab === 'launcher'"
-      class="flex items-center gap-1.5 px-3 py-1 rounded-t border-t border-l border-r font-semibold text-xs shadow-xs shrink-0 select-none max-w-[150px]"
-      style="background-color: var(--surface-tab-active); border-color: var(--surface-tab-border); color: var(--surface-text);"
+      class="flex items-center gap-1.5 px-3 h-full border-r font-semibold text-xs shadow-xs shrink-0 select-none max-w-[150px]"
+      style="background-color: var(--surface-tab-active); border-color: var(--surface-tab-border); color: var(--surface-text); box-shadow: inset 0 2px 0 var(--brand-primary, #3b82f6);"
     >
       <LayoutGrid :size="13" class="text-blue-600 shrink-0" />
       <span class="truncate">Menu Baru</span>

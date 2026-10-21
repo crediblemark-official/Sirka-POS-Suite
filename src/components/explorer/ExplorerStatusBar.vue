@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { useInventoryStore } from '../../stores/inventoryStore';
-import { usePurchaseStore } from '../../stores/purchaseStore';
+import { useSupplierStore } from '../../stores/supplierStore';
 import { useBuyerStore } from '../../stores/buyerStore';
 import { useDiscountStore } from '../../stores/discountStore';
 import { usePreOrderStore } from '../../stores/preOrderStore';
 import { useLedgerStore } from '../../stores/ledgerStore';
 import { usePosStore } from '../../stores/posStore';
+import { useShiftStore } from '../../stores/shiftStore';
+import { useUnitStore } from '../../stores/unitStore';
 import { formatRupiah } from '../../utils/formatters';
 import type { ModuleTab } from './AppLauncherTab.vue';
 
@@ -14,12 +16,14 @@ defineProps<{
 }>();
 
 const inventoryStore = useInventoryStore();
-const purchaseStore = usePurchaseStore();
 const buyerStore = useBuyerStore();
 const discountStore = useDiscountStore();
 const preOrderStore = usePreOrderStore();
 const ledgerStore = useLedgerStore();
 const posStore = usePosStore();
+const shiftStore = useShiftStore();
+const supplierStore = useSupplierStore();
+const unitStore = useUnitStore();
 </script>
 
 <template>
@@ -34,9 +38,6 @@ const posStore = usePosStore();
       <template v-else-if="activeTab === 'discounts'">
         <span>{{ discountStore.discounts.length }} kupon promo ({{ discountStore.activeDiscounts.length }} aktif)</span>
       </template>
-      <template v-else-if="activeTab === 'receiving'">
-        <span>{{ purchaseStore.receivingItems.length }} barang di nota kulakan ({{ purchaseStore.purchaseHistory.length }} riwayat belanja)</span>
-      </template>
       <template v-else-if="activeTab === 'preorder'">
         <span>{{ preOrderStore.schedules.length }} daftar pesanan aktif</span>
       </template>
@@ -47,7 +48,10 @@ const posStore = usePosStore();
         <span>{{ inventoryStore.products.length }} katalog barang aktif</span>
       </template>
       <template v-else-if="activeTab === 'vendors'">
-        <span>{{ inventoryStore.categoryMarkups.length }} kategori supplier terdaftar</span>
+        <span>{{ unitStore.units.length }} master satuan • {{ inventoryStore.categoryMarkups.length }} kategori barang</span>
+      </template>
+      <template v-else-if="activeTab === 'suppliers'">
+        <span>{{ supplierStore.suppliers.length }} mitra supplier pemasok</span>
       </template>
       <template v-else-if="activeTab === 'buyers'">
         <span>{{ buyerStore.buyers.length }} pelanggan & mitra ({{ buyerStore.b2bBuyers.length }} B2B • {{ buyerStore.b2cBuyers.length }} B2C)</span>
@@ -67,12 +71,7 @@ const posStore = usePosStore();
       <template v-else-if="activeTab === 'discounts'">
         <span class="text-rose-700 font-bold">Kupon Diskon & Promo Potongan Harga</span>
       </template>
-      <template v-else-if="activeTab === 'receiving'">
-        <span>Supplier: <strong>{{ purchaseStore.selectedSupplier }}</strong></span>
-        <span class="text-emerald-800 font-bold text-xs">
-          Total Modal Kulakan: Rp {{ formatRupiah(purchaseStore.totalBuy) }}
-        </span>
-      </template>
+
       <template v-else-if="activeTab === 'preorder'">
         <span class="text-emerald-800 font-bold">Daftar Titip Pesan & Pengiriman Langganan</span>
       </template>
@@ -86,7 +85,10 @@ const posStore = usePosStore();
         <span class="text-blue-800 font-bold">Katalog Barang & Stok Fisik SKU</span>
       </template>
       <template v-else-if="activeTab === 'vendors'">
-        <span class="text-teal-800 font-bold">Daftar Supplier & Aturan Margin Laba</span>
+        <span class="text-purple-800 font-bold">Master Satuan Kemasan/Eceran & Kategori Barang</span>
+      </template>
+      <template v-else-if="activeTab === 'suppliers'">
+        <span class="text-rose-800 font-bold">Mitra Supplier & Pemasok Kulakan</span>
       </template>
       <template v-else-if="activeTab === 'buyers'">
         <span class="text-indigo-800 font-bold">Buku Kontak Pelanggan & Member</span>
@@ -95,6 +97,16 @@ const posStore = usePosStore();
         <span class="text-purple-800 font-bold">Identitas Usaha & Desain Nota Struk</span>
       </template>
       <template v-else>
+        <span v-if="shiftStore.isShiftActive" class="text-emerald-700 font-semibold flex items-center gap-1.5">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+          <span>Shift: <strong>{{ shiftStore.currentShift?.cashierName }}</strong> ({{ shiftStore.shiftDuration }})</span>
+          <span class="text-gray-400">•</span>
+          <span>Kas Laci: <strong>Rp {{ formatRupiah(shiftStore.currentShift?.expectedCash || 0) }}</strong></span>
+        </span>
+        <span v-else class="text-amber-700 font-medium">
+          Shift Belum Dibuka
+        </span>
+        <span class="text-gray-300">|</span>
         <span>Pelanggan: <strong>{{ posStore.selectedBuyer }}</strong></span>
         <span class="text-blue-700 font-bold text-xs">
           Total Belanja: Rp {{ formatRupiah(posStore.totalSell) }}

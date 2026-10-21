@@ -21,6 +21,9 @@ import LedgerRibbon from './LedgerRibbon.vue';
 import LedgerTransactionsTable from './LedgerTransactionsTable.vue';
 import LedgerItemsTable from './LedgerItemsTable.vue';
 import LedgerStatusModal from './LedgerStatusModal.vue';
+import RefundModal from '../returns/RefundModal.vue';
+import RefundHistoryTable from '../returns/RefundHistoryTable.vue';
+import { useReturnStore } from '../../stores/returnStore';
 import { useConfirmDialog } from '../../composables/useConfirmDialog';
 
 const props = withDefaults(defineProps<{
@@ -35,12 +38,13 @@ const emit = defineEmits<{
 
 const ledgerStore = useLedgerStore();
 const buyerStore = useBuyerStore();
+const returnStore = useReturnStore();
 
 // 1. Reactive Filters & View State
 const filterBuyer = ref<string>('Semua');
 const filterStatus = ref<PaymentStatus | 'Semua'>('Semua');
 const filterMarket = ref<'Semua' | 'B2B' | 'B2C'>('Semua');
-const viewMode = ref<'transactions' | 'items'>('transactions');
+const viewMode = ref<'transactions' | 'items' | 'refunds'>('transactions');
 const expandedTxIds = ref<Set<string>>(new Set());
 
 // 2. Buyer select options
@@ -241,6 +245,12 @@ async function handleDeleteTransaction(id: string) {
     console.error(`Gagal menghapus transaksi:`, error);
   }
 }
+function handleRefundViewReceipt(invoiceNo: string) {
+  const tx = ledgerStore.transactions.find(t => t.invoiceNo === invoiceNo);
+  if (tx) {
+    emit('view-receipt', tx);
+  }
+}
 </script>
 
 <template>
@@ -257,20 +267,21 @@ async function handleDeleteTransaction(id: string) {
       :tempo-count="tempoCount"
       :b2b-count="b2bCount"
       :b2c-count="b2cCount"
+      :refunds-count="returnStore.refunds.length"
       :buyer-options="buyerOptions"
       :has-active-filter="hasActiveFilter"
       @reset-filters="resetFilters"
     />
 
     <!-- 2. Reusable MetricStatsStrip (DRY) -->
-    <MetricStatsStrip :items="metricStats" />
+    <MetricStatsStrip v-if="viewMode !== 'refunds'" :items="metricStats" />
 
     <!-- 3. Main Workspace: Edge-to-Edge Table (Modular & DRY) -->
     <div class="flex-1 flex flex-col overflow-hidden bg-white">
       <div class="flex-1 overflow-auto">
         <!-- Reusable Empty State -->
         <AppEmptyState
-          v-if="ledgerStore.transactions.length === 0"
+          v-if="viewMode !== 'refunds' && ledgerStore.transactions.length === 0"
           :icon="BookOpen"
           title="Belum Ada Transaksi Tercatat"
           description="Selesaikan transaksi penjualan di tab Kasir POS untuk mengisi buku besar."
@@ -291,8 +302,15 @@ async function handleDeleteTransaction(id: string) {
 
         <!-- Mode 2: Per Baris Barang Spreadsheet (Modular Table) -->
         <LedgerItemsTable
-          v-else
+          v-else-if="viewMode === 'items'"
           :rows="filteredFlatRows"
+        />
+
+        <!-- Mode 3: Riwayat Retur & Refund (Poin 8) -->
+        <RefundHistoryTable
+          v-else-if="viewMode === 'refunds'"
+          :search-query="props.searchQuery"
+          @view-receipt="handleRefundViewReceipt"
         />
       </div>
     </div>
@@ -305,5 +323,8 @@ async function handleDeleteTransaction(id: string) {
       @confirm="handleConfirmStatusChange"
       @cancel="handleCancelStatusConfirm"
     />
+
+    <!-- 5. Modal Retur Transaksi Nota -->
+    <RefundModal />
   </div>
 </template>

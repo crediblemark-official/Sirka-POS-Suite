@@ -14,26 +14,37 @@ import AppLauncherTab from './AppLauncherTab.vue';
 // View Modules
 import ProductCatalog from '../pos/ProductCatalog.vue';
 import PosCart from '../pos/PosCart.vue';
-import SupplierReceiving from '../receiving/SupplierReceiving.vue';
 import PreOrderMatrix from '../preorder/PreOrderMatrix.vue';
 import LedgerView from '../ledger/LedgerView.vue';
+import FinancialReportsView from '../reports/FinancialReportsView.vue';
 import MasterProducts from '../master/MasterProducts.vue';
 import MasterVendorTab from '../master/MasterVendorTab.vue';
+import MasterSupplierTab from '../master/MasterSupplierTab.vue';
 import MasterBuyerTab from '../master/MasterBuyerTab.vue';
 import MasterBrandingTab from '../master/MasterBrandingTab.vue';
 import MasterDiscountTab from '../master/MasterDiscountTab.vue';
 import MasterMemberTab from '../master/MasterMemberTab.vue';
 import ReceiptModal from '../pos/ReceiptModal.vue';
 import AppConfirmModal from '../common/AppConfirmModal.vue';
+import OpenShiftModal from '../pos/OpenShiftModal.vue';
+import CloseShiftModal from '../pos/CloseShiftModal.vue';
+import ShiftSummaryModal from '../pos/ShiftSummaryModal.vue';
+import WasteModal from '../returns/WasteModal.vue';
+import { useShiftStore } from '../../stores/shiftStore';
 
 const posStore = usePosStore();
+const shiftStore = useShiftStore();
 
-// Open tabs initialized with Kasir POS & Kulakan by default, and persisted in localStorage
+// Open tabs initialized with Kasir POS & Pusat Inventaris by default, and persisted in localStorage
 const savedOpenTabs = localStorage.getItem('kasir_citra_open_tabs_v1');
-const openTabIds = ref<ModuleTab[]>(savedOpenTabs ? JSON.parse(savedOpenTabs) : ['pos', 'receiving']);
+const rawInitialTabs: ModuleTab[] = savedOpenTabs ? JSON.parse(savedOpenTabs) : ['pos', 'products'];
+// Map old merged tabs ('receiving' -> 'products', 'returns' -> 'ledger')
+const normalizedTabs = rawInitialTabs.map(t => (t === 'receiving' ? 'products' : (t === 'returns' ? 'ledger' : t)));
+const openTabIds = ref<ModuleTab[]>([...new Set(normalizedTabs)]);
 
 const savedActiveTab = localStorage.getItem('kasir_citra_active_tab_v1') as ModuleTab | null;
-const activeTab = ref<ModuleTab>(savedActiveTab || 'receiving');
+const initialActive = savedActiveTab === 'receiving' ? 'products' : (savedActiveTab === 'returns' ? 'ledger' : (savedActiveTab || 'products'));
+const activeTab = ref<ModuleTab>(initialActive);
 
 watch(activeTab, (val) => {
   localStorage.setItem('kasir_citra_active_tab_v1', val);
@@ -62,24 +73,29 @@ function closeTab(tabId: ModuleTab, e?: MouseEvent) {
 const tabTitles: Record<ModuleTab, string> = {
   pos: 'Kasir & Penjualan',
   receiving: 'Kulakan & Barang Masuk',
-  products: 'Daftar Barang (SKU)',
-  vendors: 'Supplier & Margin Untung',
+  products: 'Pusat Inventaris & Audit Stok',
+  vendors: 'Satuan & Kategori',
+  suppliers: 'Mitra Supplier (Pemasok)',
   buyers: 'Data Pelanggan & Mitra',
   discounts: 'Diskon & Kupon Promo',
   loyalty: 'Member & Poin Belanja',
   preorder: 'Rekap Pesanan Mingguan',
   ledger: 'Buku Kas & Piutang',
+  reports: 'Pusat Laporan Keuangan',
+  returns: 'Buku Kas & Piutang',
   branding: 'Profil Toko & Struk',
-  master: 'Daftar Barang (SKU)',
+  master: 'Pusat Inventaris & Audit Stok',
   launcher: 'Menu Aplikasi (New Tab)'
 };
 
 function openTab(tabId: ModuleTab) {
-  if (!openTabIds.value.includes(tabId)) {
-    openTabIds.value.push(tabId);
+  // Map old/merged tabs to their single homes
+  const targetId = tabId === 'receiving' ? 'products' : (tabId === 'returns' ? 'ledger' : tabId);
+  if (!openTabIds.value.includes(targetId)) {
+    openTabIds.value.push(targetId);
   }
-  activeTab.value = tabId;
-  currentPath.value = `Sistem Kasir / ${tabTitles[tabId] || tabId}`;
+  activeTab.value = targetId;
+  currentPath.value = `Sistem Kasir / ${tabTitles[targetId] || targetId}`;
 }
 
 function openLauncherTab() {
@@ -117,13 +133,19 @@ const searchPlaceholder = computed(() => {
     case 'master':
       return 'Cari nama barang, kode SKU, kategori...';
     case 'vendors':
-      return 'Cari nama supplier, kelompok barang...';
+      return 'Cari nama satuan, kemasan, kategori...';
+    case 'suppliers':
+      return 'Cari nama supplier, kontak sales, telepon...';
     case 'buyers':
       return 'Cari nama pelanggan, kontak WA, alamat...';
     case 'branding':
       return 'Cari pengaturan profil toko, tema UI...';
     case 'ledger':
       return 'Cari nota, nama barang, pembeli...';
+    case 'reports':
+      return 'Cari laporan keuangan, laba rugi, neraca...';
+    case 'returns':
+      return 'Cari riwayat retur nota, barang rusak...';
     case 'preorder':
       return 'Cari pesanan barang atau pelanggan...';
     case 'discounts':
@@ -231,11 +253,6 @@ onUnmounted(() => {
           <MasterMemberTab :search-query="searchQuery" />
         </div>
 
-        <!-- 4. PENERIMAAN SUPPLIER VIEW (Nyetok Inbound) -->
-        <div v-if="activeTab === 'receiving'" class="flex-1 overflow-hidden">
-          <SupplierReceiving :search-query="searchQuery" />
-        </div>
-
         <!-- 5. REKAP PRE-ORDER VIEW -->
         <div v-if="activeTab === 'preorder'" class="flex-1 overflow-hidden">
           <PreOrderMatrix :search-query="searchQuery" @switch-to-pos="activeTab = 'pos'" />
@@ -246,14 +263,24 @@ onUnmounted(() => {
           <LedgerView :search-query="searchQuery" @view-receipt="handleViewReceiptFromLedger" />
         </div>
 
+        <!-- PUSAT LAPORAN KEUANGAN VIEW -->
+        <div v-if="activeTab === 'reports'" class="flex-1 overflow-hidden">
+          <FinancialReportsView :search-query="searchQuery" />
+        </div>
+
         <!-- 7. DAFTAR BARANG (SKU) VIEW -->
         <div v-if="activeTab === 'products' || activeTab === 'master'" class="flex-1 overflow-hidden">
           <MasterProducts :search-query="searchQuery" />
         </div>
 
-        <!-- 8. SUPPLIER & MARGIN UNTUNG VIEW -->
+        <!-- 8. KATEGORI BARANG VIEW -->
         <div v-if="activeTab === 'vendors'" class="flex-1 overflow-hidden">
           <MasterVendorTab :search-query="searchQuery" />
+        </div>
+
+        <!-- MITRA SUPPLIER (PEMASOK) VIEW -->
+        <div v-if="activeTab === 'suppliers'" class="flex-1 overflow-hidden">
+          <MasterSupplierTab :search-query="searchQuery" />
         </div>
 
         <!-- 9. DATA PELANGGAN & MITRA VIEW -->
@@ -288,5 +315,22 @@ onUnmounted(() => {
 
     <!-- Global App Confirmation Modal -->
     <AppConfirmModal />
+
+    <!-- Cashier Shift Management Modals -->
+    <OpenShiftModal
+      :is-open="shiftStore.showOpenShiftModal"
+      @close="shiftStore.showOpenShiftModal = false"
+    />
+    <CloseShiftModal
+      :is-open="shiftStore.showCloseShiftModal"
+      @close="shiftStore.showCloseShiftModal = false"
+    />
+    <ShiftSummaryModal
+      :is-open="shiftStore.showShiftSummaryModal"
+      @close="shiftStore.showShiftSummaryModal = false"
+    />
+
+    <!-- Modal Pencatatan Barang Rusak / Susut (Waste) -->
+    <WasteModal />
   </div>
 </template>

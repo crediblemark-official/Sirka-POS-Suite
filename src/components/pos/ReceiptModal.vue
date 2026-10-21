@@ -207,6 +207,16 @@ const waText = computed(() => {
   }
   const finalAmount = tx.finalTotal ?? (tx.totalSell - (tx.discountAmount || 0) - (tx.pointsDiscount || 0));
   text += `*TOTAL BAYAR: Rp ${formatRupiah(finalAmount)}*\n`;
+  if (tx.isSplitPayment) {
+    text += `  • Bayar Tunai: Rp ${formatRupiah(tx.cashAmount || 0)}\n`;
+    text += `  • Bayar ${tx.nonCashMethod || 'Non-Tunai'}: Rp ${formatRupiah(tx.nonCashAmount || 0)}\n`;
+  }
+  if (tx.changeAmount && tx.changeAmount > 0) {
+    text += `Kembalian Tunai: Rp ${formatRupiah(tx.changeAmount)}\n`;
+  }
+  if (tx.infaqAmount && tx.infaqAmount > 0) {
+    text += `Infaq / Kotak Amal: Rp ${formatRupiah(tx.infaqAmount)}\n`;
+  }
   if (tx.pointsEarned && tx.pointsEarned > 0) {
     text += `🎁 Poin Member Diperoleh: +${tx.pointsEarned} Poin\n`;
   }
@@ -354,6 +364,29 @@ function handlePrintGraphic() {
           <div class="flex justify-between font-extrabold text-sm text-gray-900 pt-1 border-t border-gray-200">
             <span>TOTAL AKHIR:</span>
             <span class="text-blue-700">Rp {{ formatRupiah(transaction.finalTotal ?? (transaction.totalSell - (transaction.discountAmount || 0) - (transaction.pointsDiscount || 0))) }}</span>
+          </div>
+
+          <!-- Rincian Split Payment jika ada -->
+          <div v-if="transaction.isSplitPayment" class="pt-1 border-t border-dashed border-gray-200 text-[11px] space-y-0.5">
+            <div class="flex justify-between text-gray-700">
+              <span>• Bayar Tunai:</span>
+              <span>Rp {{ formatRupiah(transaction.cashAmount || 0) }}</span>
+            </div>
+            <div class="flex justify-between text-purple-700 font-semibold">
+              <span>• Bayar {{ transaction.nonCashMethod || 'Non-Tunai' }}:</span>
+              <span>Rp {{ formatRupiah(transaction.nonCashAmount || 0) }}</span>
+            </div>
+          </div>
+
+          <!-- Kembalian Bersih & Infaq -->
+          <div v-if="transaction.changeAmount && transaction.changeAmount > 0" class="flex justify-between text-emerald-700 font-bold text-[11.5px] pt-0.5">
+            <span>Kembalian Tunai:</span>
+            <span>Rp {{ formatRupiah(transaction.changeAmount) }}</span>
+          </div>
+
+          <div v-if="transaction.infaqAmount && transaction.infaqAmount > 0" class="flex justify-between text-teal-700 font-semibold text-[10.5px]">
+            <span>Infaq / Kotak Amal:</span>
+            <span>+Rp {{ formatRupiah(transaction.infaqAmount) }}</span>
           </div>
 
           <div v-if="transaction.pointsEarned && transaction.pointsEarned > 0" class="flex justify-between text-[11px] text-amber-600 font-bold pt-0.5">

@@ -83,3 +83,40 @@ WHERE r.receipt IS NOT NULL
   AND NOT EXISTS (SELECT 1 FROM purchase_receipt_items i WHERE i.receipt_id = r.id)
 ON CONFLICT (id) DO NOTHING;
 
+-- Tabel Rekap Pergantian Shift Kasir & Rekonsiliasi Kas Laci
+CREATE TABLE IF NOT EXISTS cashier_shifts (
+    id VARCHAR(50) PRIMARY KEY,
+    cashier_name VARCHAR(100) NOT NULL,
+    start_time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    end_time TIMESTAMPTZ,
+    starting_cash NUMERIC(15,2) NOT NULL DEFAULT 0,
+    cash_sales NUMERIC(15,2) NOT NULL DEFAULT 0,
+    non_cash_sales NUMERIC(15,2) NOT NULL DEFAULT 0,
+    cash_outflow NUMERIC(15,2) NOT NULL DEFAULT 0,
+    expected_cash NUMERIC(15,2) NOT NULL DEFAULT 0,
+    actual_cash NUMERIC(15,2) NOT NULL DEFAULT 0,
+    discrepancy NUMERIC(15,2) NOT NULL DEFAULT 0,
+    notes TEXT,
+    status VARCHAR(20) NOT NULL DEFAULT 'OPEN',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_cashier_shifts_status ON cashier_shifts(status);
+CREATE INDEX IF NOT EXISTS idx_cashier_shifts_start_time ON cashier_shifts(start_time);
+
+-- Pemisahan Entitas: Tabel Master Supplier Pemasok
+CREATE TABLE IF NOT EXISTS suppliers (
+    id VARCHAR(50) PRIMARY KEY,
+    name VARCHAR(100) NOT NULL UNIQUE,
+    phone VARCHAR(50),
+    contact_person VARCHAR(100),
+    address TEXT,
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_suppliers_name ON suppliers(name);
+
+-- Kolom supplier pada produk barang dagangan
+ALTER TABLE products ADD COLUMN IF NOT EXISTS supplier VARCHAR(100);
+CREATE INDEX IF NOT EXISTS idx_products_supplier ON products(supplier);

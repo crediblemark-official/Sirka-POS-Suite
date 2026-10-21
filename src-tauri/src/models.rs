@@ -39,6 +39,8 @@ pub struct ProductRecord {
     #[serde(rename = "lastSellPrice")]
     pub last_sell_price: f64,
     #[serde(default)]
+    pub supplier: Option<String>,
+    #[serde(default)]
     pub barcode: Option<String>,
     pub stock: f64,
     pub notes: Option<String>,

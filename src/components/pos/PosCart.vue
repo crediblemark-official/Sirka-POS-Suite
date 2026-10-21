@@ -18,11 +18,15 @@ import {
   ShoppingBag,
   ShoppingCart,
   Percent,
-  Pencil
+  Pencil,
+  Clock,
+  LogIn,
+  AlertTriangle
 } from 'lucide-vue-next';
 
 import { useBuyerStore } from '../../stores/buyerStore';
 import { useInventoryStore } from '../../stores/inventoryStore';
+import { useShiftStore } from '../../stores/shiftStore';
 import { formatRupiah } from '../../utils/formatters';
 import SearchableSelect, { type SelectOption } from '../common/SearchableSelect.vue';
 import BuyerFormModal from '../master/BuyerFormModal.vue';
@@ -31,6 +35,7 @@ import PosPaymentModal from './PosPaymentModal.vue';
 import PosVoucherModal from './PosVoucherModal.vue';
 import ItemPriceAdjustModal from './ItemPriceAdjustModal.vue';
 import TotalAdjustModal from './TotalAdjustModal.vue';
+import HeldCartsModal from './HeldCartsModal.vue';
 
 const emit = defineEmits<{
   (e: 'show-receipt'): void;
@@ -40,10 +45,16 @@ const emit = defineEmits<{
 const posStore = usePosStore();
 const buyerStore = useBuyerStore();
 const inventoryStore = useInventoryStore();
+const shiftStore = useShiftStore();
 
 function getMasterPrice(productId: string): number {
   const prod = inventoryStore.products.find(p => p.id === productId);
   return prod?.lastSellPrice || 0;
+}
+
+function getProductUnits(productId: string) {
+  const prod = inventoryStore.products.find(p => p.id === productId);
+  return prod ? posStore.getAvailableUnitsForProduct(prod) : [];
 }
 
 // Modal States
@@ -51,6 +62,12 @@ const showVoucherModal = ref(false);
 const showPaymentModal = ref(false);
 const showScanMemberModal = ref(false);
 const showTotalAdjustModal = ref(false);
+const showHeldCartsModal = ref(false);
+
+function handleHoldCart() {
+  if (posStore.cartItems.length === 0) return;
+  posStore.holdCurrentCart();
+}
 
 function toggleRedeemPoints() {
   if (posStore.pointsToRedeem > 0) {
@@ -81,6 +98,11 @@ function unlinkMember() {
 
 function handleOpenPaymentModal() {
   if (posStore.cartItems.length === 0) return;
+  // Syarat Operasional: Shift Kasir wajib dibuka terlebih dahulu sebelum bayar
+  if (!shiftStore.isShiftActive) {
+    shiftStore.showOpenShiftModal = true;
+    return;
+  }
   showPaymentModal.value = true;
 }
 
@@ -193,6 +215,17 @@ function handleKeydown(e: KeyboardEvent) {
   if (e.altKey && (e.key.toLowerCase() === 'e' || e.key.toLowerCase() === 'c')) {
     e.preventDefault();
     posStore.setSaleMode('B2C');
+    return;
+  }
+
+  // F6: Parkir Keranjang / Tahan Antrean (Hold Cart)
+  if (e.key === 'F6') {
+    e.preventDefault();
+    if (posStore.cartItems.length > 0) {
+      handleHoldCart();
+    } else if (posStore.heldCarts.length > 0) {
+      showHeldCartsModal.value = true;
+    }
     return;
   }
 
@@ -366,17 +399,49 @@ onUnmounted(() => {
 
       </div>
 
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-1.5 text-blue-700 font-semibold">
-          <Receipt :size="14" />
-          <span>Struk Penjualan Kasir</span>
+      <div class="flex items-center justify-between gap-1.5 pt-0.5">
+        <!-- Judul Ringkas & Rapi (Satu baris, no-wrap) -->
+        <div class="flex items-center gap-1.5 text-gray-800 font-bold text-xs shrink-0 whitespace-nowrap">
+          <Receipt :size="14" class="text-amber-700" />
+          <span>Struk Kasir</span>
         </div>
-        <input
-          v-model="posStore.transactionDate"
-          type="date"
-          class="bg-white border border-gray-300 rounded px-2 py-0.5 text-xs font-mono text-gray-700 outline-none"
-          title="Tanggal Transaksi"
-        />
+
+        <!-- Tombol Aksi Parkir & Tanggal -->
+        <div class="flex items-center gap-1.5 shrink-0">
+          <!-- Tombol Parkir / Hold Cart (F6) -->
+          <button
+            v-if="posStore.cartItems.length > 0"
+            type="button"
+            class="px-2 py-0.5 rounded text-[10.5px] font-bold flex items-center gap-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs active:scale-95 cursor-pointer whitespace-nowrap transition-all"
+            title="Tahan keranjang belanja saat ini untuk melayani pembeli lain (F6)"
+            @click="handleHoldCart"
+          >
+            <Clock :size="11" class="text-amber-700" />
+            <span>Parkir (F6)</span>
+          </button>
+
+          <!-- Tombol / Badge Antrean Parkir jika ada keranjang yang ditahan -->
+          <button
+            v-if="posStore.heldCarts.length > 0"
+            type="button"
+            class="px-2 py-0.5 rounded text-[10.5px] font-bold flex items-center gap-1 bg-purple-600 hover:bg-purple-700 active:scale-95 text-white shadow-2xs cursor-pointer whitespace-nowrap transition-all"
+            title="Buka daftar antrean yang sedang diparkir"
+            @click="showHeldCartsModal = true"
+          >
+            <span>Parkir</span>
+            <span class="w-3.5 h-3.5 rounded-full bg-white text-purple-900 text-[9.5px] flex items-center justify-center font-black">
+              {{ posStore.heldCarts.length }}
+            </span>
+          </button>
+
+          <!-- Input Tanggal Transaksi (Ukuran proporsional, tidak terpotong) -->
+          <input
+            v-model="posStore.transactionDate"
+            type="date"
+            class="w-[115px] bg-white border border-gray-300 rounded px-1.5 py-0.5 text-[11px] font-mono text-gray-700 outline-none focus:border-blue-500 shadow-2xs"
+            title="Tanggal Transaksi"
+          />
+        </div>
       </div>
     </div>
 
@@ -399,15 +464,35 @@ onUnmounted(() => {
         :key="item.id"
         class="px-3 py-2 hover:bg-[#faf9f6] transition-colors flex flex-col gap-1.5"
       >
-        <!-- Baris 1: Nama Barang, Unit, Kategori, & Tombol Hapus -->
+        <!-- Baris 1: Nama Barang, Unit Selector, Kategori, & Tombol Hapus -->
         <div class="flex items-center justify-between gap-1.5">
           <div class="flex items-center gap-1.5 min-w-0 flex-1">
             <span class="font-semibold text-gray-900 text-xs truncate" :title="item.name">
               {{ item.name }}
             </span>
-            <span class="px-1 py-0.2 bg-amber-100 text-amber-800 rounded text-[9.5px] font-bold shrink-0">
-              {{ item.unit }}
-            </span>
+
+            <!-- Unit Selector Pill (Dropdown jika produk mendukung konversi multi-satuan) -->
+            <div class="relative shrink-0">
+              <select
+                v-if="getProductUnits(item.productId).length > 1"
+                :value="item.unit"
+                class="px-1.5 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded text-[10px] font-bold border border-amber-300 outline-none cursor-pointer transition-colors"
+                title="Klik untuk ganti satuan kemasan"
+                @change="(e: any) => posStore.setItemUnit(item.id, e.target.value)"
+              >
+                <option
+                  v-for="u in getProductUnits(item.productId)"
+                  :key="u.unitName"
+                  :value="u.unitName"
+                >
+                  {{ u.unitName }}
+                </option>
+              </select>
+              <span v-else class="px-1.5 py-0.2 bg-gray-100 text-gray-700 rounded text-[9.5px] font-bold border border-gray-200 uppercase">
+                {{ item.unit }}
+              </span>
+            </div>
+
             <span class="truncate text-[10px] text-gray-400 shrink-0">
               {{ item.category }}
             </span>
@@ -450,35 +535,37 @@ onUnmounted(() => {
             </template>
           </div>
 
-          <!-- Kanan: Qty Control & Subtotal -->
+          <!-- Kanan: Qty Control Desimal & Subtotal -->
           <div class="flex items-center gap-2 shrink-0">
-            <!-- Simple Qty Input -->
+            <!-- Flexible Qty Input (Support desimal koma/titik) -->
             <div class="flex items-center gap-0.5">
               <button
                 type="button"
                 class="w-5 h-5 rounded text-gray-400 hover:text-black hover:bg-gray-200 flex items-center justify-center cursor-pointer transition-colors"
-                title="Kurang 1"
-                @click="posStore.updateItemQty(item.id, item.qty - 1)"
+                title="Kurangi Qty"
+                @click="posStore.updateItemQty(item.id, Number((item.qty - (['KG', 'LITER', 'LTR'].includes((item.unit || '').toUpperCase()) && item.qty <= 1 && item.qty > 0.25 ? 0.25 : 1)).toFixed(3)))"
               >
                 <Minus :size="11" />
               </button>
               <input
                 type="text"
-                inputmode="numeric"
+                inputmode="decimal"
                 :value="item.qty"
-                class="w-10 h-5.5 text-center font-mono font-bold text-xs bg-gray-50 hover:bg-white focus:bg-white border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-400 rounded outline-none transition-all"
-                @input="(e: any) => {
-                  const val = Number(e.target.value.replace(/\D/g, '')) || 1;
-                  posStore.updateItemQty(item.id, val);
+                class="w-12 h-5.5 text-center font-mono font-bold text-xs bg-gray-50 hover:bg-white focus:bg-white border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-400 rounded outline-none transition-all"
+                title="Jumlah beli (bisa ketik desimal, misal 0.5 atau 0.25)"
+                @change="(e: any) => {
+                  const cleaned = e.target.value.replace(',', '.');
+                  const val = parseFloat(cleaned);
+                  posStore.updateItemQty(item.id, isNaN(val) ? 1 : Math.max(0.001, val));
                 }"
-                @keydown.up.prevent="posStore.updateItemQty(item.id, item.qty + 1)"
-                @keydown.down.prevent="posStore.updateItemQty(item.id, item.qty - 1)"
+                @keydown.up.prevent="posStore.updateItemQty(item.id, Number((item.qty + (['KG', 'LITER', 'LTR'].includes((item.unit || '').toUpperCase()) && item.qty < 1 ? 0.25 : 1)).toFixed(3)))"
+                @keydown.down.prevent="posStore.updateItemQty(item.id, Number((item.qty - (['KG', 'LITER', 'LTR'].includes((item.unit || '').toUpperCase()) && item.qty <= 1 && item.qty > 0.25 ? 0.25 : 1)).toFixed(3)))"
               />
               <button
                 type="button"
                 class="w-5 h-5 rounded text-gray-400 hover:text-black hover:bg-gray-200 flex items-center justify-center cursor-pointer transition-colors"
-                title="Tambah 1"
-                @click="posStore.updateItemQty(item.id, item.qty + 1)"
+                title="Tambah Qty"
+                @click="posStore.updateItemQty(item.id, Number((item.qty + (['KG', 'LITER', 'LTR'].includes((item.unit || '').toUpperCase()) && item.qty < 1 ? 0.25 : 1)).toFixed(3)))"
               >
                 <Plus :size="11" />
               </button>
@@ -489,6 +576,46 @@ onUnmounted(() => {
               {{ formatRupiah(item.subtotalSell) }}
             </span>
           </div>
+        </div>
+
+        <!-- Baris 3: Shortcut Pecahan Cepat Timbangan (1/4, 1/2, 3/4, 1) jika satuan KG/Liter -->
+        <div
+          v-if="['KG', 'LITER', 'LTR'].includes((item.unit || '').toUpperCase())"
+          class="flex items-center gap-1 text-[9.5px] pt-0.5"
+        >
+          <span class="text-gray-400 font-medium text-[9px]">Pecahan:</span>
+          <button
+            type="button"
+            class="px-1.5 py-0.2 rounded text-gray-700 hover:text-amber-900 border border-gray-200 font-mono font-semibold cursor-pointer transition-colors"
+            :class="item.qty === 0.25 ? 'bg-amber-500 text-white border-amber-600' : 'bg-gray-100 hover:bg-amber-100'"
+            @click="posStore.updateItemQty(item.id, 0.25)"
+          >
+            1/4
+          </button>
+          <button
+            type="button"
+            class="px-1.5 py-0.2 rounded text-gray-700 hover:text-amber-900 border border-gray-200 font-mono font-semibold cursor-pointer transition-colors"
+            :class="item.qty === 0.5 ? 'bg-amber-500 text-white border-amber-600' : 'bg-gray-100 hover:bg-amber-100'"
+            @click="posStore.updateItemQty(item.id, 0.5)"
+          >
+            1/2
+          </button>
+          <button
+            type="button"
+            class="px-1.5 py-0.2 rounded text-gray-700 hover:text-amber-900 border border-gray-200 font-mono font-semibold cursor-pointer transition-colors"
+            :class="item.qty === 0.75 ? 'bg-amber-500 text-white border-amber-600' : 'bg-gray-100 hover:bg-amber-100'"
+            @click="posStore.updateItemQty(item.id, 0.75)"
+          >
+            3/4
+          </button>
+          <button
+            type="button"
+            class="px-1.5 py-0.2 rounded text-gray-700 hover:text-amber-900 border border-gray-200 font-mono font-semibold cursor-pointer transition-colors"
+            :class="item.qty === 1 ? 'bg-amber-500 text-white border-amber-600' : 'bg-gray-100 hover:bg-amber-100'"
+            @click="posStore.updateItemQty(item.id, 1)"
+          >
+            1 {{ item.unit.toLowerCase() }}
+          </button>
         </div>
       </div>
     </div>
@@ -623,6 +750,29 @@ onUnmounted(() => {
         </div>
       </div>
 
+      <!-- Banner Wajib Buka Shift jika belum aktif -->
+      <div
+        v-if="!shiftStore.isShiftActive"
+        class="mb-2 p-2.5 rounded-lg bg-amber-50 border border-amber-300 text-amber-950 flex items-center justify-between gap-2 shadow-2xs cursor-pointer hover:bg-amber-100/90 transition-colors"
+        @click="shiftStore.showOpenShiftModal = true"
+        title="Klik untuk membuka shift kasir dan memasukkan modal awal"
+      >
+        <div class="flex items-center gap-2 text-xs">
+          <AlertTriangle :size="16" class="text-amber-600 shrink-0" />
+          <div>
+            <p class="font-bold leading-tight text-amber-900">Shift Kasir Belum Dibuka</p>
+            <p class="text-[11px] text-amber-700 leading-tight">Wajib buka shift & modal awal sebelum transaksi</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          class="px-2 py-1 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white font-bold text-xs rounded shadow-xs shrink-0 flex items-center gap-1 cursor-pointer"
+        >
+          <LogIn :size="12" />
+          <span>Buka Shift</span>
+        </button>
+      </div>
+
       <div class="flex items-center gap-2">
         <button
           v-if="posStore.cartItems.length > 0"
@@ -633,7 +783,19 @@ onUnmounted(() => {
           Reset
         </button>
 
+        <!-- Tombol Bayar: Jika shift belum buka, mengarahkan untuk Buka Shift -->
         <button
+          v-if="!shiftStore.isShiftActive"
+          class="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white rounded font-bold text-xs cursor-pointer shadow-sm transition-all"
+          @click="shiftStore.showOpenShiftModal = true"
+          title="Buka shift kasir terlebih dahulu untuk memproses transaksi (F12)"
+        >
+          <LogIn :size="15" />
+          <span>BUKA SHIFT DULU UNTUK BAYAR (F12)</span>
+        </button>
+
+        <button
+          v-else
           class="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded font-bold text-xs cursor-pointer shadow-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed"
           :disabled="posStore.cartItems.length === 0"
           @click="handleOpenPaymentModal"
@@ -685,6 +847,12 @@ onUnmounted(() => {
     <TotalAdjustModal
       :is-open="showTotalAdjustModal"
       @close="showTotalAdjustModal = false"
+    />
+
+    <!-- Modal Antrean Belanjaan yang Diparkir (F6) -->
+    <HeldCartsModal
+      :is-open="showHeldCartsModal"
+      @close="showHeldCartsModal = false"
     />
   </div>
 </template>

@@ -1,12 +1,13 @@
 import { dbService } from './dbService';
 import { syncService } from './syncService';
-import { CategoryMarkupSetting, Product, Buyer, Discount, PreOrderSchedule } from '../types';
+import { CategoryMarkupSetting, Product, Buyer, Discount, PreOrderSchedule, Supplier } from '../types';
 import { useInventoryStore } from '../stores/inventoryStore';
 import { useBuyerStore } from '../stores/buyerStore';
 import { useLedgerStore } from '../stores/ledgerStore';
 import { useDiscountStore } from '../stores/discountStore';
 import { usePreOrderStore } from '../stores/preOrderStore';
 import { usePurchaseStore } from '../stores/purchaseStore';
+import { useSupplierStore } from '../stores/supplierStore';
 import { useSettingsStore } from '../stores/settingsStore';
 
 export interface DemoDataPayload {
@@ -16,6 +17,7 @@ export interface DemoDataPayload {
   buyers?: Buyer[];
   discounts?: Discount[];
   preOrders?: PreOrderSchedule[];
+  suppliers?: Supplier[];
 }
 
 export const demoDataService = {
@@ -71,10 +73,17 @@ export const demoDataService = {
       }
     }
 
-    // 6. Refresh seluruh state store Pinia
+    // 6. Masukkan Mitra Supplier (murni dari demo-data.json)
+    if (payload.suppliers && Array.isArray(payload.suppliers)) {
+      const supplierStore = useSupplierStore();
+      supplierStore.suppliers = [...payload.suppliers];
+      localStorage.setItem('kasir_citra_suppliers_v1', JSON.stringify(supplierStore.suppliers));
+    }
+
+    // 7. Refresh seluruh state store Pinia
     await this.refreshAllStores();
 
-    // 7. Picu background sync ke PostgreSQL Cloud
+    // 8. Picu background sync ke PostgreSQL Cloud
     syncService.triggerSync().catch(() => {});
   },
 
@@ -95,7 +104,8 @@ export const demoDataService = {
       'kasir_citra_ledger_v1',
       'kasir_citra_preorders_v2',
       'kasir_citra_purchases_v1',
-      'kasir_citra_pos_cart_v1'
+      'kasir_citra_pos_cart_v1',
+      'kasir_citra_suppliers_v1'
     ];
     for (const k of keysToRemove) {
       localStorage.removeItem(k);
@@ -105,6 +115,9 @@ export const demoDataService = {
     const inventoryStore = useInventoryStore();
     inventoryStore.products = [];
     inventoryStore.categoryMarkups = [];
+
+    const supplierStore = useSupplierStore();
+    supplierStore.suppliers = [];
 
     const buyerStore = useBuyerStore();
     buyerStore.buyers = [];

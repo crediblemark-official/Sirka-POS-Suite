@@ -155,6 +155,7 @@ pub async fn pull_all_from_cloud(pg: &mut tokio_postgres::Client) -> Result<(), 
                 last_buy_price: r.get(6),
                 last_sell_price: r.get(7),
                 stock: r.get(8),
+                supplier: None,
                 barcode: r.get(9),
                 notes: r.get(10),
             };

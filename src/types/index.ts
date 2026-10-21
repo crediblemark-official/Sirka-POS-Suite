@@ -1,8 +1,19 @@
 // Dynamic Business Entities (No Hardcoded constraints)
 export type BuyerName = string;
 export type SupplierCategory = string;
+export type CategoryName = string;
 export type CustomerType = 'B2B' | 'B2C';
 export type MembershipTier = 'REGULAR' | 'SILVER' | 'GOLD' | 'PLATINUM';
+
+export interface Supplier {
+  id: string;
+  name: string;
+  phone?: string;
+  contactPerson?: string;
+  address?: string;
+  notes?: string;
+  createdAt?: string;
+}
 
 export interface Buyer {
   id: string;
@@ -59,18 +70,61 @@ export type PaymentStatus = 'LUNAS' | 'TEMPO';
 
 export type PaymentMethod = 'Transfer Bank' | 'Tunai / Kas' | 'QRIS' | 'Nota Tempo';
 
+export type UnitCategory = 'BASE' | 'PACKAGING' | 'METRIC';
+
+export interface MasterUnit {
+  id: string;
+  name: string;              // e.g. 'PCS', 'BUNGKUS', 'KG', 'DUS', 'SLOP', 'SAK', 'BUTIR'
+  category: UnitCategory;    // 'BASE' (Satuan Dasar/Ecer), 'PACKAGING' (Kemasan Besar), 'METRIC' (Metrik Baku Berat/Volume)
+  description?: string;      // e.g. 'Kemasan karton isi banyak', 'Satuan timbangan berat baku'
+  defaultContent?: number;   // Isi default jika kemasan (misal Dus default 40, Slop default 10, Sak default 50)
+  isDefault?: boolean;       // Bawaan sistem atau buatan user
+}
+
+export interface ProductUnitConversion {
+  id: string;
+  unitName: string;          // e.g. 'GRAM', 'BUTIR', 'SAK', 'LUSIN', 'TRAY', 'JERIGEN'
+  conversionFactor: number;  // Faktor pengali ke base unit (e.g. 0.001 untuk GRAM->KG, 12 untuk LUSIN->PCS, 50 untuk SAK->KG)
+  sellPrice?: number;        // Harga jual khusus satuan ini
+  barcode?: string;
+}
+
+export interface BatchDeduction {
+  batchId: string;
+  batchNo: string;
+  qtyDeducted: number;       // Dalam base unit
+  buyPrice: number;          // Harga beli modal batch terkait
+  expiryDate?: string;
+}
+
+export interface ProductBatch {
+  id: string;
+  productId: string;
+  batchNo: string;
+  purchaseReceiptId?: string;
+  initialQty: number;        // Disimpan dalam base unit
+  remainingQty: number;      // Sisa stok dalam base unit
+  buyPrice: number;          // Modal per base unit
+  sellPrice?: number;        // Harga jual saat batch ini masuk
+  expiryDate?: string;       // YYYY-MM-DD
+  createdAt: string;
+}
+
 export interface Product {
   id: string;
   code: string;
   name: string;
   category: SupplierCategory;
-  unit: string;
+  supplier?: string;         // Mitra pemasok utama barang ini
+  unit: string;              // Base Unit
   defaultMarkupPercent: number;
   lastBuyPrice: number;
   lastSellPrice: number;
   stock: number;
   barcode?: string;
   notes?: string;
+  units?: ProductUnitConversion[];
+  isPerishable?: boolean;    // true jika produk cepat busuk/exp (prioritas FEFO)
 }
 
 export interface CartItem {
@@ -79,15 +133,19 @@ export interface CartItem {
   code: string;
   name: string;
   category: SupplierCategory;
-  unit: string;
-  qty: number;
-  buyPrice: number;            // Inline input saat nota supplier datang
-  markupPercent: number;       // Dinamis per baris (default dari supplier/global)
-  sellPrice: number;           // Dihitung otomatis: buyPrice * (1 + markupPercent / 100), atau override manual
-  isManualSellPrice?: boolean; // Jika kasir mematok harga jual tetap (contoh Tinta 85.000)
-  subtotalBuy: number;         // qty * buyPrice
-  subtotalSell: number;        // qty * sellPrice
-  profit: number;              // subtotalSell - subtotalBuy
+  unit: string;              // Satuan aktif saat kasir menjual (misal 'GRAM', 'KG', 'BUTIR')
+  baseUnit?: string;         // Satuan dasar produk (misal 'KG', 'PCS')
+  conversionFactor?: number; // Pengali ke base unit (default 1)
+  qty: number;               // Jumlah dalam satuan aktif (support desimal)
+  baseQty?: number;          // qty * conversionFactor (dipotong dari batch stok)
+  buyPrice: number;          // HPP modal
+  markupPercent: number;
+  sellPrice: number;         // Harga jual per satuan aktif
+  isManualSellPrice?: boolean;
+  subtotalBuy: number;
+  subtotalSell: number;
+  profit: number;
+  batchDeductions?: BatchDeduction[]; // Rincian pemotongan stok batch FIFO/FEFO
 }
 
 export interface Transaction {
@@ -113,7 +171,29 @@ export interface Transaction {
   pointsDiscount?: number;
   pointsEarned?: number;
   finalTotal?: number;
+  // Fitur Split Payment & Infaq Koin Kasir (Fase 2)
+  isSplitPayment?: boolean;
+  cashAmount?: number;
+  nonCashAmount?: number;
+  nonCashMethod?: 'Transfer Bank' | 'QRIS';
+  changeAmount?: number;
+  infaqAmount?: number;
+  shiftId?: string;
+  refundStatus?: 'NONE' | 'PARTIAL' | 'FULL';
+  refundTotal?: number;
   createdAt: string;
+}
+
+export interface HeldCart {
+  id: string;
+  cartNumber: number;          // e.g. 1, 2, 3
+  label?: string;              // e.g. "Ibu Rina" / "Antrean 1"
+  items: CartItem[];
+  buyer: BuyerName;
+  saleMode: CustomerType;
+  totalSell: number;
+  finalTotal: number;
+  createdAt: string;           // Formatted time or timestamp
 }
 
 export interface PreOrderItem {
@@ -138,6 +218,7 @@ export interface CategoryMarkupSetting {
   category: SupplierCategory;
   defaultMarkupPercent: number;
   description: string;
+  color?: string;
 }
 
 export interface PurchaseReceiptItem {
@@ -151,7 +232,9 @@ export interface PurchaseReceiptItem {
   buyPrice: number;            // Harga beli fisik dari nota supplier
   subtotalBuy: number;         // qtyReceived * buyPrice
   markupPercent: number;       // % markup yang diterapkan
-  newSellPrice: number;        // Rekomendasi harga jual baru: buyPrice * (1 + markup/100)
+  newSellPrice: number;        // Rekomendasi harga jual baru
+  expiryDate?: string;         // Tanggal kedaluwarsa untuk FEFO (First Expired First Out)
+  batchNo?: string;            // Nomor batch unik
 }
 
 export interface PurchaseReceipt {
@@ -164,3 +247,122 @@ export interface PurchaseReceipt {
   notes?: string;
   createdAt: string;
 }
+
+export interface CashierShift {
+  id: string;
+  cashierName: string;
+  startTime: string;
+  endTime?: string;
+  startingCash: number;
+  cashSales: number;
+  nonCashSales: number;
+  cashInflow?: number;         // Pemasukan non-penjualan (tip, infaq, donasi pelanggan)
+  cashOutflow: number;         // Pengeluaran operasional / biaya kasir
+  refundOutflow?: number;      // Total pengeluaran pengembalian dana (refund)
+  expectedCash: number;
+  actualCash?: number;
+  discrepancy?: number;
+  transferredToTreasury?: number; // Jumlah disetor ke bendahara
+  retainedInDrawer?: number;      // Sisa modal di laci kasir untuk shift selanjutnya
+  notes?: string;
+  status: 'OPEN' | 'CLOSED';
+  createdAt?: string;
+}
+
+export type RefundType = 'DAMAGED_GOODS' | 'RESTOCK' | 'CORRECTION';
+
+export interface RefundItem {
+  productId: string;
+  productName: string;
+  unit: string;
+  baseUnit?: string;
+  conversionFactor: number;
+  qty: number;               // Qty yang diretur dalam satuan aktif
+  baseQty: number;           // Qty yang diretur dalam base unit
+  unitPrice: number;         // Harga jual per satuan aktif saat transaksi
+  refundAmount: number;      // Total uang yang dikembalikan untuk item ini
+  returnToStock: boolean;    // True jika barang layak jual (masuk stok batch), False jika rusak/busuk (masuk write-off)
+  batchDeductions?: BatchDeduction[];
+}
+
+export interface TransactionRefund {
+  id: string;
+  transactionId: string;
+  invoiceNo: string;
+  date: string;              // YYYY-MM-DD
+  cashierName: string;
+  refundType: RefundType;
+  reason: string;
+  items: RefundItem[];
+  totalRefundAmount: number;
+  refundPaymentMethod: 'TUNAI' | 'TRANSFER';
+  shiftId?: string;
+  createdAt: string;
+}
+
+export type WasteReason = 'BUSUK' | 'EXPIRED' | 'RUSAK_FISIK' | 'SUSUT_TIMBANGAN' | 'LAINNYA';
+
+export interface WasteRecord {
+  id: string;
+  productId: string;
+  productName: string;
+  category: SupplierCategory;
+  qty: number;
+  unit: string;
+  baseQty: number;
+  reason: WasteReason;
+  estimatedLoss: number;     // Estimasi kerugian HPP (modal * baseQty)
+  notes?: string;
+  recordedBy: string;
+  createdAt: string;
+}
+
+export type StockMovementType =
+  | 'KULAKAN'            // Masuk (+) dari faktur supplier
+  | 'PENJUALAN'          // Keluar (-) transaksi kasir
+  | 'RETUR_MASUK'        // Masuk (+) retur pembeli layak jual
+  | 'RUSAK_WASTE'        // Keluar (-) barang rusak/pecah/susut
+  | 'PENYESUAIAN_OPNAME' // Koreksi (+ / -) selisih fisik opname
+  | 'STOK_AWAL';         // Inisialisasi awal
+
+export type StockAdjustReason =
+  | 'SELISIH_HITUNG'     // Kesalahan hitung fisik / lupa catat
+  | 'HILANG'             // Barang tidak ditemukan / hilang
+  | 'RUSAK_KADALUWARSA'  // Ditemukan sudah rusak di rak
+  | 'BONUS_SUPPLIER'     // Bonus fisik lebih dari distributor
+  | 'AWAL_MIGRASI'       // Saldo awal migrasi sistem
+  | 'LAINNYA';
+
+export interface StockMovement {
+  id: string;
+  productId: string;
+  productName: string;
+  productCode: string;
+  category: SupplierCategory;
+  unit: string;
+  type: StockMovementType;
+  refNo: string;              // No nota faktur / no struk POS / no opname
+  date: string;               // ISO date atau YYYY-MM-DD HH:mm
+  qtyChange: number;          // +10 atau -2
+  stockBefore: number;
+  stockAfter: number;
+  costPrice?: number;         // Modal HPP saat mutasi
+  notes?: string;
+  operator?: string;          // Kasir / Admin
+  createdAt: string;
+}
+
+export interface StockAdjustmentRecord {
+  id: string;
+  productId: string;
+  productName: string;
+  systemStock: number;
+  physicalStock: number;
+  difference: number;         // physicalStock - systemStock
+  reason: StockAdjustReason;
+  notes?: string;
+  adjustedBy: string;
+  createdAt: string;
+}
+
+

@@ -11,7 +11,11 @@
     "test": "bun test",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
     "test:all": "bun test && cargo test --manifest-path src-tauri/Cargo.toml",
-    "tauri": "cargo tauri"
+    "tauri": "cargo tauri",
+    "mobile:dev": "cd mobile && bun run dev",
+    "mobile:build": "cd mobile && bun run build",
+    "worker:dev": "cd worker && bun run dev",
+    "worker:deploy": "cd worker && bun run deploy"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
@@ -20,6 +24,7 @@
     "@types/jsbarcode": "^3.11.4",
     "@types/pg": "^8.23.1",
     "@vueuse/core": "^15.0.0",
+    "hono": "^4.13.13",
     "html-to-image": "^1.11.13",
     "html5-qrcode": "^2.3.8",
     "jsbarcode": "^3.12.3",

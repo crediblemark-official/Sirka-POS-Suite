@@ -16,13 +16,14 @@ const props = defineProps<{
   filterStatus: PaymentStatus | 'Semua';
   filterMarket: 'Semua' | 'B2B' | 'B2C';
   filterBuyer: string;
-  viewMode: 'transactions' | 'items';
+  viewMode: 'transactions' | 'items' | 'refunds';
   searchQuery?: string;
   totalTransactionsCount: number;
   lunasCount: number;
   tempoCount: number;
   b2bCount: number;
   b2cCount: number;
+  refundsCount?: number;
   buyerOptions: SelectOption[];
   hasActiveFilter: boolean;
 }>();
@@ -31,7 +32,7 @@ const emit = defineEmits<{
   (e: 'update:filterStatus', value: PaymentStatus | 'Semua'): void;
   (e: 'update:filterMarket', value: 'Semua' | 'B2B' | 'B2C'): void;
   (e: 'update:filterBuyer', value: string): void;
-  (e: 'update:viewMode', value: 'transactions' | 'items'): void;
+  (e: 'update:viewMode', value: 'transactions' | 'items' | 'refunds'): void;
   (e: 'reset-filters'): void;
 }>();
 
@@ -216,6 +217,21 @@ function onBuyerChange(val: string | number) {
           @click="emit('update:viewMode', 'items')"
         >
           Rincian Barang
+        </button>
+        <button
+          type="button"
+          class="px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all flex items-center gap-1"
+          :class="viewMode === 'refunds' ? 'bg-white text-rose-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
+          @click="emit('update:viewMode', 'refunds')"
+        >
+          <span>Retur & Refund</span>
+          <span
+            v-if="(refundsCount || 0) > 0"
+            class="px-1.5 py-0.2 rounded-full text-[9.5px] font-mono font-bold"
+            :class="viewMode === 'refunds' ? 'bg-rose-100 text-rose-700' : 'bg-gray-300 text-gray-700'"
+          >
+            {{ refundsCount }}
+          </span>
         </button>
       </div>
     </div>

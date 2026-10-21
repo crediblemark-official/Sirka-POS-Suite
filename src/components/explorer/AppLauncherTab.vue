@@ -1,24 +1,17 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { useInventoryStore } from '../../stores/inventoryStore';
-import { usePurchaseStore } from '../../stores/purchaseStore';
-import { useBuyerStore } from '../../stores/buyerStore';
-import { useDiscountStore } from '../../stores/discountStore';
-import { usePreOrderStore } from '../../stores/preOrderStore';
-import { useLedgerStore } from '../../stores/ledgerStore';
+import { ref, computed, onMounted } from 'vue';
 import {
   ShoppingCart,
   Truck,
   Package,
-  Percent,
   Users,
   Tag,
   CreditCard,
   Calendar,
   BookOpen,
   Store,
-  ChevronRight,
-  ArrowRight
+  FileSpreadsheet,
+  Scale
 } from 'lucide-vue-next';
 
 export type ModuleTab =
@@ -28,215 +21,231 @@ export type ModuleTab =
   | 'receiving'
   | 'preorder'
   | 'ledger'
+  | 'reports'
+  | 'returns'
   | 'products'
   | 'vendors'
+  | 'suppliers'
   | 'buyers'
   | 'branding'
   | 'master'
   | 'launcher';
 
-const props = withDefaults(defineProps<{
-  openTabIds: ModuleTab[];
-  searchQuery?: string;
-}>(), {
-  openTabIds: () => [],
-  searchQuery: ''
-});
+const props = withDefaults(
+  defineProps<{
+    openTabIds?: ModuleTab[];
+    searchQuery?: string;
+  }>(),
+  {
+    openTabIds: () => [],
+    searchQuery: ''
+  }
+);
 
 const emit = defineEmits<{
   (e: 'open-tab', id: ModuleTab): void;
 }>();
 
-const inventoryStore = useInventoryStore();
-const purchaseStore = usePurchaseStore();
-const buyerStore = useBuyerStore();
-const discountStore = useDiscountStore();
-const preOrderStore = usePreOrderStore();
-const ledgerStore = useLedgerStore();
-
-export interface MenuItem {
+export interface ShortcutDef {
   id: ModuleTab;
   title: string;
-  category: string;
-  description: string;
   icon: any;
-  iconBoxBg: string;
-  statBadge?: () => string;
+  color: string;
+  defaultX: number;
+  defaultY: number;
 }
 
-const availableMenuItems: MenuItem[] = [
-  {
-    id: 'pos',
-    title: 'Kasir & Penjualan',
-    category: 'Transaksi Utama',
-    description: 'Transaksi kasir cepat, hitung kembalian, diskon nota, dan cetak struk kasir.',
-    icon: ShoppingCart,
-    iconBoxBg: 'bg-blue-50 text-blue-600 border border-blue-200/80',
-    statBadge: () => `${inventoryStore.products.length} SKU Barang`
-  },
-  {
-    id: 'receiving',
-    title: 'Kulakan & Barang Masuk',
-    category: 'Manajemen Stok',
-    description: 'Penerimaan stok dari supplier, update HPP modal, dan riwayat faktur pembelian.',
-    icon: Truck,
-    iconBoxBg: 'bg-amber-50 text-amber-600 border border-amber-200/80',
-    statBadge: () => `${purchaseStore.purchaseHistory.length} Faktur Masuk`
-  },
-  {
-    id: 'products',
-    title: 'Daftar Barang (SKU)',
-    category: 'Inventori',
-    description: 'Master data barang dagangan, stok fisik gudang, satuan, dan margin harga jual.',
-    icon: Package,
-    iconBoxBg: 'bg-purple-50 text-purple-600 border border-purple-200/80',
-    statBadge: () => `${inventoryStore.products.length} Produk`
-  },
-  {
-    id: 'vendors',
-    title: 'Supplier & Margin Untung',
-    category: 'Mitra Pemasok',
-    description: 'Kelola mitra distributor, kategori supplier, dan margin laba persentase otomatis.',
-    icon: Percent,
-    iconBoxBg: 'bg-emerald-50 text-emerald-600 border border-emerald-200/80',
-    statBadge: () => `${inventoryStore.categoryMarkups.length} Kategori Supplier`
-  },
-  {
-    id: 'buyers',
-    title: 'Data Pelanggan & Mitra',
-    category: 'Pelanggan',
-    description: 'Database mitra grosir B2B, pelanggan eceran B2C, kontak telepon, dan riwayat belanja.',
-    icon: Users,
-    iconBoxBg: 'bg-indigo-50 text-indigo-600 border border-indigo-200/80',
-    statBadge: () => `${buyerStore.buyers.length} Mitra / Pelanggan`
-  },
-  {
-    id: 'discounts',
-    title: 'Diskon & Kupon Promo',
-    category: 'Promosi',
-    description: 'Atur kupon voucher, diskon persentase, potongan rupiah tetap, dan syarat minimal belanja.',
-    icon: Tag,
-    iconBoxBg: 'bg-rose-50 text-rose-600 border border-rose-200/80',
-    statBadge: () => `${discountStore.discounts.length} Kupon Promo`
-  },
-  {
-    id: 'loyalty',
-    title: 'Member & Poin Belanja',
-    category: 'Loyalitas',
-    description: 'Program member loyalitas, perolehan & penukaran poin, dan cetak kartu barcode member.',
-    icon: CreditCard,
-    iconBoxBg: 'bg-amber-50 text-amber-700 border border-amber-200/80',
-    statBadge: () => `${buyerStore.memberBuyers.length} Member Terdaftar`
-  },
-  {
-    id: 'preorder',
-    title: 'Rekap Pesanan Mingguan',
-    category: 'Pre-Order',
-    description: 'Jadwal titip pesan langganan mingguan, rekap kebutuhan, dan load otomatis ke kasir.',
-    icon: Calendar,
-    iconBoxBg: 'bg-teal-50 text-teal-600 border border-teal-200/80',
-    statBadge: () => `${preOrderStore.schedules.length} Jadwal Titip`
-  },
-  {
-    id: 'ledger',
-    title: 'Buku Kas & Piutang',
-    category: 'Keuangan',
-    description: 'Laporan omset penjualan, pembukuan laba kotor, monitoring utang tempo, dan ekspor data.',
-    icon: BookOpen,
-    iconBoxBg: 'bg-sky-50 text-sky-600 border border-sky-200/80',
-    statBadge: () => `${ledgerStore.transactions.length} Nota Tercatat`
-  },
-  {
-    id: 'branding',
-    title: 'Profil Toko & Struk',
-    category: 'Pengaturan',
-    description: 'Kustomisasi identitas toko, nomor faktur nota struk kasir, dan penyesuaian tema UI.',
-    icon: Store,
-    iconBoxBg: 'bg-slate-100 text-slate-700 border border-slate-200/80',
-    statBadge: () => 'Profil & Cetak'
-  }
+// 11 Modul Shortcut Desktop dengan Icon Asli & Warna Khas Masing-masing
+const shortcutDefs: ShortcutDef[] = [
+  { id: 'pos', title: 'Kasir & Penjualan', icon: ShoppingCart, color: '#2563eb', defaultX: 28, defaultY: 28 },
+  { id: 'products', title: 'Inventaris & Stok', icon: Package, color: '#7c3aed', defaultX: 138, defaultY: 28 },
+  { id: 'vendors', title: 'Satuan & Kategori', icon: Scale, color: '#ea580c', defaultX: 248, defaultY: 28 },
+  { id: 'suppliers', title: 'Mitra Supplier', icon: Truck, color: '#db2777', defaultX: 358, defaultY: 28 },
+  { id: 'buyers', title: 'Data Pelanggan', icon: Users, color: '#4f46e5', defaultX: 468, defaultY: 28 },
+  { id: 'discounts', title: 'Diskon & Kupon', icon: Tag, color: '#dc2626', defaultX: 578, defaultY: 28 },
+  { id: 'loyalty', title: 'Member & Poin', icon: CreditCard, color: '#d97706', defaultX: 28, defaultY: 148 },
+  { id: 'preorder', title: 'Pesanan Mingguan', icon: Calendar, color: '#0d9488', defaultX: 138, defaultY: 148 },
+  { id: 'reports', title: 'Laporan Keuangan', icon: FileSpreadsheet, color: '#16a34a', defaultX: 248, defaultY: 148 },
+  { id: 'ledger', title: 'Buku Kas & Nota', icon: BookOpen, color: '#0284c7', defaultX: 358, defaultY: 148 },
+  { id: 'branding', title: 'Profil Toko & Struk', icon: Store, color: '#475569', defaultX: 468, defaultY: 148 }
 ];
 
-const filteredMenuItems = computed(() => {
-  const q = (props.searchQuery || '').toLowerCase().trim();
-  if (!q) return availableMenuItems;
-  return availableMenuItems.filter(
-    m =>
-      m.title.toLowerCase().includes(q) ||
-      m.description.toLowerCase().includes(q) ||
-      m.category.toLowerCase().includes(q)
-  );
+export interface ShortcutItem extends ShortcutDef {
+  x: number;
+  y: number;
+}
+
+const STORAGE_KEY = 'kasir_citra_desktop_free_positions_v3';
+
+// Inisialisasi state tanpa JSON.stringify agar reference komponen icon tidak hilang
+const shortcuts = ref<ShortcutItem[]>(
+  shortcutDefs.map(def => ({
+    ...def,
+    x: def.defaultX,
+    y: def.defaultY
+  }))
+);
+
+const desktopAreaRef = ref<HTMLDivElement | null>(null);
+
+function loadPositions() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const posMap: Record<string, { x: number; y: number }> = JSON.parse(raw);
+    shortcuts.value.forEach(item => {
+      if (posMap[item.id]) {
+        item.x = posMap[item.id].x;
+        item.y = posMap[item.id].y;
+      }
+    });
+  } catch (err) {
+    console.error('Gagal memuat posisi shortcut desktop:', err);
+  }
+}
+
+function savePositions() {
+  try {
+    const posMap: Record<string, { x: number; y: number }> = {};
+    shortcuts.value.forEach(item => {
+      posMap[item.id] = { x: item.x, y: item.y };
+    });
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(posMap));
+  } catch (err) {
+    console.error('Gagal menyimpan posisi shortcut desktop:', err);
+  }
+}
+
+onMounted(() => {
+  loadPositions();
 });
+
+const isSearching = computed(() => !!props.searchQuery?.trim());
+
+// Dragging bebas posisi shortcut seperti di desktop PC
+const draggingId = ref<ModuleTab | null>(null);
+const isMoved = ref(false);
+let startMouseX = 0;
+let startMouseY = 0;
+let startItemX = 0;
+let startItemY = 0;
+
+function onPointerDown(item: ShortcutItem, e: PointerEvent) {
+  if (e.button !== 0) return; // Hanya klik kiri
+
+  draggingId.value = item.id;
+  isMoved.value = false;
+  startMouseX = e.clientX;
+  startMouseY = e.clientY;
+  startItemX = item.x;
+  startItemY = item.y;
+
+  (e.currentTarget as HTMLElement)?.setPointerCapture?.(e.pointerId);
+
+  window.addEventListener('pointermove', onPointerMove);
+  window.addEventListener('pointerup', onPointerUp);
+}
+
+function onPointerMove(e: PointerEvent) {
+  if (!draggingId.value) return;
+
+  const dx = e.clientX - startMouseX;
+  const dy = e.clientY - startMouseY;
+
+  if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+    isMoved.value = true;
+  }
+
+  const item = shortcuts.value.find(i => i.id === draggingId.value);
+  if (!item) return;
+
+  const area = desktopAreaRef.value;
+  const maxX = area ? Math.max(100, area.clientWidth - 88) : 2000;
+  const maxY = area ? Math.max(100, area.clientHeight - 96) : 2000;
+
+  item.x = Math.max(8, Math.min(maxX, startItemX + dx));
+  item.y = Math.max(8, Math.min(maxY, startItemY + dy));
+}
+
+function onPointerUp() {
+  if (!draggingId.value) return;
+
+  window.removeEventListener('pointermove', onPointerMove);
+  window.removeEventListener('pointerup', onPointerUp);
+
+  const currentId = draggingId.value;
+  const item = shortcuts.value.find(i => i.id === currentId);
+
+  if (item && isMoved.value) {
+    // Snap halus ke kelipatan 8px agar tetap rapi
+    item.x = Math.round(item.x / 8) * 8;
+    item.y = Math.round(item.y / 8) * 8;
+    savePositions();
+  }
+
+  const moved = isMoved.value;
+  draggingId.value = null;
+
+  // Jika tidak digeser (hanya klik biasa), buka tab
+  if (!moved) {
+    emit('open-tab', currentId);
+  }
+}
 </script>
 
 <template>
-  <div class="flex-1 flex flex-col bg-[#f8f9fa] overflow-y-auto select-none">
-    <div class="max-w-6xl mx-auto w-full p-6 md:p-8">
-      <!-- Modern Dashboard Cards Grid -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-        <div
-          v-for="menu in filteredMenuItems"
-          :key="menu.id"
-          class="group relative bg-white border rounded-xl p-4 shadow-2xs hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col justify-between overflow-hidden hover:-translate-y-0.5"
-          :class="openTabIds.includes(menu.id) ? 'border-blue-400/80 ring-1 ring-blue-500/20 bg-gradient-to-b from-blue-50/20 to-white' : 'border-gray-200/90 hover:border-blue-300'"
-          @click="emit('open-tab', menu.id)"
-        >
-          <div>
-            <!-- Top Row: Icon Box & Status Badge -->
-            <div class="flex items-start justify-between">
-              <div
-                class="w-11 h-11 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 shadow-2xs shrink-0"
-                :class="menu.iconBoxBg"
-              >
-                <component :is="menu.icon" :size="20" />
-              </div>
+  <!-- Area Desktop PC: Bersih, Tanpa Card Box, Tanpa Header Reset, Letak Bebas Dipindah-pindah -->
+  <div
+    ref="desktopAreaRef"
+    class="relative flex-1 w-full h-full bg-[#fdfdfc] overflow-hidden select-none touch-none"
+  >
+    <!-- Shortcut Desktop PC -->
+    <div
+      v-for="item in shortcuts"
+      :key="item.id"
+      :style="{
+        left: `${item.x}px`,
+        top: `${item.y}px`,
+        zIndex: draggingId === item.id ? 50 : 10
+      }"
+      class="group absolute flex flex-col items-center justify-start w-22 select-none p-1.5 rounded-xl cursor-grab active:cursor-grabbing hover:bg-black/[0.04] active:bg-blue-500/10 transition-colors"
+      :class="[
+        isSearching && !item.title.toLowerCase().includes(props.searchQuery.toLowerCase().trim())
+          ? 'opacity-20 pointer-events-none'
+          : 'opacity-100',
+        draggingId === item.id ? 'transition-none pointer-events-auto' : ''
+      ]"
+      @pointerdown="onPointerDown(item, $event)"
+    >
+      <!-- Ikon Asli Berwarna Khas Tiap Modul (Besar, Jernih, Bukan Folder & Bukan Card Box) -->
+      <div
+        class="relative w-14 h-14 flex items-center justify-center transition-transform duration-150"
+        :class="draggingId === item.id ? 'scale-115' : 'group-hover:scale-110 group-active:scale-95'"
+      >
+        <component
+          :is="item.icon"
+          :size="42"
+          :stroke-width="1.8"
+          :style="{ color: item.color }"
+          class="drop-shadow-xs transition-colors"
+        />
 
-              <!-- Status Badge: Minimalist & Clean -->
-              <div class="flex items-center">
-                <span
-                  v-if="openTabIds.includes(menu.id)"
-                  class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-2xs"
-                  title="Sudah terbuka di tab kerja"
-                >
-                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                  <span>Terbuka</span>
-                </span>
-                <span
-                  v-else
-                  class="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-semibold text-gray-400 group-hover:text-blue-600 flex items-center gap-0.5"
-                >
-                  <span>Buka</span>
-                  <ChevronRight :size="12" />
-                </span>
-              </div>
-            </div>
-
-            <!-- Middle: Category, Title, Description -->
-            <div class="mt-3.5">
-              <span class="text-[9.5px] font-bold uppercase tracking-wider text-gray-400 block mb-0.5">
-                {{ menu.category }}
-              </span>
-              <h3 class="text-xs font-bold text-gray-900 group-hover:text-blue-600 transition-colors leading-snug line-clamp-1" :title="menu.title">
-                {{ menu.title }}
-              </h3>
-              <p class="text-[11px] text-gray-500 mt-1 line-clamp-2 leading-relaxed" :title="menu.description">
-                {{ menu.description }}
-              </p>
-            </div>
-          </div>
-
-          <!-- Bottom: Module Stat & Quick Action Link -->
-          <div class="mt-4 pt-2.5 border-t border-gray-100 flex items-center justify-between text-[10.5px]">
-            <span class="font-mono text-gray-400 truncate max-w-[120px]">
-              {{ menu.statBadge ? menu.statBadge() : '' }}
-            </span>
-            <span class="text-blue-600 font-bold group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
-              <span>{{ openTabIds.includes(menu.id) ? 'Ke Tab' : 'Buka' }}</span>
-              <ArrowRight :size="11" />
-            </span>
-          </div>
-        </div>
+        <!-- Titik Hijau Indikator Tab Sedang Terbuka -->
+        <span
+          v-if="openTabIds.includes(item.id)"
+          class="absolute top-0 right-0 w-2.5 h-2.5 bg-emerald-500 border border-white rounded-full shadow-xs"
+          title="Tab sedang aktif / terbuka"
+        ></span>
       </div>
+
+      <!-- Teks Nama Shortcut Tepat di Bawah Ikon (Desktop Shortcut Label) -->
+      <span
+        class="text-xs font-medium text-gray-800 text-center leading-tight mt-1.5 px-0.5 max-w-[88px] line-clamp-2 select-none transition-colors group-hover:text-blue-700"
+        :class="openTabIds.includes(item.id) ? 'font-semibold text-gray-950' : ''"
+        :title="item.title"
+      >
+        {{ item.title }}
+      </span>
     </div>
   </div>
 </template>

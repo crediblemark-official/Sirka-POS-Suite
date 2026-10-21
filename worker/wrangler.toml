@@ -1,0 +1,8 @@
+name = "sirka-owner-api"
+main = "src/index.ts"
+compatibility_date = "2024-12-30"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+DATABASE_URL = "postgresql://ubjMYAl9vhpXpajHQ.jkt_001:aad2354f32977874bd6a646b@pgsql-dbas-jkt-001.sumobase.my.id:6432/dbd17904386f2e55b4"
+APP_NAME = "Sirka Owner Financial API"

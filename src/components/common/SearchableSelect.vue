@@ -70,7 +70,7 @@ function updateDropdownPosition() {
   dropdownPosition.value = {
     top: `${Math.round(top)}px`,
     left: `${Math.round(rect.left)}px`,
-    width: `${Math.max(Math.round(rect.width), 200)}px`
+    width: `${Math.round(rect.width)}px`
   };
 }
 
