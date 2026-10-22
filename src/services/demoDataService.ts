@@ -41,7 +41,7 @@ export const demoDataService = {
     // 1. Masukkan Kategori Markup
     if (payload.categoryMarkups && Array.isArray(payload.categoryMarkups)) {
       for (const markup of payload.categoryMarkups) {
-        await dbService.createMarkup(markup.category, markup.defaultMarkupPercent, markup.description);
+        await dbService.createMarkup(markup.category, markup.defaultMarkupPercent, markup.description, markup.color);
       }
     }
 

@@ -63,7 +63,13 @@ pub async fn run_sync_cycle() -> Result<(), String> {
         Err(_) => return Ok(()),
     };
 
-    run_sync_cycle_internal().await
+    match tokio::time::timeout(Duration::from_secs(12), run_sync_cycle_internal()).await {
+        Ok(res) => res,
+        Err(_) => {
+            eprintln!("[Sync] Siklus sinkronisasi timeout setelah 12s");
+            Err("Sinkronisasi timeout".into())
+        }
+    }
 }
 
 pub async fn run_sync_cycle_force() -> Result<(), String> {
@@ -111,6 +117,7 @@ const HISTORY_PULL_INTERVAL: std::time::Duration = std::time::Duration::from_sec
 
 static LAST_MASTER_PULL: Mutex<Option<std::time::Instant>> = Mutex::new(None);
 static LAST_HISTORY_PULL: Mutex<Option<std::time::Instant>> = Mutex::new(None);
+static LAST_EMPTY_PULL_ATTEMPT: Mutex<Option<std::time::Instant>> = Mutex::new(None);
 
 fn should_pull(slot: &Mutex<Option<std::time::Instant>>, interval: std::time::Duration) -> bool {
     let mut guard = match slot.lock() {
@@ -150,9 +157,10 @@ async fn pull_if_empty(pg: &mut tokio_postgres::Client) -> Result<(), String> {
     };
 
     if !has_products {
-        println!("[Sync Pull] SQLite lokal kosong. Menarik master data awal dari PostgreSQL...");
-        pull_master_data_from_cloud(pg).await?;
-        pull_history_from_cloud(pg).await?;
+        if should_pull(&LAST_EMPTY_PULL_ATTEMPT, std::time::Duration::from_secs(60)) {
+            let _ = pull_master_data_from_cloud(pg).await;
+            let _ = pull_history_from_cloud(pg).await;
+        }
         return Ok(());
     }
 
@@ -170,10 +178,16 @@ async fn pull_if_empty(pg: &mut tokio_postgres::Client) -> Result<(), String> {
     Ok(())
 }
 
+
 /// Tarik master data dari cloud (idempotent).
 async fn pull_master_data_from_cloud(pg: &mut tokio_postgres::Client) -> Result<(), String> {
+    let tx = match pg.transaction().await {
+        Ok(t) => t,
+        Err(e) => return Err(format!("Gagal membuka transaksi PG untuk master data: {}", e)),
+    };
+
     // 1. Pull Markups
-    if let Ok(rows) = pg
+    if let Ok(rows) = tx
         .query(
             "SELECT category, default_markup_percent::float8, description, color FROM category_markups",
             &[],
@@ -191,7 +205,7 @@ async fn pull_master_data_from_cloud(pg: &mut tokio_postgres::Client) -> Result<
     }
 
     // 2. Pull Products
-    if let Ok(rows) = pg
+    if let Ok(rows) = tx
         .query(
             "SELECT id, code, name, category, unit, default_markup_percent::float8,
                     last_buy_price::float8, last_sell_price::float8, stock::float8, barcode, notes,
@@ -223,11 +237,9 @@ async fn pull_master_data_from_cloud(pg: &mut tokio_postgres::Client) -> Result<
                 last_buy_price: r.get(6),
                 last_sell_price: r.get(7),
                 stock: r.get(8),
-                // BUG FIX: `supplier` sebelumnya tidak pernah ditarik sehingga
-                // setiap pull menulis NULL dan wiping-field supplier lokal.
-                supplier: r.get(10),
                 barcode: r.get(9),
-                notes: r.get(11),
+                notes: r.get(10),
+                supplier: r.get(11),
                 units,
                 is_perishable: Some(r.get::<_, Option<bool>>(13).unwrap_or(false)),
             };
@@ -236,7 +248,7 @@ async fn pull_master_data_from_cloud(pg: &mut tokio_postgres::Client) -> Result<
     }
 
     // 3. Pull Buyers
-    if let Ok(rows) = pg
+    if let Ok(rows) = tx
         .query(
             "SELECT id, name, code, phone, address, customer_type, member_card_no, tier,
                     points::float8, total_spend::float8, member_since::text, notes
@@ -266,7 +278,7 @@ async fn pull_master_data_from_cloud(pg: &mut tokio_postgres::Client) -> Result<
     }
 
     // 4. Pull Settings
-    if let Ok(rows) = pg.query("SELECT key, value FROM store_settings", &[]).await {
+    if let Ok(rows) = tx.query("SELECT key, value FROM store_settings", &[]).await {
         let conn = get_conn().lock().unwrap();
         for r in rows {
             let k: String = r.get(0);
@@ -276,7 +288,7 @@ async fn pull_master_data_from_cloud(pg: &mut tokio_postgres::Client) -> Result<
     }
 
     // 5. Pull Discounts
-    if let Ok(rows) = pg
+    if let Ok(rows) = tx
         .query(
             "SELECT id, code, name, type, value::float8, min_purchase::float8, max_discount::float8,
                     scope, target_category, target_customer_type, is_active, description, usage_count, created_at::text
@@ -307,12 +319,19 @@ async fn pull_master_data_from_cloud(pg: &mut tokio_postgres::Client) -> Result<
         }
     }
 
+    let _ = tx.commit().await;
     Ok(())
 }
+
 /// Tarik riwayat (transaksi & nota kulakan) dari cloud.
 async fn pull_history_from_cloud(pg: &mut tokio_postgres::Client) -> Result<(), String> {
+    let tx = match pg.transaction().await {
+        Ok(t) => t,
+        Err(e) => return Err(format!("Gagal membuka transaksi PG untuk riwayat: {}", e)),
+    };
+
     // 6. Pull Pre-orders
-    if let Ok(rows) = pg
+    if let Ok(rows) = tx
         .query(
             "SELECT id, date::text, day_name, buyer, items, is_loaded_to_pos
              FROM pre_orders",
@@ -335,7 +354,7 @@ async fn pull_history_from_cloud(pg: &mut tokio_postgres::Client) -> Result<(), 
     }
 
     // 7. Pull Recent Transactions (limit 500)
-    if let Ok(rows) = pg
+    if let Ok(rows) = tx
         .query(
             "SELECT id, invoice_no, date::text, buyer, items, total_buy::float8, total_sell::float8,
                     total_profit::float8, profit_percent::float8, payment_status, payment_method,
@@ -352,7 +371,7 @@ async fn pull_history_from_cloud(pg: &mut tokio_postgres::Client) -> Result<(), 
     {
         let conn = get_conn().lock().unwrap();
         for r in rows {
-            let tx = TransactionRecord {
+            let tx_record = TransactionRecord {
                 id: r.get(0),
                 invoice_no: r.get(1),
                 date: r.get(2),
@@ -387,17 +406,15 @@ async fn pull_history_from_cloud(pg: &mut tokio_postgres::Client) -> Result<(), 
                 refund_status: r.get(29),
                 refund_total: r.get(30),
             };
-            let _ = local_save_transaction_direct(&conn, &tx);
+            let _ = local_save_transaction_direct(&conn, &tx_record);
         }
     }
 
     // 8. Pull Recent Purchases (limit 500)
-    // BUG-017 FIX: item nota diambil dari tabel ternormalisasi `purchase_receipt_items`,
-    // lalu dirakit ulang menjadi objek receipt sebelum disimpan ke SQLite lokal.
-    // Catatan: seluruh query PostgreSQL diselesaikan DULU (tanpa mengunci SQLite),
-    // supaya MutexGuard rusqlite tidak melewati `.await` (butuh future `Send`).
+    // Item nota diambil sekaligus dalam 1 query ternormalisasi `purchase_receipt_items`,
+    // mencegah N+1 network roundtrips ke PostgreSQL.
     let mut pulled_purchases: Vec<Value> = Vec::new();
-    if let Ok(rows) = pg
+    if let Ok(rows) = tx
         .query(
             "SELECT id, supplier_invoice_no, date, supplier, total_buy, notes, created_at::text
              FROM purchase_receipts ORDER BY created_at DESC LIMIT 500",
@@ -405,6 +422,46 @@ async fn pull_history_from_cloud(pg: &mut tokio_postgres::Client) -> Result<(), 
         )
         .await
     {
+        let mut receipt_ids: Vec<String> = Vec::new();
+        for r in &rows {
+            receipt_ids.push(r.get(0));
+        }
+
+        let mut items_by_receipt: std::collections::HashMap<String, Vec<Value>> = std::collections::HashMap::new();
+        if !receipt_ids.is_empty() {
+            if let Ok(item_rows) = tx
+                .query(
+                    "SELECT receipt_id, id, product_id, code, name, category, unit,
+                            qty_received::float8, buy_price::float8, subtotal_buy::float8,
+                            markup_percent::float8, new_sell_price::float8,
+                            base_qty::float8, conversion_factor::float8
+                     FROM purchase_receipt_items WHERE receipt_id = ANY($1)
+                     ORDER BY created_at ASC, id ASC",
+                    &[&receipt_ids],
+                )
+                .await
+            {
+                for ir in &item_rows {
+                    let r_id: String = ir.get(0);
+                    items_by_receipt.entry(r_id).or_default().push(serde_json::json!({
+                        "id": ir.get::<_, Option<String>>(1).unwrap_or_default(),
+                        "productId": ir.get::<_, Option<String>>(2).unwrap_or_default(),
+                        "code": ir.get::<_, Option<String>>(3).unwrap_or_default(),
+                        "name": ir.get::<_, Option<String>>(4).unwrap_or_default(),
+                        "category": ir.get::<_, Option<String>>(5).unwrap_or_default(),
+                        "unit": ir.get::<_, Option<String>>(6).unwrap_or_default(),
+                        "qtyReceived": ir.get::<_, Option<f64>>(7).unwrap_or(0.0),
+                        "buyPrice": ir.get::<_, Option<f64>>(8).unwrap_or(0.0),
+                        "subtotalBuy": ir.get::<_, Option<f64>>(9).unwrap_or(0.0),
+                        "markupPercent": ir.get::<_, Option<f64>>(10).unwrap_or(0.0),
+                        "newSellPrice": ir.get::<_, Option<f64>>(11).unwrap_or(0.0),
+                        "baseQty": ir.get::<_, Option<f64>>(12).unwrap_or(0.0),
+                        "conversionFactor": ir.get::<_, Option<f64>>(13).unwrap_or(1.0),
+                    }));
+                }
+            }
+        }
+
         for r in rows {
             let id: String = r.get(0);
             let supplier_inv: Option<String> = r.get(1);
@@ -414,46 +471,11 @@ async fn pull_history_from_cloud(pg: &mut tokio_postgres::Client) -> Result<(), 
             let notes: Option<String> = r.get(5);
             let created_at: Option<String> = r.get(6);
 
-            let mut items: Vec<Value> = Vec::new();
-            if let Ok(item_rows) = pg
-                .query(
-                    "SELECT id, product_id, code, name, category, unit,
-                            qty_received::float8, buy_price::float8, subtotal_buy::float8,
-                            markup_percent::float8, new_sell_price::float8,
-                            base_qty::float8, conversion_factor::float8
-                     FROM purchase_receipt_items WHERE receipt_id = $1
-                     ORDER BY created_at ASC, id ASC",
-                    &[&id],
-                )
-                .await
-            {
-                for ir in &item_rows {
-                    items.push(serde_json::json!({
-                        "id": ir.get::<_, Option<String>>(0).unwrap_or_default(),
-                        "productId": ir.get::<_, Option<String>>(1).unwrap_or_default(),
-                        "code": ir.get::<_, Option<String>>(2).unwrap_or_default(),
-                        "name": ir.get::<_, Option<String>>(3).unwrap_or_default(),
-                        "category": ir.get::<_, Option<String>>(4).unwrap_or_default(),
-                        "unit": ir.get::<_, Option<String>>(5).unwrap_or_default(),
-                        "qtyReceived": ir.get::<_, Option<f64>>(6).unwrap_or(0.0),
-                        "buyPrice": ir.get::<_, Option<f64>>(7).unwrap_or(0.0),
-                        "subtotalBuy": ir.get::<_, Option<f64>>(8).unwrap_or(0.0),
-                        "markupPercent": ir.get::<_, Option<f64>>(9).unwrap_or(0.0),
-                        "newSellPrice": ir.get::<_, Option<f64>>(10).unwrap_or(0.0),
-                        // BUG FIX: kuantitas satuan dasar WAJIB ikut ditarik.
-                        // Tanpa ini nota hasil pull dari cloud kehilangan
-                        // base_qty sehingga saat nota diedit/dihapus, rollback
-                        // stok hanya mengurangi satuan kemasan (5 DUS) dan
-                        // muncul "hantu stok" (phantom stock).
-                        "baseQty": ir.get::<_, Option<f64>>(11).unwrap_or(0.0),
-                        "conversionFactor": ir.get::<_, Option<f64>>(12).unwrap_or(1.0),
-                    }));
-                }
-            }
+            let mut items = items_by_receipt.remove(&id).unwrap_or_default();
 
             // Fallback: nota lama yang itemnya belum dinormalisasi -> ambil dari JSONB
             if items.is_empty() {
-                if let Ok(Some(row)) = pg
+                if let Ok(Some(row)) = tx
                     .query_opt("SELECT receipt FROM purchase_receipts WHERE id = $1", &[&id])
                     .await
                 {
@@ -495,6 +517,8 @@ async fn pull_history_from_cloud(pg: &mut tokio_postgres::Client) -> Result<(), 
         }
     }
 
+    let _ = tx.commit().await;
+
     if !pulled_purchases.is_empty() {
         let conn = get_conn().lock().unwrap();
         for val in &pulled_purchases {
@@ -504,6 +528,7 @@ async fn pull_history_from_cloud(pg: &mut tokio_postgres::Client) -> Result<(), 
 
     Ok(())
 }
+
 
 pub async fn pull_all_from_cloud(pg: &mut tokio_postgres::Client) -> Result<(), String> {
     pull_master_data_from_cloud(pg).await?;
@@ -574,26 +599,46 @@ pub async fn reset_cache_and_resync() -> Result<SyncStatusInfo, String> {
 }
 
 pub async fn wipe_all_data(wipe_cloud: bool) -> Result<SyncStatusInfo, String> {
+    // 1. Kunci SYNC_LOCK agar proses sinkronisasi dan reset tidak saling bertabrakan
+    let _guard = SYNC_LOCK.lock().await;
+
     if wipe_cloud {
-        let pg = match get_pg_client().await {
-            Ok(client) => client,
-            Err(e) => {
-                return Err(format!(
-                    "Gagal terhubung ke PostgreSQL Cloud: {}. Penghapusan data cloud dibatalkan.",
-                    e
-                ));
+        let wipe_fut = async {
+            let pg = get_pg_client().await.map_err(|e| format!("Koneksi PostgreSQL gagal: {}", e))?;
+            // Coba TRUNCATE CASCADE terlebih dahulu
+            match pg.batch_execute(
+                "TRUNCATE TABLE transactions, pre_orders, purchase_receipt_items, purchase_receipts,
+                    discounts, buyers, products, category_markups, store_settings, cashier_shifts, suppliers CASCADE;",
+            ).await {
+                Ok(_) => Ok(()),
+                Err(e) => {
+                    eprintln!("[Wipe Cloud] TRUNCATE gagal ({}), mencoba fallback DELETE...", e);
+                    let pg_del = get_pg_client().await.map_err(|e| format!("Koneksi fallback gagal: {}", e))?;
+                    pg_del.batch_execute(
+                        "BEGIN;
+                         DELETE FROM purchase_receipt_items;
+                         DELETE FROM purchase_receipts;
+                         DELETE FROM transactions;
+                         DELETE FROM pre_orders;
+                         DELETE FROM discounts;
+                         DELETE FROM buyers;
+                         DELETE FROM products;
+                         DELETE FROM category_markups;
+                         DELETE FROM store_settings;
+                         DELETE FROM cashier_shifts;
+                         DELETE FROM suppliers;
+                         COMMIT;",
+                    ).await.map_err(|e| format!("DELETE fallback gagal: {}", e))
+                }
             }
         };
-        // BUG FIX: error TRUNCATE sebelumnya dibuang (`let _ =`) sehingga data
-        // lokal tetap dihapus padahal cloud masih menyimpan data lama —
-        // UI melaporkan "berhasil" padahal hanya separuh data yang terhapus.
-        // Sekarang error TRUNCATE dihentikan dengan pesan jelas.
-        pg.batch_execute(
-            "TRUNCATE TABLE transactions, pre_orders, purchase_receipt_items, purchase_receipts,
-                discounts, buyers, products, category_markups, store_settings, cashier_shifts, suppliers CASCADE;",
-        )
-        .await
-        .map_err(|e| format!("Gagal mengosongkan data cloud: {}", e))?;
+
+        // Batasi maksimal 8 detik untuk proses pengosongan cloud
+        match tokio::time::timeout(Duration::from_secs(8), wipe_fut).await {
+            Ok(Ok(_)) => println!("[Wipe Cloud] Data cloud berhasil dikosongkan."),
+            Ok(Err(e)) => return Err(format!("Gagal mengosongkan data cloud: {}", e)),
+            Err(_) => return Err("Gagal mengosongkan data cloud: Waktu habis / timeout (8s)".into()),
+        }
     }
 
     {
@@ -602,6 +647,13 @@ pub async fn wipe_all_data(wipe_cloud: bool) -> Result<SyncStatusInfo, String> {
             .map_err(|e| format!("Gagal mengosongkan SQLite lokal: {}", e))?;
     }
 
+    // Set interval pull ke waktu sekarang agar background sync tidak langsung
+    // mencoba menarik data dari database yang baru saja dikosongkan
+    let now = std::time::Instant::now();
+    *LAST_MASTER_PULL.lock().unwrap() = Some(now);
+    *LAST_HISTORY_PULL.lock().unwrap() = Some(now);
+    *LAST_EMPTY_PULL_ATTEMPT.lock().unwrap() = Some(now);
+
     IS_ONLINE.store(true, Ordering::SeqCst);
     let now_str = chrono::Utc::now().to_rfc3339();
     *LAST_SYNC_TIME.lock().unwrap() = Some(now_str);
@@ -609,6 +661,7 @@ pub async fn wipe_all_data(wipe_cloud: bool) -> Result<SyncStatusInfo, String> {
 
     Ok(get_status())
 }
+
 
 async fn push_outbox(pg: &mut tokio_postgres::Client) -> Result<(), String> {
     // BUG FIX: head-of-line blocking. Sebelumnya satu item yang gagal
@@ -887,6 +940,75 @@ async fn execute_push(
             )
             .await
             .map_err(|e| format!("Gagal menyimpan pengaturan ke PostgreSQL {}: {}", key, e))?;
+        }
+        "SAVE_SHIFT" => {
+            let s_val = payload.get("shift").unwrap_or(payload);
+            let id = s_val.get("id").and_then(Value::as_str).ok_or("id shift hilang")?;
+            let cashier_name = s_val.get("cashierName").or_else(|| s_val.get("cashier_name")).and_then(Value::as_str).unwrap_or("Kasir");
+            let start_time = s_val.get("startTime").or_else(|| s_val.get("start_time")).and_then(Value::as_str).unwrap_or("");
+            let end_time = s_val.get("endTime").or_else(|| s_val.get("end_time")).and_then(Value::as_str);
+            let starting_cash = s_val.get("startingCash").or_else(|| s_val.get("starting_cash")).and_then(Value::as_f64).unwrap_or(0.0);
+            let cash_sales = s_val.get("cashSales").or_else(|| s_val.get("cash_sales")).and_then(Value::as_f64).unwrap_or(0.0);
+            let non_cash_sales = s_val.get("nonCashSales").or_else(|| s_val.get("non_cash_sales")).and_then(Value::as_f64).unwrap_or(0.0);
+            let cash_outflow = s_val.get("cashOutflow").or_else(|| s_val.get("cash_outflow")).and_then(Value::as_f64).unwrap_or(0.0);
+            let cash_inflow = s_val.get("cashInflow").or_else(|| s_val.get("cash_inflow")).and_then(Value::as_f64).unwrap_or(0.0);
+            let refund_outflow = s_val.get("refundOutflow").or_else(|| s_val.get("refund_outflow")).and_then(Value::as_f64).unwrap_or(0.0);
+            let transferred_to_treasury = s_val.get("transferredToTreasury").or_else(|| s_val.get("transferred_to_treasury")).and_then(Value::as_f64).unwrap_or(0.0);
+            let retained_in_drawer = s_val.get("retainedInDrawer").or_else(|| s_val.get("retained_in_drawer")).and_then(Value::as_f64).unwrap_or(0.0);
+            let expected_cash = s_val.get("expectedCash").or_else(|| s_val.get("expected_cash")).and_then(Value::as_f64).unwrap_or(0.0);
+            let actual_cash = s_val.get("actualCash").or_else(|| s_val.get("actual_cash")).and_then(Value::as_f64);
+            let discrepancy = s_val.get("discrepancy").and_then(Value::as_f64);
+            let notes = s_val.get("notes").and_then(Value::as_str).unwrap_or("");
+            let status = s_val.get("status").and_then(Value::as_str).unwrap_or("OPEN");
+
+            let start_dt = chrono::DateTime::parse_from_rfc3339(start_time)
+                .map(|dt| dt.with_timezone(&chrono::Utc))
+                .unwrap_or_else(|_| chrono::Utc::now());
+            let end_dt = end_time.and_then(|et| {
+                chrono::DateTime::parse_from_rfc3339(et)
+                    .map(|dt| dt.with_timezone(&chrono::Utc))
+                    .ok()
+            });
+
+            pg.execute(
+                "INSERT INTO cashier_shifts (
+                    id, cashier_name, start_time, end_time, starting_cash, cash_sales,
+                    non_cash_sales, cash_outflow, cash_inflow, refund_outflow,
+                    transferred_to_treasury, retained_in_drawer, expected_cash, actual_cash, discrepancy,
+                    notes, status, updated_at
+                ) VALUES (
+                    $1, $2, $3, $4, $5, $6,
+                    $7, $8, $9, $10,
+                    $11, $12, $13, $14, $15,
+                    $16, $17, NOW()
+                )
+                ON CONFLICT (id) DO UPDATE SET
+                    cashier_name = EXCLUDED.cashier_name,
+                    start_time = EXCLUDED.start_time,
+                    end_time = EXCLUDED.end_time,
+                    starting_cash = EXCLUDED.starting_cash,
+                    cash_sales = EXCLUDED.cash_sales,
+                    non_cash_sales = EXCLUDED.non_cash_sales,
+                    cash_outflow = EXCLUDED.cash_outflow,
+                    cash_inflow = EXCLUDED.cash_inflow,
+                    refund_outflow = EXCLUDED.refund_outflow,
+                    transferred_to_treasury = EXCLUDED.transferred_to_treasury,
+                    retained_in_drawer = EXCLUDED.retained_in_drawer,
+                    expected_cash = EXCLUDED.expected_cash,
+                    actual_cash = EXCLUDED.actual_cash,
+                    discrepancy = EXCLUDED.discrepancy,
+                    notes = EXCLUDED.notes,
+                    status = EXCLUDED.status,
+                    updated_at = NOW()",
+                &[
+                    &id, &cashier_name, &start_dt, &end_dt, &starting_cash, &cash_sales,
+                    &non_cash_sales, &cash_outflow, &cash_inflow, &refund_outflow,
+                    &transferred_to_treasury, &retained_in_drawer, &expected_cash, &actual_cash, &discrepancy,
+                    &notes, &status,
+                ],
+            )
+            .await
+            .map_err(|e| format!("Gagal menyimpan cashier_shift ke PostgreSQL {}: {}", id, e))?;
         }
         _ => {
             // BUG FIX: action yang tidak dikenal sebelumnya mengembalikan Ok(()) sehingga

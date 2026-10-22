@@ -223,8 +223,8 @@ function handleKeydown(e: KeyboardEvent) {
     return;
   }
 
-  // F3: Scan Kartu Member
-  if (e.key === 'F3') {
+  // F7 / Alt+M: Scan Kartu Member (F3 untuk Search Bar Universal)
+  if (e.key === 'F7' || (e.altKey && (e.key.toLowerCase() === 'm'))) {
     e.preventDefault();
     showScanMemberModal.value = true;
     return;
@@ -340,15 +340,15 @@ onUnmounted(() => {
             <span>{{ posStore.saleMode === 'B2B' ? 'Pembeli Grosir / B2B' : 'Pembeli / Pelanggan Eceran' }}</span>
           </div>
 
-          <!-- Tombol Aksi Scan Kartu Member F3 -->
+          <!-- Tombol Aksi Scan Kartu Member F7 -->
           <button
             type="button"
             class="flex items-center gap-1 px-2.5 py-0.5 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[10.5px] cursor-pointer shadow-xs transition-all active:scale-95"
-            title="Scan Barcode / QR / Nomor Kartu Member (Tekan F3)"
+            title="Scan Barcode / QR / Nomor Kartu Member (Tekan F7)"
             @click="showScanMemberModal = true"
           >
             <QrCode :size="12" />
-            <span>Scan Member (F3)</span>
+            <span>Scan Member (F7)</span>
           </button>
         </div>
 
@@ -509,7 +509,7 @@ onUnmounted(() => {
               <select
                 v-if="getProductUnits(item.productId).length > 1"
                 :value="item.unit"
-                class="px-1.5 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded text-[10px] font-bold border border-amber-300 outline-none cursor-pointer transition-colors"
+                class="px-1.5 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded text-[10px] font-bold border-none outline-none cursor-pointer transition-colors"
                 title="Klik untuk ganti satuan kemasan"
                 @change="(e: any) => posStore.setItemUnit(item.id, e.target.value)"
               >
@@ -521,7 +521,7 @@ onUnmounted(() => {
                   {{ u.unitName }}
                 </option>
               </select>
-              <span v-else class="px-1.5 py-0.2 bg-gray-100 text-gray-700 rounded text-[9.5px] font-bold border border-gray-200 uppercase">
+              <span v-else class="px-1.5 py-0.2 bg-gray-100 text-gray-700 rounded text-[9.5px] font-bold uppercase">
                 {{ item.unit }}
               </span>
             </div>

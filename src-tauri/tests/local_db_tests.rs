@@ -814,3 +814,13 @@ fn test_buyer_notes_persistence() {
         "Catatan pelanggan harus tersimpan"
     );
 }
+
+#[test]
+fn test_get_database_url_loads_env() {
+    let url = tauri_app_lib::db::get_database_url();
+    assert!(url.is_some(), "DATABASE_URL harus berhasil ditemukan dari .env atau fallback");
+    assert!(
+        url.as_ref().unwrap().starts_with("postgresql://") || url.as_ref().unwrap().starts_with("postgres://"),
+        "DATABASE_URL harus berupa URL postgres yang valid"
+    );
+}

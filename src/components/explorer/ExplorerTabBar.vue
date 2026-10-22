@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { usePosStore } from '../../stores/posStore';
 import { useInventoryStore } from '../../stores/inventoryStore';
 import { useBuyerStore } from '../../stores/buyerStore';
@@ -10,7 +10,6 @@ import { usePreOrderStore } from '../../stores/preOrderStore';
 import { useDiscountStore } from '../../stores/discountStore';
 import type { ModuleTab } from './AppLauncherTab.vue';
 import {
-  Plus,
   X,
   ShoppingCart,
   Truck,
@@ -50,6 +49,8 @@ const tabBarRef = ref<HTMLDivElement | null>(null);
 const measurerRef = ref<HTMLDivElement | null>(null);
 const isCrowded = ref(false);
 let resizeObserver: ResizeObserver | null = null;
+
+const dynamicTabs = computed(() => props.openTabIds.filter(id => id !== 'home'));
 
 function hasBadge(tabId: ModuleTab): boolean {
   if (tabId === 'pos') return posStore.cartItems.length > 0;
@@ -131,6 +132,8 @@ function handleWheel(e: WheelEvent) {
 
 function getTabShortTitle(tabId: ModuleTab): string {
   switch (tabId) {
+    case 'home':
+      return 'Home';
     case 'pos':
       return 'Kasir';
     case 'discounts':
@@ -155,46 +158,18 @@ function getTabShortTitle(tabId: ModuleTab): string {
     case 'buyers':
       return 'Pelanggan';
     case 'branding':
-      return 'Profile';
+      return 'Profil';
     default:
       return tabId;
   }
 }
 
 function getTabFullTitle(tabId: ModuleTab): string {
-  switch (tabId) {
-    case 'pos':
-      return `Kasir & Penjualan (${posStore.selectedBuyer})`;
-    case 'discounts':
-      return 'Diskon & Kupon Promo';
-    case 'loyalty':
-      return 'Member & Poin Belanja';
-    case 'receiving':
-      return 'Kulakan & Barang Masuk';
-    case 'preorder':
-      return 'Rekap Pesanan Mingguan';
-    case 'ledger':
-      return 'Buku Kas & Ledger Nota';
-    case 'reports':
-      return 'Pusat Laporan Keuangan';
-    case 'products':
-    case 'master':
-      return 'Pusat Inventaris & Audit Stok';
-    case 'vendors':
-      return 'Satuan & Kategori';
-    case 'suppliers':
-      return 'Mitra Supplier (Pemasok)';
-    case 'buyers':
-      return 'Data Pelanggan & Mitra';
-    case 'branding':
-      return 'Profil Toko & Struk';
-    default:
-      return tabId;
-  }
+  return getTabShortTitle(tabId);
 }
 
 function getTabDisplayTitle(tabId: ModuleTab): string {
-  return isCrowded.value ? getTabShortTitle(tabId) : getTabFullTitle(tabId);
+  return getTabShortTitle(tabId);
 }
 </script>
 
@@ -211,9 +186,8 @@ function getTabDisplayTitle(tabId: ModuleTab): string {
       class="invisible absolute -top-[9999px] left-0 flex items-stretch h-8.5 pointer-events-none select-none text-xs font-medium"
       style="width: max-content;"
     >
-      <div class="px-2.5 flex items-center justify-center shrink-0"><Plus :size="14" /></div>
       <div
-        v-for="tabId in openTabIds"
+        v-for="tabId in dynamicTabs"
         :key="'measurer-' + tabId"
         class="flex items-center gap-1.5 px-3 border-r shrink-0"
       >
@@ -237,20 +211,9 @@ function getTabDisplayTitle(tabId: ModuleTab): string {
       </div>
     </div>
 
-    <!-- Add New Tab Button (+) Full Cell Height -->
-    <button
-      type="button"
-      class="h-full px-2.5 flex items-center justify-center hover:bg-black/10 border-r transition-colors shrink-0 cursor-pointer"
-      style="border-color: var(--surface-tab-border); color: var(--surface-text);"
-      title="Buka Menu Baru / New Tab (+)"
-      @click="emit('open-launcher')"
-    >
-      <Plus :size="14" />
-    </button>
-
     <!-- Elastic Dynamic Open Tabs (Full Cell Height Chrome/VS Code Style) -->
     <div
-      v-for="tabId in openTabIds"
+      v-for="tabId in dynamicTabs"
       :key="tabId"
       class="group relative flex items-center gap-1.5 h-full border-r cursor-pointer text-xs font-medium transition-colors select-none"
       :class="[
@@ -356,7 +319,7 @@ function getTabDisplayTitle(tabId: ModuleTab): string {
         class="hover:bg-black/10 rounded p-0.5 ml-1 cursor-pointer shrink-0"
         style="color: var(--surface-text-muted);"
         title="Tutup"
-        @click="emit('select-tab', openTabIds[0] || 'pos')"
+        @click="emit('select-tab', dynamicTabs[0] || 'home')"
       >
         <X :size="11" />
       </button>

@@ -6,7 +6,7 @@ import { useInventoryStore } from '../../stores/inventoryStore';
 import MasterSkuTab from './MasterSkuTab.vue';
 import ProductReceivingDrawer from './ProductReceivingDrawer.vue';
 import StockAdjustModal from '../inventory/StockAdjustModal.vue';
-import StockCardDrawer from '../inventory/StockCardDrawer.vue';
+import StockCardModal from '../inventory/StockCardModal.vue';
 
 const props = withDefaults(defineProps<{
   searchQuery?: string;
@@ -56,8 +56,7 @@ function handleProductDeleted(_id: string) {
       />
     </main>
 
-    <!-- Modals & Drawers Inventaris Terpadu (Overlay) -->
-    <StockCardDrawer />
+    <StockCardModal />
     <StockAdjustModal />
   </div>
 </template>

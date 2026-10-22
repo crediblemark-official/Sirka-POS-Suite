@@ -292,8 +292,9 @@ function handleRefundViewReceipt(invoiceNo: string) {
 
     <!-- 3. Main Workspace: Edge-to-Edge Table (Modular & DRY) -->
     <div class="flex-1 flex flex-col overflow-hidden bg-white">
-      <div class="flex-1 overflow-auto">
+      <div class="flex-1 overflow-auto flex flex-col">
         <!-- Reusable Empty State -->
+
         <AppEmptyState
           v-if="viewMode !== 'refunds' && ledgerStore.transactions.length === 0"
           :icon="BookOpen"

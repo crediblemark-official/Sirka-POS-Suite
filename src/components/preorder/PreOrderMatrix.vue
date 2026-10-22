@@ -362,8 +362,9 @@ function handleCardClick(sched: PreOrderSchedule) {
         <!-- Reusable MetricStatsStrip (DRY) di sisi kiri -->
         <MetricStatsStrip :items="metricStats" />
 
-        <div class="flex-1 p-3 overflow-y-auto">
+        <div class="flex-1 p-3 overflow-y-auto flex flex-col">
           <!-- Empty State -->
+
         <AppEmptyState
           v-if="filteredSchedules.length === 0"
           :icon="Calendar"

@@ -11,10 +11,12 @@ import {
   BookOpen,
   Store,
   FileSpreadsheet,
-  Scale
+  Scale,
+  LayoutDashboard
 } from 'lucide-vue-next';
 
 export type ModuleTab =
+  | 'home'
   | 'pos'
   | 'discounts'
   | 'loyalty'
@@ -55,19 +57,20 @@ export interface ShortcutDef {
   defaultY: number;
 }
 
-// 11 Modul Shortcut Desktop dengan Icon Asli & Warna Khas Masing-masing
+// 12 Modul Shortcut Desktop dengan Icon Asli & Warna Khas Masing-masing
 const shortcutDefs: ShortcutDef[] = [
-  { id: 'pos', title: 'Kasir & Penjualan', icon: ShoppingCart, color: '#2563eb', defaultX: 28, defaultY: 28 },
-  { id: 'products', title: 'Inventaris & Stok', icon: Package, color: '#7c3aed', defaultX: 138, defaultY: 28 },
-  { id: 'vendors', title: 'Satuan & Kategori', icon: Scale, color: '#ea580c', defaultX: 248, defaultY: 28 },
-  { id: 'suppliers', title: 'Mitra Supplier', icon: Truck, color: '#db2777', defaultX: 358, defaultY: 28 },
-  { id: 'buyers', title: 'Data Pelanggan', icon: Users, color: '#4f46e5', defaultX: 468, defaultY: 28 },
-  { id: 'discounts', title: 'Diskon & Kupon', icon: Tag, color: '#dc2626', defaultX: 578, defaultY: 28 },
-  { id: 'loyalty', title: 'Member & Poin', icon: CreditCard, color: '#d97706', defaultX: 28, defaultY: 148 },
-  { id: 'preorder', title: 'Pesanan Mingguan', icon: Calendar, color: '#0d9488', defaultX: 138, defaultY: 148 },
-  { id: 'reports', title: 'Laporan Keuangan', icon: FileSpreadsheet, color: '#16a34a', defaultX: 248, defaultY: 148 },
-  { id: 'ledger', title: 'Buku Kas & Nota', icon: BookOpen, color: '#0284c7', defaultX: 358, defaultY: 148 },
-  { id: 'branding', title: 'Profil Toko & Struk', icon: Store, color: '#475569', defaultX: 468, defaultY: 148 }
+  { id: 'home', title: 'Home', icon: LayoutDashboard, color: '#4f46e5', defaultX: 28, defaultY: 28 },
+  { id: 'pos', title: 'Kasir', icon: ShoppingCart, color: '#2563eb', defaultX: 138, defaultY: 28 },
+  { id: 'products', title: 'Inventaris', icon: Package, color: '#7c3aed', defaultX: 248, defaultY: 28 },
+  { id: 'vendors', title: 'Kategori', icon: Scale, color: '#ea580c', defaultX: 358, defaultY: 28 },
+  { id: 'suppliers', title: 'Supplier', icon: Truck, color: '#db2777', defaultX: 468, defaultY: 28 },
+  { id: 'buyers', title: 'Pelanggan', icon: Users, color: '#0284c7', defaultX: 578, defaultY: 28 },
+  { id: 'discounts', title: 'Diskon', icon: Tag, color: '#dc2626', defaultX: 28, defaultY: 148 },
+  { id: 'loyalty', title: 'Member', icon: CreditCard, color: '#d97706', defaultX: 138, defaultY: 148 },
+  { id: 'preorder', title: 'Pesanan', icon: Calendar, color: '#0d9488', defaultX: 248, defaultY: 148 },
+  { id: 'reports', title: 'Laporan', icon: FileSpreadsheet, color: '#16a34a', defaultX: 358, defaultY: 148 },
+  { id: 'ledger', title: 'Buku Kas', icon: BookOpen, color: '#0891b2', defaultX: 468, defaultY: 148 },
+  { id: 'branding', title: 'Profil', icon: Store, color: '#475569', defaultX: 578, defaultY: 148 }
 ];
 
 export interface ShortcutItem extends ShortcutDef {
@@ -99,6 +102,28 @@ function loadPositions() {
         item.y = posMap[item.id].y;
       }
     });
+
+    // Jika 'home' baru ditambahkan dan posisinya belum tersimpan di posMap,
+    // pastikan koordinat defaultnya tidak bertumpukan dengan icon lain
+    if (!posMap['home']) {
+      const homeItem = shortcuts.value.find(s => s.id === 'home');
+      if (homeItem) {
+        let col = 0;
+        let row = 0;
+        const isOccupied = (x: number, y: number) => {
+          return shortcuts.value.some(s => s.id !== 'home' && Math.abs(s.x - x) < 80 && Math.abs(s.y - y) < 80);
+        };
+        while (isOccupied(homeItem.x, homeItem.y) && row < 5) {
+          col++;
+          if (col > 5) {
+            col = 0;
+            row++;
+          }
+          homeItem.x = 28 + col * 110;
+          homeItem.y = 28 + row * 120;
+        }
+      }
+    }
   } catch (err) {
     console.error('Gagal memuat posisi shortcut desktop:', err);
   }

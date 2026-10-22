@@ -104,8 +104,8 @@ pub async fn pg_upsert_product(product: ProductRecord) -> Result<String, String>
 
     client
         .execute(
-            "INSERT INTO products (id, code, name, category, unit, default_markup_percent, last_buy_price, last_sell_price, stock, notes, barcode, units, is_perishable, updated_at)
-             VALUES ($1, $2, $3, $4, $5, $6::float8::numeric, $7::float8::numeric, $8::float8::numeric, $9::float8::numeric, $10, $11, $12::jsonb, $13, NOW())
+            "INSERT INTO products (id, code, name, category, unit, default_markup_percent, last_buy_price, last_sell_price, stock, notes, barcode, units, is_perishable, supplier, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6::float8::numeric, $7::float8::numeric, $8::float8::numeric, $9::float8::numeric, $10, $11, $12::text::jsonb, $13, $14, NOW())
              ON CONFLICT (id) DO UPDATE SET
                code = EXCLUDED.code,
                name = EXCLUDED.name,
@@ -119,6 +119,7 @@ pub async fn pg_upsert_product(product: ProductRecord) -> Result<String, String>
                barcode = EXCLUDED.barcode,
                units = COALESCE(EXCLUDED.units, products.units),
                is_perishable = EXCLUDED.is_perishable,
+               supplier = EXCLUDED.supplier,
                updated_at = NOW()",
             &[
                 &id,
@@ -134,10 +135,18 @@ pub async fn pg_upsert_product(product: ProductRecord) -> Result<String, String>
                 &product.barcode,
                 &units_json,
                 &is_perishable,
+                &product.supplier,
             ],
         )
         .await
-        .map_err(|e| format!("Gagal menyimpan produk ke PostgreSQL: {}", e))?;
+        .map_err(|e| {
+            if let Some(dbe) = e.as_db_error() {
+                format!("Gagal menyimpan produk ke PostgreSQL [{}]: {} (detail: {:?})", dbe.code().code(), dbe.message(), dbe.detail())
+            } else {
+                format!("Gagal menyimpan produk ke PostgreSQL: {}", e)
+            }
+        })?;
+
 
     Ok(id)
 }

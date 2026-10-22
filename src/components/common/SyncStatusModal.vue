@@ -107,6 +107,7 @@ async function handleResetDemoData() {
   cacheErrorMsg.value = null;
   try {
     await demoDataService.resetAllDataToFresh(wipeCloudOption.value);
+    await syncService.refreshStatus();
     confirmResetOpen.value = false;
     cacheSuccessMsg.value = wipeCloudOption.value
       ? 'Seluruh data (Lokal & Cloud) berhasil dikosongkan! Kondisi fresh install.'

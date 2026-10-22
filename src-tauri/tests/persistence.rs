@@ -10,6 +10,7 @@ use tauri_app_lib::{
 #[ignore = "requires DATABASE_URL pointing to a fresh kasir_citra_test_* database"]
 async fn persistence_workflows() {
     let client = get_pg_client().await.unwrap();
+
     let db: String = client
         .query_one("SELECT current_database()", &[])
         .await
@@ -19,6 +20,7 @@ async fn persistence_workflows() {
         db.starts_with("kasir_citra_test_"),
         "Use a disposable test database"
     );
+
     client
         .batch_execute(include_str!("../../db/schema.sql"))
         .await
@@ -173,3 +175,4 @@ async fn persistence_workflows() {
         .get(0);
     assert_eq!(stock, 8.0, "legacy import must not change stock");
 }
+

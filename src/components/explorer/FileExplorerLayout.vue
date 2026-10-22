@@ -10,6 +10,7 @@ import ExplorerToolbar from './ExplorerToolbar.vue';
 import ExplorerTabBar from './ExplorerTabBar.vue';
 import ExplorerStatusBar from './ExplorerStatusBar.vue';
 import AppLauncherTab from './AppLauncherTab.vue';
+import HomeInsightView from '../home/HomeInsightView.vue';
 
 // View Modules
 import ProductCatalog from '../pos/ProductCatalog.vue';
@@ -31,56 +32,13 @@ import CloseShiftModal from '../pos/CloseShiftModal.vue';
 import ShiftSummaryModal from '../pos/ShiftSummaryModal.vue';
 import WasteModal from '../returns/WasteModal.vue';
 import { useShiftStore } from '../../stores/shiftStore';
-import { safeParse } from '../../utils/storage';
 
 const posStore = usePosStore();
 const shiftStore = useShiftStore();
 
-// Open tabs initialized with Kasir POS & Pusat Inventaris by default, and persisted in localStorage
-//
-// BUG FIX: `JSON.parse` tanpa try/catch + tanpa validasi di file ini (shell/root
-// aplikasi) membuat SATU nilai localStorage korup menyebabkan SyntaxError saat
-// `setup()` -> komponen tidak ter-render -> APLIKASI TIDAK BISA DIBUKA tanpa
-// cara lain membersihkan cache.
-//
-// Sekarang: parse aman, harus berupa array, dan setiap id tab divalidasi
-// terhadap daftar tab yang dikenal.
-const KNOWN_TABS: ModuleTab[] = [
-  'pos', 'products', 'preorder', 'ledger', 'reports', 'vendors',
-  'suppliers', 'buyers', 'branding', 'discounts', 'loyalty', 'launcher',
-  'receiving', 'returns', 'master'
-];
-
-function normalizeTabId(id: unknown): ModuleTab | null {
-  if (typeof id !== 'string') return null;
-  // Map tab lama ('receiving' -> 'products', 'returns' -> 'ledger')
-  const mapped = id === 'receiving' ? 'products' : (id === 'returns' ? 'ledger' : id);
-  return (KNOWN_TABS as string[]).includes(mapped) ? (mapped as ModuleTab) : null;
-}
-
-const savedOpenTabs = localStorage.getItem('kasir_citra_open_tabs_v1');
-const rawInitialTabs: ModuleTab[] = (() => {
-  const parsed = safeParse<unknown>(savedOpenTabs, []);
-  if (!Array.isArray(parsed)) return ['pos', 'products'];
-  const valid = parsed
-    .map(normalizeTabId)
-    .filter((t): t is ModuleTab => t !== null);
-  return valid.length > 0 ? [...new Set(valid)] : ['pos', 'products'];
-})();
-const openTabIds = ref<ModuleTab[]>([...new Set(rawInitialTabs)]);
-
-const savedActiveTab = localStorage.getItem('kasir_citra_active_tab_v1');
-const initialActive: ModuleTab =
-  normalizeTabId(savedActiveTab) || (openTabIds.value.length > 0 ? openTabIds.value[0] : 'pos');
-const activeTab = ref<ModuleTab>(initialActive);
-
-watch(activeTab, (val) => {
-  localStorage.setItem('kasir_citra_active_tab_v1', val);
-});
-
-watch(openTabIds, (val) => {
-  localStorage.setItem('kasir_citra_open_tabs_v1', JSON.stringify(val));
-}, { deep: true });
+// Setiap aplikasi baru dibuka: tidak ada tab aktif, dan default memunculkan Home
+const openTabIds = ref<ModuleTab[]>([]);
+const activeTab = ref<ModuleTab>('home');
 
 function closeTab(tabId: ModuleTab, e?: MouseEvent) {
   if (e) e.stopPropagation();
@@ -88,35 +46,41 @@ function closeTab(tabId: ModuleTab, e?: MouseEvent) {
   if (idx !== -1) {
     openTabIds.value.splice(idx, 1);
   }
-  // If the active tab was closed, switch to another tab or to launcher
+  // If the active tab was closed, switch to another tab or fallback to home insight
   if (activeTab.value === tabId) {
     if (openTabIds.value.length > 0) {
       activeTab.value = openTabIds.value[Math.max(0, idx - 1)];
     } else {
-      activeTab.value = 'launcher';
+      activeTab.value = 'home';
     }
   }
 }
 
 const tabTitles: Record<ModuleTab, string> = {
-  pos: 'Kasir & Penjualan',
-  receiving: 'Kulakan & Barang Masuk',
-  products: 'Pusat Inventaris & Audit Stok',
-  vendors: 'Satuan & Kategori',
-  suppliers: 'Mitra Supplier (Pemasok)',
-  buyers: 'Data Pelanggan & Mitra',
-  discounts: 'Diskon & Kupon Promo',
-  loyalty: 'Member & Poin Belanja',
-  preorder: 'Rekap Pesanan Mingguan',
-  ledger: 'Buku Kas & Piutang',
-  reports: 'Pusat Laporan Keuangan',
-  returns: 'Buku Kas & Piutang',
-  branding: 'Profil Toko & Struk',
-  master: 'Pusat Inventaris & Audit Stok',
-  launcher: 'Menu Aplikasi (New Tab)'
+  pos: 'Kasir',
+  receiving: 'Kulakan',
+  products: 'Inventaris',
+  vendors: 'Kategori',
+  suppliers: 'Supplier',
+  buyers: 'Pelanggan',
+  discounts: 'Diskon',
+  loyalty: 'Member',
+  preorder: 'Pesanan',
+  ledger: 'Buku Kas',
+  reports: 'Laporan',
+  returns: 'Buku Kas',
+  branding: 'Profil',
+  master: 'Inventaris',
+  home: 'Home',
+  launcher: 'Menu'
 };
 
 function openTab(tabId: ModuleTab) {
+  if (tabId === 'home') {
+    activeTab.value = 'home';
+    currentPath.value = 'Sistem Kasir / Home';
+    return;
+  }
   // Map old/merged tabs to their single homes
   const targetId = tabId === 'receiving' ? 'products' : (tabId === 'returns' ? 'ledger' : tabId);
   if (!openTabIds.value.includes(targetId)) {
@@ -128,18 +92,33 @@ function openTab(tabId: ModuleTab) {
 
 function openLauncherTab() {
   activeTab.value = 'launcher';
-  currentPath.value = 'Sistem Kasir / Menu Aplikasi (New Tab)';
+  currentPath.value = 'Sistem Kasir / Menu';
 }
 
 // Split Pane Cart Drawer (File Manager Split View / F3)
 const showCartDrawer = ref(true);
 
 // File Manager Browsing Navigation
-const currentPath = ref<string>('Katalog Barang / Semua Produk');
+const currentPath = ref<string>('Sistem Kasir / Home');
 const selectedCategory = ref<SupplierCategory | 'Semua'>('Semua');
 const viewMode = ref<'icons' | 'list'>('icons');
 const searchQuery = ref<string>('');
 const toolbarRef = ref<InstanceType<typeof ExplorerToolbar> | null>(null);
+const productCatalogRef = ref<InstanceType<typeof ProductCatalog> | null>(null);
+
+function handleSearchNavigate(direction: 'right' | 'left' | 'down' | 'up') {
+  if (activeTab.value === 'pos' && productCatalogRef.value) {
+    productCatalogRef.value.navigateProducts(direction);
+  }
+}
+
+function handleSearchSubmit() {
+  if (activeTab.value === 'pos' && productCatalogRef.value) {
+    productCatalogRef.value.handleAddSelected();
+    showCartDrawer.value = true;
+    searchQuery.value = '';
+  }
+}
 
 watch(activeTab, (newTab) => {
   searchQuery.value = '';
@@ -184,6 +163,8 @@ const searchPlaceholder = computed(() => {
       return 'Cari no. faktur, nama vendor, catatan...';
     case 'launcher':
       return 'Cari menu aplikasi...';
+    case 'home':
+      return 'Cari fitur, modul usaha, atau data insight...';
     default:
       return 'Cari data...';
   }
@@ -206,8 +187,65 @@ function handleViewReceiptFromLedger(tx: any) {
 }
 
 function handleGlobalKeydown(e: KeyboardEvent) {
-  // Shortcut F2 or Ctrl+F: Focus search box instantly
-  if (e.key === 'F2' || ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F'))) {
+  // Shortcut Ctrl+Tab / Ctrl+Shift+Tab: Kontrol ganti tab dinamis
+  if (e.ctrlKey && e.key === 'Tab') {
+    e.preventDefault();
+    if (openTabIds.value.length === 0) {
+      activeTab.value = 'home';
+      return;
+    }
+    const currIdx = openTabIds.value.indexOf(activeTab.value);
+    if (e.shiftKey) {
+      // Mundur ke tab sebelumnya (wrap ke tab terakhir)
+      if (currIdx === -1) {
+        activeTab.value = openTabIds.value[openTabIds.value.length - 1];
+      } else {
+        const prevIdx = (currIdx - 1 + openTabIds.value.length) % openTabIds.value.length;
+        activeTab.value = openTabIds.value[prevIdx];
+      }
+    } else {
+      // Maju ke tab berikutnya (wrap ke tab awal)
+      if (currIdx === -1) {
+        activeTab.value = openTabIds.value[0];
+      } else {
+        const nextIdx = (currIdx + 1) % openTabIds.value.length;
+        activeTab.value = openTabIds.value[nextIdx];
+      }
+    }
+    return;
+  }
+
+  // Dukung juga Ctrl+PageDown (Next Tab) & Ctrl+PageUp (Prev Tab)
+  if (e.ctrlKey && e.key === 'PageDown') {
+    e.preventDefault();
+    if (openTabIds.value.length > 0) {
+      const currIdx = openTabIds.value.indexOf(activeTab.value);
+      const nextIdx = currIdx === -1 ? 0 : (currIdx + 1) % openTabIds.value.length;
+      activeTab.value = openTabIds.value[nextIdx];
+    }
+    return;
+  }
+  if (e.ctrlKey && e.key === 'PageUp') {
+    e.preventDefault();
+    if (openTabIds.value.length > 0) {
+      const currIdx = openTabIds.value.indexOf(activeTab.value);
+      const prevIdx = currIdx === -1 ? openTabIds.value.length - 1 : (currIdx - 1 + openTabIds.value.length) % openTabIds.value.length;
+      activeTab.value = openTabIds.value[prevIdx];
+    }
+    return;
+  }
+
+  // Shortcut Ctrl+W: Tutup tab aktif
+  if (e.ctrlKey && (e.key === 'w' || e.key === 'W')) {
+    e.preventDefault();
+    if (activeTab.value !== 'home' && activeTab.value !== 'launcher') {
+      closeTab(activeTab.value);
+    }
+    return;
+  }
+
+  // Shortcut F3, F2 or Ctrl+F: Focus search box instantly
+  if (e.key === 'F3' || e.key === 'F2' || ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F'))) {
     e.preventDefault();
     toolbarRef.value?.focusSearch();
     return;
@@ -215,6 +253,11 @@ function handleGlobalKeydown(e: KeyboardEvent) {
 }
 
 onMounted(() => {
+  // Bersihkan cache tab sesi sebelumnya agar aplikasi baru dibuka selalu bersih di Home tanpa tab aktif
+  localStorage.removeItem('kasir_citra_open_tabs_v1');
+  localStorage.removeItem('kasir_citra_active_tab_v1');
+  openTabIds.value = [];
+  activeTab.value = 'home';
   window.addEventListener('keydown', handleGlobalKeydown);
 });
 
@@ -238,10 +281,14 @@ onUnmounted(() => {
       v-model:search-query="searchQuery"
       v-model:show-cart-drawer="showCartDrawer"
       @open-tab="openTab"
+      @open-launcher="openLauncherTab"
+      @search-navigate="handleSearchNavigate"
+      @search-submit="handleSearchSubmit"
     />
 
-    <!-- Tab Bar (Modular Component) -->
+    <!-- Tab Bar (Modular Component): Sembunyikan bila tidak ada tab terbuka -->
     <ExplorerTabBar
+      v-if="openTabIds.length > 0"
       :open-tab-ids="openTabIds"
       :active-tab="activeTab"
       @select-tab="openTab"
@@ -253,9 +300,18 @@ onUnmounted(() => {
     <div class="flex-1 flex overflow-hidden">
       <!-- Center Content Area: Switched by Tab -->
       <main class="flex-1 flex flex-col bg-white overflow-hidden">
+        <!-- 0. BERANDA & INSIGHT STATISTIK BISNIS -->
+        <div v-show="activeTab === 'home'" class="flex-1 flex overflow-hidden">
+          <HomeInsightView
+            :search-query="searchQuery"
+            @open-tab="openTab"
+          />
+        </div>
+
         <!-- 1. KASIR POS VIEW -->
         <div v-show="activeTab === 'pos'" class="flex-1 flex overflow-hidden">
           <ProductCatalog
+            ref="productCatalogRef"
             :search-query="searchQuery"
             :view-mode="viewMode"
             :is-active="activeTab === 'pos'"

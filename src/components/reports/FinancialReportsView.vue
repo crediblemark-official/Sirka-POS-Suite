@@ -45,6 +45,19 @@ const shiftStore = useShiftStore();
 type ReportSubTab = 'pnl' | 'cashflow' | 'balance_sheet' | 'receivables' | 'analytics' | 'shifts';
 const activeSubTab = ref<ReportSubTab>('pnl');
 
+// Catatan Keuangan: Inline Expand / Collapse saat diklik
+const expandedNotes = ref<Set<string>>(new Set());
+function toggleNote(key: string) {
+  if (expandedNotes.value.has(key)) {
+    expandedNotes.value.delete(key);
+  } else {
+    expandedNotes.value.add(key);
+  }
+}
+function isNoteExpanded(key: string): boolean {
+  return expandedNotes.value.has(key);
+}
+
 type DatePeriod = 'today' | 'week' | 'month' | 'year' | 'all';
 const selectedPeriod = ref<DatePeriod>('month');
 
@@ -662,9 +675,9 @@ async function exportComprehensiveReport() {
           <thead>
             <tr>
               <th class="w-12 text-center">NO</th>
-              <th class="w-1/2 text-left">KOMPONEN LAPORAN LABA RUGI (SAK EMKM)</th>
-              <th class="w-48 text-right">NOMINAL (RUPIAH)</th>
-              <th class="w-48 text-right">PERSENTASE (%)</th>
+              <th class="w-1/3 text-left">KOMPONEN LAPORAN LABA RUGI (SAK EMKM)</th>
+              <th class="w-44 text-right">NOMINAL (RUPIAH)</th>
+              <th class="w-36 text-right">PERSENTASE (%)</th>
               <th class="text-left">CATATAN KEUANGAN</th>
             </tr>
           </thead>
@@ -681,7 +694,20 @@ async function exportComprehensiveReport() {
               <td class="pl-6 font-semibold">Penjualan Kotor (Gross Sales)</td>
               <td class="text-right font-mono font-bold">{{ formatRupiah(grossSales) }}</td>
               <td class="text-right font-mono text-gray-500">100.0%</td>
-              <td class="text-gray-500 text-[11px]">Akumulasi nilai transaksi kasir sebelum diskon</td>
+              <td class="text-gray-500 text-[11px] max-w-sm lg:max-w-xl xl:max-w-2xl">
+                <div
+                  class="cursor-pointer select-none transition-colors"
+                  :title="isNoteExpanded('pnl_1_1') ? 'Klik untuk ciutkan' : 'Akumulasi nilai transaksi kasir sebelum diskon (Klik untuk baca penuh)'"
+                  @click="toggleNote('pnl_1_1')"
+                >
+                  <div
+                    class="hover:underline transition-colors"
+                    :class="isNoteExpanded('pnl_1_1') ? 'whitespace-normal break-words py-0.5' : 'truncate'"
+                  >
+                    Akumulasi nilai transaksi kasir sebelum diskon
+                  </div>
+                </div>
+              </td>
             </tr>
             <tr class="hover:bg-blue-50/20 text-red-600">
               <td class="text-center font-mono text-gray-400">1.2</td>
@@ -690,7 +716,20 @@ async function exportComprehensiveReport() {
               <td class="text-right font-mono text-gray-500">
                 {{ grossSales > 0 ? ((totalDiscounts / grossSales) * 100).toFixed(1) : 0 }}%
               </td>
-              <td class="text-gray-500 text-[11px]">Voucher diskon kupon belanja, potongan harga, dan penukaran poin loyalitas</td>
+              <td class="text-gray-500 text-[11px] max-w-sm lg:max-w-xl xl:max-w-2xl">
+                <div
+                  class="cursor-pointer select-none transition-colors"
+                  :title="isNoteExpanded('pnl_1_2') ? 'Klik untuk ciutkan' : 'Voucher diskon kupon belanja, potongan harga, dan penukaran poin loyalitas (Klik untuk baca penuh)'"
+                  @click="toggleNote('pnl_1_2')"
+                >
+                  <div
+                    class="hover:underline transition-colors"
+                    :class="isNoteExpanded('pnl_1_2') ? 'whitespace-normal break-words py-0.5' : 'truncate'"
+                  >
+                    Voucher diskon kupon belanja, potongan harga, dan penukaran poin loyalitas
+                  </div>
+                </div>
+              </td>
             </tr>
             <tr class="bg-blue-50/40 font-bold border-t border-b border-blue-200">
               <td class="text-center font-mono text-blue-900">1.3</td>
@@ -702,7 +741,20 @@ async function exportComprehensiveReport() {
               <td class="text-right font-mono text-blue-900 font-bold">
                 {{ grossSales > 0 ? ((netSales / grossSales) * 100).toFixed(1) : 0 }}%
               </td>
-              <td class="text-blue-800 text-[11px]">Basis perhitungan omzet riil toko</td>
+              <td class="text-blue-800 text-[11px] max-w-sm lg:max-w-xl xl:max-w-2xl">
+                <div
+                  class="cursor-pointer select-none transition-colors"
+                  :title="isNoteExpanded('pnl_1_3') ? 'Klik untuk ciutkan' : 'Basis perhitungan omzet riil toko (Klik untuk baca penuh)'"
+                  @click="toggleNote('pnl_1_3')"
+                >
+                  <div
+                    class="hover:underline transition-colors"
+                    :class="isNoteExpanded('pnl_1_3') ? 'whitespace-normal break-words py-0.5' : 'truncate'"
+                  >
+                    Basis perhitungan omzet riil toko
+                  </div>
+                </div>
+              </td>
             </tr>
 
             <!-- 2. Harga Pokok Penjualan -->
@@ -719,7 +771,20 @@ async function exportComprehensiveReport() {
               <td class="text-right font-mono text-gray-500">
                 {{ netSales > 0 ? ((totalCogs / netSales) * 100).toFixed(1) : 0 }}%
               </td>
-              <td class="text-gray-500 text-[11px]">Stok terjual &times; HPP kulakan terakhir supplier</td>
+              <td class="text-gray-500 text-[11px] max-w-sm lg:max-w-xl xl:max-w-2xl">
+                <div
+                  class="cursor-pointer select-none transition-colors"
+                  :title="isNoteExpanded('pnl_2_1') ? 'Klik untuk ciutkan' : 'Stok terjual × HPP kulakan terakhir supplier (Klik untuk baca penuh)'"
+                  @click="toggleNote('pnl_2_1')"
+                >
+                  <div
+                    class="hover:underline transition-colors"
+                    :class="isNoteExpanded('pnl_2_1') ? 'whitespace-normal break-words py-0.5' : 'truncate'"
+                  >
+                    Stok terjual &times; HPP kulakan terakhir supplier
+                  </div>
+                </div>
+              </td>
             </tr>
 
             <!-- 3. Laba Kotor Operasional -->
@@ -734,8 +799,19 @@ async function exportComprehensiveReport() {
               <td class="text-right font-mono text-emerald-800 text-sm font-extrabold">
                 {{ marginPercent.toFixed(1) }}%
               </td>
-              <td class="text-emerald-800 text-[11px] font-semibold">
-                Margin kotor terhadap omzet penjualan
+              <td class="text-emerald-800 text-[11px] font-semibold max-w-sm lg:max-w-xl xl:max-w-2xl">
+                <div
+                  class="cursor-pointer select-none transition-colors"
+                  :title="isNoteExpanded('pnl_3') ? 'Klik untuk ciutkan' : 'Margin kotor terhadap omzet penjualan (Klik untuk baca penuh)'"
+                  @click="toggleNote('pnl_3')"
+                >
+                  <div
+                    class="hover:underline transition-colors"
+                    :class="isNoteExpanded('pnl_3') ? 'whitespace-normal break-words py-0.5' : 'truncate'"
+                  >
+                    Margin kotor terhadap omzet penjualan
+                  </div>
+                </div>
               </td>
             </tr>
 
@@ -751,7 +827,20 @@ async function exportComprehensiveReport() {
               <td class="pl-6 font-semibold">Estimasi PPh Final UMKM 0.5% (PP No. 55 / 2022)</td>
               <td class="text-right font-mono font-bold text-purple-900">{{ formatRupiah(taxUmkmEstimated) }}</td>
               <td class="text-right font-mono text-gray-500">0.5%</td>
-              <td class="text-gray-500 text-[11px]">Tarif 0.5% &times; Omzet Bruto bulanan toko</td>
+              <td class="text-gray-500 text-[11px] max-w-sm lg:max-w-xl xl:max-w-2xl">
+                <div
+                  class="cursor-pointer select-none transition-colors"
+                  :title="isNoteExpanded('pnl_4_1') ? 'Klik untuk ciutkan' : 'Tarif 0.5% × Omzet Bruto bulanan toko (Klik untuk baca penuh)'"
+                  @click="toggleNote('pnl_4_1')"
+                >
+                  <div
+                    class="hover:underline transition-colors"
+                    :class="isNoteExpanded('pnl_4_1') ? 'whitespace-normal break-words py-0.5' : 'truncate'"
+                  >
+                    Tarif 0.5% &times; Omzet Bruto bulanan toko
+                  </div>
+                </div>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -763,9 +852,9 @@ async function exportComprehensiveReport() {
           <thead>
             <tr>
               <th class="w-12 text-center">NO</th>
-              <th class="w-1/2 text-left">MUTASI ARUS KAS OPERASIONAL</th>
-              <th class="w-48 text-right">KAS MASUK (RP)</th>
-              <th class="w-48 text-right">KAS KELUAR (RP)</th>
+              <th class="w-1/3 text-left">MUTASI ARUS KAS OPERASIONAL</th>
+              <th class="w-44 text-right">KAS MASUK (RP)</th>
+              <th class="w-44 text-right">KAS KELUAR (RP)</th>
               <th class="text-left">KETERANGAN &amp; REKONSILIASI</th>
             </tr>
           </thead>
@@ -782,14 +871,40 @@ async function exportComprehensiveReport() {
               <td class="pl-6 font-semibold">Penerimaan Pembayaran Tunai Kasir</td>
               <td class="text-right font-mono font-bold text-emerald-700">{{ formatRupiah(cashInflow) }}</td>
               <td class="text-right font-mono text-gray-300">-</td>
-              <td class="text-gray-500 text-[11px]">Uang fisik tunai di laci kasir</td>
+              <td class="text-gray-500 text-[11px] max-w-sm lg:max-w-xl xl:max-w-2xl">
+                <div
+                  class="cursor-pointer select-none transition-colors"
+                  :title="isNoteExpanded('cf_1_1') ? 'Klik untuk ciutkan' : 'Uang fisik tunai di laci kasir (Klik untuk baca penuh)'"
+                  @click="toggleNote('cf_1_1')"
+                >
+                  <div
+                    class="hover:underline transition-colors"
+                    :class="isNoteExpanded('cf_1_1') ? 'whitespace-normal break-words py-0.5' : 'truncate'"
+                  >
+                    Uang fisik tunai di laci kasir
+                  </div>
+                </div>
+              </td>
             </tr>
             <tr class="hover:bg-emerald-50/20">
               <td class="text-center font-mono text-gray-400">1.2</td>
               <td class="pl-6 font-semibold">Penerimaan Transfer Bank &amp; QRIS (Lunas)</td>
               <td class="text-right font-mono font-bold text-blue-700">{{ formatRupiah(nonCashInflow) }}</td>
               <td class="text-right font-mono text-gray-300">-</td>
-              <td class="text-gray-500 text-[11px]">Mutasi rekening giro / QRIS toko</td>
+              <td class="text-gray-500 text-[11px] max-w-sm lg:max-w-xl xl:max-w-2xl">
+                <div
+                  class="cursor-pointer select-none transition-colors"
+                  :title="isNoteExpanded('cf_1_2') ? 'Klik untuk ciutkan' : 'Mutasi rekening giro / QRIS toko (Klik untuk baca penuh)'"
+                  @click="toggleNote('cf_1_2')"
+                >
+                  <div
+                    class="hover:underline transition-colors"
+                    :class="isNoteExpanded('cf_1_2') ? 'whitespace-normal break-words py-0.5' : 'truncate'"
+                  >
+                    Mutasi rekening giro / QRIS toko
+                  </div>
+                </div>
+              </td>
             </tr>
             <tr class="bg-emerald-50/40 font-bold border-t border-b border-emerald-200">
               <td class="text-center font-mono text-emerald-900">1.3</td>
@@ -798,7 +913,20 @@ async function exportComprehensiveReport() {
                 {{ formatRupiah(cashInflow + nonCashInflow) }}
               </td>
               <td class="text-right font-mono text-gray-300">-</td>
-              <td class="text-emerald-800 text-[11px]">Total seluruh kas masuk periode ini</td>
+              <td class="text-emerald-800 text-[11px] max-w-sm lg:max-w-xl xl:max-w-2xl">
+                <div
+                  class="cursor-pointer select-none transition-colors"
+                  :title="isNoteExpanded('cf_1_3') ? 'Klik untuk ciutkan' : 'Total seluruh kas masuk periode ini (Klik untuk baca penuh)'"
+                  @click="toggleNote('cf_1_3')"
+                >
+                  <div
+                    class="hover:underline transition-colors"
+                    :class="isNoteExpanded('cf_1_3') ? 'whitespace-normal break-words py-0.5' : 'truncate'"
+                  >
+                    Total seluruh kas masuk periode ini
+                  </div>
+                </div>
+              </td>
             </tr>
 
             <!-- 2. Arus Kas Keluar -->
@@ -813,8 +941,19 @@ async function exportComprehensiveReport() {
               <td class="pl-6 font-semibold">Pembayaran Faktur Kulakan Barang Supplier</td>
               <td class="text-right font-mono text-gray-300">-</td>
               <td class="text-right font-mono font-bold text-amber-800">{{ formatRupiah(totalPurchasesCost) }}</td>
-              <td class="text-gray-500 text-[11px]">
-                Total {{ purchaseStore.purchaseHistory.length }} nota kulakan barang dari distributor
+              <td class="text-gray-500 text-[11px] max-w-sm lg:max-w-xl xl:max-w-2xl">
+                <div
+                  class="cursor-pointer select-none transition-colors"
+                  :title="isNoteExpanded('cf_2_1') ? 'Klik untuk ciutkan' : `Total ${purchaseStore.purchaseHistory.length} nota kulakan barang dari distributor (Klik untuk baca penuh)`"
+                  @click="toggleNote('cf_2_1')"
+                >
+                  <div
+                    class="hover:underline transition-colors"
+                    :class="isNoteExpanded('cf_2_1') ? 'whitespace-normal break-words py-0.5' : 'truncate'"
+                  >
+                    Total {{ purchaseStore.purchaseHistory.length }} nota kulakan barang dari distributor
+                  </div>
+                </div>
               </td>
             </tr>
 
@@ -827,8 +966,19 @@ async function exportComprehensiveReport() {
               <td colspan="2" class="text-right font-mono text-blue-800 text-base font-extrabold">
                 {{ netCashFlow >= 0 ? '+' : '' }} {{ formatRupiah(netCashFlow) }}
               </td>
-              <td class="text-blue-800 text-[11px] font-semibold">
-                Sisa kas riil (Inflow dikurangi Outflow)
+              <td class="text-blue-800 text-[11px] font-semibold max-w-sm lg:max-w-xl xl:max-w-2xl">
+                <div
+                  class="cursor-pointer select-none transition-colors"
+                  :title="isNoteExpanded('cf_3') ? 'Klik untuk ciutkan' : 'Sisa kas riil (Inflow dikurangi Outflow) (Klik untuk baca penuh)'"
+                  @click="toggleNote('cf_3')"
+                >
+                  <div
+                    class="hover:underline transition-colors"
+                    :class="isNoteExpanded('cf_3') ? 'whitespace-normal break-words py-0.5' : 'truncate'"
+                  >
+                    Sisa kas riil (Inflow dikurangi Outflow)
+                  </div>
+                </div>
               </td>
             </tr>
           </tbody>

@@ -4,6 +4,7 @@ import { Product, CategoryMarkupSetting, SupplierCategory } from '../types';
 import { dbService } from '../services/dbService';
 import { syncService } from '../services/syncService';
 import { safeParse } from '../utils/storage';
+import { resolveProductSupplier } from '../utils/formatters';
 
 const STORAGE_KEY_PRODUCTS = 'kasir_citra_products_v1';
 const STORAGE_KEY_MARKUPS = 'kasir_citra_markups_v1';
@@ -14,7 +15,13 @@ export const useInventoryStore = defineStore('inventory', () => {
   const showVendorSidebar = ref(false);
   const activeVendorForSidebar = ref<CategoryMarkupSetting | null>(null);
   const savedProducts = localStorage.getItem(STORAGE_KEY_PRODUCTS);
-  const products = ref<Product[]>(safeParse<Product[]>(savedProducts, [], 'InventoryStore'));
+  const initialProducts = safeParse<Product[]>(savedProducts, [], 'InventoryStore');
+  const products = ref<Product[]>(
+    initialProducts.map(p => ({
+      ...p,
+      supplier: resolveProductSupplier(p)
+    }))
+  );
 
   const savedMarkups = localStorage.getItem(STORAGE_KEY_MARKUPS);
   const categoryMarkups = ref<CategoryMarkupSetting[]>(
@@ -45,10 +52,12 @@ export const useInventoryStore = defineStore('inventory', () => {
       const localById = new Map(products.value.map(p => [p.id, p]));
       const merged = dbProducts.map(p => {
         const local = localById.get(p.id);
-        if (!local) return p;
+        const resolvedSupplier = p.supplier || (local && local.supplier) || resolveProductSupplier(p);
+        if (!local) return { ...p, supplier: resolvedSupplier };
         return {
           ...local,
           ...p,
+          supplier: resolvedSupplier,
           units: (p.units && p.units.length) ? p.units : local.units,
           isPerishable: p.isPerishable ?? local.isPerishable ?? false
         };
@@ -58,7 +67,9 @@ export const useInventoryStore = defineStore('inventory', () => {
       // `fetchFromDb()` dipanggil — dan itu terjadi setelah SETIAP penjualan.
       // Sekarang entri lokal yang tidak ada di DB tetap dipertahankan.
       const dbIds = new Set(dbProducts.map(p => p.id));
-      const localOnly = products.value.filter(p => p && p.id && !dbIds.has(p.id));
+      const localOnly = products.value
+        .filter(p => p && p.id && !dbIds.has(p.id))
+        .map(p => ({ ...p, supplier: resolveProductSupplier(p) }));
       products.value = [...merged, ...localOnly];
 
       const dbMarkups = markupData || [];

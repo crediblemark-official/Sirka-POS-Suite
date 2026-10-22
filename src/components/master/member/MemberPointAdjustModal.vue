@@ -2,6 +2,7 @@
 import { ref, watch, onUnmounted } from 'vue';
 import { Buyer } from '../../../types';
 import { useBuyerStore } from '../../../stores/buyerStore';
+import { useConfirmDialog } from '../../../composables/useConfirmDialog';
 import { Coins, X } from 'lucide-vue-next';
 
 const props = defineProps<{
@@ -15,6 +16,7 @@ const emit = defineEmits<{
 }>();
 
 const buyerStore = useBuyerStore();
+const { confirm: showConfirm } = useConfirmDialog();
 
 const pointAdjustAmount = ref<number>(10);
 const pointAdjustType = ref<'ADD' | 'DEDUCT'>('ADD');
@@ -69,9 +71,13 @@ async function handleSave() {
   const delta = pointAdjustType.value === 'ADD' ? amount : -amount;
   const newPoints = Math.max(0, current + delta);
   if (pointAdjustType.value === 'DEDUCT' && amount > current) {
-    const ok = window.confirm(
-      `Saldo poin saat ini hanya ${current}. Kurangi ${amount} akan menjadi 0. Lanjutkan?`
-    );
+    const ok = await showConfirm({
+      title: 'Kurangi Poin Melebihi Saldo?',
+      message: `Saldo poin saat ini hanya ${current}. Kurangi ${amount} akan membuat saldo menjadi 0.`,
+      confirmText: 'Lanjutkan',
+      cancelText: 'Batal',
+      type: 'warning'
+    });
     if (!ok) return;
   }
 

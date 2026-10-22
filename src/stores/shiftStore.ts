@@ -1,11 +1,10 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { CashierShift } from '../types';
-import { useSettingsStore } from './settingsStore';
+import { syncService } from '../services/syncService';
 
 const STORAGE_KEY_CURRENT_SHIFT = 'kasir_citra_current_shift_v1';
 const STORAGE_KEY_SHIFT_HISTORY = 'kasir_citra_shift_history_v1';
-const API_BASE_URL = 'https://sirka-owner-api.irudsa.workers.dev';
 
 export const useShiftStore = defineStore('shift', () => {
   const currentShift = ref<CashierShift | null>(null);
@@ -63,106 +62,18 @@ export const useShiftStore = defineStore('shift', () => {
     }
   }
 
-  // Sync a single shift to Cloudflare Worker & PostgreSQL
-  async function syncShiftToCloud(shift: CashierShift) {
+  // Sinkronisasi shift kasir langsung via engine background sync Tauri ke PostgreSQL Cloud (tanpa Cloudflare Worker)
+  function syncShiftToCloud(shift: CashierShift) {
     try {
-      // BUG FIX (keamanan): Worker kini menegakkan token akses
-      // (`OWNER_SECRET_KEY`). Tanpa header ini, POST /api/shifts akan 401 dan
-      // rekap shift tidak pernah sampai ke dashboard owner.
-      const settingsStore = useSettingsStore();
-      // Token disimpan di localStorage perangkat ini, TIDAK di store_settings
-      // (yang ikut ter-sync ke cloud) — supaya tidak bocor ke database.
-      const token = settingsStore.ownerApiToken || '';
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch(`${API_BASE_URL}/api/shifts`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(shift)
-      });
-
-      if (!res.ok) {
-        const errText = await res.text().catch(() => '');
-        console.warn(
-          `[ShiftStore] Sinkronisasi shift ke cloud gagal (${res.status}). ` +
-          (res.status === 401
-            ? 'Token akses Worker belum benar — isi "owner_api_token" di pengaturan toko.'
-            : errText.slice(0, 200))
-        );
-      }
+      syncService.enqueue('SAVE_SHIFT', shift);
     } catch (err) {
-      console.warn('[ShiftStore] Offline or sync failure for shift:', err);
+      console.warn('[ShiftStore] Gagal mengantre sinkronisasi shift:', err);
     }
   }
 
-  // Fetch all shift histories from PostgreSQL
+  // Muat riwayat shift lokal desktop
   async function fetchShiftsFromApi() {
-    isLoading.value = true;
-    try {
-      // BUG FIX (keamanan): kirim token akses Worker (jika dikonfigurasi).
-      const settingsStore = useSettingsStore();
-      // Token disimpan di localStorage perangkat ini, TIDAK di store_settings
-      // (yang ikut ter-sync ke cloud) — supaya tidak bocor ke database.
-      const token = settingsStore.ownerApiToken || '';
-      const headers: Record<string, string> = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch(`${API_BASE_URL}/api/shifts`, { headers });
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          // Find any OPEN shift from cloud if local doesn't have one
-          const openOne = data.find((s: any) => s.status === 'OPEN');
-          if (openOne && !currentShift.value) {
-            currentShift.value = {
-              id: openOne.id,
-              cashierName: openOne.cashier_name || openOne.cashierName,
-              startTime: openOne.start_time || openOne.startTime,
-              startingCash: Number(openOne.starting_cash || openOne.startingCash || 0),
-              cashSales: Number(openOne.cash_sales || openOne.cashSales || 0),
-              nonCashSales: Number(openOne.non_cash_sales || openOne.nonCashSales || 0),
-              cashOutflow: Number(openOne.cash_outflow || openOne.cashOutflow || 0),
-              cashInflow: Number(openOne.cash_inflow ?? openOne.cashInflow ?? 0),
-              refundOutflow: Number(openOne.refund_outflow ?? openOne.refundOutflow ?? 0),
-              expectedCash: Number(openOne.expected_cash || openOne.expectedCash || 0),
-              notes: openOne.notes || '',
-              status: 'OPEN'
-            };
-          }
-
-          // Populate shift history
-          // BUG FIX: field infaq/tip, retur tunai, setoran bendahara & sisa
-          // laci harus ikut dibaca dari cloud. Sebelumnya tidak ada kolomnya
-          // sehingga angka di dashboard owner berbeda dari aplikasi kasir.
-          shiftHistory.value = data.map((s: any) => ({
-            id: s.id,
-            cashierName: s.cashier_name || s.cashierName,
-            startTime: s.start_time || s.startTime,
-            endTime: s.end_time || s.endTime,
-            startingCash: Number(s.starting_cash || s.startingCash || 0),
-            cashSales: Number(s.cash_sales || s.cashSales || 0),
-            nonCashSales: Number(s.non_cash_sales || s.nonCashSales || 0),
-            cashOutflow: Number(s.cash_outflow || s.cashOutflow || 0),
-            cashInflow: Number(s.cash_inflow ?? s.cashInflow ?? 0),
-            refundOutflow: Number(s.refund_outflow ?? s.refundOutflow ?? 0),
-            transferredToTreasury: Number(s.transferred_to_treasury ?? s.transferredToTreasury ?? 0),
-            retainedInDrawer: Number(s.retained_in_drawer ?? s.retainedInDrawer ?? 0),
-            expectedCash: Number(s.expected_cash || s.expectedCash || 0),
-            actualCash: s.actual_cash !== null && s.actual_cash !== undefined ? Number(s.actual_cash) : undefined,
-            discrepancy: s.discrepancy !== null && s.discrepancy !== undefined ? Number(s.discrepancy) : undefined,
-            notes: s.notes || '',
-            status: s.status,
-            createdAt: s.created_at || s.createdAt
-          }));
-          saveLocal();
-        }
-      }
-    } catch (e) {
-      console.warn('[ShiftStore] Cannot connect to shifts API, using offline cache:', e);
-    } finally {
-      isLoading.value = false;
-    }
+    loadLocal();
   }
 
   // Open Shift

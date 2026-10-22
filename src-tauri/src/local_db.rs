@@ -242,6 +242,62 @@ pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
     // BUG-017 FIX: normalisasi item nota lama (JSONB) ke tabel purchase_receipt_items
     local_backfill_purchase_items(conn);
 
+    // Self-healing: pulihkan supplier produk yang kosong berdasarkan prefix kode dan kategori
+    let _ = conn.execute(
+        "UPDATE products SET supplier = 'Sayur Tufel' 
+         WHERE (supplier IS NULL OR TRIM(supplier) = '' OR supplier = '-') 
+           AND (code LIKE 'ST-%' OR category IN ('Sayur Tufel', 'Sayuran Segar'))",
+        [],
+    );
+    let _ = conn.execute(
+        "UPDATE products SET supplier = 'Pak Agus' 
+         WHERE (supplier IS NULL OR TRIM(supplier) = '' OR supplier = '-') 
+           AND (code LIKE 'PA-%' OR category IN ('Pak Agus', 'Bumbu Kering & Rempah'))",
+        [],
+    );
+    let _ = conn.execute(
+        "UPDATE products SET supplier = 'Hari Barokah' 
+         WHERE (supplier IS NULL OR TRIM(supplier) = '' OR supplier = '-') 
+           AND (code LIKE 'HB-%' OR category IN ('Hari Barokah', 'Saus, Kecap & Tepung'))",
+        [],
+    );
+    let _ = conn.execute(
+        "UPDATE products SET supplier = 'Fadhil Food' 
+         WHERE (supplier IS NULL OR TRIM(supplier) = '' OR supplier = '-') 
+           AND (code LIKE 'FF-%' OR category IN ('Fadhil Food', 'Daging & Telur'))",
+        [],
+    );
+    let _ = conn.execute(
+        "UPDATE products SET supplier = 'Haff Pro Jaya' 
+         WHERE (supplier IS NULL OR TRIM(supplier) = '' OR supplier = '-') 
+           AND (code LIKE 'HP-%' OR category IN ('Haff Pro Jaya', 'Haff Pro', 'Tahu, Tempe & Bawang'))",
+        [],
+    );
+    let _ = conn.execute(
+        "UPDATE products SET supplier = 'Pantry Co' 
+         WHERE (supplier IS NULL OR TRIM(supplier) = '' OR supplier = '-') 
+           AND (code LIKE 'PC-%' OR category IN ('Pantry Co', 'Buah Segar'))",
+        [],
+    );
+    let _ = conn.execute(
+        "UPDATE products SET supplier = 'Koko Didid' 
+         WHERE (supplier IS NULL OR TRIM(supplier) = '' OR supplier = '-') 
+           AND (code LIKE 'KD-%' OR category IN ('Koko Didid', 'Beras & Minyak'))",
+        [],
+    );
+    let _ = conn.execute(
+        "UPDATE products SET supplier = 'Mitra APD & Sanitasi' 
+         WHERE (supplier IS NULL OR TRIM(supplier) = '' OR supplier = '-') 
+           AND (code LIKE 'APD-%' OR category = 'APD & Sabun')",
+        [],
+    );
+    let _ = conn.execute(
+        "UPDATE products SET supplier = 'CV Surya Gemilang ATK' 
+         WHERE (supplier IS NULL OR TRIM(supplier) = '' OR supplier = '-') 
+           AND (code LIKE 'ATK-%' OR category = 'ATK & Kertas')",
+        [],
+    );
+
     Ok(())
 }
 
@@ -1688,6 +1744,7 @@ pub fn local_clear_cache(conn: &Connection) -> SqliteResult<()> {
         DELETE FROM store_settings;
         DELETE FROM purchase_receipt_items;
         DELETE FROM purchase_receipts;
+        DELETE FROM suppliers;
         DELETE FROM sync_outbox;
         ",
     )?;

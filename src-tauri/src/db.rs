@@ -1,6 +1,85 @@
+use std::sync::OnceLock;
 use tokio_postgres::{Client, NoTls};
 
 use crate::tls::{self, SslMode};
+
+static CACHED_DB_URL: OnceLock<String> = OnceLock::new();
+
+/// Mencari `DATABASE_URL` dari berbagai sumber:
+/// 1. Environment variable sistem (`std::env::var("DATABASE_URL")`)
+/// 2. File `.env` di direktori kerja, direktori induk, atau lokasi binary
+/// 3. Tabel `store_settings` di SQLite lokal (`key = 'database_url'`)
+pub fn get_database_url() -> Option<String> {
+    if let Ok(val) = std::env::var("DATABASE_URL") {
+        let trimmed = val.trim().to_string();
+        if !trimmed.is_empty() {
+            return Some(trimmed);
+        }
+    }
+
+    if let Some(cached) = CACHED_DB_URL.get() {
+        return Some(cached.clone());
+    }
+
+    let mut candidates = vec![
+        std::path::PathBuf::from(".env"),
+        std::path::PathBuf::from("../.env"),
+        std::path::PathBuf::from("../../.env"),
+    ];
+
+    if let Ok(current_dir) = std::env::current_dir() {
+        candidates.push(current_dir.join(".env"));
+        if let Some(parent) = current_dir.parent() {
+            candidates.push(parent.join(".env"));
+        }
+    }
+
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            candidates.push(exe_dir.join(".env"));
+            if let Some(p) = exe_dir.parent() {
+                candidates.push(p.join(".env"));
+            }
+        }
+    }
+
+    for path in &candidates {
+        if let Ok(content) = std::fs::read_to_string(path) {
+            for line in content.lines() {
+                let trimmed = line.trim();
+                if trimmed.is_empty() || trimmed.starts_with('#') {
+                    continue;
+                }
+                if let Some((key, val)) = trimmed.split_once('=') {
+                    if key.trim() == "DATABASE_URL" {
+                        let v = val.trim().trim_matches('"').trim_matches('\'').to_string();
+                        if !v.is_empty() {
+                            println!("[Env] Berhasil memuat DATABASE_URL dari: {:?}", path);
+                            let _ = CACHED_DB_URL.set(v.clone());
+                            return Some(v);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if let Ok(conn) = crate::local_db::get_conn().lock() {
+        if let Ok(val) = conn.query_row(
+            "SELECT value FROM store_settings WHERE key = 'database_url'",
+            [],
+            |r| r.get::<_, String>(0),
+        ) {
+            let trimmed = val.trim().to_string();
+            if !trimmed.is_empty() {
+                let _ = CACHED_DB_URL.set(trimmed.clone());
+                return Some(trimmed);
+            }
+        }
+    }
+
+    None
+}
 
 /// Helper untuk koneksi async ke PostgreSQL (cloud / container).
 ///
@@ -15,24 +94,21 @@ use crate::tls::{self, SslMode};
 /// - `sslmode=require|prefer|verify-ca|verify-full` → wajib TLS (gagal = error)
 /// - `sslmode` tidak disebut → coba TLS, boleh fallback ke polos
 pub async fn get_pg_client() -> Result<Client, String> {
-    let conn_str = std::env::var("DATABASE_URL")
-        .ok()
-        .filter(|s| !s.trim().is_empty())
-        .or_else(|| {
-            let conn = crate::local_db::get_conn().lock().unwrap();
-            conn.query_row(
-                "SELECT value FROM store_settings WHERE key = 'database_url'",
-                [],
-                |r| r.get::<_, String>(0),
-            ).ok()
-        })
-        .filter(|s| !s.trim().is_empty())
-        .ok_or_else(|| {
-            "DATABASE_URL belum dikonfigurasi. Set environment variable DATABASE_URL \
-             (lihat .env.example) atau isi pengaturan 'database_url' di aplikasi. \
-             Kredensial tidak lagi disertakan di dalam binary demi keamanan."
-                .to_string()
-        })?;
+    let conn_str = get_database_url().ok_or_else(|| {
+        "DATABASE_URL belum dikonfigurasi. Set environment variable DATABASE_URL \
+         (lihat .env.example) atau isi pengaturan 'database_url' di aplikasi. \
+         Kredensial tidak lagi disertakan di dalam binary demi keamanan."
+            .to_string()
+    })?;
+
+    // Pastikan tersimpan ke SQLite store_settings agar tetap ada saat offline/restart
+    if let Ok(conn) = crate::local_db::get_conn().lock() {
+        let _ = conn.execute(
+            "INSERT INTO store_settings (key, value) VALUES ('database_url', ?1)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            rusqlite::params![&conn_str],
+        );
+    }
 
     let mode = tls::parse_ssl_mode(&conn_str);
     let clean = tls::strip_ssl_mode(&conn_str);
@@ -78,9 +154,13 @@ pub async fn get_pg_client() -> Result<Client, String> {
     connect_plain(&clean).await
 }
 
+use std::time::Duration;
+
 async fn connect_plain(conn_str: &str) -> Result<Client, String> {
-    let (client, connection) = tokio_postgres::connect(conn_str, NoTls)
+    let connect_fut = tokio_postgres::connect(conn_str, NoTls);
+    let (client, connection) = tokio::time::timeout(Duration::from_secs(7), connect_fut)
         .await
+        .map_err(|_| "Koneksi PostgreSQL timeout (7s)".to_string())?
         .map_err(|e| format!("Koneksi PostgreSQL gagal: {}", e))?;
 
     tauri::async_runtime::spawn(async move {
@@ -96,8 +176,10 @@ async fn connect_tls(
     conn_str: &str,
     connector: crate::tls::RustlsConnect,
 ) -> Result<Client, String> {
-    let (client, connection) = tokio_postgres::connect(conn_str, connector)
+    let connect_fut = tokio_postgres::connect(conn_str, connector);
+    let (client, connection) = tokio::time::timeout(Duration::from_secs(7), connect_fut)
         .await
+        .map_err(|_| "Koneksi PostgreSQL TLS timeout (7s)".to_string())?
         .map_err(|e| format!("{}", e))?;
 
     tauri::async_runtime::spawn(async move {
@@ -108,3 +190,4 @@ async fn connect_tls(
 
     Ok(client)
 }
+

@@ -87,6 +87,7 @@ export interface ProductUnitConversion {
   id: string;
   unitName: string;          // e.g. 'GRAM', 'BUTIR', 'SAK', 'LUSIN', 'TRAY', 'JERIGEN'
   conversionFactor: number;  // Faktor pengali ke base unit (e.g. 0.001 untuk GRAM->KG, 12 untuk LUSIN->PCS, 50 untuk SAK->KG)
+  parentUnitName?: string;    // Satuan induk acuan pecahan bertingkat (misal 'DUS', 'SLOP', 'KG', 'ONS')
   sellPrice?: number;        // Harga jual khusus satuan ini
   barcode?: string;
 }

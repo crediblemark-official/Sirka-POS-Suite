@@ -165,8 +165,8 @@ export const useStockMovementStore = defineStore('stockMovement', () => {
     return true;
   }
 
-  function openStockCard(prod: Product) {
-    activeProductForCard.value = prod;
+  function openStockCard(prod?: Product | null) {
+    activeProductForCard.value = prod || null;
     isStockCardOpen.value = true;
   }
 

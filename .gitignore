@@ -39,3 +39,6 @@ src-tauri/target/
 .dev.vars.*
 worker/.dev.vars
 worker/.dev.vars.*
+
+excel/
+

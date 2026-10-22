@@ -11,14 +11,14 @@ Object.defineProperty(globalThis, 'localStorage', {
 });
 
 const db = {
-  getProducts: mock(async () => []),
-  getMarkups: mock(async () => []),
-  getBuyers: mock(async () => []),
-  getSettings: mock(async () => []),
-  getDiscounts: mock(async () => []),
-  getTransactions: mock(async () => []),
-  getPreOrders: mock(async () => []),
-  getPurchases: mock(async () => []),
+  getProducts: mock(async (): Promise<any[]> => []),
+  getMarkups: mock(async (): Promise<any[]> => []),
+  getBuyers: mock(async (): Promise<any[]> => []),
+  getSettings: mock(async (): Promise<any[]> => []),
+  getDiscounts: mock(async (): Promise<any[]> => []),
+  getTransactions: mock(async (): Promise<any[]> => []),
+  getPreOrders: mock(async (): Promise<any[]> => []),
+  getPurchases: mock(async (): Promise<any[]> => []),
   createTransaction: mock(async (_tx: any, _member?: string) => 'INV'),
   deleteTransaction: mock(async (_id: string) => {}),
   deletePreOrder: mock(async (_id: string) => {}),
@@ -336,8 +336,8 @@ test('BUG FIX: clearCart & checkout mereset state pembayaran (cashTendered, infa
   pos.clearCart();
   expect(pos.cashTendered).toBe(0);
   expect(pos.infaqAmount).toBe(0);
-  expect(pos.paymentStatus).toBe('LUNAS');
-  expect(pos.paymentMethod).toBe('Transfer Bank');
+  expect(pos.paymentStatus as string).toBe('LUNAS');
+  expect(pos.paymentMethod as string).toBe('Transfer Bank');
 });
 
 test('BUG FIX: kembalian hanya dihitung untuk transaksi yang benar-benar menerima tunai', async () => {
@@ -606,6 +606,7 @@ test('BUG FIX: item nota kulakan yang disinkronkan ke DB menyimpan baseQty', asy
 });
 
 test('BUG FIX: satu item outbox yang gagal tidak memblokir item lain (head-of-line blocking)', async () => {
+  db.enqueueOutbox.mockClear();
   const ledger = useLedgerStore();
   await flush();
   ledger.transactions = [{ id: 'a' }] as any;

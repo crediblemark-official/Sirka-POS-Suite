@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { useInventoryStore } from '../../stores/inventoryStore';
 import { usePosStore } from '../../stores/posStore';
 import { SupplierCategory, Product } from '../../types';
@@ -190,7 +190,20 @@ const dynamicMultiplierMap = computed(() => {
   return map;
 });
 
-watch(selectedProductId, () => {
+// BUG FIX: Jaga agar selectedProductId selalu sinkron dengan filteredProducts.
+// Begitu hasil pencarian atau filter kategori berubah, produk pertama langsung terpilih otomatis.
+watch(filteredProducts, (newProds) => {
+  if (newProds.length > 0) {
+    const isStillInList = newProds.some(p => p.id === selectedProductId.value);
+    if (!isStillInList) {
+      selectedProductId.value = newProds[0].id;
+    }
+  } else {
+    selectedProductId.value = '';
+  }
+}, { immediate: true });
+
+watch(selectedProductId, (newId) => {
   const unit = selectedProduct.value?.unit?.toUpperCase();
   const isMetric = unit === 'KG' || unit === 'LITER' || unit === 'LTR';
   // BUG FIX: pengali harus divalidasi ulang terhadap daftar pengali yang valid
@@ -200,6 +213,16 @@ watch(selectedProductId, () => {
   const valid = dynamicMultipliers.value.map(m => m.value);
   if (!valid.includes(activeMultiplier.value)) {
     activeMultiplier.value = isMetric ? 1 : 1;
+  }
+
+  // Scroll otomatis produk yang terpilih ke viewport saat navigasi keyboard
+  if (newId) {
+    nextTick(() => {
+      const el = document.querySelector(`[data-product-id="${newId}"]`);
+      if (el) {
+        el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+      }
+    });
   }
 });
 
@@ -213,10 +236,56 @@ function handleProductDoubleClick(prod: Product) {
 
 function handleAddSelected() {
   if (!selectedProductId.value) return;
-  const prod = inventoryStore.products.find(p => p.id === selectedProductId.value);
+  // BUG FIX: Hanya ambil dari filteredProducts yang sedang tampil di layar
+  const prod = filteredProducts.value.find(p => p.id === selectedProductId.value);
   if (prod) {
     posStore.addProductToCart(prod, activeMultiplier.value);
   }
+}
+
+function navigateProducts(direction: 'right' | 'left' | 'down' | 'up') {
+  const prods = filteredProducts.value;
+  if (prods.length === 0) return;
+
+  const currentIndex = prods.findIndex(p => p.id === selectedProductId.value);
+  const screenWidth = window.innerWidth;
+  const cols = props.viewMode === 'list' ? 1 : (screenWidth >= 1280 ? 6 : screenWidth >= 1024 ? 5 : screenWidth >= 768 ? 4 : 3);
+
+  let targetIdx = currentIndex;
+
+  if (direction === 'right') {
+    targetIdx = currentIndex < prods.length - 1 ? currentIndex + 1 : 0;
+  } else if (direction === 'left') {
+    targetIdx = currentIndex > 0 ? currentIndex - 1 : prods.length - 1;
+  } else if (direction === 'down') {
+    if (currentIndex + cols < prods.length) {
+      targetIdx = currentIndex + cols;
+    } else if (currentIndex < prods.length - 1) {
+      targetIdx = currentIndex + 1;
+    } else {
+      targetIdx = 0;
+    }
+  } else if (direction === 'up') {
+    if (currentIndex - cols >= 0) {
+      targetIdx = currentIndex - cols;
+    } else if (currentIndex > 0) {
+      targetIdx = currentIndex - 1;
+    } else {
+      targetIdx = prods.length - 1;
+    }
+  }
+
+  if (targetIdx >= 0 && targetIdx < prods.length) {
+    selectedProductId.value = prods[targetIdx].id;
+  }
+}
+
+function selectNextProduct() {
+  navigateProducts('right');
+}
+
+function selectPrevProduct() {
+  navigateProducts('left');
 }
 
 function handleCategoryWheel(e: WheelEvent) {
@@ -300,29 +369,18 @@ function handleKeyDown(e: KeyboardEvent) {
 
   if (prods.length === 0) return;
 
-  const currentIndex = prods.findIndex(p => p.id === selectedProductId.value);
-  const screenWidth = window.innerWidth;
-  const cols = screenWidth >= 1280 ? 6 : screenWidth >= 1024 ? 5 : screenWidth >= 768 ? 4 : 3;
-
   if (e.key === 'ArrowRight') {
     e.preventDefault();
-    const nextIdx = currentIndex < prods.length - 1 ? currentIndex + 1 : 0;
-    selectedProductId.value = prods[nextIdx].id;
+    navigateProducts('right');
   } else if (e.key === 'ArrowLeft') {
     e.preventDefault();
-    const prevIdx = currentIndex > 0 ? currentIndex - 1 : prods.length - 1;
-    selectedProductId.value = prods[prevIdx].id;
+    navigateProducts('left');
   } else if (e.key === 'ArrowDown') {
     e.preventDefault();
-    const downIdx = currentIndex + cols < prods.length ? currentIndex + cols : currentIndex;
-    selectedProductId.value = prods[downIdx].id;
+    navigateProducts('down');
   } else if (e.key === 'ArrowUp') {
     e.preventDefault();
-    const upIdx = currentIndex - cols >= 0 ? currentIndex - cols : currentIndex;
-    selectedProductId.value = prods[upIdx].id;
-  } else if (e.key === 'Enter' || e.key === ' ') {
-    e.preventDefault();
-    handleAddSelected();
+    navigateProducts('up');
   } else if (['1', '2', '3', '4', '5'].includes(e.key) && (e.altKey || (!e.ctrlKey && !e.metaKey))) {
     const multiplierMap = dynamicMultiplierMap.value;
     if (e.altKey && multiplierMap[e.key] !== undefined) {
@@ -334,9 +392,6 @@ function handleKeyDown(e: KeyboardEvent) {
 
 onMounted(() => {
   window.addEventListener('keydown', handleKeyDown);
-  if (filteredProducts.value.length > 0 && !selectedProductId.value) {
-    selectedProductId.value = filteredProducts.value[0].id;
-  }
 });
 
 onUnmounted(() => {
@@ -345,7 +400,10 @@ onUnmounted(() => {
 
 defineExpose({
   selectCategory,
-  handleAddSelected
+  handleAddSelected,
+  navigateProducts,
+  selectNextProduct,
+  selectPrevProduct
 });
 </script>
 
@@ -477,17 +535,18 @@ defineExpose({
     </div>
 
     <!-- Folder & File Tiles Grid -->
-    <div class="flex-1 overflow-y-auto">
+    <div class="flex-1 overflow-y-auto flex flex-col">
       <!-- Empty state when catalog has no products at all -->
       <AppEmptyState
         v-if="inventoryStore.products.length === 0"
         :icon="Sparkles"
-        title="Katalog Produk Masih Kosong (Fresh)"
+        title="Katalog Produk Masih Kosong"
         description="Database belum memiliki data barang. Anda dapat menambah barang dari Master Barang atau muat data percontohan untuk mencoba kasir."
       >
         <button
           type="button"
-          class="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs cursor-pointer transition-all active:scale-95 disabled:opacity-50 mt-1"
+          class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white font-semibold text-xs shadow-xs cursor-pointer transition-all active:scale-95 disabled:opacity-50 mt-1 hover:brightness-110"
+          style="background-color: var(--brand-primary);"
           :disabled="isLoadingDemo"
           @click="handleLoadDemo"
         >
@@ -495,6 +554,7 @@ defineExpose({
           <span>{{ isLoadingDemo ? 'Memuat Data Demo...' : 'Muat Data Demo Kasir' }}</span>
         </button>
       </AppEmptyState>
+
 
       <!-- Empty state when searching or filtering -->
       <AppEmptyState
@@ -512,6 +572,7 @@ defineExpose({
         <div
           v-for="prod in filteredProducts"
           :key="prod.id"
+          :data-product-id="prod.id"
           class="flex flex-col items-center justify-between p-3 border-t border-l border-gray-200/80 cursor-pointer transition-all select-none group relative overflow-hidden"
           :style="{
             backgroundColor: selectedProductId === prod.id ? getProductTheme(prod).badgeBg : (getProductTheme(prod).badgeBg || getProductTheme(prod).bgLightHex)
@@ -585,6 +646,7 @@ defineExpose({
             <tr
               v-for="prod in filteredProducts"
               :key="prod.id"
+              :data-product-id="prod.id"
               class="border-b border-gray-100 hover:bg-blue-50 cursor-pointer"
               :class="selectedProductId === prod.id ? 'bg-blue-100 font-semibold' : ''"
               @click="handleProductClick(prod)"

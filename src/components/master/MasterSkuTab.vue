@@ -4,7 +4,7 @@ import { Product } from '../../types';
 import { useInventoryStore } from '../../stores/inventoryStore';
 import { useSupplierStore } from '../../stores/supplierStore';
 import { useStockMovementStore } from '../../stores/stockMovementStore';
-import { formatRupiah } from '../../utils/formatters';
+import { formatRupiah, resolveProductSupplier } from '../../utils/formatters';
 import {
   Trash2,
   Package,
@@ -115,7 +115,34 @@ const stockQtyByUnit = computed(() => {
     const unit = (p.unit || 'pcs').toUpperCase();
     map.set(unit, (map.get(unit) || 0) + (p.stock || 0));
   }
-  return [...map.entries()].map(([unit, qty]) => ({ unit, qty }));
+  // Urutkan kuantitas terbanyak di depan
+  return [...map.entries()]
+    .map(([unit, qty]) => ({ unit, qty }))
+    .sort((a, b) => b.qty - a.qty);
+});
+
+const totalStockCount = computed(() => {
+  return filteredProducts.value.reduce((acc, p) => acc + (p.stock || 0), 0);
+});
+
+const stockSummary = computed(() => {
+  if (stockQtyByUnit.value.length === 0 || totalStockCount.value === 0) {
+    return {
+      primary: '0 Unit',
+      sublabel: undefined,
+      tooltip: 'Tidak ada stok fisik tercatat'
+    };
+  }
+
+  const unitCount = stockQtyByUnit.value.length;
+  const tooltip = `Rincian Stok Fisik (${unitCount} Satuan):\n` +
+    stockQtyByUnit.value.map(s => `• ${formatRupiah(s.qty)} ${s.unit}`).join('\n');
+
+  return {
+    primary: `${formatRupiah(totalStockCount.value)} Unit`,
+    sublabel: `(${unitCount} Satuan)`,
+    tooltip
+  };
 });
 
 const totalAssetBuy = computed(() => {
@@ -154,14 +181,13 @@ const metricStats = computed<MetricStatItem[]>(() => [
   },
   {
     label: 'Fisik Stok di Toko',
-    // BUG FIX: tampilkan per satuan dasar — menjumlahkan KG + PCS + DUS jadi
-    // satu angka tidak bermakna.
-    value: stockQtyByUnit.value.length > 0
-      ? stockQtyByUnit.value.map(s => `${formatRupiah(s.qty)} ${s.unit}`).join(' · ')
-      : '0 Unit',
+    value: stockSummary.value.primary,
+    sublabel: stockSummary.value.sublabel,
+    tooltip: stockSummary.value.tooltip,
     icon: Boxes,
     iconBoxClass: 'bg-blue-50 text-blue-700',
-    valClass: 'text-blue-800'
+    valClass: 'text-blue-800',
+    sublabelClass: 'text-blue-700 bg-blue-100/70 px-1 py-0.5 rounded text-[10px] font-semibold'
   },
   {
     label: 'Nilai Aset Modal (HPP)',
@@ -258,6 +284,17 @@ function handleDblClick(prod: Product) {
           Cari: "<span class="font-bold text-gray-800">{{ props.searchQuery }}</span>"
         </span>
 
+        <!-- Tombol Buku Mutasi / Kartu Stok Semua Produk -->
+        <button
+          type="button"
+          class="flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold rounded border cursor-pointer transition-colors shadow-2xs bg-purple-50 hover:bg-purple-100 active:bg-purple-200 text-purple-700 border-purple-300"
+          title="Lihat buku mutasi dan kartu stok gabungan seluruh produk"
+          @click="movementStore.openStockCard(null)"
+        >
+          <FileText :size="13" />
+          <span>Kartu Stok Semua</span>
+        </button>
+
         <!-- Tombol Adjust Stok (Opname) -->
         <button
           type="button"
@@ -326,9 +363,9 @@ function handleDblClick(prod: Product) {
                 {{ prod.category }}
               </span>
             </td>
-            <td class="truncate" :title="prod.supplier || '-'">
+            <td class="truncate" :title="prod.supplier || resolveProductSupplier(prod) || '-'">
               <span class="px-2 py-0.5 bg-gray-50 text-gray-700 rounded text-[11px] font-medium border border-gray-200 truncate block">
-                {{ prod.supplier || '-' }}
+                {{ prod.supplier || resolveProductSupplier(prod) || '-' }}
               </span>
             </td>
             <td class="text-center font-bold text-gray-600 font-mono whitespace-nowrap">{{ prod.unit }}</td>

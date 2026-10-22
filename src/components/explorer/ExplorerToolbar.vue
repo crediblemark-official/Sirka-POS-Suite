@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
 import { useInventoryStore } from '../../stores/inventoryStore';
 import { usePosStore } from '../../stores/posStore';
 import { useDiscountStore } from '../../stores/discountStore';
@@ -10,8 +10,6 @@ import { usePreOrderStore } from '../../stores/preOrderStore';
 import { useShiftStore } from '../../stores/shiftStore';
 import type { ModuleTab } from './AppLauncherTab.vue';
 import {
-  ChevronLeft,
-  ChevronRight,
   LayoutGrid,
   List,
   FolderOpen,
@@ -29,7 +27,8 @@ import {
   LogOut,
   Truck,
   Plus,
-  Scale
+  Scale,
+  Home
 } from 'lucide-vue-next';
 
 const props = defineProps<{
@@ -46,6 +45,9 @@ const emit = defineEmits<{
   (e: 'update:searchQuery', q: string): void;
   (e: 'update:showCartDrawer', show: boolean): void;
   (e: 'open-tab', tab: ModuleTab): void;
+  (e: 'open-launcher'): void;
+  (e: 'search-navigate', direction: 'right' | 'left' | 'down' | 'up'): void;
+  (e: 'search-submit'): void;
 }>();
 
 const inventoryStore = useInventoryStore();
@@ -76,14 +78,54 @@ function handleTogglePreOrderSidebar() {
 }
 
 const searchInputRef = ref<HTMLInputElement | null>(null);
+const isSearchHovered = ref(false);
+const isSearchFocused = ref(false);
+const isSearchForced = ref(false);
+const idleShowSearch = ref(false);
 
-function focusSearch() {
+// Animasi berganti berkala antara Breadcrumb dan Search saat idle (setiap 4.5 detik)
+let idleSwapTimer: ReturnType<typeof setInterval> | null = null;
+
+onMounted(() => {
+  idleSwapTimer = setInterval(() => {
+    // Hanya berganti jika tidak sedang di-hover, tidak fokus, dan tidak ada teks pencarian
+    if (!isSearchHovered.value && !isSearchFocused.value && !isSearchForced.value && !props.searchQuery) {
+      idleShowSearch.value = !idleShowSearch.value;
+    }
+  }, 4500);
+});
+
+onUnmounted(() => {
+  if (idleSwapTimer) clearInterval(idleSwapTimer);
+});
+
+const isSearchMode = computed(() => {
+  if (isSearchHovered.value || isSearchFocused.value || isSearchForced.value || Boolean(props.searchQuery)) {
+    return true;
+  }
+  return idleShowSearch.value;
+});
+
+async function focusSearch() {
+  isSearchForced.value = true;
+  await nextTick();
   searchInputRef.value?.focus();
   searchInputRef.value?.select();
 }
 
+function handleSearchFocus() {
+  isSearchFocused.value = true;
+}
+
+function handleSearchBlur() {
+  isSearchFocused.value = false;
+  isSearchForced.value = false;
+}
+
 function clearSearch() {
   emit('update:searchQuery', '');
+  isSearchFocused.value = false;
+  isSearchForced.value = false;
   searchInputRef.value?.blur();
 }
 
@@ -95,7 +137,37 @@ let lastSearchCharAt = Date.now();
 let lastSearchInterval = 0;
 
 function handleSearchKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    clearSearch();
+    return;
+  }
   if (props.activeTab !== 'pos') return;
+
+  // Navigasi cepat produk 4 arah (Kanan, Kiri, Bawah, Atas) saat di kotak pencarian
+  if (!e.shiftKey) {
+    if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      emit('search-navigate', 'right');
+      return;
+    }
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      emit('search-navigate', 'left');
+      return;
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      emit('search-navigate', 'down');
+      return;
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      emit('search-navigate', 'up');
+      return;
+    }
+  }
+
   const now = Date.now();
   if (e.key.length === 1 && e.key !== ' ') {
     lastSearchInterval = now - lastSearchCharAt;
@@ -105,37 +177,44 @@ function handleSearchKeydown(e: KeyboardEvent) {
   if (e.key === 'Enter') {
     const query = props.searchQuery.trim();
     if (!query) return;
+
     // Deteksi scanner: karakter terakhir baru masuk < gap scanner
-    if (lastSearchInterval > SCAN_GAP_MS) return;
-    const prods = inventoryStore.products;
-    // BUG FIX: barcode barcode SATUAN KEMASAN (product.units[].barcode) ikut
-    // dicari. Sebelumnya hanya barcode produk & SKU yang dicari sehingga
-    // barcode DUS yang valid di katalog kasir diabaikan di kotak pencarian.
-    let found = prods.find(p => (p.barcode || '').trim() === query);
-    let foundUnit: string | undefined;
-    if (!found) {
-      for (const p of prods) {
-        const unit = (p.units || []).find(u => (u.barcode || '').trim() === query);
-        if (unit) {
-          found = p;
-          foundUnit = unit.unitName;
-          break;
+    if (lastSearchInterval <= SCAN_GAP_MS) {
+      const prods = inventoryStore.products;
+      // BUG FIX: barcode SATUAN KEMASAN (product.units[].barcode) ikut
+      // dicari. Sebelumnya hanya barcode produk & SKU yang dicari sehingga
+      // barcode DUS yang valid di katalog kasir diabaikan di kotak pencarian.
+      let found = prods.find(p => (p.barcode || '').trim() === query);
+      let foundUnit: string | undefined;
+      if (!found) {
+        for (const p of prods) {
+          const unit = (p.units || []).find(u => (u.barcode || '').trim() === query);
+          if (unit) {
+            found = p;
+            foundUnit = unit.unitName;
+            break;
+          }
         }
       }
-    }
-    if (!found) {
-      found = prods.find(p => (p.code || '').trim().toUpperCase() === query.toUpperCase());
-    }
-    if (found) {
-      // Barcode satuan kemasan -> masukkan keranjang memakai satuan tersebut
-      if (foundUnit) {
-        posStore.addProductToCart(found, 1, foundUnit);
-      } else {
-        posStore.addProductToCart(found, 1);
+      if (!found) {
+        found = prods.find(p => (p.code || '').trim().toUpperCase() === query.toUpperCase());
       }
-      emit('update:searchQuery', '');
-      emit('update:showCartDrawer', true);
+      if (found) {
+        // Barcode satuan kemasan -> masukkan keranjang memakai satuan tersebut
+        if (foundUnit) {
+          posStore.addProductToCart(found, 1, foundUnit);
+        } else {
+          posStore.addProductToCart(found, 1);
+        }
+        emit('update:searchQuery', '');
+        emit('update:showCartDrawer', true);
+        return;
+      }
     }
+
+    // Ketikan manual kasir (Enter = masukkan produk yang sedang terpilih ke keranjang)
+    e.preventDefault();
+    emit('search-submit');
   }
 }
 
@@ -147,22 +226,26 @@ defineExpose({
 <template>
   <!-- Toolbar Header: Full Cell Height (h-8.5 items-stretch), sama persis seperti tab bar -->
   <header class="explorer-header flex items-stretch h-8.5 border-b shadow-2xs transition-colors select-none text-xs">
-    <!-- Back / Forward (File manager navigation) -->
+    <!-- Home & Add New Tab Navigation -->
     <div class="flex items-stretch shrink-0" style="color: var(--surface-text-muted);">
       <button
-        class="h-full px-2.5 flex items-center justify-center hover:bg-black/5 active:bg-black/10 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-        disabled
-        title="Kembali (Alt+Left)"
+        type="button"
+        class="h-full px-2.5 flex items-center justify-center hover:bg-black/5 active:bg-black/10 cursor-pointer transition-colors"
+        :class="activeTab === 'home' ? 'text-blue-600 bg-black/5 font-bold' : ''"
+        title="Beranda & Insight Bisnis (Home)"
+        @click="emit('open-tab', 'home')"
       >
-        <ChevronLeft :size="16" />
+        <Home :size="15" />
       </button>
       <button
-        class="h-full px-2.5 flex items-center justify-center hover:bg-black/5 active:bg-black/10 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed transition-colors border-r"
+        type="button"
+        class="h-full px-2.5 flex items-center justify-center hover:bg-black/5 active:bg-black/10 cursor-pointer transition-colors border-r"
+        :class="activeTab === 'launcher' ? 'text-blue-600 bg-black/5 font-bold' : ''"
         style="border-color: var(--surface-header-border, #c8c5c0);"
-        disabled
-        title="Maju (Alt+Right)"
+        title="Buka Menu Baru / New Tab (+)"
+        @click="emit('open-launcher')"
       >
-        <ChevronRight :size="16" />
+        <Plus :size="15" />
       </button>
     </div>
 
@@ -192,45 +275,68 @@ defineExpose({
       </button>
     </div>
 
-    <!-- Address / Path Bar (Full Cell: Breadcrumb di Kiri + Search di Kanan, Mengisi 100% Tinggi Header) -->
+    <!-- Address / Path Bar (Unified: Breadcrumb <-> Search, Mengisi 100% Tinggi Header) -->
     <div
-      class="flex-1 flex items-stretch h-full bg-white border-r min-w-0"
+      class="flex-1 flex items-stretch h-full bg-white border-r min-w-0 relative group/address cursor-pointer transition-colors overflow-hidden"
       style="background-color: var(--surface-card, #ffffff); border-color: var(--surface-header-border, #c8c5c0);"
+      @mouseenter="isSearchHovered = true"
+      @mouseleave="isSearchHovered = false"
+      @click="focusSearch"
     >
-      <!-- Breadcrumb / Path di Kiri -->
-      <div class="flex items-center gap-2 px-3 flex-1 min-w-0">
-        <FolderOpen :size="15" class="text-[#c29858] shrink-0" />
-        <span class="font-mono text-xs font-medium truncate flex-1" style="color: var(--surface-text);">
-          {{ currentPath }}
-        </span>
-      </div>
-
-      <!-- Search Input di Kanan (Shortcut F2) -->
-      <div class="flex items-center gap-1.5 px-3 border-l border-gray-200 shrink-0 h-full bg-white">
-        <Search :size="13" class="text-gray-400 shrink-0" />
-        <input
-          ref="searchInputRef"
-          :value="searchQuery"
-          @input="emit('update:searchQuery', ($event.target as HTMLInputElement).value)"
-          @keydown="handleSearchKeydown"
-          type="text"
-          :placeholder="searchPlaceholder"
-          class="outline-none text-xs w-56 sm:w-72 md:w-80 bg-transparent placeholder-gray-400 focus:placeholder-gray-300 transition-all"
-          style="color: var(--surface-text);"
-        />
-        <kbd class="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded font-mono text-[9px] border border-gray-200" title="Tekan F2 untuk cari langsung">
-          F2
-        </kbd>
-        <button
-          v-if="searchQuery"
-          type="button"
-          class="text-gray-400 hover:text-gray-600 cursor-pointer ml-0.5 p-0.5"
-          title="Bersihkan pencarian (Esc)"
-          @click="clearSearch"
+      <Transition name="toolbar-swap" mode="out-in">
+        <!-- Mode 1: Search Active (Ketika di-hover, input fokus, shortcut F3, atau sedang ada teks pencarian / fase rotasi) -->
+        <div
+          v-if="isSearchMode"
+          key="search"
+          class="flex items-center gap-2 px-3 w-full h-full"
         >
-          <X :size="12" />
-        </button>
-      </div>
+          <Search :size="13" class="text-indigo-600 shrink-0" />
+          <input
+            ref="searchInputRef"
+            :value="searchQuery"
+            @input="emit('update:searchQuery', ($event.target as HTMLInputElement).value)"
+            @keydown="handleSearchKeydown"
+            @focus="handleSearchFocus"
+            @blur="handleSearchBlur"
+            type="text"
+            :placeholder="searchPlaceholder"
+            class="outline-none text-xs w-full bg-transparent placeholder-gray-400 focus:placeholder-gray-300 font-sans"
+            style="color: var(--surface-text);"
+          />
+          <kbd class="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded font-mono text-[9px] border border-gray-200 shrink-0 select-none" title="Tekan F3 untuk cari langsung">
+            F3
+          </kbd>
+          <button
+            v-if="searchQuery"
+            type="button"
+            class="text-gray-400 hover:text-gray-600 cursor-pointer p-0.5 shrink-0"
+            title="Bersihkan pencarian (Esc)"
+            @click.stop="clearSearch"
+          >
+            <X :size="12" />
+          </button>
+        </div>
+
+        <!-- Mode 2: Breadcrumb / Path (Ketika tidak di-hover dan sedang di fase rotasi breadcrumb) -->
+        <div
+          v-else
+          key="breadcrumb"
+          class="flex items-center justify-between gap-2 px-3 w-full h-full select-none"
+        >
+          <div class="flex items-center gap-2 min-w-0 flex-1">
+            <FolderOpen :size="15" class="text-[#c29858] shrink-0" />
+            <span class="font-mono text-xs font-medium truncate flex-1" style="color: var(--surface-text);">
+              {{ currentPath }}
+            </span>
+          </div>
+          <div class="flex items-center gap-1.5 text-gray-400 shrink-0 opacity-60 group-hover/address:opacity-100 transition-opacity">
+            <Search :size="12" />
+            <kbd class="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded font-mono text-[9px] border border-gray-200" title="Arahkan kursor atau tekan F3 untuk mencari">
+              F3
+            </kbd>
+          </div>
+        </div>
+      </Transition>
     </div>
 
     <!-- Right Action Tools (Full Cell: Setiap tombol membentang penuh 100% tinggi bar) -->
@@ -278,7 +384,7 @@ defineExpose({
         style="border-color: var(--surface-header-border, #c8c5c0);"
         :class="showCartDrawer ? 'text-white' : 'bg-white/70 text-gray-700 hover:bg-white'"
         :style="showCartDrawer ? { backgroundColor: 'var(--brand-primary)', color: 'var(--brand-primary-contrast, #ffffff)' } : {}"
-        title="Buka / Tutup Keranjang Belanja Kasir (F3)"
+        title="Buka / Tutup Keranjang Belanja Kasir"
         @click="emit('update:showCartDrawer', !showCartDrawer)"
       >
         <ShoppingCart :size="14" />
@@ -339,10 +445,10 @@ defineExpose({
         @click="handleToggleProductSidebar"
       >
         <Plus :size="13" />
-        <span>Kulakan & Barang ({{ inventoryStore.products.length }})</span>
+        <span>Kulakan ({{ inventoryStore.products.length }})</span>
       </button>
 
-      <!-- 6. Menu Satuan & Kategori -->
+      <!-- 6. Menu Kategori -->
       <button
         v-else-if="activeTab === 'vendors'"
         class="h-full flex items-center gap-1.5 px-3 text-xs font-semibold cursor-pointer transition-colors border-r"
@@ -353,7 +459,7 @@ defineExpose({
         @click="inventoryStore.showVendorSidebar = !inventoryStore.showVendorSidebar"
       >
         <Scale :size="14" />
-        <span>Satuan & Kategori</span>
+        <span>Kategori</span>
       </button>
 
       <!-- Menu Supplier: Tambah Supplier -->
@@ -407,3 +513,18 @@ defineExpose({
     </div>
   </header>
 </template>
+
+<style scoped>
+.toolbar-swap-enter-active,
+.toolbar-swap-leave-active {
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.toolbar-swap-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+.toolbar-swap-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+</style>
