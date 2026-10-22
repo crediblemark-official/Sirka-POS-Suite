@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import type { ActiveTab, FinancialReport, ProductsIntelligenceReport, ReceivablesAgingReport } from '../types';
 import { ownerApi } from '../services/api';
-import { formatRupiah } from '../utils/formatters';
+import { formatRupiah, formatShiftDateTime, formatShiftTime } from '../utils/formatters';
 import HeaderBar from '../components/HeaderBar.vue';
 import {
   FileSpreadsheet,
@@ -36,20 +36,28 @@ const productsReport = ref<ProductsIntelligenceReport | null>(null);
 const agingReport = ref<ReceivablesAgingReport | null>(null);
 const shifts = ref<any[]>([]);
 const showShiftAuditModal = ref(false);
+const errorMessage = ref('');
 
 async function loadData() {
   loading.value = true;
+  errorMessage.value = '';
   try {
-    const [fin, prod, age, shiftData] = await Promise.all([
-      ownerApi.getFinancialReport('month').catch(() => null),
-      ownerApi.getProductsIntelligence().catch(() => null),
-      ownerApi.getReceivablesAging().catch(() => null),
-      ownerApi.getShifts().catch(() => []),
+    // BUG FIX: `Promise.all` menolak saat satu request gagal sehingga hasil
+    // request yang BERHASIL ikut dibuang dan semua angka menjadi 0 (user
+    // mengira tidak ada data). Sekarang `allSettled` per request.
+    const [fin, prod, age, shiftData] = await Promise.allSettled([
+      ownerApi.getFinancialReport('month'),
+      ownerApi.getProductsIntelligence(),
+      ownerApi.getReceivablesAging(),
+      ownerApi.getShifts(),
     ]);
-    financialReport.value = fin;
-    productsReport.value = prod;
-    agingReport.value = age;
-    shifts.value = shiftData || [];
+    financialReport.value = fin.status === 'fulfilled' ? fin.value : null;
+    productsReport.value = prod.status === 'fulfilled' ? prod.value : null;
+    agingReport.value = age.status === 'fulfilled' ? age.value : null;
+    shifts.value = shiftData.status === 'fulfilled' ? (shiftData.value || []) : [];
+    if ([fin, prod, age, shiftData].some(r => r.status === 'rejected')) {
+      errorMessage.value = 'Sebagian data gagal dimuat dari server. Periksa koneksi & token akses.';
+    }
   } finally {
     loading.value = false;
   }
@@ -57,6 +65,40 @@ async function loadData() {
 
 onMounted(() => {
   loadData();
+});
+
+/**
+ * BUG FIX: shift yang belum direkonsiliasi (status != 'CLOSED') tidak boleh
+ * dihitung sebagai "PAS". Kolom `discrepancy` bernilai 0 pada shift yang masih
+ * terbuka sehingga metrik anti-fraud menjadi palsu.
+ */
+/**
+ * BUG FIX: syarat sebelumnya menuntut `actual_cash` DAN `actualCash` sekaligus
+ * ada. API `/api/shifts` hanya mengirim camelCase (`actualCash`) -> syaratnya
+ * selalu false -> `reconciledShifts` selalu kosong -> audit anti-fraud tidak
+ * pernah bisa melaporkan "100% pas".
+ * Sekarang menerima salah satu format (snake_case ATAU camelCase).
+ */
+function shiftActualCash(s: any): number | null {
+  const raw = s?.actualCash ?? s?.actual_cash;
+  if (raw === null || raw === undefined || raw === '') return null;
+  const num = Number(raw);
+  return Number.isFinite(num) ? num : null;
+}
+
+const reconciledShifts = computed(() =>
+  shifts.value.filter(
+    (s: any) => String(s.status || '').toUpperCase() === 'CLOSED'
+      && shiftActualCash(s) !== null
+  )
+);
+
+const shiftAuditLabel = computed(() => {
+  if (shifts.value.length === 0) return 'Belum Ada Shift';
+  if (reconciledShifts.value.length === 0) return 'Belum Ada Shift Terekonsiliasi';
+  const bad = reconciledShifts.value.filter((s: any) => Number(s.discrepancy || 0) !== 0);
+  if (bad.length > 0) return `Ada Selisih Kas (${bad.length} dari ${reconciledShifts.value.length} Shift)`;
+  return `Semua ${reconciledShifts.value.length} Shift Terekonsiliasi Pas (100%)`;
 });
 </script>
 
@@ -72,6 +114,12 @@ onMounted(() => {
 
     <!-- Main Content (Full Edge to Edge) -->
     <main class="w-full flex-1 flex flex-col">
+      <!-- BUG FIX: tampilkan pesan error server (sebelumnya halaman menampilkan
+           "0" seolah-olah tidak ada data, padahal request-nya gagal). -->
+      <div v-if="errorMessage" class="w-full bg-rose-50 border-b border-rose-300 px-4 py-2 text-[11px] text-rose-800 flex items-start gap-2">
+        <AlertTriangle :size="14" class="shrink-0 mt-0.5" />
+        <span>{{ errorMessage }}</span>
+      </div>
       <!-- 1. Executive Headline Metric Strip (Horizontal Scrollable) -->
       <div class="w-full bg-white border-b border-[#c8c5c0] overflow-x-auto flex items-center divide-x divide-[#e5e3de] select-none no-scrollbar">
         <!-- KPI 1: Omzet Bersih Bulan Ini -->
@@ -99,22 +147,22 @@ onMounted(() => {
               <span>Modal Terkunci (Dead Stock)</span>
             </div>
             <div class="text-sm font-extrabold font-mono text-amber-700 whitespace-nowrap leading-snug mt-0.5">
-              {{ formatRupiah(productsReport?.totalCapitalLocked || 0) }}
+              {{ formatRupiah(productsReport?.totalCapitalLocked ?? 0) }}
             </div>
           </div>
         </div>
 
-        <!-- KPI 3: Piutang Macet (>30hr) -->
+        <!-- KPI 3: Piutang Macet (>30 HARI) -->
         <div class="p-2.5 px-3.5 flex items-center gap-2.5 shrink-0 whitespace-nowrap bg-red-50/40">
           <div class="w-8 h-8 rounded bg-red-100 text-red-700 border border-red-300 shrink-0 flex items-center justify-center shadow-2xs">
             <Clock class="w-4 h-4" />
           </div>
           <div class="min-w-0">
             <div class="text-[10px] text-red-700 uppercase tracking-wider font-bold whitespace-nowrap leading-tight">
-              Piutang Macet (&gt;30hr)
+              Piutang Macet (&gt;30 HARI)
             </div>
             <div class="text-sm font-extrabold font-mono text-red-700 whitespace-nowrap leading-snug mt-0.5">
-              {{ formatRupiah(agingReport?.bucketOver30 || 0) }}
+              {{ formatRupiah(agingReport?.bucketOver30 ?? 0) }}
             </div>
           </div>
         </div>
@@ -129,7 +177,7 @@ onMounted(() => {
               Valuasi Aset Stok
             </div>
             <div class="text-sm font-extrabold font-mono text-[#2e2b28] whitespace-nowrap leading-snug mt-0.5">
-              {{ formatRupiah(financialReport?.inventoryAssetValue || 190930000) }}
+              {{ formatRupiah(financialReport?.inventoryAssetValue ?? 0) }}
             </div>
           </div>
         </div>
@@ -159,7 +207,7 @@ onMounted(() => {
               <div class="text-xs font-bold text-[#2e2b28] flex items-center gap-1.5">
                 <span>Dead Stock &amp; Modal Terkunci</span>
                 <span class="px-1.5 py-0.2 rounded text-[9px] font-mono bg-amber-100 text-amber-800 border border-amber-200">
-                  {{ productsReport?.totalDeadStockSkus || 41 }} SKU Mati
+                  {{ productsReport?.totalDeadStockSkus ?? 0 }} SKU Mati
                 </span>
               </div>
               <div class="text-[11px] text-[#6b655f] mt-0.5 leading-snug">
@@ -169,7 +217,7 @@ onMounted(() => {
           </div>
           <div class="text-right shrink-0 flex items-center gap-2">
             <div class="font-mono text-xs font-bold text-amber-700">
-              {{ formatRupiah(productsReport?.totalCapitalLocked || 190930000) }}
+              {{ formatRupiah(productsReport?.totalCapitalLocked ?? 0) }}
             </div>
             <ChevronRight class="w-4 h-4 text-[#b0aca5]" />
           </div>
@@ -364,8 +412,14 @@ onMounted(() => {
               </div>
               <div class="text-[11px] text-[#6b655f] mt-0.5 leading-snug">
                 Rekonsiliasi kas laci fisik vs sistem Cloudflare:
-                <strong :class="shifts.some(s => Number(s.discrepancy || 0) !== 0) ? 'text-rose-700' : 'text-emerald-700'">
-                  {{ shifts.length > 0 ? (shifts.some(s => Number(s.discrepancy || 0) !== 0) ? 'Ada Selisih Kas' : 'Semua Shift Pas (100%)') : 'Belum Ada Shift' }}
+                <!--
+                  BUG FIX: shift yang BELUM direkonsiliasi (status != CLOSED)
+                  sebelumnya ikut dihitung sebagai "PAS" karena `discrepancy`
+                  bernilai 0 pada shift yang masih terbuka. Metrik anti-fraud
+                  jadi palsu ("Semua Shift Pas 100%") padahal ada shift terbuka.
+                -->
+                <strong :class="reconciledShifts.some(s => Number(s.discrepancy || 0) !== 0) ? 'text-rose-700' : 'text-emerald-700'">
+                  {{ shiftAuditLabel }}
                 </strong>
               </div>
             </div>
@@ -453,11 +507,14 @@ onMounted(() => {
             <Percent class="w-4 h-4 text-purple-700" />
             <div>
               <div class="text-xs font-bold text-[#2e2b28]">Rekapitulasi Pajak PPh Final UMKM (PP 55)</div>
-              <div class="text-[11px] text-[#6b655f]">Estimasi setoran 0.5% dari total omzet bruto bulanan</div>
+              <div class="text-[11px] text-[#6b655f]">Estimasi setoran 0.5% dari penjualan bersih periode berjalan</div>
             </div>
           </div>
           <div class="font-mono text-xs font-bold text-purple-800">
-            {{ formatRupiah((financialReport?.grossSales || 0) * 0.005) }}
+            <!-- BUG FIX: dasar perhitungan pajak sebelumnya `grossSales` sehingga
+                 mobile dan desktop menampilkan nominal berbeda untuk store yang
+                 sama (desktop memakai penjualan bersih). -->
+            {{ formatRupiah((financialReport?.netSales ?? 0) * 0.005) }}
           </div>
         </div>
       </div>
@@ -513,34 +570,34 @@ onMounted(() => {
                 {{
                   Number(s.discrepancy || 0) === 0
                     ? 'PAS (Rp 0)'
-                    : `${Number(s.discrepancy || 0) > 0 ? '+' : ''}Rp ${formatRupiah(Number(s.discrepancy || 0))}`
+                    : `${Number(s.discrepancy || 0) > 0 ? '+' : ''}${formatRupiah(Number(s.discrepancy || 0))}`
                 }}
               </span>
             </div>
 
             <div class="text-[10px] text-[#6b655f] font-mono">
-              {{ new Date(s.start_time || s.startTime).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' }) }}
+              {{ formatShiftDateTime(s.start_time || s.startTime) }}
               <span v-if="s.end_time || s.endTime">
-                - {{ new Date(s.end_time || s.endTime).toLocaleTimeString('id-ID', { timeStyle: 'short' }) }}
+                - {{ formatShiftTime(s.end_time || s.endTime) }}
               </span>
             </div>
 
             <div class="grid grid-cols-2 gap-2 text-[11px] pt-1 border-t border-dashed border-[#e5e3de]">
               <div>
                 <span class="text-gray-500 block text-[10px]">Modal Awal:</span>
-                <span class="font-mono font-semibold">Rp {{ formatRupiah(Number(s.starting_cash || s.startingCash || 0)) }}</span>
+                <span class="font-mono font-semibold">{{ formatRupiah(Number(s.starting_cash || s.startingCash || 0)) }}</span>
               </div>
               <div>
                 <span class="text-gray-500 block text-[10px]">Penjualan Tunai:</span>
-                <span class="font-mono font-bold text-emerald-700">Rp {{ formatRupiah(Number(s.cash_sales || s.cashSales || 0)) }}</span>
+                <span class="font-mono font-bold text-emerald-700">{{ formatRupiah(Number(s.cash_sales || s.cashSales || 0)) }}</span>
               </div>
               <div>
                 <span class="text-gray-500 block text-[10px]">Kas Seharusnya:</span>
-                <span class="font-mono font-semibold text-blue-800">Rp {{ formatRupiah(Number(s.expected_cash || s.expectedCash || 0)) }}</span>
+                <span class="font-mono font-semibold text-blue-800">{{ formatRupiah(Number(s.expected_cash || s.expectedCash || 0)) }}</span>
               </div>
               <div>
                 <span class="text-gray-500 block text-[10px]">Fisik Laci:</span>
-                <span class="font-mono font-bold text-gray-900">Rp {{ formatRupiah(Number(s.actual_cash || s.actualCash || 0)) }}</span>
+                <span class="font-mono font-bold text-gray-900">{{ formatRupiah(Number(s.actual_cash || s.actualCash || 0)) }}</span>
               </div>
             </div>
 

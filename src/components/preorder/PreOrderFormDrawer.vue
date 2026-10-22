@@ -4,7 +4,7 @@ import { usePreOrderStore } from '../../stores/preOrderStore';
 import { useInventoryStore } from '../../stores/inventoryStore';
 import { useBuyerStore } from '../../stores/buyerStore';
 import { BuyerName, SupplierCategory, PreOrderSchedule, PreOrderItem } from '../../types';
-import { formatRupiah } from '../../utils/formatters';
+import { formatRupiah, localTodayStr } from '../../utils/formatters';
 import {
   Calendar,
   Plus,
@@ -28,7 +28,9 @@ const buyerStore = useBuyerStore();
 
 const isEditPo = computed(() => !!preOrderStore.activeScheduleForSidebar?.id);
 
-const formDate = ref(new Date().toISOString().split('T')[0]);
+// BUG FIX: `toISOString()` memakai UTC sehingga di WIB pukul 00:00-06:59
+// tanggal default pre-order adalah KEMARIN.
+const formDate = ref(localTodayStr());
 const formBuyer = ref('');
 const formItems = ref<PreOrderItem[]>([]);
 
@@ -70,8 +72,10 @@ watch(
       formBuyer.value = sched.buyer;
       formItems.value = JSON.parse(JSON.stringify(sched.items || []));
     } else {
-      formDate.value = new Date().toISOString().split('T')[0];
-      formBuyer.value = buyerStore.buyers[0]?.name || 'Semua Pembeli';
+      formDate.value = localTodayStr();
+      // BUG FIX: default 'Semua Pembeli' membuat PO tersimpan dengan pelanggan
+      // yang tidak ada di master -> tidak bisa difilter / ditarik ke kasir.
+      formBuyer.value = buyerStore.buyers[0]?.name || '';
       formItems.value = [];
     }
     selectedProductId.value = '';
@@ -83,8 +87,10 @@ watch(
 
 function handleOpenAddPo() {
   preOrderStore.activeScheduleForSidebar = null;
-  formDate.value = new Date().toISOString().split('T')[0];
-  formBuyer.value = buyerStore.buyers[0]?.name || 'Semua Pembeli';
+  formDate.value = localTodayStr();
+  // BUG FIX: default 'Semua Pembeli' membuat PO tersimpan dengan pelanggan
+  // yang tidak ada di master -> tidak bisa difilter / ditarik ke kasir.
+  formBuyer.value = buyerStore.buyers[0]?.name || '';
   formItems.value = [];
   selectedProductId.value = '';
   newItemQty.value = 1;
@@ -102,15 +108,25 @@ function handleOpenEditPo(sched: PreOrderSchedule) {
 }
 
 function handleAddItem() {
-  if (!selectedProduct.value || newItemQty.value <= 0) return;
+  // BUG FIX: `v-model.number` dengan input dikosongkan menghasilkan string ''
+  // (Vue `looseToNumber` mengembalikan nilai asli bila parseFloat gagal).
+  // `'' <= 0` bernilai false sehingga item dengan qty NaU tersimpan ->
+  // total "NaN Pcs" & HPP NaN.
+  const qty = Number(newItemQty.value);
+  if (!selectedProduct.value || !Number.isFinite(qty) || qty <= 0) {
+    if (selectedProduct.value) {
+      alert('Jumlah pesanan harus berupa angka lebih besar dari 0.');
+    }
+    return;
+  }
 
   const newItem: PreOrderItem = {
     id: `poi-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
     productName: selectedProduct.value.name,
     category: selectedProduct.value.category as SupplierCategory,
-    qty: newItemQty.value,
+    qty,
     unit: selectedProduct.value.unit,
-    packagingNote: newItemPackaging.value.trim() || `${newItemQty.value} ${selectedProduct.value.unit}`
+    packagingNote: newItemPackaging.value.trim() || `${qty} ${selectedProduct.value.unit}`
   };
 
   formItems.value.push(newItem);
@@ -126,22 +142,32 @@ function handleRemoveItem(index: number) {
 async function handleSavePoSidebar() {
   if (!formDate.value || !formBuyer.value || formItems.value.length === 0) return;
 
+  // BUG FIX: `isLoadedToPos` harus dipertahankan saat edit. Sebelumnya flag
+  // tidak ikut sehingga menjadi false — badge "✓ Dimuat Kasir" hilang dan
+  // kasir bisa menarik ulang pesanan yang sama ke keranjang.
+  const existing = isEditPo.value ? preOrderStore.activeScheduleForSidebar : null;
+
   const payload: PreOrderSchedule = {
-    id: isEditPo.value && preOrderStore.activeScheduleForSidebar ? preOrderStore.activeScheduleForSidebar.id : `po-${Date.now()}`,
+    id: existing?.id || `po-${Date.now()}`,
     date: formDate.value,
     dayName: detectedDayName.value,
     buyer: formBuyer.value as BuyerName,
-    items: formItems.value
+    items: formItems.value,
+    isLoadedToPos: existing?.isLoadedToPos ?? false
   };
 
   try {
-  if (isEditPo.value) {
-    await preOrderStore.updateSchedule(payload);
-  } else {
-    await preOrderStore.addSchedule(payload);
+    if (isEditPo.value) {
+      await preOrderStore.updateSchedule(payload);
+    } else {
+      await preOrderStore.addSchedule(payload);
+    }
+    emit('update:isOpen', false);
+  } catch (error: any) {
+    // BUG FIX: objek Error di-stringify jadi "[object Object]" -> pesan tidak
+    // informatif untuk user.
+    alert(`Pesanan gagal disimpan: ${error?.message || error}`);
   }
-  emit('update:isOpen', false);
-  } catch (error) { alert(`Pesanan gagal disimpan: ${error}`); }
 }
 
 async function handleDeletePoSidebar() {

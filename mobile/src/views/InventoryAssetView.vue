@@ -7,6 +7,7 @@ import HeaderBar from '../components/HeaderBar.vue';
 import { Search, Landmark, Package, X, TrendingUp, Coins, AlertTriangle, Zap } from 'lucide-vue-next';
 
 const loading = ref(false);
+const errorMessage = ref('');
 const intelligenceData = ref<ProductsIntelligenceReport>({
   totalCapitalLocked: 0,
   totalDeadStockSkus: 0,
@@ -18,10 +19,13 @@ const selectedFilter = ref<'ALL' | 'DEAD_STOCK' | 'FAST_MOVING'>('ALL');
 
 async function loadData() {
   loading.value = true;
+  errorMessage.value = '';
   try {
     intelligenceData.value = await ownerApi.getProductsIntelligence();
-  } catch {
-    // Fallback if needed
+  } catch (e: any) {
+    // BUG FIX: catch kosong previously membuat halaman menampilkan "0 SKU
+    // Terdaftar" seolah-olah tidak ada barang, padahal server error.
+    errorMessage.value = 'Gagal memuat data persediaan dari server: ' + (e?.message || e);
   } finally {
     loading.value = false;
   }
@@ -48,10 +52,15 @@ const filteredItems = computed(() => {
     // Search query
     if (!searchQuery.value) return true;
     const q = searchQuery.value.toLowerCase();
+    // BUG FIX: `it.name.toLowerCase()` melempar TypeError bila API mengembalikan
+    // null (worker tidak memakai COALESCE untuk kolom ini). Sekarang aman
+    // & ikut mencari satuan (seperti versi desktop).
+    const norm = (v?: string | null) => (v || '').toLowerCase();
     return (
-      it.name.toLowerCase().includes(q) ||
-      it.code.toLowerCase().includes(q) ||
-      it.category.toLowerCase().includes(q)
+      norm(it.name).includes(q) ||
+      norm(it.code).includes(q) ||
+      norm(it.category).includes(q) ||
+      norm(it.unit).includes(q)
     );
   });
 });
@@ -72,6 +81,12 @@ onMounted(() => {
     />
 
     <!-- Main Content (Full Edge) -->
+    <!-- BUG FIX: tampilkan pesan error server (sebelumnya halaman menampilkan
+         "tidak ada data" padahal sebenarnya request-nya gagal) -->
+    <div v-if="errorMessage" class="w-full bg-rose-50 border-b border-rose-300 px-4 py-2 text-[11px] text-rose-800 flex items-start gap-2">
+      <AlertTriangle :size="14" class="shrink-0 mt-0.5" />
+      <span>{{ errorMessage }}</span>
+    </div>
     <main class="w-full flex-1 flex flex-col">
       <!-- 1. Horizontal Scrollable Desktop Metric Stats Strip -->
       <div class="w-full bg-white border-b border-[#c8c5c0] overflow-x-auto flex items-center divide-x divide-[#e5e3de] select-none no-scrollbar">
@@ -233,7 +248,7 @@ onMounted(() => {
                   class="px-2 py-0.5 rounded font-mono font-bold bg-amber-100 text-amber-800 border border-amber-300 inline-flex items-center gap-1"
                 >
                   <AlertTriangle class="w-2.5 h-2.5" />
-                  DEAD STOCK (&gt;30hr)
+                  DEAD STOCK (&gt;30 HARI)
                 </span>
                 <span
                   v-else-if="it.velocityStatus === 'FAST_MOVING'"
@@ -249,7 +264,7 @@ onMounted(() => {
                   REGULER
                 </span>
               </td>
-              <td class="whitespace-nowrap text-right font-mono font-bold text-xs px-3 py-2" :class="it.marginPct >= 20 ? 'text-emerald-700' : 'text-[#6b655f]'">
+              <td class="whitespace-nowrap text-right font-mono font-bold text-xs px-3 py-2" :class="it.marginPct >= 16.7 ? 'text-emerald-700' : 'text-[#6b655f]'">
                 {{ it.marginPct.toFixed(1) }}%
               </td>
               <td class="whitespace-nowrap text-right font-mono font-bold text-[#2e2b28] text-xs px-3 py-2">

@@ -23,8 +23,49 @@ Aplikasi ini dikelola terpisah di dalam direktori `mobile/` dan **tidak memuat k
 4. **Laporan Kulakan**:
    * Riwayat faktur penerimaan barang dari supplier.
 5. **Keamanan & Setelan**:
-   * Proteksi Kunci PIN aplikasi untuk menjaga privasi laporan keuangan saat HP dipinjam.
+   * **Kunci Perangkat (Device Key)** — aplikasi terkunci saat dibuka memakai kunci
+     kripto privat milik perangkat ini (ECDSA P-256, **non-extractable** — private
+     key tidak pernah bisa dibaca JavaScript mana pun, termasuk skrip berbahaya).
+     Bila perangkat mendukung kredensial platform (Android: sidik jari / pattern /
+     PIN layar kunci), konfirmasi perangkat juga diminta — ini persis "kunci
+     bawaan HP".
+   * **Token akses Worker dienkripsi** (ECDH + AES-GCM memakai kunci perangkat),
+     sehingga tidak ada rahasia plaintext di `localStorage`.
+   * PIN lama masih tersedia sebagai **fallback** untuk perangkat tanpa Web Crypto,
+     dan **dihapus otomatis** (bersama token plaintext) setelah Kunci Perangkat aktif.
    * Pengaturan URL server PostgreSQL cloud dengan tombol uji koneksi langsung.
+
+### Cara Kerja Keamanan (ringkas)
+
+| Yang disimpan | Di mana | Bentuk |
+| --- | --- | --- |
+| Private key (ECDSA P-256) | IndexedDB (sandbox privat app) | **Non-extractable** — tidak bisa diekspor |
+| Public key + Device ID | localStorage | Publik (aman) |
+| Token Worker | localStorage | **Terenkripsi AES-GCM** (kunci ECDH perangkat) |
+| PIN Owner | localStorage | Fallback saja; dihapus setelah device key aktif |
+
+> **Catatan:** kunci di IndexedDB bersifat *software-backed* (bukan hardware
+> TPM/StrongBox). Untuk **true hardware backing + biometrik asli**, pasang plugin
+> Android Keystore:
+>
+> ```bash
+> # 1. Generate project Android (butuh Android SDK + NDK)
+> cd mobile && npx tauri android init
+>
+> # 2. Pasang plugin (idempoten, aman diulang)
+> node scripts/install-android-keystore.mjs
+>
+> # 3. Build APK
+> npx tauri android build --apk
+> ```
+>
+> Plugin memakai `KeyGenParameterSpec` (ECDSA P-256 di Android Keystore) +
+> `BiometricPrompt`, sehingga **private key tidak pernah keluar dari HP** dan
+> Unlock memakai sidik jari/pattern/PIN layar kunci. Bila plugin tidak terpasang,
+> aplikasi otomatis jatuh ke Web Crypto (tetap aman, hanya tidak hardware-backed).
+>
+> Proteksi yang **benar-benar** melindungi data keuangan adalah **token akses
+> Worker** (SEC-2) — device key hanya mengunci tampilan di perangkat.
 
 ---
 

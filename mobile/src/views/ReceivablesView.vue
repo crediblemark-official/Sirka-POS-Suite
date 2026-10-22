@@ -7,6 +7,7 @@ import HeaderBar from '../components/HeaderBar.vue';
 import { Search, Clock, ChevronRight, X, FileText, CheckCircle2, AlertOctagon, AlertTriangle, ShieldCheck } from 'lucide-vue-next';
 
 const loading = ref(false);
+const errorMessage = ref('');
 const sales = ref<SaleTransaction[]>([]);
 const agingData = ref<ReceivablesAgingReport>({
   totalPending: 0,
@@ -23,13 +24,29 @@ const selectedTx = ref<SaleTransaction | null>(null);
 
 async function loadData() {
   loading.value = true;
+  errorMessage.value = '';
   try {
-    const [salesRes, agingRes] = await Promise.all([
+    // BUG FIX: `Promise.all` menolak kalau salah satu request gagal sehingga
+    // hasil request yang BERHASIL ikut dibuang dan halaman menampilkan
+    // "0 nota" seolah-olah tidak ada data (padahal server error).
+    const [salesRes, agingRes] = await Promise.allSettled([
       ownerApi.getSales(),
       ownerApi.getReceivablesAging(),
     ]);
-    sales.value = salesRes;
-    agingData.value = agingRes;
+    if (salesRes.status === 'fulfilled') sales.value = salesRes.value;
+    else errorMessage.value = 'Gagal memuat daftar penjualan dari server.';
+
+    if (agingRes.status === 'fulfilled') {
+      agingData.value = {
+        ...agingData.value,
+        ...agingRes.value,
+        // BUG FIX: response parsial (tanpa `items`) membuat `for...of undefined`
+        // melempar TypeError dan seluruh view gagal dirender.
+        items: Array.isArray(agingRes.value?.items) ? agingRes.value.items : [],
+      };
+    } else {
+      errorMessage.value = errorMessage.value || 'Gagal memuat data aging piutang dari server.';
+    }
   } finally {
     loading.value = false;
   }
@@ -38,27 +55,40 @@ async function loadData() {
 // Map invoice age from agingData
 const invoiceAgeMap = computed(() => {
   const map: Record<string, { ageDays: number; bucket: string }> = {};
-  for (const it of agingData.value.items) {
+  for (const it of agingData.value.items || []) {
     map[it.id] = { ageDays: it.ageDays, bucket: it.agingBucket };
     if (it.invoiceNo) map[it.invoiceNo] = { ageDays: it.ageDays, bucket: it.agingBucket };
   }
   return map;
 });
 
+/**
+ * BUG FIX: nilai `paymentStatus` dari API adalah 'LUNAS' / 'TEMPO' (upper case).
+ * Perbandingan lama `isTempo(tx)` selalu false sehingga tab
+ * "Piutang Tempo" (tab default) selalu kosong meski ada piutang.
+ */
+function isTempo(tx: { paymentStatus?: string }): boolean {
+  return (tx.paymentStatus || '').toUpperCase() === 'TEMPO';
+}
+
+function isLunas(tx: { paymentStatus?: string }): boolean {
+  return (tx.paymentStatus || '').toUpperCase() === 'LUNAS';
+}
+
 const filteredSales = computed(() => {
   return sales.value.filter(tx => {
     const matchSearch =
-      tx.buyer.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-      tx.invoiceNo.toLowerCase().includes(searchQuery.value.toLowerCase());
+      (tx.buyer || '').toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+      (tx.invoiceNo || '').toLowerCase().includes(searchQuery.value.toLowerCase());
 
     if (!matchSearch) return false;
 
     if (statusFilter.value === 'Semua') return true;
-    if (statusFilter.value === 'Lunas') return tx.paymentStatus === 'Lunas';
-    if (statusFilter.value === 'Tempo') return tx.paymentStatus === 'Tempo';
+    if (statusFilter.value === 'Lunas') return isLunas(tx);
+    if (statusFilter.value === 'Tempo') return isTempo(tx);
     if (statusFilter.value === 'Macet') {
       const ageInfo = invoiceAgeMap.value[tx.id] || invoiceAgeMap.value[tx.invoiceNo];
-      return tx.paymentStatus === 'Tempo' && ageInfo && ageInfo.ageDays > 30;
+      return isTempo(tx) && !!ageInfo && ageInfo.ageDays > 30;
     }
 
     return true;
@@ -66,9 +96,13 @@ const filteredSales = computed(() => {
 });
 
 const totalPending = computed(() => {
-  return agingData.value.totalPending || sales.value
-    .filter(tx => tx.paymentStatus === 'Tempo')
-    .reduce((acc, tx) => acc + tx.totalAmount, 0);
+  // BUG FIX: `||` menggantikan nilai 0 yang sah dengan perhitungan lain yang
+  // berbeda basis-nya. Gunakan `??` supaya 0 tetap berarti 0.
+  const fromApi = agingData.value.totalPending;
+  if (fromApi !== null && fromApi !== undefined) return fromApi;
+  return sales.value
+    .filter(tx => isTempo(tx))
+    .reduce((acc, tx) => acc + (tx.totalAmount || 0), 0);
 });
 
 onMounted(() => {
@@ -87,6 +121,12 @@ onMounted(() => {
     />
 
     <!-- Main Content (Full Edge) -->
+    <!-- BUG FIX: tampilkan pesan error server (sebelumnya halaman menampilkan
+         "tidak ada data" padahal sebenarnya request-nya gagal) -->
+    <div v-if="errorMessage" class="w-full bg-rose-50 border-b border-rose-300 px-4 py-2 text-[11px] text-rose-800 flex items-start gap-2">
+      <AlertTriangle :size="14" class="shrink-0 mt-0.5" />
+      <span>{{ errorMessage }}</span>
+    </div>
     <main class="w-full flex-1 flex flex-col">
       <!-- 1. Horizontal Scrollable Aging Metric Stats Strip -->
       <div class="w-full bg-white border-b border-[#c8c5c0] overflow-x-auto flex items-center divide-x divide-[#e5e3de] select-none no-scrollbar">
@@ -183,7 +223,7 @@ onMounted(() => {
             ? (st === 'Macet' ? 'bg-red-600 text-white font-bold shadow-xs' : 'bg-[#ecebe9] text-[#2563eb] font-bold shadow-xs')
             : 'text-[#6b655f] hover:bg-[#d6d4cf] hover:text-[#2e2b28]'"
         >
-          {{ st === 'Tempo' ? 'Piutang Tempo' : (st === 'Macet' ? 'Macet (>30hr)' : st) }}
+          {{ st === 'Tempo' ? 'Piutang Tempo' : (st === 'Macet' ? 'Macet (>30 HARI)' : st) }}
         </button>
       </div>
 
@@ -219,7 +259,7 @@ onMounted(() => {
               </td>
               <td class="whitespace-nowrap text-center px-3 py-2">
                 <span
-                  v-if="tx.paymentStatus === 'Tempo'"
+                  v-if="isTempo(tx)"
                   class="inline-block px-1.5 py-0.5 rounded-xs text-[9.5px] font-mono font-bold border"
                   :class="{
                     'bg-red-100 text-red-800 border-red-300': (invoiceAgeMap[tx.id]?.ageDays || 0) > 30,
@@ -235,7 +275,7 @@ onMounted(() => {
               <td class="whitespace-nowrap text-center px-3 py-2">
                 <span
                   class="inline-block px-1.5 py-0.5 rounded-xs text-[9.5px] font-bold border"
-                  :class="tx.paymentStatus === 'Tempo'
+                  :class="isTempo(tx)
                     ? 'bg-[#fef3c7] text-[#92400e] border-[#fde68a]'
                     : 'bg-[#f0fdf4] text-[#166534] border-[#bbf7d0]'"
                 >
@@ -309,7 +349,7 @@ onMounted(() => {
                 <tr v-for="(it, idx) in selectedTx.items" :key="idx">
                   <td class="font-medium text-[#2e2b28]">{{ it.name }}</td>
                   <td class="text-center font-mono">{{ it.qty }}</td>
-                  <td class="text-right font-mono font-bold">{{ formatRupiah(it.subtotal) }}</td>
+                  <td class="text-right font-mono font-bold">{{ formatRupiah(it.subtotalSell ?? it.subtotal ?? 0) }}</td>
                 </tr>
               </tbody>
             </table>

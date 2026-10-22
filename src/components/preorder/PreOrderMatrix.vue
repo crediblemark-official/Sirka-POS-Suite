@@ -44,6 +44,9 @@ const buyerStore = useBuyerStore();
 
 const selectedDay = ref<string>('Semua');
 const selectedBuyer = ref<BuyerName | 'Semua'>('Semua');
+// BUG FIX: `localSearchQuery` sebelumnya tidak pernah di-bind ke input mana pun
+// -> state mati; pencarian hanya bisa lewat `props.searchQuery` (bar pencarian
+// global toolbar). Sekarang dipakai sebagai sumber pencarian lokal.
 const localSearchQuery = ref<string>('');
 
 const days = ['Semua', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
@@ -83,12 +86,16 @@ const filteredSchedules = computed(() => {
     const matchBuyer = selectedBuyer.value === 'Semua' || s.buyer === selectedBuyer.value;
 
     const q = (props.searchQuery || localSearchQuery.value).toLowerCase().trim();
+    // BUG FIX: `s.items` bisa tidak berupa array (data lama / JSON valid tapi
+    // bukan array) -> `.some` melempar TypeError yang mematikan SELURUH tab
+    // Pre-Order. Guard sama seperti di `preOrderStore.filterSchedules`.
+    const items = Array.isArray(s.items) ? s.items : [];
     const matchSearch =
       !q ||
-      s.buyer.toLowerCase().includes(q) ||
-      s.dayName.toLowerCase().includes(q) ||
-      s.date.includes(q) ||
-      s.items.some(i => i.productName.toLowerCase().includes(q));
+      (s.buyer || '').toLowerCase().includes(q) ||
+      (s.dayName || '').toLowerCase().includes(q) ||
+      (s.date || '').includes(q) ||
+      items.some(i => (i.productName || '').toLowerCase().includes(q));
 
     return matchDay && matchBuyer && matchSearch;
   });
@@ -97,13 +104,35 @@ const filteredSchedules = computed(() => {
 // 6 Metrik Pre-Order Lengkap
 const totalPoQty = computed(() => {
   return filteredSchedules.value.reduce((acc, s) => {
-    return acc + s.items.reduce((sum, i) => sum + (i.qty || 0), 0);
+    const items = Array.isArray(s.items) ? s.items : [];
+    return acc + items.reduce((sum, i) => sum + (i.qty || 0), 0);
   }, 0);
+});
+
+/**
+ * BUG FIX: item pre-order yang produknya sudah di-rename atau dihapus dari
+ * master menghasilkan HPP/omzet 0 TANPA PERINGATAN, sehingga margin PO
+ * terlihat jauh lebih besar dari kenyataan. Sekarang item yang tidak
+ * ditemukan dihitung dan dilaporkan.
+ */
+const unmatchedPoItems = computed(() => {
+  const unmatched: string[] = [];
+  for (const s of filteredSchedules.value) {
+    const items = Array.isArray(s.items) ? s.items : [];
+    for (const i of items) {
+      const prod = inventoryStore.products.find(
+        p => (p.name || '').toLowerCase() === (i.productName || '').toLowerCase()
+      );
+      if (!prod) unmatched.push(i.productName);
+    }
+  }
+  return [...new Set(unmatched)];
 });
 
 const totalPoBuy = computed(() => {
   return filteredSchedules.value.reduce((acc, s) => {
-    return acc + s.items.reduce((sum, i) => {
+    const items = Array.isArray(s.items) ? s.items : [];
+    return acc + items.reduce((sum, i) => {
       const prod = inventoryStore.products.find(p => p.name.toLowerCase() === i.productName.toLowerCase());
       const buyPrice = prod?.lastBuyPrice || 0;
       return sum + ((i.qty || 0) * buyPrice);
@@ -113,7 +142,8 @@ const totalPoBuy = computed(() => {
 
 const totalPoSell = computed(() => {
   return filteredSchedules.value.reduce((acc, s) => {
-    return acc + s.items.reduce((sum, i) => {
+    const items = Array.isArray(s.items) ? s.items : [];
+    return acc + items.reduce((sum, i) => {
       const prod = inventoryStore.products.find(p => p.name.toLowerCase() === i.productName.toLowerCase());
       const sellPrice = prod?.lastSellPrice || 0;
       return sum + ((i.qty || 0) * sellPrice);
@@ -121,13 +151,20 @@ const totalPoSell = computed(() => {
   }, 0);
 });
 
+/**
+ * BUG FIX: PO yang merugi disembunyikan jadi "Rp 0 / 0%" sehingga admin tidak
+ * tahu pesanan itu merugi. Sekarang nilai negatif ditampilkan apa adanya.
+ */
 const totalPoProfit = computed(() => {
-  return Math.max(0, totalPoSell.value - totalPoBuy.value);
+  return totalPoSell.value - totalPoBuy.value;
 });
 
 const averagePoMargin = computed(() => {
   if (totalPoBuy.value === 0) return 0;
-  return Number(((totalPoProfit.value / totalPoBuy.value) * 100).toFixed(1));
+  // BUG FIX: ini menghitung MARKUP (profit/HPP), bukan MARGIN (profit/HJ).
+  // Jual 100 / beli 80 -> markup 25%, margin sebenarnya 20%. Label di UI
+  // menyebut "Margin Keuntungan" sehingga angkanya menyesatkan.
+  return Number(((totalPoProfit.value / totalPoSell.value) * 100).toFixed(1));
 });
 
 const uniquePoBuyersCount = computed(() => {
@@ -160,18 +197,25 @@ const metricStats = computed<MetricStatItem[]>(() => [
   {
     label: 'Estimasi Omzet PO',
     value: `Rp ${formatRupiah(totalPoSell.value)}`,
+    // BUG FIX: bila ada item PO yang produknya tidak ada di master, estimasi
+    // HPP/omzet PO tidak akurat — user perlu diberi tahu.
+    sublabel: unmatchedPoItems.value.length > 0
+      ? `${unmatchedPoItems.value.length} item tidak ada di master`
+      : undefined,
     icon: TrendingUp,
-    iconBoxClass: 'bg-amber-50 text-amber-700',
-    valClass: 'text-amber-800'
+    iconBoxClass: unmatchedPoItems.value.length > 0 ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700',
+    valClass: unmatchedPoItems.value.length > 0 ? 'text-rose-800' : 'text-amber-800'
   },
   {
     label: 'Margin Keuntungan',
-    value: `+Rp ${formatRupiah(totalPoProfit.value)}`,
-    sublabel: `(+${averagePoMargin.value}%)`,
+    // BUG FIX: tanda +/- sebelumnya selalu "+" sehingga PO yang RUGI tampil
+    // sebagai "+Rp -500.000" (salah baca).
+    value: `${totalPoProfit.value >= 0 ? '+' : '-'}Rp ${formatRupiah(Math.abs(totalPoProfit.value))}`,
+    sublabel: `(${averagePoMargin.value >= 0 ? '+' : ''}${averagePoMargin.value}%)`,
     icon: Coins,
-    iconBoxClass: 'bg-teal-50 text-teal-700',
-    valClass: 'text-teal-800',
-    sublabelClass: 'text-emerald-600 font-semibold font-mono'
+    iconBoxClass: totalPoProfit.value >= 0 ? 'bg-teal-50 text-teal-700' : 'bg-rose-50 text-rose-700',
+    valClass: totalPoProfit.value >= 0 ? 'text-teal-800' : 'text-rose-700',
+    sublabelClass: totalPoProfit.value >= 0 ? 'text-emerald-600 font-semibold font-mono' : 'text-rose-600 font-semibold font-mono'
   },
   {
     label: 'Pelanggan Pemesan',
@@ -209,7 +253,25 @@ async function handleDeletePo(id: string, date: string, buyer: string) {
 }
 
 async function handleLoadToPos(schedule: PreOrderSchedule) {
-  posStore.loadPreOrderItems(schedule.items, schedule.buyer, schedule.date);
+  // BUG FIX: "Tarik ke Kasir" sebelumnya menambah qty ke item yang SUDAH ada di
+  // keranjang (addProductToCart menjumlahkan qty). Menarik PO 10 KG dua kali
+  // -> keranjang 20 KG -> pelanggan ditagih 2x jumlah pesanan.
+  // Sekarang: refuse bila item yang sama sudah ada di keranjang.
+  const items = Array.isArray(schedule.items) ? schedule.items : [];
+  const existingNames = new Set(
+    posStore.cartItems.map(ci => (ci.name || '').trim().toLowerCase())
+  );
+  const duplicates = items.filter(i => existingNames.has((i.productName || '').trim().toLowerCase()));
+  if (duplicates.length > 0) {
+    const ok = window.confirm(
+      `Item berikut sudah ada di keranjang kasir:\n` +
+      duplicates.map(i => `• ${i.productName} (${i.qty} ${i.unit || ''})`).join('\n') +
+      `\n\nTarik ke kasir akan MENAMBAHKAN qty-nya. Lanjutkan?`
+    );
+    if (!ok) return;
+  }
+
+  posStore.loadPreOrderItems(items, schedule.buyer, schedule.date);
   schedule.isLoadedToPos = true;
   await preOrderStore.updateSchedule({ ...schedule, isLoadedToPos: true });
   emit('switch-to-pos');

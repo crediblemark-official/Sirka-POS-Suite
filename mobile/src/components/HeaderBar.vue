@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
 import { RotateCw, Store } from 'lucide-vue-next';
 import { useStoreProfile } from '../composables/useStoreProfile';
 
@@ -15,8 +15,25 @@ const emit = defineEmits<{
 
 const { storeName, primaryColor, fetchStoreProfile } = useStoreProfile();
 
+/**
+ * BUG FIX: badge "Online" sebelumnya SELALU hijau (hard-coded) sehingga owner
+ * melihat "Online" padahal server sedang tidak bisa dijangkau.
+ * Sekarang mencerminkan `navigator.onLine` + event online/offline.
+ */
+const isOnline = ref(typeof navigator !== 'undefined' ? navigator.onLine : true);
+
+function handleOnline() { isOnline.value = true; }
+function handleOffline() { isOnline.value = false; }
+
 onMounted(() => {
   fetchStoreProfile();
+  window.addEventListener('online', handleOnline);
+  window.addEventListener('offline', handleOffline);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('online', handleOnline);
+  window.removeEventListener('offline', handleOffline);
 });
 
 function handleRefresh() {
@@ -53,9 +70,16 @@ function handleRefresh() {
       <!-- Sisi Kanan: Status Online + Tombol Refresh Data -->
       <div class="flex items-center gap-2 shrink-0">
         <!-- Status Online dengan Dot Hijau -->
-        <div class="flex items-center gap-1.5 px-2 py-0.5 rounded bg-white/80 border border-[#c8c5c0] text-[10px] font-mono text-[#166534]">
-          <span class="w-2 h-2 rounded-full bg-[#16a34a] animate-pulse"></span>
-          <span>Online</span>
+        <div
+          class="flex items-center gap-1.5 px-2 py-0.5 rounded bg-white/80 border border-[#c8c5c0] text-[10px] font-mono"
+          :class="isOnline ? 'text-[#166534]' : 'text-rose-700'"
+          :title="isOnline ? 'Terhubung ke internet' : 'Tidak ada koneksi internet'"
+        >
+          <span
+            class="w-2 h-2 rounded-full"
+            :class="isOnline ? 'bg-[#16a34a] animate-pulse' : 'bg-rose-500'"
+          ></span>
+          <span>{{ isOnline ? 'Online' : 'Offline' }}</span>
         </div>
 
         <!-- Tombol Refresh / Reload Data -->

@@ -4,14 +4,21 @@ import type { PurchaseReceipt } from '../types';
 import { ownerApi } from '../services/api';
 import { formatRupiah } from '../utils/formatters';
 import HeaderBar from '../components/HeaderBar.vue';
+import { AlertTriangle } from 'lucide-vue-next';
 
 const loading = ref(false);
+const errorMessage = ref('');
 const purchases = ref<PurchaseReceipt[]>([]);
 
 async function loadPurchases() {
   loading.value = true;
+  errorMessage.value = '';
   try {
     purchases.value = await ownerApi.getPurchases();
+  } catch (e: any) {
+    // BUG FIX: error sebelumnya dibiarkan (unhandled rejection) sehingga user
+    // melihat "Belum ada riwayat kulakan" padahal server-nya yang error.
+    errorMessage.value = 'Gagal memuat riwayat kulakan dari server: ' + (e?.message || e);
   } finally {
     loading.value = false;
   }
@@ -31,6 +38,12 @@ onMounted(() => {
       @refresh="loadPurchases"
     />
 
+    <!-- BUG FIX: tampilkan pesan error server (sebelumnya halaman menampilkan
+         "tidak ada data" padahal sebenarnya request-nya gagal) -->
+    <div v-if="errorMessage" class="w-full bg-rose-50 border-b border-rose-300 px-4 py-2 text-[11px] text-rose-800 flex items-start gap-2">
+      <AlertTriangle :size="14" class="shrink-0 mt-0.5" />
+      <span>{{ errorMessage }}</span>
+    </div>
     <main class="p-4 space-y-3 max-w-md mx-auto">
       <div class="space-y-2">
         <div

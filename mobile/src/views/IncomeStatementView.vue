@@ -4,22 +4,28 @@ import type { FinancialReport, SalesPatternsReport } from '../types';
 import { ownerApi } from '../services/api';
 import { formatRupiah } from '../utils/formatters';
 import HeaderBar from '../components/HeaderBar.vue';
-import { ShoppingBag, Receipt, FolderCheck, Calendar, Coins, TrendingUp, Truck, Clock, BarChart3 } from 'lucide-vue-next';
+import { ShoppingBag, Receipt, FolderCheck, Calendar, Coins, TrendingUp, Truck, Clock, BarChart3, AlertTriangle } from 'lucide-vue-next';
 
 const period = ref<'today' | 'week' | 'month' | 'year'>('month');
 const loading = ref(false);
+const errorMessage = ref('');
 const report = ref<FinancialReport | null>(null);
 const patterns = ref<SalesPatternsReport | null>(null);
 
 async function loadReport() {
   loading.value = true;
+  errorMessage.value = '';
   try {
-    const [reportRes, patternsRes] = await Promise.all([
+    // BUG FIX: `Promise.all` menolak saat satu request gagal sehingga hasil
+    // request yang BERHASIL ikut dibuang dan halaman menampilkan skeleton
+    // selamanya. Sekarang `allSettled` + pesan error.
+    const [reportRes, patternsRes] = await Promise.allSettled([
       ownerApi.getFinancialReport(period.value),
-      ownerApi.getSalesPatterns().catch(() => null),
+      ownerApi.getSalesPatterns(),
     ]);
-    report.value = reportRes;
-    patterns.value = patternsRes;
+    if (reportRes.status === 'fulfilled') report.value = reportRes.value;
+    else errorMessage.value = 'Gagal memuat laporan laba rugi: ' + (reportRes.reason?.message || reportRes.reason);
+    if (patternsRes.status === 'fulfilled') patterns.value = patternsRes.value;
   } finally {
     loading.value = false;
   }
@@ -58,6 +64,12 @@ onMounted(() => {
     />
 
     <!-- Main Content (Full Edge to Edge) -->
+    <!-- BUG FIX: tampilkan pesan error server (sebelumnya halaman menampilkan
+         "tidak ada data" padahal sebenarnya request-nya gagal) -->
+    <div v-if="errorMessage" class="w-full bg-rose-50 border-b border-rose-300 px-4 py-2 text-[11px] text-rose-800 flex items-start gap-2">
+      <AlertTriangle :size="14" class="shrink-0 mt-0.5" />
+      <span>{{ errorMessage }}</span>
+    </div>
     <main class="w-full flex-1 flex flex-col" v-if="report">
       <!-- 1. Full-Edge Desktop Period Ribbon -->
       <div class="w-full bg-[#dfddd9] border-b border-[#c8c5c0] px-3 py-1.5 flex items-center justify-between text-xs select-none">

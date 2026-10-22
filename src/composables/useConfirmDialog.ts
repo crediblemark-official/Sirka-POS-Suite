@@ -41,6 +41,16 @@ export function useConfirmDialog() {
       };
     }
 
+    // BUG FIX: `resolvePromise` bersifat modul-global. Dua confirm() berurutan
+    // menimpa resolver pertama sehingga `await showConfirm(...)` pertama
+    // HANGING SELAMANYA (floating promise) dan aksi delete tidak pernah jalan.
+    // Sekarang konfirmasi yang tertunda dibatalkan (false) saat ada permintaan baru.
+    if (resolvePromise) {
+      const previous = resolvePromise;
+      resolvePromise = null;
+      previous(false);
+    }
+
     isOpen.value = true;
     return new Promise<boolean>((resolve) => {
       resolvePromise = resolve;

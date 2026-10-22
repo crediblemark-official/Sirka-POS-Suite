@@ -4,25 +4,22 @@ import type { FinancialReport } from '../types';
 import { ownerApi } from '../services/api';
 import { formatRupiah } from '../utils/formatters';
 import HeaderBar from '../components/HeaderBar.vue';
-import {
-  ArrowDownLeft,
-  ArrowUpRight,
-  Wallet,
-  Banknote,
-  Truck,
-  Calendar,
-  Coins,
-  Scale
-} from 'lucide-vue-next';
+import { ArrowDownLeft, ArrowUpRight, Wallet, Banknote, Truck, Calendar, Coins, Scale, AlertTriangle } from 'lucide-vue-next';
 
 const period = ref<'today' | 'week' | 'month' | 'year'>('month');
 const loading = ref(false);
+const errorMessage = ref('');
 const report = ref<FinancialReport | null>(null);
 
 async function loadReport() {
   loading.value = true;
+  errorMessage.value = '';
   try {
     report.value = await ownerApi.getFinancialReport(period.value);
+  } catch (e: any) {
+    // BUG FIX: error tidak lagi dibiarkan diam-diam -> user tahu data tidak
+    // termuat, bukan mengira saldo kas kosong.
+    errorMessage.value = 'Gagal memuat laporan arus kas: ' + (e?.message || e);
   } finally {
     loading.value = false;
   }
@@ -48,6 +45,12 @@ onMounted(() => {
     />
 
     <!-- Main Content -->
+    <!-- BUG FIX: tampilkan pesan error server (sebelumnya halaman menampilkan
+         "tidak ada data" padahal sebenarnya request-nya gagal) -->
+    <div v-if="errorMessage" class="w-full bg-rose-50 border-b border-rose-300 px-4 py-2 text-[11px] text-rose-800 flex items-start gap-2">
+      <AlertTriangle :size="14" class="shrink-0 mt-0.5" />
+      <span>{{ errorMessage }}</span>
+    </div>
     <main class="w-full flex-1 flex flex-col" v-if="report">
       <!-- 1. Desktop Ribbon: Period Selector -->
       <div class="w-full bg-[#dfddd9] border-b border-[#c8c5c0] px-3 py-1.5 flex items-center justify-between text-xs">

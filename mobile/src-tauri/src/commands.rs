@@ -106,38 +106,62 @@ pub async fn get_owner_financial_report(period: Option<String>) -> Result<Financ
     let client = get_pg_client(None).await?;
     let p = period.unwrap_or_else(|| "month".to_string());
 
+    // BUG FIX (konsistensi periode & timezone): definisi periode harus sama
+    // dengan aplikasi desktop & Cloudflare Worker, dan batas periode harus
+    // dihitung pada zona waktu toko ('Asia/Jakarta'), bukan zona server
+    // PostgreSQL (biasanya UTC) yang membuat "Hari Ini" salah selama 7 jam
+    // pertama setiap hari.
+    const TZ: &str = "'Asia/Jakarta'";
     let (where_clause, pur_clause, label) = match p.as_str() {
         "today" => (
-            "date = CURRENT_DATE".to_string(),
-            "date = to_char(CURRENT_DATE, 'YYYY-MM-DD')".to_string(),
+            format!("date = (NOW() AT TIME ZONE {})::date", TZ),
+            format!("date = to_char((NOW() AT TIME ZONE {})::date, 'YYYY-MM-DD')", TZ),
             "Hari Ini".to_string()
         ),
         "week" => (
-            "date >= CURRENT_DATE - INTERVAL '7 days'".to_string(),
-            "date >= to_char(CURRENT_DATE - INTERVAL '7 days', 'YYYY-MM-DD')".to_string(),
-            "7 Hari Terakhir".to_string()
+            format!("date >= (NOW() AT TIME ZONE {})::date - INTERVAL '7 days'", TZ),
+            format!(
+                "date >= to_char((NOW() AT TIME ZONE {})::date - INTERVAL '7 days', 'YYYY-MM-DD')",
+                TZ
+            ),
+            "8 Hari Terakhir".to_string()
         ),
         "year" => (
-            "date >= date_trunc('year', CURRENT_DATE)".to_string(),
-            "date >= to_char(date_trunc('year', CURRENT_DATE), 'YYYY-MM-DD')".to_string(),
-            "Tahun Ini".to_string()
+            format!("date >= ((NOW() AT TIME ZONE {})::date - INTERVAL '1 year')", TZ),
+            format!(
+                "date >= to_char((NOW() AT TIME ZONE {})::date - INTERVAL '1 year', 'YYYY-MM-DD')",
+                TZ
+            ),
+            "1 Tahun Terakhir".to_string()
         ),
         _ => (
-            "date >= date_trunc('month', CURRENT_DATE)".to_string(),
-            "date >= to_char(date_trunc('month', CURRENT_DATE), 'YYYY-MM-DD')".to_string(),
-            "Bulan Berjalan".to_string()
+            format!(
+                "(date >= (date_trunc('month', NOW() AT TIME ZONE {})::date - INTERVAL '1 month') AND date <= (NOW() AT TIME ZONE {})::date)",
+                TZ, TZ
+            ),
+            format!(
+                "(date >= to_char((date_trunc('month', NOW() AT TIME ZONE {})::date - INTERVAL '1 month'), 'YYYY-MM-DD') AND date <= to_char((NOW() AT TIME ZONE {})::date, 'YYYY-MM-DD'))",
+                TZ, TZ
+            ),
+            "30 Hari Terakhir".to_string()
         ),
     };
 
     let query_sales = format!(
-        "SELECT 
+        "SELECT
             COALESCE(SUM(total_sell), 0)::float8 as gross_sales,
-            COALESCE(SUM(COALESCE(discount_amount, 0)), 0)::float8 as discounts,
+            COALESCE(SUM(COALESCE(discount_amount, 0) + COALESCE(points_discount, 0)), 0)::float8 as discounts,
             COALESCE(SUM(COALESCE(final_total, total_sell)), 0)::float8 as net_sales,
             COALESCE(SUM(total_buy), 0)::float8 as cogs,
             COALESCE(SUM(total_profit), 0)::float8 as gross_profit,
-            COALESCE(SUM(CASE WHEN payment_method = 'Tunai' THEN COALESCE(final_total, total_sell) ELSE 0 END), 0)::float8 as cash_in,
-            COALESCE(SUM(CASE WHEN payment_method != 'Tunai' AND payment_status = 'Lunas' THEN COALESCE(final_total, total_sell) ELSE 0 END), 0)::float8 as transfer_in,
+            COALESCE(SUM(CASE
+                WHEN UPPER(payment_method) IN ('TUNAI', 'TUNAI / KAS', 'CASH')
+                     AND UPPER(COALESCE(payment_status, 'LUNAS')) = 'LUNAS'
+                THEN COALESCE(final_total, total_sell) ELSE 0 END), 0)::float8 as cash_in,
+            COALESCE(SUM(CASE
+                WHEN UPPER(payment_method) NOT IN ('TUNAI', 'TUNAI / KAS', 'CASH', 'NOTA TEMPO')
+                     AND UPPER(COALESCE(payment_status, 'LUNAS')) = 'LUNAS'
+                THEN COALESCE(final_total, total_sell) ELSE 0 END), 0)::float8 as transfer_in,
             COUNT(*)::int8 as tx_count
          FROM transactions
          WHERE {}",
@@ -169,10 +193,12 @@ pub async fn get_owner_financial_report(period: Option<String>) -> Result<Financ
     };
 
     // Query pending receivables
+    // BUG FIX: nilai di database adalah 'TEMPO' (upper case) sehingga filter
+    // 'Tempo' tidak pernah cocok -> total piutang selalu 0.
     let row_rec = client.query_one(
         "SELECT COALESCE(SUM(COALESCE(final_total, total_sell)), 0)::float8
          FROM transactions
-         WHERE payment_status = 'Tempo' OR payment_status = 'Belum Lunas'",
+         WHERE UPPER(COALESCE(payment_status, 'LUNAS')) IN ('TEMPO', 'BELUM LUNAS', 'UNPAID')",
         &[]
     ).await.map_err(|e| format!("Query piutang tempo gagal: {}", e))?;
     let pending_receivables: f64 = row_rec.get(0);
@@ -185,11 +211,15 @@ pub async fn get_owner_financial_report(period: Option<String>) -> Result<Financ
     let inventory_asset_value: f64 = row_inv.get(0);
 
     // Query purchases
+    // BUG FIX: sebelumnya `unwrap_or(row_rec)` memakai baris PIUTANG sebagai
+    // fallback bila query pembelian gagal -> arus kas menampilkan outflow
+    // sebesar total piutang. Sekarang error diteruskan dengan jelas.
     let query_purchases = format!(
         "SELECT COALESCE(SUM(total_buy), 0)::float8 FROM purchase_receipts WHERE {}",
         pur_clause
     );
-    let row_pur = client.query_one(&query_purchases, &[]).await.unwrap_or(row_rec);
+    let row_pur = client.query_one(&query_purchases, &[]).await
+        .map_err(|e| format!("Query nilai pembelian gagal: {}", e))?;
     let cash_outflow_purchases: f64 = row_pur.get(0);
 
     let net_cash_flow = (cash_inflow + transfer_inflow) - cash_outflow_purchases;
@@ -244,29 +274,87 @@ pub async fn get_owner_inventory_valuation() -> Result<Vec<StockValuationItem>, 
 }
 
 #[tauri::command]
-pub async fn get_owner_sales(_filter: Option<serde_json::Value>) -> Result<Vec<SaleTransaction>, String> {
+pub async fn get_owner_sales(filter: Option<serde_json::Value>) -> Result<Vec<SaleTransaction>, String> {
     let client = get_pg_client(None).await?;
 
-    let query = "
-        SELECT 
+    // BUG FIX: filter (rentang tanggal & status) sebelumnya DIABAIKAN
+    // (parameter `_filter` dibuang) sehingga endpoint selalu mengembalikan 100
+    // transaksi terakhir tanpa regard filter apa pun.
+    let mut conditions: Vec<String> = Vec::new();
+    let mut values: Vec<String> = Vec::new();
+    if let Some(f) = filter.as_ref() {
+        if let Some(range) = f.get("dateRange").and_then(|v| v.as_str()) {
+            if range.chars().all(|c| c.is_ascii_digit()) && !range.is_empty() {
+                values.push(range.to_string());
+                // BUG FIX: CURRENT_DATE memakai zona waktu SERVER (UTC) ->
+                // window "7 hari" bergeser 7 jam di WIB.
+                conditions.push(format!(
+                    "date >= (NOW() AT TIME ZONE 'Asia/Jakarta')::date - (${} || ' days')::interval",
+                    values.len()
+                ));
+            } else if range.len() == 10 && range.as_bytes()[4] == b'-' {
+                values.push(range.to_string());
+                conditions.push(format!("date >= ${}::date", values.len()));
+            }
+        }
+        // BUG FIX: batas atas rentang tanggal (dateTo) — sebelumnya hanya ada
+        // batas bawah sehingga "rentang" berarti "dari X sampai sekarang".
+        if let Some(to) = f.get("dateTo").and_then(|v| v.as_str()) {
+            if to.len() == 10 && to.as_bytes()[4] == b'-' {
+                values.push(to.to_string());
+                conditions.push(format!("date <= ${}::date", values.len()));
+            }
+        }
+        if let Some(status) = f.get("status").and_then(|v| v.as_str()) {
+            let s = status.to_uppercase();
+            // BUG FIX: filter status apa pun selain LUNAS dipetakan ke TEMPO
+            // (bug yang sama sudah diperbaiki di Worker) -> hasil baris berbeda
+            // tergantung apakah app bicara ke Worker atau ke PG langsung.
+            if s == "LUNAS" || s == "TEMPO" {
+                values.push(s.clone());
+                conditions.push(format!(
+                    "UPPER(COALESCE(payment_status, 'LUNAS')) = ${}",
+                    values.len()
+                ));
+            }
+        }
+    }
+    let where_clause = if conditions.is_empty() {
+        String::new()
+    } else {
+        format!("WHERE {}", conditions.join(" AND "))
+    };
+
+    // BUG FIX: `COALESCE(date, '')` pada kolom DATE membuat PostgreSQL
+    //hani "invalid input syntax for type date: \"\"" karena tipe common-nya
+    // date. Kolomnya NOT NULL jadi COALESCE tidak perlu; cukup `date::text`.
+    let query = format!(
+        "SELECT
             id,
             COALESCE(invoice_no, ''),
-            COALESCE(date, ''),
+            date::text,
             COALESCE(buyer, 'Umum'),
             COALESCE(customer_type, 'B2C'),
             COALESCE(final_total, total_sell)::float8,
             COALESCE(total_buy, 0)::float8,
             COALESCE(total_profit, 0)::float8,
-            COALESCE(payment_method, 'Tunai'),
-            COALESCE(payment_status, 'Lunas'),
+            COALESCE(payment_method, 'Tunai / Kas'),
+            UPPER(COALESCE(payment_status, 'LUNAS')),
             items,
             to_char(created_at, 'HH24:MI')
         FROM transactions
+        {}
         ORDER BY created_at DESC NULLS LAST, id DESC
-        LIMIT 100
-    ";
+        LIMIT 100",
+        where_clause
+    );
 
-    let rows = client.query(query, &[]).await
+    // Konversi ke slice parameter yang bisa dikirim ke tokio-postgres
+    let params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = values
+        .iter()
+        .map(|v| v as &(dyn tokio_postgres::types::ToSql + Sync))
+        .collect();
+    let rows = client.query(query.as_str(), &params).await
         .map_err(|e| format!("Query transaksi penjualan gagal: {}", e))?;
 
     let mut list = Vec::new();
@@ -293,7 +381,14 @@ pub async fn get_owner_sales(_filter: Option<serde_json::Value>) -> Result<Vec<S
                     qty: it.get("qty").and_then(|v| v.as_f64()).unwrap_or(1.0),
                     unit: it.get("unit").and_then(|v| v.as_str()).unwrap_or("pcs").to_string(),
                     sell_price: it.get("sellPrice").and_then(|v| v.as_f64()).unwrap_or(0.0),
-                    subtotal: it.get("subtotal").and_then(|v| v.as_f64()).unwrap_or(0.0),
+                    // BUG FIX: nama field di database adalah `subtotalSell`
+                    // (src/types/index.ts) — `subtotal` tidak pernah ada
+                    // sehingga setiap baris faktur tampil Rp 0.
+                    subtotal: it
+                        .get("subtotalSell")
+                        .or_else(|| it.get("subtotal"))
+                        .and_then(|v| v.as_f64())
+                        .unwrap_or(0.0),
                 });
             }
         }
@@ -325,14 +420,20 @@ pub async fn get_owner_purchases() -> Result<Vec<PurchaseReceipt>, String> {
     let client = get_pg_client(None).await?;
 
     let rows = client.query(
-        "SELECT 
-            id,
-            COALESCE(supplier_invoice_no, id),
-            COALESCE(date, ''),
-            COALESCE(supplier, 'Umum'),
-            COALESCE(total_buy, 0)::float8
-         FROM purchase_receipts
-         ORDER BY date DESC NULLS LAST, id DESC
+        "SELECT
+            r.id,
+            COALESCE(r.supplier_invoice_no, r.id),
+            COALESCE(r.date, ''),
+            COALESCE(r.supplier, 'Umum'),
+            COALESCE(r.total_buy, 0)::float8,
+            COALESCE(i.item_count, 0)::int8
+         FROM purchase_receipts r
+         LEFT JOIN (
+             SELECT receipt_id, COUNT(*) as item_count
+             FROM purchase_receipt_items
+             GROUP BY receipt_id
+         ) i ON i.receipt_id = r.id
+         ORDER BY r.date DESC NULLS LAST, r.id DESC
          LIMIT 50",
         &[]
     ).await.map_err(|e| format!("Query riwayat kulakan gagal: {}", e))?;
@@ -345,7 +446,10 @@ pub async fn get_owner_purchases() -> Result<Vec<PurchaseReceipt>, String> {
             date: row.get(2),
             supplier: row.get(3),
             total_buy: row.get(4),
-            item_count: 0,
+            // BUG FIX: item_count sebelumnya hard-coded 0 -> mobile selalu
+            // menampilkan "0 macam barang". Dihitung dari tabel
+            // purchase_receipt_items (sama seperti versi Worker).
+            item_count: row.get(5),
         });
     }
 

@@ -53,7 +53,13 @@ export interface SaleItem {
   qty: number;
   unit: string;
   sellPrice: number;
-  subtotal: number;
+  /**
+   * BUG FIX: nama field di database adalah `subtotalSell`
+   * (src/types/index.ts — CartItem.subtotalSell). Sebelumnya mobile memakai
+   * `subtotal` yang tidak pernah ada -> setiap baris faktur menampilkan Rp 0.
+   */
+  subtotalSell?: number;
+  subtotal?: number;
 }
 
 export interface SaleTransaction {
@@ -67,7 +73,8 @@ export interface SaleTransaction {
   cogs: number;
   profit: number;
   paymentMethod: string;
-  paymentStatus: 'Lunas' | 'Tempo' | 'Batal';
+  /** BUG FIX: nilai di database adalah 'LUNAS' / 'TEMPO' (upper case). */
+  paymentStatus: 'LUNAS' | 'TEMPO' | 'Batal' | string;
   itemsCount: number;
   items?: SaleItem[];
 }

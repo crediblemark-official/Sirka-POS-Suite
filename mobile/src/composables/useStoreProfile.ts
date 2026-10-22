@@ -5,6 +5,12 @@ const STORAGE_KEY = 'sirka_owner_store_profile';
 
 const rawSettings = ref<Record<string, string>>({});
 const loaded = ref(false);
+/**
+ * BUG FIX: error fetch sebelumnya ditelan tanpa jejak -> SettingsView
+ * menampilkan "Tersinkronisasi" padahal fetch-nya gagal.
+ */
+const lastError = ref<string | null>(null);
+const isSynced = computed(() => loaded.value && !lastError.value);
 
 // Initialize from local cache immediately
 if (typeof window !== 'undefined') {
@@ -30,13 +36,22 @@ export function useStoreProfile() {
     try {
       const data = await ownerApi.getSettings();
       if (data && typeof data === 'object') {
-        rawSettings.value = { ...rawSettings.value, ...data };
+        // BUG FIX: key yang DIHAPUS di server masih tertinggal di cache lokal
+        // (merge) -> setting lama tidak pernah hilang. Sekarang key yang tidak
+        // lagi ada di server dibuang dari cache.
+        const next: Record<string, string> = { ...rawSettings.value };
+        for (const key of Object.keys(rawSettings.value)) {
+          if (!(key in data)) delete next[key];
+        }
+        rawSettings.value = { ...next, ...data };
         loaded.value = true;
+        lastError.value = null;
         if (typeof window !== 'undefined') {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(rawSettings.value));
         }
       }
-    } catch (e) {
+    } catch (e: any) {
+      lastError.value = e?.message || String(e);
       console.warn('[useStoreProfile] Failed to fetch store settings from PostgreSQL:', e);
     }
   }
@@ -52,6 +67,8 @@ export function useStoreProfile() {
     storeCode,
     primaryColor,
     storeLogo,
+    lastError,
+    isSynced,
     fetchStoreProfile,
   };
 }
