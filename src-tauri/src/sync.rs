@@ -3,10 +3,12 @@ use crate::local_db::{
     count_pending_outbox, get_conn, get_pending_outbox, local_clear_cache, local_get_products,
     local_save_preorder_direct, local_save_purchase_direct, local_save_transaction_direct,
     local_update_setting_direct, local_upsert_buyer, local_upsert_discount_direct,
-    local_upsert_markup, local_upsert_product, mark_outbox_failed, mark_outbox_synced,
+    local_upsert_markup, local_upsert_product, mark_outbox_synced,
+    park_outbox_item,
 };
 use crate::models::{
-    BuyerRecord, DiscountRecord, PreOrderRecord, ProductRecord, TransactionRecord,
+    BuyerRecord, DiscountRecord, PreOrderRecord, ProductRecord, ProductUnitConversionRecord,
+    TransactionRecord,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -101,25 +103,79 @@ async fn run_sync_cycle_internal() -> Result<(), String> {
     Ok(())
 }
 
+/// Jeda minimum antar pull master data (menjaga agar sinkronisasi 5 detik
+/// tidak menarik ratusan baris pada setiap siklus).
+const MASTER_PULL_INTERVAL: std::time::Duration = std::time::Duration::from_secs(5 * 60);
+/// Jeda minimum antar pull riwayat (transaksi & nota).
+const HISTORY_PULL_INTERVAL: std::time::Duration = std::time::Duration::from_secs(30 * 60);
+
+static LAST_MASTER_PULL: Mutex<Option<std::time::Instant>> = Mutex::new(None);
+static LAST_HISTORY_PULL: Mutex<Option<std::time::Instant>> = Mutex::new(None);
+
+fn should_pull(slot: &Mutex<Option<std::time::Instant>>, interval: std::time::Duration) -> bool {
+    let mut guard = match slot.lock() {
+        Ok(g) => g,
+        Err(_) => return false,
+    };
+    let now = std::time::Instant::now();
+    let due = match *guard {
+        None => true,
+        Some(last) => now.duration_since(last) >= interval,
+    };
+    if due {
+        *guard = Some(now);
+    }
+    due
+}
+
+/**
+ * Tarik master data (kategori, produk, pembeli, kupon, pre-order) dari cloud.
+ *
+ * BUG FIX: sebelumnya pull HANYA berjalan bila tabel `products` lokal kosong.
+ * Perangkat yang sudah punya 1 produk (mis. import demo, atau sync pertama
+ * yang produknya sukses tapi pembeli gagal) TIDAK PERNAH menarik pembeli,
+ * kupon, dan riwayat dari cloud. Sekarang master data selalu ditarik — dengan
+ * jeda minimum 5 menit agar tidak membebani koneksi pada siklus sync 5 detik.
+ *
+ * Riwayat (transaksi & nota) ditarik dengan jeda 30 menit.
+ */
 async fn pull_if_empty(pg: &mut tokio_postgres::Client) -> Result<(), String> {
-    let has_products = {
+    let (has_products, has_transactions) = {
         let conn = get_conn().lock().unwrap();
         let prods = local_get_products(&conn).unwrap_or_default();
-        !prods.is_empty()
+        let tx_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM transactions", [], |r| r.get(0))
+            .unwrap_or(0);
+        (!prods.is_empty(), tx_count > 0)
     };
 
     if !has_products {
         println!("[Sync Pull] SQLite lokal kosong. Menarik master data awal dari PostgreSQL...");
-        pull_all_from_cloud(pg).await?;
+        pull_master_data_from_cloud(pg).await?;
+        pull_history_from_cloud(pg).await?;
+        return Ok(());
     }
+
+    // Master data — ditarik berkala (default 5 menit) supaya perubahan
+    // master di perangkat lain sampai ke sini.
+    if should_pull(&LAST_MASTER_PULL, MASTER_PULL_INTERVAL) {
+        let _ = pull_master_data_from_cloud(pg).await;
+    }
+
+    // Riwayat — lebih jarang (default 30 menit) & hanya bila lokal belum punya.
+    if !has_transactions || should_pull(&LAST_HISTORY_PULL, HISTORY_PULL_INTERVAL) {
+        let _ = pull_history_from_cloud(pg).await;
+    }
+
     Ok(())
 }
 
-pub async fn pull_all_from_cloud(pg: &mut tokio_postgres::Client) -> Result<(), String> {
+/// Tarik master data dari cloud (idempotent).
+async fn pull_master_data_from_cloud(pg: &mut tokio_postgres::Client) -> Result<(), String> {
     // 1. Pull Markups
     if let Ok(rows) = pg
         .query(
-            "SELECT category, default_markup_percent::float8, description FROM category_markups",
+            "SELECT category, default_markup_percent::float8, description, color FROM category_markups",
             &[],
         )
         .await
@@ -129,7 +185,8 @@ pub async fn pull_all_from_cloud(pg: &mut tokio_postgres::Client) -> Result<(), 
             let cat: String = r.get(0);
             let pct: f64 = r.get(1);
             let desc: Option<String> = r.get(2);
-            let _ = local_upsert_markup(&conn, &cat, pct, desc.as_deref());
+            let color: Option<String> = r.get(3);
+            let _ = local_upsert_markup(&conn, &cat, pct, desc.as_deref(), color.as_deref());
         }
     }
 
@@ -137,7 +194,8 @@ pub async fn pull_all_from_cloud(pg: &mut tokio_postgres::Client) -> Result<(), 
     if let Ok(rows) = pg
         .query(
             "SELECT id, code, name, category, unit, default_markup_percent::float8,
-                    last_buy_price::float8, last_sell_price::float8, stock::float8, barcode, notes
+                    last_buy_price::float8, last_sell_price::float8, stock::float8, barcode, notes,
+                    supplier, units::text, is_perishable
              FROM products",
             &[],
         )
@@ -145,6 +203,16 @@ pub async fn pull_all_from_cloud(pg: &mut tokio_postgres::Client) -> Result<(), 
     {
         let conn = get_conn().lock().unwrap();
         for r in rows {
+            // BUG FIX: kolom `units` bertipe JSONB. Membacanya sebagai
+            // `Option<String>` membuat `Row::get` PANIC ("was not accepted")
+            // karena String hanya menerima VARCHAR/TEXT. Panik ini mematikan
+            // seluruh background sync (panic = abort di build release).
+            // Solusi: cast ke ::text di SQL lalu parse sebagai JSON.
+            let units_json: Option<String> = r.get(12);
+            let units: Option<Vec<ProductUnitConversionRecord>> = units_json
+                .as_deref()
+                .filter(|raw| !raw.trim().is_empty() && *raw != "[]" && *raw != "null")
+                .and_then(|raw| serde_json::from_str(raw).ok());
             let p = ProductRecord {
                 id: r.get(0),
                 code: r.get(1),
@@ -155,9 +223,13 @@ pub async fn pull_all_from_cloud(pg: &mut tokio_postgres::Client) -> Result<(), 
                 last_buy_price: r.get(6),
                 last_sell_price: r.get(7),
                 stock: r.get(8),
-                supplier: None,
+                // BUG FIX: `supplier` sebelumnya tidak pernah ditarik sehingga
+                // setiap pull menulis NULL dan wiping-field supplier lokal.
+                supplier: r.get(10),
                 barcode: r.get(9),
-                notes: r.get(10),
+                notes: r.get(11),
+                units,
+                is_perishable: Some(r.get::<_, Option<bool>>(13).unwrap_or(false)),
             };
             let _ = local_upsert_product(&conn, &p);
         }
@@ -167,7 +239,7 @@ pub async fn pull_all_from_cloud(pg: &mut tokio_postgres::Client) -> Result<(), 
     if let Ok(rows) = pg
         .query(
             "SELECT id, name, code, phone, address, customer_type, member_card_no, tier,
-                    points::float8, total_spend::float8, member_since::text
+                    points::float8, total_spend::float8, member_since::text, notes
              FROM buyers",
             &[],
         )
@@ -187,6 +259,7 @@ pub async fn pull_all_from_cloud(pg: &mut tokio_postgres::Client) -> Result<(), 
                 points: r.get(8),
                 total_spend: r.get(9),
                 member_since: r.get(10),
+                notes: r.get(11),
             };
             let _ = local_upsert_buyer(&conn, &b);
         }
@@ -234,6 +307,10 @@ pub async fn pull_all_from_cloud(pg: &mut tokio_postgres::Client) -> Result<(), 
         }
     }
 
+    Ok(())
+}
+/// Tarik riwayat (transaksi & nota kulakan) dari cloud.
+async fn pull_history_from_cloud(pg: &mut tokio_postgres::Client) -> Result<(), String> {
     // 6. Pull Pre-orders
     if let Ok(rows) = pg
         .query(
@@ -264,7 +341,10 @@ pub async fn pull_all_from_cloud(pg: &mut tokio_postgres::Client) -> Result<(), 
                     total_profit::float8, profit_percent::float8, payment_status, payment_method,
                     customer_type, notes, discount_amount::float8, discount_code, points_used::float8,
                     points_discount::float8, points_earned::float8, final_total::float8,
-                    is_pre_order, pic_name, created_at::text
+                    is_pre_order, pic_name, created_at::text,
+                    is_split_payment, cash_amount::float8, non_cash_amount::float8,
+                    non_cash_method, change_amount::float8, infaq_amount::float8,
+                    shift_id, refund_status, refund_total::float8
              FROM transactions ORDER BY created_at DESC LIMIT 500",
             &[],
         )
@@ -295,6 +375,17 @@ pub async fn pull_all_from_cloud(pg: &mut tokio_postgres::Client) -> Result<(), 
                 is_pre_order: r.get(19),
                 pic_name: r.get(20),
                 created_at: r.get(21),
+                // BUG FIX: field split payment / kembalian / infaq / shift /
+                // refund ikut ditarik agar data cloud & lokal konsisten.
+                is_split_payment: r.get(22),
+                cash_amount: r.get(23),
+                non_cash_amount: r.get(24),
+                non_cash_method: r.get(25),
+                change_amount: r.get(26),
+                infaq_amount: r.get(27),
+                shift_id: r.get(28),
+                refund_status: r.get(29),
+                refund_total: r.get(30),
             };
             let _ = local_save_transaction_direct(&conn, &tx);
         }
@@ -308,7 +399,7 @@ pub async fn pull_all_from_cloud(pg: &mut tokio_postgres::Client) -> Result<(), 
     let mut pulled_purchases: Vec<Value> = Vec::new();
     if let Ok(rows) = pg
         .query(
-            "SELECT id, supplier_invoice_no, date, supplier, total_buy, notes, created_at
+            "SELECT id, supplier_invoice_no, date, supplier, total_buy, notes, created_at::text
              FROM purchase_receipts ORDER BY created_at DESC LIMIT 500",
             &[],
         )
@@ -328,7 +419,8 @@ pub async fn pull_all_from_cloud(pg: &mut tokio_postgres::Client) -> Result<(), 
                 .query(
                     "SELECT id, product_id, code, name, category, unit,
                             qty_received::float8, buy_price::float8, subtotal_buy::float8,
-                            markup_percent::float8, new_sell_price::float8
+                            markup_percent::float8, new_sell_price::float8,
+                            base_qty::float8, conversion_factor::float8
                      FROM purchase_receipt_items WHERE receipt_id = $1
                      ORDER BY created_at ASC, id ASC",
                     &[&id],
@@ -348,6 +440,13 @@ pub async fn pull_all_from_cloud(pg: &mut tokio_postgres::Client) -> Result<(), 
                         "subtotalBuy": ir.get::<_, Option<f64>>(8).unwrap_or(0.0),
                         "markupPercent": ir.get::<_, Option<f64>>(9).unwrap_or(0.0),
                         "newSellPrice": ir.get::<_, Option<f64>>(10).unwrap_or(0.0),
+                        // BUG FIX: kuantitas satuan dasar WAJIB ikut ditarik.
+                        // Tanpa ini nota hasil pull dari cloud kehilangan
+                        // base_qty sehingga saat nota diedit/dihapus, rollback
+                        // stok hanya mengurangi satuan kemasan (5 DUS) dan
+                        // muncul "hantu stok" (phantom stock).
+                        "baseQty": ir.get::<_, Option<f64>>(11).unwrap_or(0.0),
+                        "conversionFactor": ir.get::<_, Option<f64>>(12).unwrap_or(1.0),
                     }));
                 }
             }
@@ -406,6 +505,12 @@ pub async fn pull_all_from_cloud(pg: &mut tokio_postgres::Client) -> Result<(), 
     Ok(())
 }
 
+pub async fn pull_all_from_cloud(pg: &mut tokio_postgres::Client) -> Result<(), String> {
+    pull_master_data_from_cloud(pg).await?;
+    pull_history_from_cloud(pg).await?;
+    Ok(())
+}
+
 pub async fn reset_cache_and_resync() -> Result<SyncStatusInfo, String> {
     // 1. Verifikasi koneksi PostgreSQL Cloud terlebih dahulu agar aman
     let mut pg = match get_pg_client().await {
@@ -417,6 +522,37 @@ pub async fn reset_cache_and_resync() -> Result<SyncStatusInfo, String> {
             ));
         }
     };
+
+    // BUG FIX (kehilangan data): `local_clear_cache` menghapus SELURUH isi
+    // tabel `sync_outbox`. Kalau ada penjualan/ancangan yang belum sempat
+    // terkirim ke cloud (mode offline), menekan "Bersihkan Cache & Resync"
+    // akan MENGHAPUS transaksi tersebut dari perangkat DAN tidak pernah
+    // mengirimnya ke cloud -> data penjualan hilang permanen.
+    //
+    // Solusi: dorong antrean outbox ke cloud DULU. Hanya jika antrean kosong
+    // (semua sudah tersinkron) cache lokal yang dibersihkan.
+    {
+        let pending = {
+            let conn = get_conn().lock().unwrap();
+            count_pending_outbox(&conn).unwrap_or(0)
+        };
+        if pending > 0 {
+            // Coba kirimkan dulu (best effort)
+            let _ = push_outbox(&mut pg).await;
+            let still_pending = {
+                let conn = get_conn().lock().unwrap();
+                count_pending_outbox(&conn).unwrap_or(0)
+            };
+            if still_pending > 0 {
+                return Err(format!(
+                    "Terdapat {} perubahan lokal yang belum tersinkron ke cloud. \
+                     Cache lokal TIDAK dibersihkan demi mencegah kehilangan data penjualan. \
+                     Periksa koneksi internet lalu coba lagi.",
+                    still_pending
+                ));
+            }
+        }
+    }
 
     // 2. Kosongkan seluruh data lokal di SQLite
     {
@@ -439,13 +575,25 @@ pub async fn reset_cache_and_resync() -> Result<SyncStatusInfo, String> {
 
 pub async fn wipe_all_data(wipe_cloud: bool) -> Result<SyncStatusInfo, String> {
     if wipe_cloud {
-        if let Ok(pg) = get_pg_client().await {
-            let _ = pg
-                .batch_execute(
-                    "TRUNCATE TABLE transactions, pre_orders, purchase_receipts, discounts, buyers, products, category_markups, store_settings CASCADE;",
-                )
-                .await;
-        }
+        let pg = match get_pg_client().await {
+            Ok(client) => client,
+            Err(e) => {
+                return Err(format!(
+                    "Gagal terhubung ke PostgreSQL Cloud: {}. Penghapusan data cloud dibatalkan.",
+                    e
+                ));
+            }
+        };
+        // BUG FIX: error TRUNCATE sebelumnya dibuang (`let _ =`) sehingga data
+        // lokal tetap dihapus padahal cloud masih menyimpan data lama —
+        // UI melaporkan "berhasil" padahal hanya separuh data yang terhapus.
+        // Sekarang error TRUNCATE dihentikan dengan pesan jelas.
+        pg.batch_execute(
+            "TRUNCATE TABLE transactions, pre_orders, purchase_receipt_items, purchase_receipts,
+                discounts, buyers, products, category_markups, store_settings, cashier_shifts, suppliers CASCADE;",
+        )
+        .await
+        .map_err(|e| format!("Gagal mengosongkan data cloud: {}", e))?;
     }
 
     {
@@ -463,7 +611,20 @@ pub async fn wipe_all_data(wipe_cloud: bool) -> Result<SyncStatusInfo, String> {
 }
 
 async fn push_outbox(pg: &mut tokio_postgres::Client) -> Result<(), String> {
-    loop {
+    // BUG FIX: head-of-line blocking. Sebelumnya satu item yang gagal
+    // (mis. nama pembeli > 100 karakter di PG) langsung `return Err` sehingga
+    // SEMUA item di belakangnya tidak pernah terkirim — dan karena
+    // `get_pending_outbox` mengurutkan `ORDER BY id ASC`, item rusak itu
+    // selalu jadi kepala antrean pada setiap siklus berikutnya.
+    //
+    // Sekarang: item yang gagal dipark (status FAILED) dan siklus LANJUT ke
+    // item berikutnya. Error dikumpulkan dan dikembalikan di akhir supaya UI
+    // tetap menampilkan Ringkasan tetapi antrean tidak macet.
+    let mut first_error: Option<String> = None;
+    let mut total_pushed = 0usize;
+    // Pengaman: batasi jumlah iterasi agar tidak loop tak berujung bila
+    // `mark_outbox_synced` gagal (baris tetap PENDING dan dibaca lagi).
+    for _ in 0..200 {
         let items = {
             let conn = get_conn().lock().unwrap();
             get_pending_outbox(&conn, 25).unwrap_or_default()
@@ -473,11 +634,15 @@ async fn push_outbox(pg: &mut tokio_postgres::Client) -> Result<(), String> {
             break;
         }
 
+        let mut progressed = false;
         for item in items {
             match execute_push(pg, &item.action, &item.payload).await {
                 Ok(_) => {
                     let conn = get_conn().lock().unwrap();
-                    let _ = mark_outbox_synced(&conn, item.id);
+                    if mark_outbox_synced(&conn, item.id).is_ok() {
+                        progressed = true;
+                        total_pushed += 1;
+                    }
                 }
                 Err(err) => {
                     let err_str = err.to_string();
@@ -488,17 +653,40 @@ async fn push_outbox(pg: &mut tokio_postgres::Client) -> Result<(), String> {
                     {
                         let conn = get_conn().lock().unwrap();
                         let _ = mark_outbox_synced(&conn, item.id);
+                        progressed = true;
+                        total_pushed += 1;
                     } else {
+                        // Park item ini (status FAILED, TIDAK PENDING) dan
+                        // LANJUT ke item berikutnya — jangan hentikan seluruh
+                        // antrean. Item yang diparkir masih bisa dicoba ulang
+                        // lewat tombol "Sinkronkan Manual".
                         let conn = get_conn().lock().unwrap();
-                        let _ = mark_outbox_failed(&conn, item.id, &err_str);
-                        *LAST_ERROR.lock().unwrap() = Some(err_str.clone());
-                        return Err(err_str);
+                        let _ = park_outbox_item(&conn, item.id, &err_str);
+                        if first_error.is_none() {
+                            first_error = Some(err_str.clone());
+                            *LAST_ERROR.lock().unwrap() = Some(err_str);
+                        }
+                        progressed = true;
                     }
                 }
             }
         }
+
+        // Tidak ada progres -> seluruh item yang tersisa pasti GAGAL terus
+        // (mis. constraint error permanen). Hentikan agar tidak membanjiri
+        // server dengan percobaan yang sama berulang-ulang.
+        if !progressed {
+            break;
+        }
     }
-    Ok(())
+
+    if total_pushed > 0 {
+        println!("[Sync Push] {} item terkirim ke cloud", total_pushed);
+    }
+    match first_error {
+        Some(e) => Err(e),
+        None => Ok(()),
+    }
 }
 
 async fn execute_push(
@@ -579,7 +767,21 @@ async fn execute_push(
                 .get("markupPercent")
                 .and_then(Value::as_f64)
                 .unwrap_or(20.0);
-            crate::commands::markups::pg_update_markup(cat.to_string(), pct).await?;
+            let desc = payload
+                .get("description")
+                .and_then(Value::as_str)
+                .map(|s| s.to_string());
+            let color = payload
+                .get("color")
+                .and_then(Value::as_str)
+                .map(|s| s.to_string());
+            crate::commands::markups::pg_update_markup_full(
+                cat.to_string(),
+                pct,
+                desc,
+                color,
+            )
+            .await?;
         }
         "CREATE_MARKUP" => {
             let cat = payload
@@ -594,7 +796,11 @@ async fn execute_push(
                 .get("description")
                 .and_then(Value::as_str)
                 .map(|s| s.to_string());
-            crate::commands::markups::pg_create_markup(cat.to_string(), pct, desc).await?;
+            let color = payload
+                .get("color")
+                .and_then(Value::as_str)
+                .map(|s| s.to_string());
+            crate::commands::markups::pg_create_markup(cat.to_string(), pct, desc, color).await?;
         }
         "DELETE_MARKUP" => {
             let cat = payload
@@ -683,7 +889,16 @@ async fn execute_push(
             .map_err(|e| format!("Gagal menyimpan pengaturan ke PostgreSQL {}: {}", key, e))?;
         }
         _ => {
-            println!("[Sync] Unknown action: {}", action);
+            // BUG FIX: action yang tidak dikenal sebelumnya mengembalikan Ok(()) sehingga
+            // outbox menandainya "synced" dan HAPUS PERMANEN tanpa retry/error
+            // (cuma `println!` yang tidak terlihat di build release).
+            // Sekarang dikembalikan sebagai error supaya item di-park dan
+            // dilaporkan ke user.
+            return Err(format!(
+                "Aksi sinkronisasi tidak dikenal: '{}'. Data tidak dikirim ke cloud \
+                 (periksa nama aksi di store yang memanggil enqueue).",
+                action
+            ));
         }
     }
     Ok(())
