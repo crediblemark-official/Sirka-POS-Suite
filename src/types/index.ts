@@ -389,4 +389,30 @@ export interface CashMutation {
   createdAt: string;
 }
 
+export interface CashAccountBalances {
+  // Tunai
+  salesCash: number;
+  expenseCash: number;
+  transferOutCash: number;
+  transferInCash: number;
+  netCashDrawer: number;
+
+  // Bank
+  salesBank: number;
+  expenseBank: number;
+  transferOutBank: number;
+  transferInBank: number;
+  purchasesCostBank: number;
+  netBankBalance: number;
+
+  // QRIS
+  salesQris: number;
+  settledQrisToBank: number;
+  expenseQris: number;
+  pendingQrisSettlement: number;
+
+  // Total
+  totalLiquidFunds: number;
+}
+
 

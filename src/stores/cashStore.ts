@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { CashMutation, CashAccountType } from '../types';
+import { CashMutation, CashAccountType, CashAccountBalances } from '../types';
 import { useLedgerStore } from './ledgerStore';
 import { usePurchaseStore } from './purchaseStore';
 import { localTodayStr } from '../utils/formatters';
@@ -113,7 +113,7 @@ export const useCashStore = defineStore('cash', () => {
   }
 
   // 4. Perhitungan Saldo Berjalan & Rekonsiliasi Kas (Berdasarkan Akun)
-  function calculateAccountBalances(startDate?: string, endDate?: string) {
+  function calculateAccountBalances(startDate?: string, endDate?: string): CashAccountBalances {
     // Filter transaksi penjualan lunas
     const txs = ledgerStore.transactions.filter(t => {
       if (t.paymentStatus !== 'LUNAS') return false;

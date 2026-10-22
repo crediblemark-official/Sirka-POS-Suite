@@ -5,10 +5,8 @@ import { CashAccountType, CashMutation, CashMutationType } from '../../types';
 import { formatRupiah } from '../../utils/formatters';
 import { useConfirmDialog } from '../../composables/useConfirmDialog';
 import AppEmptyState from '../common/AppEmptyState.vue';
+import CashPocketCards from '../cash/CashPocketCards.vue';
 import {
-  Wallet,
-  Building,
-  QrCode,
   ArrowDownRight,
   ArrowLeftRight,
   Trash2,
@@ -137,62 +135,11 @@ async function handleDelete(mut: CashMutation) {
         </div>
       </div>
 
-      <!-- 3 Kartu Saldo Kantong Kas -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <!-- 1. Kas Tunai Laci Kasir -->
-        <div class="p-3 rounded-lg border border-emerald-200 bg-emerald-50/50 flex flex-col justify-between">
-          <div class="flex items-center justify-between">
-            <span class="text-[11px] font-bold text-emerald-900 uppercase">1. Kas Tunai (Laci Fisik)</span>
-            <Wallet :size="15" class="text-emerald-700" />
-          </div>
-          <div class="my-1.5 font-mono font-extrabold text-xl text-emerald-900">
-            Rp {{ formatRupiah(cashBalances.netCashDrawer) }}
-          </div>
-          <div class="text-[10px] text-emerald-800 flex items-center justify-between pt-1 border-t border-emerald-200/60 font-medium">
-            <span>Omzet Tunai: Rp {{ formatRupiah(cashBalances.salesCash) }}</span>
-            <span class="text-rose-700">Keluar: -Rp {{ formatRupiah(cashBalances.expenseCash + cashBalances.transferOutCash) }}</span>
-          </div>
-        </div>
-
-        <!-- 2. Rekening Bank Toko -->
-        <div class="p-3 rounded-lg border border-blue-200 bg-blue-50/50 flex flex-col justify-between">
-          <div class="flex items-center justify-between">
-            <span class="text-[11px] font-bold text-blue-900 uppercase">2. Rekening Bank Toko</span>
-            <Building :size="15" class="text-blue-700" />
-          </div>
-          <div class="my-1.5 font-mono font-extrabold text-xl text-blue-900">
-            Rp {{ formatRupiah(cashBalances.netBankBalance) }}
-          </div>
-          <div class="text-[10px] text-blue-800 flex items-center justify-between pt-1 border-t border-blue-200/60 font-medium">
-            <span>Masuk: Rp {{ formatRupiah(cashBalances.salesBank + cashBalances.transferInBank) }}</span>
-            <span class="text-rose-700">Keluar: -Rp {{ formatRupiah(cashBalances.purchasesCostBank + cashBalances.expenseBank) }}</span>
-          </div>
-        </div>
-
-        <!-- 3. Saldo QRIS Menunggu Pencairan -->
-        <div class="p-3 rounded-lg border border-purple-200 bg-purple-50/50 flex flex-col justify-between">
-          <div class="flex items-center justify-between">
-            <span class="text-[11px] font-bold text-purple-900 uppercase">3. Saldo QRIS (Belum Cair)</span>
-            <QrCode :size="15" class="text-purple-700" />
-          </div>
-          <div class="my-1.5 font-mono font-extrabold text-xl text-purple-900 flex items-baseline justify-between">
-            <span>Rp {{ formatRupiah(cashBalances.pendingQrisSettlement) }}</span>
-            <button
-              v-if="cashBalances.pendingQrisSettlement > 0"
-              type="button"
-              class="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white cursor-pointer shadow-2xs transition-colors"
-              title="Cairkan saldo QRIS masuk ke rekening bank"
-              @click="emit('open-transfer', 'QRIS')"
-            >
-              ⚡ Cairkan ke Bank
-            </button>
-          </div>
-          <div class="text-[10px] text-purple-800 flex items-center justify-between pt-1 border-t border-purple-200/60 font-medium">
-            <span>Total QRIS: Rp {{ formatRupiah(cashBalances.salesQris) }}</span>
-            <span class="text-emerald-700">Sudah Cair: Rp {{ formatRupiah(cashBalances.settledQrisToBank) }}</span>
-          </div>
-        </div>
-      </div>
+      <!-- 3 Kartu Saldo Kantong Kas (Reusable Component) -->
+      <CashPocketCards
+        :balances="cashBalances"
+        @settle-qris="emit('open-transfer', 'QRIS')"
+      />
     </div>
 
     <!-- 2. Sub-Ribbon Filter Pills -->

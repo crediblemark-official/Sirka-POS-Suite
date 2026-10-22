@@ -101,3 +101,15 @@ export function resolveProductSupplier(prod?: {
   return '-';
 }
 
+/**
+ * Parse tanggal 'YYYY-MM-DD' sebagai WAKTU LOKAL (bukan UTC).
+ * `new Date('2026-10-22')` = UTC midnight -> di WIB mundur 7 jam.
+ */
+export function parseLocalDate(dateStr: string): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec((dateStr || '').trim());
+  if (m) {
+    return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  }
+  return new Date(dateStr);
+}
+
