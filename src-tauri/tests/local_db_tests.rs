@@ -12,7 +12,7 @@ fn setup_test_conn() -> Connection {
 #[test]
 fn test_clear_cache() {
     let conn = setup_test_conn();
-    local_upsert_markup(&conn, "SEMBAKO", 15.0, None).unwrap();
+    local_upsert_markup(&conn, "SEMBAKO", 15.0, None, None).unwrap();
     assert_eq!(local_get_markups(&conn).unwrap().len(), 1);
     local_clear_cache(&conn).unwrap();
     assert_eq!(local_get_markups(&conn).unwrap().len(), 0);
@@ -21,7 +21,7 @@ fn test_clear_cache() {
 #[test]
 fn test_product_and_markup_workflow() {
     let conn = setup_test_conn();
-    local_upsert_markup(&conn, "SEMBAKO", 15.0, Some("Bahan pokok")).unwrap();
+    local_upsert_markup(&conn, "SEMBAKO", 15.0, Some("Bahan pokok"), None).unwrap();
     let markups = local_get_markups(&conn).unwrap();
     assert_eq!(markups.len(), 1);
     assert_eq!(markups[0].category, "SEMBAKO");
@@ -35,9 +35,12 @@ fn test_product_and_markup_workflow() {
         default_markup_percent: 15.0,
         last_buy_price: 60000.0,
         last_sell_price: 69000.0,
+        supplier: Some("Vendor Sembako".into()),
         stock: 20.0,
         barcode: Some("899123456789".into()),
         notes: None,
+        units: None,
+        is_perishable: None,
     };
     local_upsert_product(&conn, &p).unwrap();
     let products = local_get_products(&conn).unwrap();
@@ -49,7 +52,7 @@ fn test_product_and_markup_workflow() {
 #[test]
 fn test_transaction_stock_deduction_and_rollback() {
     let mut conn = setup_test_conn();
-    local_upsert_markup(&conn, "SNACK", 10.0, None).unwrap();
+    local_upsert_markup(&conn, "SNACK", 10.0, None, None).unwrap();
     let p = ProductRecord {
         id: "snack1".into(),
         code: "SNK-01".into(),
@@ -59,9 +62,12 @@ fn test_transaction_stock_deduction_and_rollback() {
         default_markup_percent: 10.0,
         last_buy_price: 5000.0,
         last_sell_price: 6000.0,
+        supplier: None,
         stock: 10.0,
         barcode: None,
         notes: None,
+        units: None,
+        is_perishable: None,
     };
     local_upsert_product(&conn, &p).unwrap();
 
@@ -77,6 +83,7 @@ fn test_transaction_stock_deduction_and_rollback() {
         points: Some(50.0),
         total_spend: Some(0.0),
         member_since: None,
+            notes: None,
     };
     local_upsert_buyer(&conn, &b).unwrap();
 
@@ -105,12 +112,25 @@ fn test_transaction_stock_deduction_and_rollback() {
         is_pre_order: Some(false),
         pic_name: Some("Budi".into()),
         created_at: None,
+        is_split_payment: Some(false),
+        cash_amount: Some(0.0),
+        non_cash_amount: Some(0.0),
+        non_cash_method: None,
+        change_amount: Some(0.0),
+        infaq_amount: Some(0.0),
+        shift_id: None,
+        refund_status: Some("NONE".into()),
+        refund_total: Some(0.0),
     };
 
     // 1. Create transaction -> Stock berkurang dari 10 menjadi 7
     local_create_transaction(&mut conn, &tx, Some("b1")).unwrap();
     let prods = local_get_products(&conn).unwrap();
     assert_eq!(prods[0].stock, 7.0, "Stock should decrease by 3");
+
+    let saved_txs = local_get_transactions(&conn).unwrap();
+    assert_eq!(saved_txs.len(), 1);
+    assert_eq!(saved_txs[0].payment_method, "Cash", "Payment method should be saved");
 
     // Buyer points: 50 - 10 + 2 = 42
     let buyers = local_get_buyers(&conn).unwrap();
@@ -154,9 +174,12 @@ fn test_purchase_receipt_update_stock_rollback() {
         default_markup_percent: 10.0,
         last_buy_price: 10000.0,
         last_sell_price: 11000.0,
+        supplier: None,
         stock: 5.0,
         barcode: None,
         notes: None,
+        units: None,
+        is_perishable: None,
     };
     local_upsert_product(&conn, &p).unwrap();
 
@@ -257,6 +280,15 @@ fn test_discount_usage_count_on_transaction() {
         is_pre_order: None,
         pic_name: None,
         created_at: None,
+        is_split_payment: Some(false),
+        cash_amount: Some(0.0),
+        non_cash_amount: Some(0.0),
+        non_cash_method: None,
+        change_amount: Some(0.0),
+        infaq_amount: Some(0.0),
+        shift_id: None,
+        refund_status: Some("NONE".into()),
+        refund_total: Some(0.0),
     };
 
     // Create tx -> usage_count bertambah 1
@@ -478,3 +510,307 @@ fn test_legacy_jsonb_receipt_is_backfilled_to_items_table() {
     assert_eq!(items[0].get("name").unwrap(), "Garam");
 }
 
+/// BUG FIX: stok harus dipotong dalam SATUAN DASAR (baseQty), bukan satuan aktif.
+/// Menjual 1 DUS (faktor 40) dari produk satuan dasar PCS harus mengurangi
+/// 40 PCS, bukan 1 PCS.
+#[test]
+fn test_transaction_deducts_base_unit_quantity() {
+    let mut conn = setup_test_conn();
+    local_upsert_markup(&conn, "MINYAK", 10.0, None, None).unwrap();
+    let p = ProductRecord {
+        id: "minyak1".into(),
+        code: "MNYK-01".into(),
+        name: "Minyak Goreng".into(),
+        category: "MINYAK".into(),
+        unit: "PCS".into(),
+        default_markup_percent: 10.0,
+        last_buy_price: 10000.0,
+        last_sell_price: 11000.0,
+        supplier: None,
+        stock: 100.0,
+        barcode: None,
+        notes: None,
+        units: None,
+        is_perishable: None,
+    };
+    local_upsert_product(&conn, &p).unwrap();
+
+    let tx = TransactionRecord {
+        id: "tx-dus".into(),
+        invoice_no: "INV-DUS-001".into(),
+        date: "2026-10-22".into(),
+        buyer: "Toko Grosir".into(),
+        items: json!([
+            {
+                "productId": "minyak1",
+                "qty": 1.0,
+                "baseQty": 40.0,
+                "conversionFactor": 40.0,
+                "sellPrice": 440000.0,
+                "buyPrice": 10000.0
+            }
+        ]),
+        total_buy: 400000.0,
+        total_sell: 440000.0,
+        total_profit: 40000.0,
+        profit_percent: 10.0,
+        payment_status: "LUNAS".into(),
+        payment_method: "Tunai / Kas".into(),
+        customer_type: Some("B2B".into()),
+        notes: None,
+        discount_amount: Some(0.0),
+        discount_code: None,
+        points_used: Some(0.0),
+        points_discount: Some(0.0),
+        points_earned: Some(0.0),
+        final_total: Some(440000.0),
+        is_pre_order: Some(false),
+        pic_name: None,
+        created_at: None,
+        is_split_payment: Some(false),
+        cash_amount: Some(0.0),
+        non_cash_amount: Some(0.0),
+        non_cash_method: None,
+        change_amount: Some(0.0),
+        infaq_amount: Some(0.0),
+        shift_id: None,
+        refund_status: Some("NONE".into()),
+        refund_total: Some(0.0),
+    };
+    local_create_transaction(&mut conn, &tx, None).unwrap();
+
+    let products = local_get_products(&conn).unwrap();
+    let stored = products.iter().find(|x| x.id == "minyak1").unwrap();
+    assert_eq!(
+        stored.stock, 60.0,
+        "Stok harus berkurang 40 (satuan dasar), bukan 1 (satuan DUS)"
+    );
+    // Harga jual per satuan dasar = 440.000 / 40 = 11.000
+    assert_eq!(
+        stored.last_sell_price, 11000.0,
+        "last_sell_price harus per satuan dasar"
+    );
+}
+
+/// BUG FIX: multi-satuan (units), penanda mudah busuk, dan warna kategori
+/// harus bisa disimpan & dibaca kembali dari SQLite.
+#[test]
+fn test_multi_unit_and_category_color_persistence() {
+    let conn = setup_test_conn();
+    local_upsert_markup(&conn, "MIE", 15.0, Some("Makanan"), Some("amber")).unwrap();
+    let markups = local_get_markups(&conn).unwrap();
+    assert_eq!(markups.len(), 1);
+    assert_eq!(markups[0].color.as_deref(), Some("amber"));
+
+    let p = ProductRecord {
+        id: "mie1".into(),
+        code: "MIE-01".into(),
+        name: "Mie Instan".into(),
+        category: "MIE".into(),
+        unit: "BUNGKUS".into(),
+        default_markup_percent: 15.0,
+        last_buy_price: 3000.0,
+        last_sell_price: 3500.0,
+        supplier: None,
+        stock: 40.0,
+        barcode: None,
+        notes: None,
+        units: Some(vec![ProductUnitConversionRecord {
+            id: Some("u-dus".into()),
+            unit_name: "DUS".into(),
+            conversion_factor: 40.0,
+            sell_price: Some(133000.0),
+            barcode: Some("8997001".into()),
+        }]),
+        is_perishable: Some(true),
+    };
+    local_upsert_product(&conn, &p).unwrap();
+
+    let products = local_get_products(&conn).unwrap();
+    let stored = products.iter().find(|x| x.id == "mie1").unwrap();
+    let units = stored.units.as_ref().expect("units harus tersimpan");
+    assert_eq!(units.len(), 1);
+    assert_eq!(units[0].unit_name, "DUS");
+    assert_eq!(units[0].conversion_factor, 40.0);
+    assert_eq!(units[0].sell_price, Some(133000.0));
+    assert_eq!(stored.is_perishable, Some(true));
+}
+
+/// BUG FIX: item nota kulakan menyimpan kuantitas satuan dasar agar adjusting
+/// stok saat edit/hapus nota memakai satuan yang benar.
+#[test]
+fn test_purchase_receipt_uses_base_qty_for_stock() {
+    let mut conn = setup_test_conn();
+    local_upsert_markup(&conn, "MIE", 15.0, None, None).unwrap();
+    let p = ProductRecord {
+        id: "mie2".into(),
+        code: "MIE-02".into(),
+        name: "Mie Instan 2".into(),
+        category: "MIE".into(),
+        unit: "BUNGKUS".into(),
+        default_markup_percent: 15.0,
+        last_buy_price: 3000.0,
+        last_sell_price: 3500.0,
+        supplier: None,
+        stock: 0.0,
+        barcode: None,
+        notes: None,
+        units: None,
+        is_perishable: None,
+    };
+    local_upsert_product(&conn, &p).unwrap();
+
+    // 5 DUS x 40 = 200 BUNGKUS satuan dasar
+    let receipt = json!({
+        "id": "rcp-dus-1",
+        "supplierInvoiceNo": "INV-SUP-001",
+        "date": "2026-10-22",
+        "supplier": "PT Sumber",
+        "totalBuy": 1500000.0,
+        "items": [{
+            "id": "item-dus-1",
+            "productId": "mie2",
+            "code": "MIE-02",
+            "name": "Mie Instan 2",
+            "category": "MIE",
+            "unit": "DUS",
+            "qtyReceived": 5.0,
+            "baseQty": 200.0,
+            "conversionFactor": 40.0,
+            "buyPrice": 300000.0,
+            "subtotalBuy": 1500000.0,
+            "markupPercent": 15.0,
+            "newSellPrice": 345000.0
+        }]
+    });
+    local_save_purchase(&mut conn, &receipt).unwrap();
+
+    let products = local_get_products(&conn).unwrap();
+    let stored = products.iter().find(|x| x.id == "mie2").unwrap();
+    assert_eq!(
+        stored.stock, 200.0,
+        "Stok harus bertambah 200 (satuan dasar), bukan 5 (satuan DUS)"
+    );
+
+    // Menghapus nota harus mengembalikan 200 (bukan 5)
+    local_delete_purchase(&mut conn, "rcp-dus-1").unwrap();
+    let products = local_get_products(&conn).unwrap();
+    let stored = products.iter().find(|x| x.id == "mie2").unwrap();
+    assert_eq!(stored.stock, 0.0, "Stok harus kembali 0 setelah nota dihapus");
+}
+
+/// BUG FIX: field transaksi yang sebelumnya dibuang serde (split payment,
+/// kembalian, infaq, shift, refund) harus benar-benar tersimpan di SQLite.
+#[test]
+fn test_transaction_keeps_split_and_shift_fields() {
+    let mut conn = setup_test_conn();
+    local_upsert_markup(&conn, "SNACK", 10.0, None, None).unwrap();
+    let p = ProductRecord {
+        id: "split1".into(),
+        code: "SPL-01".into(),
+        name: "Snack Split".into(),
+        category: "SNACK".into(),
+        unit: "PCS".into(),
+        default_markup_percent: 10.0,
+        last_buy_price: 5000.0,
+        last_sell_price: 6000.0,
+        supplier: None,
+        stock: 50.0,
+        barcode: None,
+        notes: None,
+        units: None,
+        is_perishable: None,
+    };
+    local_upsert_product(&conn, &p).unwrap();
+
+    let tx = TransactionRecord {
+        id: "tx-split".into(),
+        invoice_no: "INV-SPLIT-001".into(),
+        date: "2026-10-22".into(),
+        buyer: "Pelanggan Split".into(),
+        items: json!([
+            { "productId": "split1", "qty": 2.0, "baseQty": 2.0, "conversionFactor": 1.0,
+              "sellPrice": 6000.0, "buyPrice": 5000.0 }
+        ]),
+        total_buy: 10000.0,
+        total_sell: 12000.0,
+        total_profit: 2000.0,
+        profit_percent: 20.0,
+        payment_status: "LUNAS".into(),
+        payment_method: "Tunai / Kas".into(),
+        customer_type: Some("B2C".into()),
+        notes: None,
+        discount_amount: Some(0.0),
+        discount_code: None,
+        points_used: Some(0.0),
+        points_discount: Some(0.0),
+        points_earned: Some(0.0),
+        final_total: Some(12000.0),
+        is_pre_order: Some(false),
+        pic_name: None,
+        created_at: None,
+        is_split_payment: Some(true),
+        cash_amount: Some(7000.0),
+        non_cash_amount: Some(5000.0),
+        non_cash_method: Some("QRIS".into()),
+        change_amount: Some(2000.0),
+        infaq_amount: Some(1000.0),
+        shift_id: Some("shift-abc".into()),
+        refund_status: Some("NONE".into()),
+        refund_total: Some(0.0),
+    };
+    local_create_transaction(&mut conn, &tx, None).unwrap();
+
+    let list = local_get_transactions(&conn).unwrap();
+    let saved = list.iter().find(|t| t.id == "tx-split").unwrap();
+    assert_eq!(saved.is_split_payment, Some(true));
+    assert_eq!(saved.cash_amount, Some(7000.0));
+    assert_eq!(saved.non_cash_amount, Some(5000.0));
+    assert_eq!(saved.non_cash_method.as_deref(), Some("QRIS"));
+    assert_eq!(saved.change_amount, Some(2000.0));
+    assert_eq!(saved.infaq_amount, Some(1000.0));
+    assert_eq!(saved.shift_id.as_deref(), Some("shift-abc"));
+    assert_eq!(saved.refund_status.as_deref(), Some("NONE"));
+}
+
+/// BUG FIX: `local_toggle_discount` harus error bila id tidak ada.
+/// Sebelumnya `rows_affected` tidak diperiksa sehingga toggle untuk id yang
+/// tidak dikenal tetap "berhasil" (state UI berubah padahal tidak tersimpan).
+#[test]
+fn test_toggle_discount_reports_missing_row() {
+    let conn = setup_test_conn();
+    let result = local_toggle_discount(&conn, "tidak-ada", true);
+    assert!(
+        result.is_err(),
+        "Toggle diskon untuk id yang tidak ada harus mengembalikan error"
+    );
+}
+
+/// BUG FIX: kolom `notes` pelanggan harus tersimpan & dibaca kembali.
+#[test]
+fn test_buyer_notes_persistence() {
+    let conn = setup_test_conn();
+    let b = BuyerRecord {
+        id: "b-notes".into(),
+        name: "Member Catatan".into(),
+        code: None,
+        phone: None,
+        address: None,
+        customer_type: Some("B2C".into()),
+        member_card_no: Some("SIRKA-900".into()),
+        tier: Some("REGULAR".into()),
+        points: Some(10.0),
+        total_spend: Some(0.0),
+        member_since: Some("2026-01-01".into()),
+        notes: Some("[Penyesuaian Poin +10: Bonus Ulang Tahun]".into()),
+    };
+    local_upsert_buyer(&conn, &b).unwrap();
+
+    let list = local_get_buyers(&conn).unwrap();
+    let saved = list.iter().find(|x| x.id == "b-notes").unwrap();
+    assert_eq!(
+        saved.notes.as_deref(),
+        Some("[Penyesuaian Poin +10: Bonus Ulang Tahun]"),
+        "Catatan pelanggan harus tersimpan"
+    );
+}
