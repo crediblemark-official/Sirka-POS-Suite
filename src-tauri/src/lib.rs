@@ -6,6 +6,7 @@ pub mod db;
 pub mod local_db;
 pub mod models;
 pub mod sync;
+pub mod tls;
 
 use commands::*;
 use tauri::Manager;
@@ -42,12 +43,32 @@ pub fn run() {
             }
 
             tauri::async_runtime::spawn(async move {
-                if let Err(e) = ensure_migrations().await {
-                    eprintln!("[Rust Migration] {}", e);
+                // BUG FIX (race condition): sinkronisasi background sebelumnya
+                // dimulai 2 detik setelah aplikasi start, SEDANGKAN migrasi
+                // PostgreSQL mungkin belum selesai (butuh koneksi + eksekusi
+                // schema.sql & migrations.sql). Bila sync jalan lebih dulu,
+                // semua query pull gagal ("relation does not exist") dan push
+                // pertama memblokir antrean outbox.
+                //
+                // Sekarang migrasi didahulukan; background sync baru mulai
+                // SETELAH migrasi selesai (atau gagal — tetap jalan agar app
+                // tidak hangs, tapi error migrasi dicetak).
+                let migration_ok = match ensure_migrations().await {
+                    Ok(()) => true,
+                    Err(e) => {
+                        eprintln!("[Rust Migration] {}", e);
+                        false
+                    }
+                };
+                if !migration_ok {
+                    eprintln!(
+                        "[Rust Migration] Migrasi gagal. Sinkronisasi tetap dijalankan, \
+                         tetapi sebagian data mungkin belum tersedia di cloud."
+                    );
                 }
+                sync::start_background_sync();
             });
 
-            sync::start_background_sync();
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -66,6 +87,7 @@ pub fn run() {
             db_trigger_sync,
             db_reset_cache,
             db_wipe_all_data,
+            db_enqueue_outbox,
             // 2. Products & Inventory
             db_get_products,
             db_upsert_product,
@@ -75,6 +97,7 @@ pub fn run() {
             db_get_markups,
             db_update_markup,
             db_create_markup,
+            db_update_markup_full,
             db_delete_markup,
             // 4. Buyers / Pelanggan (Dynamic)
             db_get_buyers,

@@ -1,5 +1,6 @@
 mod db;
 mod commands;
+mod tls;
 
 use commands::*;
 
