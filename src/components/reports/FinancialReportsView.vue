@@ -4,7 +4,8 @@ import { useLedgerStore } from '../../stores/ledgerStore';
 import { useInventoryStore } from '../../stores/inventoryStore';
 import { usePurchaseStore } from '../../stores/purchaseStore';
 import { useShiftStore } from '../../stores/shiftStore';
-import { formatRupiah } from '../../utils/formatters';
+import { formatRupiah, localTodayStr, localDateOffset, localPreviousMonthStr } from '../../utils/formatters';
+import { dbService } from '../../services/dbService';
 import MetricStatsStrip, { type MetricStatItem } from '../common/MetricStatsStrip.vue';
 import {
   FileSpreadsheet,
@@ -48,34 +49,50 @@ type DatePeriod = 'today' | 'week' | 'month' | 'year' | 'all';
 const selectedPeriod = ref<DatePeriod>('month');
 
 // 1. Filter Transactions by Period
+/**
+ * BUG FIX: batas bawah periode dihitung dengan tanggal LOKAL.
+ * `toISOString()` memakai UTC sehingga di WIB (UTC+7) setelah pukul 00:00
+ * "Hari Ini" menampilkan penjualan KEMARIN.
+ * `setMonth()` juga bisa overflow (31 Mar -> 3 Mar) sehingga memakai helper.
+ */
+const periodStartStr = computed<string>(() => {
+  if (selectedPeriod.value === 'all') return '';
+  const now = new Date();
+  if (selectedPeriod.value === 'today') return localTodayStr(now);
+  if (selectedPeriod.value === 'week') return localDateOffset(7, now);
+  if (selectedPeriod.value === 'month') return localPreviousMonthStr(now);
+  // 'year'
+  const d = new Date(now.getTime());
+  d.setDate(1);
+  d.setFullYear(d.getFullYear() - 1);
+  return localTodayStr(d);
+});
+
 const periodTransactions = computed(() => {
   const txs = ledgerStore.transactions;
   if (selectedPeriod.value === 'all') return txs;
 
-  const now = new Date();
-  const todayStr = now.toISOString().slice(0, 10);
+  const todayStr = localTodayStr();
+  const from = periodStartStr.value;
 
   if (selectedPeriod.value === 'today') {
     return txs.filter(t => t.date === todayStr);
   }
 
-  const pastDate = new Date();
-  if (selectedPeriod.value === 'week') {
-    pastDate.setDate(now.getDate() - 7);
-  } else if (selectedPeriod.value === 'month') {
-    pastDate.setMonth(now.getMonth() - 1);
-  } else if (selectedPeriod.value === 'year') {
-    pastDate.setFullYear(now.getFullYear() - 1);
-  }
-
-  const pastStr = pastDate.toISOString().slice(0, 10);
-  return txs.filter(t => t.date >= pastStr);
+  return txs.filter(t => t.date >= from && t.date <= todayStr);
 });
 
 // 2. Financial Metrics (Laba Rugi)
 const grossSales = computed(() => periodTransactions.value.reduce((acc, t) => acc + (t.totalSell || 0), 0));
-const totalDiscounts = computed(() => periodTransactions.value.reduce((acc, t) => acc + (t.discountAmount || 0), 0));
-const netSales = computed(() => periodTransactions.value.reduce((acc, t) => acc + (t.finalTotal || t.totalSell || 0), 0));
+// BUG FIX: diskon poin loyalitas tidak ikut tercermin di `discountAmount`
+// (backend menyimpannya terpisah di `pointsDiscount`). Tanpa ini baris P&L
+// tidak balance: Gross - Diskon != Net.
+const totalDiscounts = computed(() => periodTransactions.value.reduce(
+  (acc, t) => acc + (t.discountAmount || 0) + (t.pointsDiscount || 0), 0
+));
+// BUG FIX: `||` membuat transaksi dengan finalTotal 0 (lunas 100% diskon)
+// jatuh kembali ke totalSell sehingga omzet Reported overstated.
+const netSales = computed(() => periodTransactions.value.reduce((acc, t) => acc + (t.finalTotal ?? t.totalSell ?? 0), 0));
 const totalCogs = computed(() => periodTransactions.value.reduce((acc, t) => acc + (t.totalBuy || 0), 0));
 const grossProfit = computed(() => netSales.value - totalCogs.value);
 const marginPercent = computed(() => netSales.value > 0 ? (grossProfit.value / netSales.value) * 100 : 0);
@@ -86,30 +103,46 @@ const avgTicketSize = computed(() => periodTransactions.value.length > 0 ? netSa
 const cashInflow = computed(() => {
   return periodTransactions.value
     .filter(t => (t.paymentMethod as string) === 'Tunai / Kas' || (t.paymentMethod as string) === 'Tunai')
-    .reduce((acc, t) => acc + (t.finalTotal || t.totalSell || 0), 0);
+    // BUG FIX: transaksi TEMPO (piutang) BELUM menerima uang sehingga tidak
+    // boleh dihitung sebagai kas masuk. `nonCashInflow` sudah punya filter ini.
+    .filter(t => t.paymentStatus === 'LUNAS')
+    .reduce((acc, t) => acc + (t.finalTotal ?? t.totalSell ?? 0), 0);
 });
 
 const nonCashInflow = computed(() => {
   return periodTransactions.value
     .filter(t => (t.paymentMethod as string) !== 'Tunai / Kas' && (t.paymentMethod as string) !== 'Tunai' && t.paymentStatus === 'LUNAS')
-    .reduce((acc, t) => acc + (t.finalTotal || t.totalSell || 0), 0);
+    .reduce((acc, t) => acc + (t.finalTotal ?? t.totalSell ?? 0), 0);
 });
 
+// BUG FIX: biaya pembelian harus difilter PERIODE yang sama dengan inflow.
+// Sebelumnya memakai seluruh riwayat (all-time) sehingga arus kas untuk
+// periode pendek selalu negatif besar.
 const totalPurchasesCost = computed(() => {
-  return purchaseStore.purchaseHistory.reduce((acc, p) => acc + (p.totalBuy || 0), 0);
+  const from = periodStartStr.value;
+  const to = localTodayStr();
+  return purchaseStore.purchaseHistory
+    .filter(p => {
+      if (!p?.date) return false;
+      if (from) return p.date >= from && p.date <= to;
+      return true;
+    })
+    .reduce((acc, p) => acc + (p.totalBuy || 0), 0);
 });
 
 const netCashFlow = computed(() => (cashInflow.value + nonCashInflow.value) - totalPurchasesCost.value);
 
 // 4. Balance Sheet Metrics (Neraca Posisi Keuangan)
 const totalInventoryAssetValuation = computed(() => {
-  return inventoryStore.products.reduce((acc, p) => acc + (p.stock * p.lastBuyPrice), 0);
+  // BUG FIX: guard `|| 0` supaya 1 produk tanpa harga tidak meracuni seluruh
+  // neraca dengan NaN.
+  return inventoryStore.products.reduce((acc, p) => acc + ((p.stock || 0) * (p.lastBuyPrice || 0)), 0);
 });
 
 const totalReceivables = computed(() => {
   return ledgerStore.transactions
     .filter(t => t.paymentStatus === 'TEMPO')
-    .reduce((acc, t) => acc + (t.finalTotal || t.totalSell || 0), 0);
+    .reduce((acc, t) => acc + (t.finalTotal ?? t.totalSell ?? 0), 0);
 });
 
 const estimatedCashBalance = computed(() => Math.max(0, netCashFlow.value));
@@ -117,15 +150,33 @@ const totalCurrentAssets = computed(() => estimatedCashBalance.value + totalRece
 const totalSupplierPayables = computed(() => 0); // Faktur kulakan tempo yang belum lunas
 const netWorthEquity = computed(() => totalCurrentAssets.value - totalSupplierPayables.value);
 
+
+/**
+ * Parse tanggal 'YYYY-MM-DD' sebagai WAKTU LOKAL (bukan UTC).
+ * `new Date('2026-10-22')` = UTC midnight -> di WIB mundur 7 jam.
+ */
+function parseLocalDate(dateStr: string): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec((dateStr || '').trim());
+  if (m) {
+    return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  }
+  return new Date(dateStr);
+}
+
 // 5. Receivables Aging Schedule
 const agingReceivables = computed(() => {
   const tempos = ledgerStore.transactions.filter(t => t.paymentStatus === 'TEMPO');
   const now = new Date();
 
   return tempos.map(t => {
-    const txDate = new Date(t.date);
-    const diffTime = Math.abs(now.getTime() - txDate.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    // BUG FIX: `new Date('2026-10-22')` diparse sebagai UTC midnight, jadi
+    // selisihnya membesar 7 jam di WIB -> umur nota naik 1 hari (bucket beda
+    // dengan Worker). Selain itu `Math.abs` membuat nota BERJADIL MASA
+    // terlihat "MACET (>30 hari)". Sekarang: parse sebagai waktu LOKAL dan
+    // umur tidak negatif.
+    const txDate = parseLocalDate(t.date);
+    const diffTime = Math.max(0, now.getTime() - txDate.getTime());
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
     let bucket: '0-7' | '8-14' | '15-30' | '>30' = '0-7';
     if (diffDays > 30) bucket = '>30';
     else if (diffDays > 14) bucket = '15-30';
@@ -139,20 +190,40 @@ const agingReceivables = computed(() => {
   });
 });
 
-const bucket0_7 = computed(() => agingReceivables.value.filter(t => t.bucket === '0-7').reduce((acc, t) => acc + (t.finalTotal || t.totalSell), 0));
-const bucket8_14 = computed(() => agingReceivables.value.filter(t => t.bucket === '8-14').reduce((acc, t) => acc + (t.finalTotal || t.totalSell), 0));
-const bucket15_30 = computed(() => agingReceivables.value.filter(t => t.bucket === '15-30').reduce((acc, t) => acc + (t.finalTotal || t.totalSell), 0));
-const bucketOver30 = computed(() => agingReceivables.value.filter(t => t.bucket === '>30').reduce((acc, t) => acc + (t.finalTotal || t.totalSell), 0));
+// BUG FIX: `||` membuat piutang dengan finalTotal 0 (lunas 100% diskon)
+// hilang dari bucket karena fallback ke totalSell.
+const bucket0_7 = computed(() => agingReceivables.value.filter(t => t.bucket === '0-7').reduce((acc, t) => acc + (t.finalTotal ?? t.totalSell ?? 0), 0));
+const bucket8_14 = computed(() => agingReceivables.value.filter(t => t.bucket === '8-14').reduce((acc, t) => acc + (t.finalTotal ?? t.totalSell ?? 0), 0));
+const bucket15_30 = computed(() => agingReceivables.value.filter(t => t.bucket === '15-30').reduce((acc, t) => acc + (t.finalTotal ?? t.totalSell ?? 0), 0));
+const bucketOver30 = computed(() => agingReceivables.value.filter(t => t.bucket === '>30').reduce((acc, t) => acc + (t.finalTotal ?? t.totalSell ?? 0), 0));
 
 // 6. Dead Stock & Product Intelligence
+/**
+ * BUG FIX: "Dead Stock" sebelumnya hanya = seluruh inventori (filter `stock > 0`),
+ * sehingga angkanya identik dengan "Total Persediaan Aset" dan tidak pernah
+ * mengukur barang yang tidak bergerak. Sekarang dihitung dari barang yang
+ * TIDAK punya pergerakan stok keluar (tidak pernah terjual) dalam periode
+ * laporan.
+ */
+const periodOutsoldProductIds = computed(() => {
+  const ids = new Set<string>();
+  for (const tx of periodTransactions.value) {
+    for (const item of (tx.items || [])) {
+      if (item && item.productId) ids.add(item.productId);
+    }
+  }
+  return ids;
+});
+
 const deadStockItems = computed(() => {
+  const sold = periodOutsoldProductIds.value;
   return inventoryStore.products
-    .filter(p => p.stock > 0)
-    .sort((a, b) => (b.stock * b.lastBuyPrice) - (a.stock * a.lastBuyPrice));
+    .filter(p => (p.stock || 0) > 0 && !sold.has(p.id))
+    .sort((a, b) => ((b.stock || 0) * (b.lastBuyPrice || 0)) - ((a.stock || 0) * (a.lastBuyPrice || 0)));
 });
 
 const totalDeadStockCapital = computed(() => {
-  return deadStockItems.value.reduce((acc, p) => acc + (p.stock * p.lastBuyPrice), 0);
+  return deadStockItems.value.reduce((acc, p) => acc + ((p.stock || 0) * (p.lastBuyPrice || 0)), 0);
 });
 
 // Standard MetricStatsStrip definition based on activeSubTab
@@ -309,11 +380,22 @@ const metricStats = computed<MetricStatItem[]>(() => {
       }
     ];
   } else if (activeSubTab.value === 'shifts') {
-    const totalCashSalesAllShifts = shiftStore.shiftHistory.reduce((acc, s) => acc + (s.cashSales || 0), 0);
+    // BUG FIX: penjualan tunai dari shift yang MASIH BERJALAN tidak boleh
+    // dihitung sebagai "Total Sesi" (hanya shift tertutup yang masuk history).
+    const totalCashSalesAllShifts =
+      shiftStore.shiftHistory.reduce((acc, s) => acc + (s.cashSales || 0), 0)
+      + (shiftStore.isShiftActive ? (shiftStore.currentShift?.cashSales || 0) : 0);
     const totalDiscrepancyAllShifts = shiftStore.shiftHistory.reduce((acc, s) => acc + (s.discrepancy || 0), 0);
-    const balanceRate = shiftStore.shiftHistory.length > 0
-      ? (shiftStore.shiftHistory.filter(s => (s.discrepancy || 0) === 0).length / shiftStore.shiftHistory.length) * 100
-      : 100;
+    // BUG FIX: `s.discrepancy || 0` menghitung shift yang BELUM pernah
+    // direkonsiliasi (discrepancy undefined) sebagai "PAS" -> metrik anti-fraud
+    // palsu. Hanya shift yang sudah direkonsiliasi (status CLOSED & ada
+    // actualCash) yang boleh dihitung.
+    const reconciledShifts = shiftStore.shiftHistory.filter(
+      s => s.status === 'CLOSED' && s.actualCash !== undefined && s.actualCash !== null
+    );
+    const balanceRate = reconciledShifts.length > 0
+      ? (reconciledShifts.filter(s => (s.discrepancy || 0) === 0).length / reconciledShifts.length) * 100
+      : 0;
 
     return [
       {
@@ -335,7 +417,7 @@ const metricStats = computed<MetricStatItem[]>(() => {
       {
         label: 'Akurasi Kas (Tingkat Pas)',
         value: `${balanceRate.toFixed(0)}%`,
-        sublabel: `${shiftStore.shiftHistory.filter(s => (s.discrepancy || 0) === 0).length} dari ${shiftStore.shiftHistory.length} Cocok`,
+        sublabel: `${reconciledShifts.filter(s => (s.discrepancy || 0) === 0).length} dari ${reconciledShifts.length} Shift Terekonsiliasi Cocok`,
         icon: CheckCircle2,
         iconBoxClass: 'bg-teal-50 text-teal-700',
         valClass: 'text-teal-800'
@@ -387,7 +469,7 @@ const metricStats = computed<MetricStatItem[]>(() => {
 });
 
 // Export to Excel handler
-function exportComprehensiveReport() {
+async function exportComprehensiveReport() {
   const wb = XLSX.utils.book_new();
 
   // Sheet 1: Laba Rugi & Arus Kas
@@ -441,14 +523,30 @@ function exportComprehensiveReport() {
       t.buyer,
       t.date,
       t.ageDays,
-      t.bucket === '>30' ? 'MACET (>30hr)' : (t.bucket === '15-30' ? 'PERINGATAN' : 'LANCAR'),
+      // BUG FIX: label bucket 8-14 hari di layar adalah "NORMAL" tetapi di
+      // export sebelumnya menjadi "LANCAR" -> laporan hasil export berbeda
+      // dari tampilan aplikasi.
+      t.bucket === '>30' ? 'MACET (>30 HARI)' : (t.bucket === '15-30' ? 'PERINGATAN' : (t.bucket === '8-14' ? 'NORMAL' : 'LANCAR')),
       t.finalTotal || t.totalSell
     ])
   ];
   const wsAr = XLSX.utils.aoa_to_sheet(arData);
   XLSX.utils.book_append_sheet(wb, wsAr, 'Buku Piutang');
 
-  XLSX.writeFile(wb, `Laporan_Keuangan_Citra_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  // BUG FIX: `XLSX.writeFile` memakai jalur download browser yang tidak punya
+  // handler filesystem di WebView Tauri -> file sering gagal tersimpan tanpa
+  // pesan error. Gunakan native save dialog (cmd+Excel) seperti di ledger.
+  const filename = `Laporan_Keuangan_Citra_${localTodayStr()}.xlsx`;
+  try {
+    const buffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const msg = await dbService.saveExportFile(filename, Array.from(new Uint8Array(buffer)));
+    if (msg) alert(msg);
+  } catch (e: any) {
+    const errStr = String(e?.message || e);
+    if (errStr.includes('CANCELLED')) return; // pengguna membatalkan
+    console.warn('Native export fallback ke browser download:', e);
+    XLSX.writeFile(wb, filename);
+  }
 }
 </script>
 
@@ -592,13 +690,18 @@ function exportComprehensiveReport() {
               <td class="text-right font-mono text-gray-500">
                 {{ grossSales > 0 ? ((totalDiscounts / grossSales) * 100).toFixed(1) : 0 }}%
               </td>
-              <td class="text-gray-500 text-[11px]">Voucher diskon kupon belanja dan potongan harga</td>
+              <td class="text-gray-500 text-[11px]">Voucher diskon kupon belanja, potongan harga, dan penukaran poin loyalitas</td>
             </tr>
             <tr class="bg-blue-50/40 font-bold border-t border-b border-blue-200">
               <td class="text-center font-mono text-blue-900">1.3</td>
               <td class="pl-6 text-blue-900">TOTAL PENJUALAN BERSIH (NET SALES)</td>
               <td class="text-right font-mono text-blue-900 text-sm font-extrabold">{{ formatRupiah(netSales) }}</td>
-              <td class="text-right font-mono text-blue-900 font-bold">100.0%</td>
+              <!-- BUG FIX: kolom persentase sebelumnya hard-coded "100.0%" sehingga
+                   kolom tidak pernah menjumlah 100% dan tidak mencerminkan
+                   proporsi penjualan bersih terhadap penjualan kotor. -->
+              <td class="text-right font-mono text-blue-900 font-bold">
+                {{ grossSales > 0 ? ((netSales / grossSales) * 100).toFixed(1) : 0 }}%
+              </td>
               <td class="text-blue-800 text-[11px]">Basis perhitungan omzet riil toko</td>
             </tr>
 
@@ -835,10 +938,10 @@ function exportComprehensiveReport() {
                     'bg-emerald-100 text-emerald-800 border border-emerald-200': t.bucket === '0-7'
                   }"
                 >
-                  {{ t.bucket === '>30' ? 'MACET (>30hr)' : (t.bucket === '15-30' ? 'PERINGATAN' : (t.bucket === '8-14' ? 'NORMAL' : 'LANCAR')) }}
+                  {{ t.bucket === '>30' ? 'MACET (>30 HARI)' : (t.bucket === '15-30' ? 'PERINGATAN' : (t.bucket === '8-14' ? 'NORMAL' : 'LANCAR')) }}
                 </span>
               </td>
-              <td class="text-right font-mono font-bold text-gray-900">{{ formatRupiah(t.finalTotal || t.totalSell) }}</td>
+              <td class="text-right font-mono font-bold text-gray-900">{{ formatRupiah(t.finalTotal ?? t.totalSell ?? 0) }}</td>
               <td class="text-center">
                 <button
                   type="button"
@@ -934,7 +1037,7 @@ function exportComprehensiveReport() {
               <td class="font-bold text-red-800">Aging Schedule Piutang Bertingkat</td>
               <td>Segmentasi umur tagihan bon tempo</td>
               <td class="text-right font-mono font-bold text-red-700">Macet: Rp {{ formatRupiah(bucketOver30) }}</td>
-              <td class="text-gray-600">Kunci nota baru untuk pelanggan dengan tagihan macet &gt;30hr</td>
+              <td class="text-gray-600">Kunci nota baru untuk pelanggan dengan tagihan macet &gt;30 HARI</td>
             </tr>
             <tr>
               <td class="text-center font-mono font-bold">07</td>

@@ -13,6 +13,10 @@ import { useReturnStore } from '../../stores/returnStore';
 import { useShiftStore } from '../../stores/shiftStore';
 import { formatRupiah } from '../../utils/formatters';
 import type { RefundType, RefundItem } from '../../types';
+import { useModalLock } from '../../composables/useModalLock';
+
+// BUG FIX: register modal-lock agar shortcut global (mis. Enter pada
+// ProductCatalog) tidak menambah produk ke keranjang saat modal terbuka.
 
 const returnStore = useReturnStore();
 const shiftStore = useShiftStore();
@@ -54,7 +58,9 @@ watch(
     reason.value = '';
 
     itemRows.value = newTx.items.map(item => ({
-      productId: item.id,
+      // BUG FIX: `item.id` adalah ID baris keranjang, bukan ID produk.
+      // Harus memakai `item.productId` agar stok retur kembali ke produk yang benar.
+      productId: item.productId,
       productName: item.name,
       unit: item.unit,
       baseUnit: item.baseUnit,
@@ -103,6 +109,11 @@ async function handleConfirmRefund() {
     .filter(r => Number(r.qtyToRefund) > 0)
     .map(r => {
       const q = Math.max(0, Math.min(r.originalQty, Number(r.qtyToRefund) || 0));
+      // BUG FIX: batch deduction hanya dikembalikan SESUAI PROPORSI barang yang
+      // diretur. Sebelumnya seluruh batch deduction baris nota dikembalikan
+      // kembali sehingga retur sebagian (mis. 10 dari 40) mengembalikan 40 PCS
+      // ke batch -> stok batch lebih besar dari stok master.
+      const ratio = r.originalQty > 0 ? q / r.originalQty : 1;
       return {
         productId: r.productId,
         productName: r.productName,
@@ -114,7 +125,10 @@ async function handleConfirmRefund() {
         unitPrice: r.unitPrice,
         refundAmount: Math.round(q * r.unitPrice),
         returnToStock: r.returnToStock,
-        batchDeductions: r.batchDeductions
+        batchDeductions: r.batchDeductions?.map(d => ({
+          ...d,
+          qtyDeducted: Number(((d.qtyDeducted || 0) * ratio).toFixed(4))
+        }))
       };
     });
 
@@ -134,6 +148,9 @@ async function handleConfirmRefund() {
     isSubmitting.value = false;
   }
 }
+
+const { bind: bindModalLock } = useModalLock();
+bindModalLock(() => returnStore.showRefundModal);
 </script>
 
 <template>

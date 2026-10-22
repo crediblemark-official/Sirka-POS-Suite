@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue';
 import { Buyer, MembershipTier, CustomerType } from '../../../types';
 import { useBuyerStore } from '../../../stores/buyerStore';
 import { useSettingsStore } from '../../../stores/settingsStore';
+import { localTodayStr } from '../../../utils/formatters';
 import {
   CreditCard,
   Check,
@@ -70,10 +71,11 @@ const newMemberForm = ref({
 });
 
 function generateNewCardNumber(type: CustomerType = 'B2B') {
-  const storeAbbr = settingsStore.storeCode || 'CITRA';
-  const rand = Math.floor(1000 + Math.random() * 9000);
-  const prefix = type === 'B2B' ? `${storeAbbr}-B2B` : storeAbbr;
-  return `${prefix}-${rand}`;
+  // BUG FIX: nomor kartu sebelumnya acak 4 digit TANPA cek keunikan
+  // (~1/9000 bentrok) -> dua anggota bisa punya kartu sama dan kasir yang
+  // memindai akan menempelkan member yang SALAH (poin & tier ikut salah).
+  // Sekarang memakai generator aman dari store (50 percobaan + fallback).
+  return buyerStore.generateMemberCardNo(settingsStore.storeCode || 'CITRA', type);
 }
 
 function randomizeCardNumber() {
@@ -93,15 +95,22 @@ function onSelectExistingBuyer(buyerId: string) {
 }
 
 watch(
-  () => props.initialBuyerId,
-  (id) => {
+  // BUG FIX: watcher ini hanya merespons `initialBuyerId`. Karena `buyers`
+  // diisi ASYNCHRONOUSLY oleh `fetchBuyers()`, saat form dibuka pertama kali
+  // datanya belum ada -> form tampil KOSONG (mode EXISTING tapi tanpa isi),
+  // atau mode "Pelanggan Baru" padahal sebegitu ada 12 non-member.
+  // Sekarang juga memantau jumlah buyer, sehingga form dievaluasi ulang setelah
+  // data master selesai dimuat.
+  () => [props.initialBuyerId, buyerStore.buyers.length],
+  ([id]) => {
     if (id) {
       registerMode.value = 'EXISTING';
-      onSelectExistingBuyer(id);
+      onSelectExistingBuyer(String(id));
     } else if (nonMemberBuyers.value.length > 0) {
       registerMode.value = 'EXISTING';
       onSelectExistingBuyer(nonMemberBuyers.value[0].id);
-    } else {
+    } else if (buyerStore.buyers.length > 0) {
+      // Data sudah dimuat tapi tidak ada non-member -> tetap mode baru
       registerMode.value = 'NEW';
       newMemberForm.value = {
         name: '',
@@ -131,7 +140,7 @@ async function handleSaveRegisterMember() {
       existing.memberCardNo = cardNo;
       existing.tier = initialCalculatedTier.value;
       existing.points = (existing.points || 0) + (Number(newMemberForm.value.initialPoints) || 0);
-      existing.memberSince = new Date().toISOString().slice(0, 10);
+      existing.memberSince = localTodayStr();
 
       await buyerStore.updateBuyer(existing);
       targetBuyer = existing;
@@ -155,8 +164,11 @@ async function handleSaveRegisterMember() {
     if (targetBuyer) {
       emit('registered', targetBuyer);
     }
-  } catch (err) {
+  } catch (err: any) {
+    // BUG FIX: error hanya dicetak ke console sehingga user menekan
+    // "Terbitkan Kartu Member" dan TIDAK terjadi apa-apa secara visual.
     console.error('Failed to register member:', err);
+    alert(`Gagal menyimpan anggota: ${err?.message || err}`);
   } finally {
     isSavingMember.value = false;
   }

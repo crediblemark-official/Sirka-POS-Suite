@@ -126,7 +126,10 @@ const metricStats = computed<MetricStatItem[]>(() => [
 ]);
 
 function openRegisterDrawer(buyerId?: string) {
-  registerInitialBuyerId.value = buyerId;
+  // BUG FIX: `registerInitialBuyerId` tidak pernah di-reset -> tab "Baru"
+  // selalu auto-memilih buyer terakhir yang dipilih, berisiko salah-target
+  // kartu member.
+  registerInitialBuyerId.value = buyerId ?? '';
   drawerInitialTab.value = 'REGISTER';
   showDetailDrawer.value = true;
 }

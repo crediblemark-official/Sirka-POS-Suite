@@ -14,6 +14,10 @@ import { formatRupiah } from '../../utils/formatters';
 import type { WasteReason, Product } from '../../types';
 import { useConfirmDialog } from '../../composables/useConfirmDialog';
 import WasteHistoryTable from './WasteHistoryTable.vue';
+import { useModalLock } from '../../composables/useModalLock';
+
+// BUG FIX: register modal-lock agar shortcut global (mis. Enter pada
+// ProductCatalog) tidak menambah produk ke keranjang saat modal terbuka.
 
 const returnStore = useReturnStore();
 const inventoryStore = useInventoryStore();
@@ -107,6 +111,9 @@ async function handleSaveWaste() {
     isSubmitting.value = false;
   }
 }
+
+const { bind: bindModalLock } = useModalLock();
+bindModalLock(() => returnStore.showWasteModal);
 </script>
 
 <template>

@@ -104,8 +104,18 @@ const filteredProducts = computed(() => {
 
 
 // Metrik Lengkap Aset Stok Barang
-const totalStockQty = computed(() => {
-  return filteredProducts.value.reduce((acc, p) => acc + (p.stock || 0), 0);
+/**
+ * BUG FIX: jumlah stok dijumlahkan dari berbagai satuan dasar (KG + PCS + DUS)
+ * sehingga angkanya tidak bermakna ("312 Unit / Pcs"). Sekarang ditampilkan
+ * per satuan dasar agar bisa dibaca.
+ */
+const stockQtyByUnit = computed(() => {
+  const map = new Map<string, number>();
+  for (const p of filteredProducts.value) {
+    const unit = (p.unit || 'pcs').toUpperCase();
+    map.set(unit, (map.get(unit) || 0) + (p.stock || 0));
+  }
+  return [...map.entries()].map(([unit, qty]) => ({ unit, qty }));
 });
 
 const totalAssetBuy = computed(() => {
@@ -116,8 +126,13 @@ const totalAssetSell = computed(() => {
   return filteredProducts.value.reduce((acc, p) => acc + ((p.stock || 0) * (p.lastSellPrice || 0)), 0);
 });
 
+/**
+ * BUG FIX: margin aset tidak boleh dijepit ke 0. Kalau harga jual master di
+ * bawah harga modal (barang rugi), nilai sebenarnya harus negatif — dijepit 0
+ * membuat laporan potential margin menyesatkan.
+ */
 const totalAssetProfit = computed(() => {
-  return Math.max(0, totalAssetSell.value - totalAssetBuy.value);
+  return totalAssetSell.value - totalAssetBuy.value;
 });
 
 const averageAssetMargin = computed(() => {
@@ -139,7 +154,11 @@ const metricStats = computed<MetricStatItem[]>(() => [
   },
   {
     label: 'Fisik Stok di Toko',
-    value: `${totalStockQty.value} Unit / Pcs`,
+    // BUG FIX: tampilkan per satuan dasar — menjumlahkan KG + PCS + DUS jadi
+    // satu angka tidak bermakna.
+    value: stockQtyByUnit.value.length > 0
+      ? stockQtyByUnit.value.map(s => `${formatRupiah(s.qty)} ${s.unit}`).join(' · ')
+      : '0 Unit',
     icon: Boxes,
     iconBoxClass: 'bg-blue-50 text-blue-700',
     valClass: 'text-blue-800'
@@ -160,12 +179,13 @@ const metricStats = computed<MetricStatItem[]>(() => [
   },
   {
     label: 'Potensi Margin Aset',
-    value: `+Rp ${formatRupiah(totalAssetProfit.value)}`,
-    sublabel: `(+${averageAssetMargin.value}%)`,
+    // BUG FIX: tanda & warna harus mengikuti nilai sebenarnya (boleh negatif).
+    value: `${totalAssetProfit.value >= 0 ? '+' : '-'}Rp ${formatRupiah(Math.abs(totalAssetProfit.value))}`,
+    sublabel: `(${averageAssetMargin.value >= 0 ? '+' : ''}${averageAssetMargin.value}%)`,
     icon: Coins,
-    iconBoxClass: 'bg-teal-50 text-teal-700',
-    valClass: 'text-teal-800',
-    sublabelClass: 'text-emerald-600 font-semibold font-mono'
+    iconBoxClass: totalAssetProfit.value >= 0 ? 'bg-teal-50 text-teal-700' : 'bg-rose-50 text-rose-700',
+    valClass: totalAssetProfit.value >= 0 ? 'text-teal-800' : 'text-rose-700',
+    sublabelClass: totalAssetProfit.value >= 0 ? 'text-emerald-600 font-semibold font-mono' : 'text-rose-600 font-semibold font-mono'
   },
   {
     label: 'Kategori / Supplier',

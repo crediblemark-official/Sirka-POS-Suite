@@ -5,15 +5,21 @@ import {
   Building,
   Users,
   UserCheck,
-  RotateCcw
+  RotateCcw,
+  CreditCard,
+  Banknote,
+  Landmark,
+  QrCode,
+  FileText
 } from 'lucide-vue-next';
 import { PaymentStatus } from '../../types';
 import SearchableSelect, { type SelectOption } from '../common/SearchableSelect.vue';
 
-type LedgerFilterType = 'status' | 'market' | 'buyer';
+type LedgerFilterType = 'status' | 'method' | 'market' | 'buyer';
 
 const props = defineProps<{
   filterStatus: PaymentStatus | 'Semua';
+  filterMethod?: string;
   filterMarket: 'Semua' | 'B2B' | 'B2C';
   filterBuyer: string;
   viewMode: 'transactions' | 'items' | 'refunds';
@@ -21,6 +27,10 @@ const props = defineProps<{
   totalTransactionsCount: number;
   lunasCount: number;
   tempoCount: number;
+  tunaiCount?: number;
+  transferCount?: number;
+  qrisCount?: number;
+  notaTempoCount?: number;
   b2bCount: number;
   b2cCount: number;
   refundsCount?: number;
@@ -30,6 +40,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:filterStatus', value: PaymentStatus | 'Semua'): void;
+  (e: 'update:filterMethod', value: string): void;
   (e: 'update:filterMarket', value: 'Semua' | 'B2B' | 'B2C'): void;
   (e: 'update:filterBuyer', value: string): void;
   (e: 'update:viewMode', value: 'transactions' | 'items' | 'refunds'): void;
@@ -61,6 +72,17 @@ function onBuyerChange(val: string | number) {
           <Clock :size="12" />
           <span>Status</span>
           <span v-if="filterStatus !== 'Semua'" class="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
+        </button>
+
+        <button
+          type="button"
+          class="px-2 py-0.5 rounded text-xs font-semibold cursor-pointer transition-all flex items-center gap-1"
+          :class="activeFilterType === 'method' ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
+          @click="activeFilterType = 'method'"
+        >
+          <CreditCard :size="12" />
+          <span>Metode</span>
+          <span v-if="filterMethod && filterMethod !== 'Semua'" class="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
         </button>
 
         <button
@@ -129,7 +151,80 @@ function onBuyerChange(val: string | number) {
         </button>
       </div>
 
-      <!-- 1.2 Pill Options: Jenis Pasar -->
+      <!-- 1.2 Pill Options: Metode Bayar -->
+      <div v-else-if="activeFilterType === 'method'" class="flex items-center gap-1 shrink-0">
+        <button
+          type="button"
+          class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1"
+          :class="filterMethod === 'Semua' ? 'bg-indigo-600 text-white font-bold shadow-2xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+          @click="emit('update:filterMethod', 'Semua')"
+        >
+          <span>Semua Metode</span>
+          <span class="text-[10px] px-1 rounded-full" :class="filterMethod === 'Semua' ? 'bg-indigo-700 text-white' : 'bg-gray-100 text-gray-600'">
+            <!--
+              BUG FIX: pill "Semua Metode" menampilkan total transaksi SEMUA,
+              sementara pill-method di sebelahnya menampilkan jumlah per
+              metode -> angka dalam satu grup tidak konsisten. Sekarang
+              jumlahnya = jumlah seluruh metode.
+            -->
+            {{ (tunaiCount ?? 0) + (transferCount ?? 0) + (qrisCount ?? 0) + (notaTempoCount ?? 0) }}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1"
+          :class="filterMethod === 'Tunai / Kas' ? 'bg-emerald-600 text-white font-bold shadow-2xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+          @click="emit('update:filterMethod', 'Tunai / Kas')"
+        >
+          <Banknote :size="11" />
+          <span>Tunai</span>
+          <span class="text-[10px] px-1 rounded-full" :class="filterMethod === 'Tunai / Kas' ? 'bg-emerald-700 text-white' : 'bg-gray-100 text-gray-600'">
+            {{ tunaiCount ?? 0 }}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1"
+          :class="filterMethod === 'Transfer Bank' ? 'bg-blue-600 text-white font-bold shadow-2xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+          @click="emit('update:filterMethod', 'Transfer Bank')"
+        >
+          <Landmark :size="11" />
+          <span>Transfer</span>
+          <span class="text-[10px] px-1 rounded-full" :class="filterMethod === 'Transfer Bank' ? 'bg-blue-700 text-white' : 'bg-gray-100 text-gray-600'">
+            {{ transferCount ?? 0 }}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1"
+          :class="filterMethod === 'QRIS' ? 'bg-purple-600 text-white font-bold shadow-2xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+          @click="emit('update:filterMethod', 'QRIS')"
+        >
+          <QrCode :size="11" />
+          <span>QRIS</span>
+          <span class="text-[10px] px-1 rounded-full" :class="filterMethod === 'QRIS' ? 'bg-purple-700 text-white' : 'bg-gray-100 text-gray-600'">
+            {{ qrisCount ?? 0 }}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1"
+          :class="filterMethod === 'Nota Tempo' ? 'bg-amber-600 text-white font-bold shadow-2xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+          @click="emit('update:filterMethod', 'Nota Tempo')"
+        >
+          <FileText :size="11" />
+          <span>Nota Tempo</span>
+          <span class="text-[10px] px-1 rounded-full" :class="filterMethod === 'Nota Tempo' ? 'bg-amber-700 text-white' : 'bg-gray-100 text-gray-600'">
+            {{ notaTempoCount ?? 0 }}
+          </span>
+        </button>
+      </div>
+
+      <!-- 1.3 Pill Options: Jenis Pasar -->
       <div v-else-if="activeFilterType === 'market'" class="flex items-center gap-1 shrink-0">
         <button
           type="button"
@@ -139,7 +234,9 @@ function onBuyerChange(val: string | number) {
         >
           <span>Semua Transaksi</span>
           <span class="text-[10px] px-1 rounded-full" :class="filterMarket === 'Semua' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600'">
-            {{ totalTransactionsCount }}
+            <!-- BUG FIX: samakan dengan pill B2B + B2C (dulu memakai total
+                 transaksi SEMUA termasuk yang tidak terfilter). -->
+            {{ b2bCount + b2cCount }}
           </span>
         </button>
 

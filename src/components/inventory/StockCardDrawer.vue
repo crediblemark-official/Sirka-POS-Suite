@@ -22,7 +22,16 @@ const activeProduct = computed(() => movementStore.activeProductForCard);
 
 const movements = computed(() => {
   if (!activeProduct.value) return [];
-  return movementStore.getProductMovements(activeProduct.value.id);
+  // BUG FIX: urutkan kronologis (lama ke baru). `getProductMovements` memakai
+  // urutan `unshift` (terbaru di atas) sehingga kolom "Sisa Stok" yang berjalan
+  // dari atas ke bawah terbaca terbalik.
+  return [...movementStore.getProductMovements(activeProduct.value.id)]
+    .sort((a, b) => {
+      const ta = new Date(a.createdAt || a.date || 0).getTime();
+      const tb = new Date(b.createdAt || b.date || 0).getTime();
+      if (ta !== tb) return ta - tb;
+      return (a.id || '').localeCompare(b.id || '');
+    });
 });
 
 // Ringkasan KPI Barang Tersebut

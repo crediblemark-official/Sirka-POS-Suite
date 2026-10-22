@@ -42,6 +42,15 @@ const props = withDefaults(
 
 const localFilter = ref<'ALL' | 'B2B' | 'B2C'>(props.filterType || 'ALL');
 
+// BUG FIX: `localFilter` di-init dari `props.filterType` tapi TIDAK di-watch
+// -> perubahan filterType dari parent tidak pernah terpakai.
+watch(
+  () => props.filterType,
+  (val) => {
+    if (val && val !== localFilter.value) localFilter.value = val;
+  }
+);
+
 const emit = defineEmits<{
   (e: 'add-buyer', defaultType: CustomerType): void;
   (e: 'edit-buyer', buyer: Buyer): void;
@@ -150,15 +159,19 @@ const filteredBuyers = computed(() => {
     list = buyerStore.b2cBuyers;
   }
 
-  const q = (props.searchQuery || '').trim().toLowerCase();
+  // BUG FIX: query tidak menormalisasi spasi ganda -> "Toko  Barokah" (2 spasi)
+  // tidak ditemukan oleh query "toko barokah".
+  const q = (props.searchQuery || '').trim().toLowerCase().replace(/\s+/g, ' ');
   if (!q) return list;
 
+  const norm = (s?: string) => (s || '').toLowerCase().replace(/\s+/g, ' ');
+
   return list.filter(b =>
-    b.name.toLowerCase().includes(q) ||
-    (b.code && b.code.toLowerCase().includes(q)) ||
+    norm(b.name).includes(q) ||
+    (b.code && norm(b.code).includes(q)) ||
     (b.phone && b.phone.includes(q)) ||
-    (b.address && b.address.toLowerCase().includes(q)) ||
-    (b.memberCardNo && b.memberCardNo.toLowerCase().includes(q))
+    (b.address && norm(b.address).includes(q)) ||
+    (b.memberCardNo && norm(b.memberCardNo).includes(q))
   );
 });
 
@@ -206,19 +219,48 @@ watch(
 );
 
 function generateCardNumber() {
-  const storeAbbr = settingsStore.storeCode || 'CITRA';
-  const rand = Math.floor(1000 + Math.random() * 9000);
-  const prefix = buyerForm.value.customerType === 'B2B' ? `${storeAbbr}-B2B` : storeAbbr;
-  buyerForm.value.memberCardNo = `${prefix}-${rand}`;
+  // BUG FIX: sebelumnya nomor kartu dibuat acak 4 digit (~1/9000 bentrok)
+  // TANPA cek keunikan → dua anggota bisa memiliki kartu sama, dan kasir
+  // yang memindai akan menempelkan member yang SALAH (poin & tier ikut salah).
+  // Sekarang memakai generator aman dari store.
+  buyerForm.value.memberCardNo = buyerStore.generateMemberCardNo(
+    settingsStore.storeCode || 'CITRA',
+    buyerForm.value.customerType
+  );
   buyerForm.value.hasMemberCard = true;
 }
 
-function handleSaveBuyer() {
-  if (!buyerForm.value.name.trim()) return;
+async function handleSaveBuyer() {
+  const name = buyerForm.value.name.trim();
+  if (!name) return;
+
+  // BUG FIX: nama pelanggan dipakai sebagai foreign key di POS
+  // (`getBuyerByName`). Dua pelanggan dengan nama sama membuat SEMUA transaksi
+  // "Toko Barokah" selalu menunjuk pelanggan pertama -> poin, tier, dan diskon
+  // member masuk ke pelanggan yang keliru.
+  const duplicate = buyerStore.buyers.find(
+    b => b.name.trim().toLowerCase() === name.toLowerCase() && b.id !== activeBuyerId.value
+  );
+  if (duplicate) {
+    alert(
+      `Pelanggan dengan nama "${name}" sudah terdaftar (${duplicate.code || duplicate.id}).\n` +
+      `Nama pelanggan harus unik karena kasir mengaitkan transaksi berdasarkan nama.`
+    );
+    return;
+  }
+
+  const existingBuyer = isEditing.value && activeBuyerId.value
+    ? buyerStore.buyers.find(b => b.id === activeBuyerId.value)
+    : undefined;
 
   const payload: any = {
-    name: buyerForm.value.name.trim(),
-    code: buyerForm.value.code ? buyerForm.value.code.trim().toUpperCase() : undefined,
+    name,
+    // BUG FIX: kode fallback `BY-xxxx` sebelumnya hanya ditampilkan di tabel
+    // tanpa disimpan -> tidak bisa dicari & bentrok bila 2 buyer punya id
+    // berakhir sama. Sekarang disimpan ke master.
+    code: buyerForm.value.code
+      ? buyerForm.value.code.trim().toUpperCase()
+      : (existingBuyer?.code || `BY-${(existingBuyer?.id || name).slice(-4).toUpperCase()}`),
     phone: buyerForm.value.phone ? buyerForm.value.phone.trim() : undefined,
     address: buyerForm.value.address ? buyerForm.value.address.trim() : undefined,
     customerType: buyerForm.value.customerType,
@@ -228,21 +270,35 @@ function handleSaveBuyer() {
   };
 
   if (isEditing.value && activeBuyerId.value) {
-    buyerStore.updateBuyer({
-      ...payload,
-      id: activeBuyerId.value
-    });
+    // BUG FIX: kirim objek buyer yang ada supaya `totalSpend`, `memberSince`,
+    // dan field turunan lain tidak hilang (tier member runtuh permanen).
+    const existing = existingBuyer;
+    try {
+      await buyerStore.updateBuyer({
+        ...(existing || {}),
+        ...payload,
+        id: activeBuyerId.value
+      } as any);
+    } catch (err: any) {
+      alert(`Gagal menyimpan data pelanggan: ${err?.message || err}`);
+      return;
+    }
   } else {
-    buyerStore.addBuyer(
-      payload.name,
-      payload.code,
-      payload.phone,
-      payload.address,
-      payload.customerType,
-      payload.memberCardNo,
-      payload.tier,
-      payload.points
-    );
+    try {
+      await buyerStore.addBuyer(
+        payload.name,
+        payload.code,
+        payload.phone,
+        payload.address,
+        payload.customerType,
+        payload.memberCardNo,
+        payload.tier,
+        payload.points
+      );
+    } catch (err: any) {
+      alert(`Gagal menyimpan pelanggan: ${err?.message || err}`);
+      return;
+    }
   }
 
   showBuyerDrawer.value = false;
@@ -355,6 +411,7 @@ defineExpose({
                 <th class="w-36">NO. WHATSAPP</th>
                 <th>ALAMAT PENGIRIMAN</th>
                 <th class="w-32 text-center">KARTU MEMBER</th>
+                <th class="w-24 text-center">TIER</th>
                 <!-- Sticky Action Header -->
                 <th class="th-action-sticky w-20 text-center">AKSI</th>
               </tr>
@@ -368,7 +425,14 @@ defineExpose({
                 @click="handleOpenEdit(buyer)"
               >
                 <td class="font-mono font-bold text-purple-900 whitespace-nowrap">
-                  {{ buyer.code || `BY-${buyer.id.slice(-4)}` }}
+                  <!--
+                    BUG FIX: kode fallback `BY-xxxx` hanya ditampilkan, tidak
+                    disimpan ke master -> kode yang tampil tidak bisa dicari /
+                    dipakai di form kupon/PO, dan 2 buyer dengan id berakhir
+                    sama menghasilkan kode bentrok. Sekarang disimpan saat
+                    pelanggan dibuat/diedit.
+                  -->
+                  {{ buyer.code || '—' }}
                 </td>
 
                 <td class="font-bold text-gray-900 group-hover:text-purple-900 truncate">
@@ -405,14 +469,36 @@ defineExpose({
                 </td>
 
                 <td class="text-center font-sans whitespace-nowrap">
+                  <!--
+                    BUG FIX: kolom "KARTU MEMBER" sebelumnya menampilkan TIER
+                    (bukan nomor kartu) sehingga admin tidak pernah bisa
+                    melihat/mencopy nomor kartu untuk checking. Sekarang
+                    nomor kartu ditampilkan, tier dipindah ke kolom terpisah.
+                  -->
                   <span
                     v-if="buyer.memberCardNo"
-                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-50 border border-purple-200 text-purple-800 text-[10px] font-bold"
+                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-50 border border-purple-200 text-purple-800 text-[10px] font-bold font-mono"
+                    :title="`Tier ${buyer.tier || 'REGULAR'}`"
                   >
                     <CreditCard :size="10" />
-                    <span>{{ buyer.tier || 'REGULAR' }}</span>
+                    <span>{{ buyer.memberCardNo }}</span>
                   </span>
                   <span v-else class="text-gray-300 text-[10px] font-mono">Bukan Member</span>
+                </td>
+
+                <td class="text-center font-sans whitespace-nowrap">
+                  <span
+                    v-if="buyer.memberCardNo"
+                    class="px-2 py-0.5 rounded text-[10px] font-bold inline-block"
+                    :class="{
+                      'bg-amber-100 text-amber-800': buyer.tier === 'GOLD',
+                      'bg-slate-200 text-slate-800': buyer.tier === 'PLATINUM',
+                      'bg-gray-100 text-gray-700': !['GOLD', 'PLATINUM'].includes(buyer.tier || '')
+                    }"
+                  >
+                    {{ buyer.tier || 'REGULAR' }}
+                  </span>
+                  <span v-else class="text-gray-300 text-[10px] font-mono">-</span>
                 </td>
 
                 <!-- Sticky Action Cell -->

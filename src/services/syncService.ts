@@ -17,6 +17,8 @@ const lastSyncAt = ref<Date | null>(null);
 const lastError = ref<string | null>(null);
 
 let pollTimer: any = null;
+let onlineListener: (() => void) | null = null;
+let focusListener: (() => void) | null = null;
 
 async function refreshStatus(): Promise<void> {
   try {
@@ -75,14 +77,22 @@ function startPolling(intervalMs = 4000) {
   if (pollTimer) return;
   refreshStatus();
 
+  // BUG FIX: listener dulu dibuat anonymous sehingga tidak bisa dilepas ->
+  // setiap startPolling() menambah pasangan listener baru (sync jadi ganda).
   if (typeof window !== 'undefined') {
-    window.addEventListener('online', () => {
-      refreshStatus();
-      triggerSync();
-    });
-    window.addEventListener('focus', () => {
-      refreshStatus();
-    });
+    if (!onlineListener) {
+      onlineListener = () => {
+        refreshStatus();
+        triggerSync();
+      };
+      window.addEventListener('online', onlineListener);
+    }
+    if (!focusListener) {
+      focusListener = () => {
+        refreshStatus();
+      };
+      window.addEventListener('focus', focusListener);
+    }
   }
 
   pollTimer = setInterval(() => {
@@ -94,6 +104,17 @@ function stopPolling() {
   if (pollTimer) {
     clearInterval(pollTimer);
     pollTimer = null;
+  }
+  // BUG FIX: lepas juga listener online/focus agar tidak menumpuk
+  if (typeof window !== 'undefined') {
+    if (onlineListener) {
+      window.removeEventListener('online', onlineListener);
+      onlineListener = null;
+    }
+    if (focusListener) {
+      window.removeEventListener('focus', focusListener);
+      focusListener = null;
+    }
   }
 }
 
@@ -112,9 +133,22 @@ export const syncService = {
   resetCache,
   startPolling,
   stopPolling,
-  // Helper for compatibility if store calls enqueue
-  enqueue: (_action: string, _payload: any) => {
-    // Rust SQLite automatically enqueues outbox on every command
-    triggerSync().catch(() => {});
+  /**
+   * BUG FIX: `enqueue()` sebelumnya membuang kedua argumennya sehingga seluruh
+   * fallback offline pada store (transaksi, pembeli, pre-order, kulakan, produk)
+   * TIDAK pernah mengantre data — data hilang begitu aplikasi direstart.
+   * Sekarang payload benar-benar ditulis ke tabel `sync_outbox` (SQLite) dan
+   * akan dikirim ke cloud saat koneksi tersedia.
+   */
+  enqueue: (action: string, payload: any) => {
+    dbService
+      .enqueueOutbox(action, payload ?? {})
+      .then(() => {
+        refreshStatus();
+        triggerSync().catch(() => {});
+      })
+      .catch((err: any) => {
+        console.warn(`[SyncService] Gagal mengantre "${action}" ke outbox:`, err);
+      });
   }
 };

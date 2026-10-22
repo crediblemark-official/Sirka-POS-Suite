@@ -19,6 +19,7 @@ const buyerStore = useBuyerStore();
 const pointAdjustAmount = ref<number>(10);
 const pointAdjustType = ref<'ADD' | 'DEDUCT'>('ADD');
 const pointAdjustReason = ref('');
+const isSaving = ref(false);
 
 function handleKeyDown(e: KeyboardEvent) {
   if (!props.isOpen) return;
@@ -37,6 +38,7 @@ watch(
       pointAdjustAmount.value = 10;
       pointAdjustType.value = 'ADD';
       pointAdjustReason.value = '';
+      isSaving.value = false;
     } else {
       window.removeEventListener('keydown', handleKeyDown);
     }
@@ -48,14 +50,52 @@ onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown);
 });
 
-function handleSave() {
+async function handleSave() {
   if (!props.buyer) return;
+  // BUG FIX: tidak ada guard double-click -> menekan "Simpan Poin" dua kali
+  // cepat menambah poin dua kali. Tidak ada `isSaving` di versi lama.
+  if (isSaving.value) return;
+
+  // BUG FIX: input angka negatif membuat mode "Kurangi Poin" justru MENAMBAH
+  // poin (delta = -(-5) = +5). `min="1"` hanya validasi native browser dan
+  // tidak berlaku karena tidak ada <form> di sini.
+  const amount = Number(pointAdjustAmount.value);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    alert('Jumlah poin harus berupa angka lebih besar dari 0.');
+    return;
+  }
+
   const current = props.buyer.points || 0;
-  const delta = pointAdjustType.value === 'ADD' ? pointAdjustAmount.value : -pointAdjustAmount.value;
-  props.buyer.points = Math.max(0, current + delta);
-  buyerStore.updateBuyer(props.buyer);
-  emit('saved', props.buyer);
-  emit('close');
+  const delta = pointAdjustType.value === 'ADD' ? amount : -amount;
+  const newPoints = Math.max(0, current + delta);
+  if (pointAdjustType.value === 'DEDUCT' && amount > current) {
+    const ok = window.confirm(
+      `Saldo poin saat ini hanya ${current}. Kurangi ${amount} akan menjadi 0. Lanjutkan?`
+    );
+    if (!ok) return;
+  }
+
+  isSaving.value = true;
+  try {
+    // BUG FIX: `props.buyer.points = ...` adalah MUTASI PROPS (state store
+    // berubah sebelum persist & muncul sebagai warning Vue). Sekarang objek
+    // baru dibuat dan dikirim ke store.
+    const updated: Buyer = {
+      ...props.buyer,
+      points: newPoints,
+      // Alasan penyesuaian disimpan di notes supaya jejaknya tidak hilang.
+      notes: pointAdjustReason.value.trim()
+        ? `${props.buyer.notes ? props.buyer.notes + ' | ' : ''}[Penyesuaian Poin ${pointAdjustType.value === 'ADD' ? '+' : '-'}${amount}${pointAdjustReason.value.trim() ? ': ' + pointAdjustReason.value.trim() : ''}]`
+        : props.buyer.notes
+    };
+    await buyerStore.updateBuyer(updated);
+    emit('saved', updated);
+    emit('close');
+  } catch (err: any) {
+    alert(`Gagal menyimpan penyesuaian poin: ${err?.message || err}`);
+  } finally {
+    isSaving.value = false;
+  }
 }
 </script>
 
@@ -137,10 +177,11 @@ function handleSave() {
           </button>
           <button
             type="button"
-            class="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded font-bold cursor-pointer"
+            :disabled="isSaving"
+            class="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded font-bold cursor-pointer disabled:opacity-50"
             @click="handleSave"
           >
-            Simpan Poin
+            {{ isSaving ? 'Menyimpan...' : 'Simpan Poin' }}
           </button>
         </div>
       </div>

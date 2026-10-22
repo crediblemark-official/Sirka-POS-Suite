@@ -133,6 +133,13 @@ function handleSaveUnit() {
       description: unitForm.value.description
     });
   } else {
+    // BUG FIX: nama satuan harus unik. Sebelumnya `addUnit` diam-diam
+    // mengubah satuan existing (mis. satuan sistem "KG" jadi BASE).
+    const cleanName = unitForm.value.name.trim().toUpperCase();
+    if (unitStore.units.some(u => u.name.toUpperCase() === cleanName)) {
+      alert(`Satuan "${cleanName}" sudah ada. Gunakan nama lain atau edit satuan yang sudah terdaftar.`);
+      return;
+    }
     unitStore.addUnit({
       name: unitForm.value.name,
       category: unitForm.value.category,
@@ -142,6 +149,23 @@ function handleSaveUnit() {
   }
 
   showUnitDrawer.value = false;
+}
+
+
+/**
+ * BUG FIX: `unitStore.units.find(...)!` memakai non-null assertion -> bila
+ * satuan sudah terhapus (dari tab lain), hasilnya `undefined` dan
+ * `handleDeleteUnit(undefined)` melempar TypeError sehingga dialog konfirmasi
+ * tidak pernah muncul.
+ */
+function handleDeleteUnitById() {
+  if (!activeUnitId.value) return;
+  const unit = unitStore.units.find(u => u.id === activeUnitId.value);
+  if (!unit) {
+    alert('Satuan tidak ditemukan (mungkin sudah dihapus). Silakan tutup dan buka ulang.');
+    return;
+  }
+  handleDeleteUnit(unit);
 }
 
 async function handleDeleteUnit(unit: MasterUnit) {
@@ -191,14 +215,24 @@ const vendorForm = ref({
 const totalVendors = computed(() => inventoryStore.categoryMarkups.length);
 const totalConnectedSkus = computed(() => inventoryStore.products.length);
 
+/**
+ * Rata-rata margin transaksi.
+ *
+ * BUG FIX: sebelumnya memakai GROSS sales (totalSell) sehingga mengabaikan
+ * diskon & poin, dan diberi label "Rata-Rata Margin" padahal itu MARGIN
+ * (dibagi HPP) bukan rata-rata. Laporan P&L memakai penjualan BERSIH
+ * (`finalTotal`) -> dua angka "margin" berbeda untuk store yang sama.
+ * Sekarang sama definisinya dengan P&L: MARGIN dari penjualan bersih.
+ */
 const averageMarkup = computed(() => {
   let totalTxBuy = 0;
   let totalTxSell = 0;
 
   for (const tx of ledgerStore.transactions) {
-    if (tx.totalBuy > 0 && tx.totalSell > 0) {
+    const net = tx.finalTotal ?? tx.totalSell ?? 0;
+    if ((tx.totalBuy || 0) > 0 && net > 0) {
       totalTxBuy += tx.totalBuy;
-      totalTxSell += tx.totalSell;
+      totalTxSell += net;
     }
   }
 
@@ -289,7 +323,12 @@ function getCategoryTxTotal(category: string): number {
     if (!tx.items || tx.items.length === 0) continue;
     for (const item of tx.items) {
       if ((item.category || '').trim().toLowerCase() === clean) {
-        total += item.subtotalSell || (item.sellPrice * item.qty) || 0;
+        // BUG FIX: `item.subtotalSell || (item.sellPrice * item.qty)` — subtotal
+        // 0 (baris yang 100% didiskon / barang gratis) bersifat falsy sehingga
+        // fallback menambahkan harga penuh -> "NILAI TRANSAKSI" kategori tidak
+        // cocok dengan omzet sebenarnya.
+        const subtotal = item.subtotalSell ?? (item.sellPrice * item.qty);
+        total += Number(subtotal) || 0;
       }
     }
   }
@@ -362,18 +401,52 @@ function handleOpenEditCategory(setting: { category: string; description?: strin
   showVendorDrawer.value = true;
 }
 
-function handleSaveCategory() {
+async function handleSaveCategory() {
   if (!vendorForm.value.name.trim()) return;
 
   if (isEditingCategory.value && activeVendorKey.value) {
     if (activeVendorKey.value.trim().toLowerCase() !== vendorForm.value.name.trim().toLowerCase()) {
-      inventoryStore.deleteCategory(activeVendorKey.value);
-      inventoryStore.addCategory(
-        vendorForm.value.name.trim(),
-        20,
-        vendorForm.value.description,
-        vendorForm.value.color
+      // BUG FIX: saat kategori di-RENAME, margin lama harus dipertahankan.
+      // Sebelumnya `addCategory(nama, 20, ...)` memakai nilai hard-coded 20%
+      // sehingga margin kustom (mis. 25%) hilang, dan produk yang masih
+      // menunjuk kategori lama ikut kehilangan marginnya (fallback 20%).
+      const existing = inventoryStore.categoryMarkups.find(
+        c => c.category === activeVendorKey.value
       );
+      const preservedMarkup = existing?.defaultMarkupPercent ?? 20;
+
+      // BUG FIX: urutan & await sebelumnya salah:
+      //  1) `deleteCategory`/`addCategory` tidak di-await -> insert kategori
+      //     baru bisa belum selesai saat produk di-update -> FK violation.
+      //  2) `deleteCategory` gagal di PostgreSQL bila produk masih memakai
+      //     kategori itu (FK) — error-nya ditelan sehingga state lokal
+      //     berubah tapi cloud tetap menyimpan kategori lama (kategori muncul
+      //     lagi setelah restart).
+      // Sekarang: produk dipindah DULU, baru kategori lama dihapus & yang baru
+      // ditambahkan, semuanya di-await, dan error dilaporkan ke user.
+      const newName = vendorForm.value.name.trim();
+      const moved = inventoryStore.products.filter(p => p.category === activeVendorKey.value);
+      for (const prod of moved) {
+        prod.category = newName;
+        try {
+          await inventoryStore.updateProduct(prod);
+        } catch (err: any) {
+          alert(`Gagal memindahkan barang "${prod.name}" ke kategori "${newName}": ${err?.message || err}`);
+          return;
+        }
+      }
+
+      try {
+        await inventoryStore.deleteCategory(activeVendorKey.value);
+        await inventoryStore.addCategory(
+          newName,
+          preservedMarkup,
+          vendorForm.value.description,
+          vendorForm.value.color
+        );
+      } catch (err: any) {
+        alert(`Gagal mengganti nama kategori: ${err?.message || err}`);
+      }
     } else {
       inventoryStore.updateCategory(activeVendorKey.value, {
         description: vendorForm.value.description,
@@ -427,10 +500,19 @@ function handleOpenAdd() {
 watch(
   () => inventoryStore.showVendorSidebar,
   (isOpen) => {
-    if (isOpen && activeSubTab.value === 'categories' && !isEditingCategory.value && !activeVendorKey.value) {
+    // BUG FIX: sebelumnya drawer kategori hanya terbuka bila sub-tab aktif
+    // "categories". Bila sub-tab "units" aktif, tombol toolbar membuka panel
+    // kosong tanpa form apa pun. Sekarang ikut membuka form satuan.
+    if (!isOpen) return;
+    if (activeSubTab.value === 'units') {
+      if (!isEditingUnit.value && !activeUnitId.value) handleOpenAddUnit();
+      return;
+    }
+    if (!isEditingCategory.value && !activeVendorKey.value) {
       handleOpenAddCategory();
     }
-  }
+  },
+  { immediate: true }
 );
 
 defineExpose({
@@ -752,7 +834,7 @@ defineExpose({
         :show-delete="isEditingUnit"
         width="w-[340px] lg:w-[380px]"
         @save="handleSaveUnit"
-        @delete="activeUnitId && handleDeleteUnit(unitStore.units.find(u => u.id === activeUnitId)!)"
+        @delete="handleDeleteUnitById"
         @cancel="showUnitDrawer = false"
       >
         <template #icon>

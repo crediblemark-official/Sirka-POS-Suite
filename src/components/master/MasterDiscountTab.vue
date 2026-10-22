@@ -50,8 +50,15 @@ const selectedDiscountId = ref<string>('');
 const percentCount = computed(() => discountStore.discounts.filter(d => d.type === 'PERCENT').length);
 const fixedCount = computed(() => discountStore.discounts.filter(d => d.type === 'FIXED').length);
 const memberCount = computed(() => discountStore.discounts.filter(d => d.scope === 'MEMBER_ONLY').length);
-const b2bCount = computed(() => discountStore.discounts.filter(d => d.targetCustomerType === 'B2B').length);
-const b2cCount = computed(() => discountStore.discounts.filter(d => d.targetCustomerType === 'B2C').length);
+// BUG FIX: hitungan B2B/B2C sebelumnya menghitung SEMUA kupon yang punya
+// targetCustomerType, termasuk scope 'ALL' & 'CATEGORY' yang tidak begrup
+// customer type sama sekali -> angka di ribbon != jumlah baris saat filter diklik.
+const b2bCount = computed(() => discountStore.discounts.filter(
+  d => d.scope === 'CUSTOMER_TYPE' && d.targetCustomerType === 'B2B'
+).length);
+const b2cCount = computed(() => discountStore.discounts.filter(
+  d => d.scope === 'CUSTOMER_TYPE' && d.targetCustomerType === 'B2C'
+).length);
 const activeDiscountsCount = computed(() => discountStore.discounts.filter(d => d.isActive).length);
 const totalUsageCount = computed(() => discountStore.discounts.reduce((acc, d) => acc + (d.usageCount || 0), 0));
 
@@ -194,12 +201,22 @@ function toggleExpandAll() {
 
 // Copy code action
 const copiedCode = ref<string | null>(null);
-function copyCode(code: string) {
-  navigator.clipboard.writeText(code);
-  copiedCode.value = code;
-  setTimeout(() => {
-    copiedCode.value = null;
-  }, 1500);
+/**
+ * BUG FIX: `navigator.clipboard.writeText` tanpa await/catch -> unhandled
+ * rejection di WebView Tauri / konteks non-secure, dan UI tetap menampilkan
+ * "Disalin!" padahal sebenarnya gagal.
+ */
+async function copyCode(code: string) {
+  try {
+    await navigator.clipboard.writeText(code);
+    copiedCode.value = code;
+    setTimeout(() => {
+      copiedCode.value = null;
+    }, 1500);
+  } catch (err: any) {
+    console.warn('[MasterDiscountTab] Gagal menyalin kode kupon:', err);
+    alert('Gagal menyalin ke clipboard. Salin manual: ' + code);
+  }
 }
 
 // Handlers
@@ -232,11 +249,31 @@ async function handleDelete(id: string, name: string) {
   });
 
   if (isConfirmed) {
-    discountStore.deleteDiscount(id);
-    discountStore.closeFormSidebar();
-    if (selectedDiscountId.value === id) {
-      selectedDiscountId.value = filteredDiscounts.value[0]?.id || '';
+    // BUG FIX: `deleteDiscount` melempar error bila gagal. Tanpa await/catch
+    // terjadi unhandled rejection dan user TIDAK diberi tahu bahwa kupon
+    // gagal dihapus (baris tetap di layar).
+    try {
+      await discountStore.deleteDiscount(id);
+      discountStore.closeFormSidebar();
+      if (selectedDiscountId.value === id) {
+        selectedDiscountId.value = filteredDiscounts.value[0]?.id || '';
+      }
+    } catch (err: any) {
+      alert(`Gagal menghapus kupon: ${err?.message || err}`);
     }
+  }
+}
+
+/**
+ * BUG FIX: `toggleDiscount` melempar error bila gagal (dan me-rollback state
+ * lokal). Dipanggil langsung dari template tanpa catch -> unhandled rejection
+ * tanpa pesan ke user.
+ */
+async function handleToggleDiscount(id: string) {
+  try {
+    await discountStore.toggleDiscount(id);
+  } catch (err: any) {
+    alert(`Gagal mengubah status kupon: ${err?.message || err}`);
   }
 }
 
@@ -553,7 +590,7 @@ function handleKeyDown(e: KeyboardEvent) {
                       class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold cursor-pointer transition-colors"
                       :class="d.isActive ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'"
                       :title="d.isActive ? 'Klik untuk nonaktifkan' : 'Klik untuk aktifkan'"
-                      @click.stop="discountStore.toggleDiscount(d.id)"
+                      @click.stop="handleToggleDiscount(d.id)"
                     >
                       <span class="w-1.5 h-1.5 rounded-full" :class="d.isActive ? 'bg-emerald-600' : 'bg-gray-400'"></span>
                       <span>{{ d.isActive ? 'AKTIF' : 'NONAKTIF' }}</span>
@@ -656,7 +693,7 @@ function handleKeyDown(e: KeyboardEvent) {
                             type="button"
                             class="px-2 py-0.5 rounded font-bold text-[10px] cursor-pointer transition-colors shadow-2xs"
                             :class="d.isActive ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
-                            @click="discountStore.toggleDiscount(d.id)"
+                            @click="handleToggleDiscount(d.id)"
                           >
                             {{ d.isActive ? 'Klik Nonaktifkan' : 'Klik Aktifkan' }}
                           </button>

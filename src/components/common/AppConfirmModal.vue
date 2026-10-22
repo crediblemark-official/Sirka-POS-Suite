@@ -2,6 +2,10 @@
 import { onMounted, onUnmounted } from 'vue';
 import { useConfirmDialog } from '../../composables/useConfirmDialog';
 import { Trash2, AlertTriangle, Info } from 'lucide-vue-next';
+import { useModalLock } from '../../composables/useModalLock';
+
+// BUG FIX: register modal-lock agar shortcut global (mis. Enter pada
+// ProductCatalog) tidak menambah produk ke keranjang saat modal terbuka.
 
 const { isOpen, options, handleConfirm, handleCancel } = useConfirmDialog();
 
@@ -11,6 +15,18 @@ function handleKeydown(e: KeyboardEvent) {
     e.preventDefault();
     handleCancel();
   } else if (e.key === 'Enter') {
+    // BUG FIX: Enter tanpa cek target bisa mengonfirmasi aksi destruktif
+    // saat user mengetik di input yang berada DI BELAKANG modal.
+    // Sekarang Enter hanya diproses bila fokus berada di dalam modal ini
+    // (atau di body, mis. setelah user mengklik tombol di modal).
+    const target = e.target as HTMLElement | null;
+    const inModal = !!(target && target.closest && target.closest('[data-confirm-modal]'));
+    const inInput = !!(target && (
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      target instanceof HTMLSelectElement
+    ));
+    if (inInput && !inModal) return;
     e.preventDefault();
     handleConfirm();
   }
@@ -23,6 +39,9 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown);
 });
+
+const { bind: bindModalLock } = useModalLock();
+bindModalLock(() => isOpen.value);
 </script>
 
 <template>
@@ -33,6 +52,7 @@ onUnmounted(() => {
       @click.self="handleCancel"
     >
       <div
+        data-confirm-modal
         class="bg-white rounded-xl shadow-2xl border border-gray-200 w-full max-w-md overflow-hidden transform transition-all flex flex-col"
         role="dialog"
         aria-modal="true"

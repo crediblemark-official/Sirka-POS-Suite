@@ -80,17 +80,25 @@ function handleScrollOrResize() {
   }
 }
 
+/**
+ * BUG FIX: perbandingan `===` membuat model bernilai number vs option string
+ * (atau sebaliknya) tidak dianggap terpilih -> field menampilkan placeholder
+ * padahal sudah ada nilainya. Sekarang dibandingkan lewat String().
+ */
 const selectedOption = computed(() =>
-  props.options.find(opt => opt.value === props.modelValue)
+  props.options.find(opt => String(opt.value) === String(props.modelValue))
 );
 
 const filteredOptions = computed(() => {
   const q = searchQuery.value.trim().toLowerCase();
   if (!q) return props.options;
   return props.options.filter(opt =>
-    opt.label.toLowerCase().includes(q) ||
+    (opt.label || '').toLowerCase().includes(q) ||
     (opt.code && opt.code.toLowerCase().includes(q)) ||
-    (opt.sublabel && opt.sublabel.toLowerCase().includes(q))
+    (opt.sublabel && opt.sublabel.toLowerCase().includes(q)) ||
+    // BUG FIX: badge (mis. "3 PO") tidak pernah dicari -> mengetik "3 PO" tidak
+    // menemukan apa pun.
+    (opt.badge && opt.badge.toLowerCase().includes(q))
   );
 });
 
@@ -123,8 +131,15 @@ function handleInputChange(e: Event) {
 function openDropdown() {
   if (props.disabled) return;
   updateDropdownPosition();
+  const wasOpen = isOpen.value;
   isOpen.value = true;
-  searchQuery.value = '';
+  // BUG FIX: input berada DI DALAM elemen yang punya @click="openDropdown".
+  // Setiap klik pada input memunculkan event ini, dan `searchQuery = ''`
+  // menghapus seluruh teks yang sudah diketik user.
+  // Sekarang query hanya dikosongkan saat dropdown baru dibuka.
+  if (!wasOpen) {
+    searchQuery.value = '';
+  }
   // Set initial highlighted index to current selected item
   const idx = filteredOptions.value.findIndex(opt => opt.value === props.modelValue);
   highlightedIndex.value = idx >= 0 ? idx : 0;
@@ -186,6 +201,14 @@ function scrollToHighlighted() {
 function handleKeydown(e: KeyboardEvent) {
   if (!isOpen.value) {
     if (props.hotkey && e.key === props.hotkey) {
+      // BUG FIX: hotkey dipasang pada `window`, sehingga SETIAP instance yang
+      // ter-mount membuka dropdown-nya bersamaan (tab Diskon: select Scope;
+      // tab Ledger: filter pelanggan). Selain itu bentrok dengan shortcut F4
+      // di kasir.
+      // Sekarang hanya instance yang benar-benar terfokus/visible yang merespons.
+      const el = containerRef.value;
+      const isRelevant = !el || el.offsetParent !== null;
+      if (!isRelevant) return;
       e.preventDefault();
       openDropdown();
     }
@@ -379,7 +402,7 @@ defineExpose({
           <!-- Existing Options -->
           <div
             v-for="(opt, idx) in filteredOptions"
-            :key="opt.value"
+            :key="`${String(opt.value)}-${idx}`"
             data-option-item
             class="flex items-center justify-between p-2 rounded cursor-pointer transition-colors text-xs select-none"
             :class="[

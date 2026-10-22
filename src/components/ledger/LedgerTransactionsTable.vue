@@ -7,7 +7,11 @@ import {
   ChevronsDownUp,
   ChevronsUpDown,
   FileText,
-  RotateCcw
+  RotateCcw,
+  Banknote,
+  Landmark,
+  QrCode,
+  Package
 } from 'lucide-vue-next';
 import { Transaction } from '../../types';
 import { formatRupiah } from '../../utils/formatters';
@@ -31,7 +35,7 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <table class="table-explorer min-w-[1050px]">
+  <table class="table-explorer min-w-[1150px]">
     <thead>
       <tr>
         <th class="w-12 text-center">
@@ -54,6 +58,7 @@ const emit = defineEmits<{
         <th class="w-32 text-right">TOTAL NOTA</th>
         <th class="w-32 text-right">UNTUNG BERSIH</th>
         <th class="w-28 text-center">STATUS BAYAR</th>
+        <th class="w-32 text-center">METODE BAYAR</th>
         <!-- Sticky Action Header -->
         <th class="th-action-sticky w-20">AKSI</th>
       </tr>
@@ -116,6 +121,23 @@ const emit = defineEmits<{
               {{ tx.paymentStatus }}
             </button>
           </td>
+          <td class="text-center whitespace-nowrap">
+            <span
+              class="px-2 py-0.5 rounded text-[10px] font-bold inline-flex items-center gap-1 border"
+              :class="{
+                'bg-emerald-50 text-emerald-800 border-emerald-200': tx.paymentMethod === 'Tunai / Kas' || (tx.paymentMethod as string) === 'Tunai',
+                'bg-blue-50 text-blue-800 border-blue-200': tx.paymentMethod === 'Transfer Bank',
+                'bg-purple-50 text-purple-800 border-purple-200': tx.paymentMethod === 'QRIS',
+                'bg-amber-50 text-amber-800 border-amber-200': tx.paymentMethod === 'Nota Tempo' || (tx.paymentMethod as string) === 'TEMPO'
+              }"
+            >
+              <Banknote v-if="tx.paymentMethod === 'Tunai / Kas' || (tx.paymentMethod as string) === 'Tunai'" :size="11" />
+              <Landmark v-else-if="tx.paymentMethod === 'Transfer Bank'" :size="11" />
+              <QrCode v-else-if="tx.paymentMethod === 'QRIS'" :size="11" />
+              <FileText v-else-if="tx.paymentMethod === 'Nota Tempo' || (tx.paymentMethod as string) === 'TEMPO'" :size="11" />
+              <span>{{ tx.paymentMethod || 'Transfer Bank' }}</span>
+            </span>
+          </td>
           <!-- Sticky Action Cell (Right Anchor) -->
           <td class="td-action-sticky whitespace-nowrap" @click.stop>
             <div class="flex items-center justify-center gap-1">
@@ -149,34 +171,80 @@ const emit = defineEmits<{
 
         <!-- EXPANDED DETAIL SUBTABLE -->
         <tr v-if="expandedTxIds.has(tx.id)" class="subtable-row border-b border-indigo-200">
-          <td colspan="11" class="p-0!">
+          <td colspan="12" class="p-0!">
             <div class="bg-white overflow-hidden border-y border-indigo-200/80">
-              <div class="px-4 py-2 bg-[#f6f4ee] border-b border-indigo-200/80 font-bold text-gray-700 flex items-center justify-between text-[11px] whitespace-nowrap">
-                <div class="flex items-center gap-2">
-                  <FileText :size="13" class="text-indigo-800" />
-                  <span>Rincian Transaksi Faktur: <span class="font-mono text-blue-700">{{ tx.invoiceNo }}</span></span>
-                  <span class="text-gray-300">|</span>
-                  <span class="text-gray-600 font-normal">Pelanggan: <strong class="text-gray-800">{{ tx.buyer }}</strong> ({{ tx.customerType || 'B2B' }})</span>
-                  <span class="text-gray-300">|</span>
-                  <span class="text-gray-500 font-mono font-normal">Tgl: {{ tx.date }}</span>
+              <!-- SUBTABLE HEADER (Hanya data komplementer / non-duplikat) -->
+              <div class="px-4 py-1.5 bg-[#f6f4ee] border-b border-indigo-200/80 text-[11px] flex items-center justify-between">
+                <!-- Sisi Kiri: Label & Info Tambahan Khusus Nota (Kasir, Catatan, Diskon, Split) -->
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="font-bold text-gray-800 flex items-center gap-1.5">
+                    <Package :size="13" class="text-indigo-800" />
+                    <span>Rincian Barang Terjual:</span>
+                  </span>
+
+                  <!-- Kasir / PIC -->
+                  <template v-if="tx.picName">
+                    <span class="text-gray-600">Kasir: <strong class="text-gray-800">{{ tx.picName }}</strong></span>
+                    <span class="text-gray-300">|</span>
+                  </template>
+
+                  <!-- Catatan Faktur -->
+                  <template v-if="tx.notes">
+                    <span class="text-gray-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200/80 font-medium italic">
+                      Catatan: "{{ tx.notes }}"
+                    </span>
+                    <span class="text-gray-300">|</span>
+                  </template>
+
+                  <!-- Rincian Diskon Kupon -->
+                  <template v-if="tx.discountAmount && tx.discountAmount > 0">
+                    <span class="text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200 font-medium">
+                      Diskon Kupon: -Rp {{ formatRupiah(tx.discountAmount) }} <strong v-if="tx.discountCode">({{ tx.discountCode }})</strong>
+                    </span>
+                    <span class="text-gray-300">|</span>
+                  </template>
+
+                  <!-- Rincian Loyalty Poin -->
+                  <template v-if="tx.pointsDiscount && tx.pointsDiscount > 0">
+                    <span class="text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 font-medium">
+                      Poin Digunakan: {{ tx.pointsUsed || 0 }} pt (-Rp {{ formatRupiah(tx.pointsDiscount) }})
+                    </span>
+                    <span class="text-gray-300">|</span>
+                  </template>
+                  <template v-if="tx.pointsEarned && tx.pointsEarned > 0">
+                    <span class="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 font-medium">
+                      +{{ tx.pointsEarned }} Poin Didapat
+                    </span>
+                    <span class="text-gray-300">|</span>
+                  </template>
+
+                  <!-- Rincian Split Payment -->
+                  <template v-if="tx.isSplitPayment">
+                    <span class="text-indigo-800 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200 font-medium">
+                      Bayar Campur: Tunai Rp {{ formatRupiah(tx.cashAmount || 0) }} + {{ tx.nonCashMethod || 'Non-Tunai' }} Rp {{ formatRupiah(tx.nonCashAmount || 0) }}
+                    </span>
+                    <span class="text-gray-300">|</span>
+                  </template>
+
+                  <!-- Infaq Kasir -->
+                  <template v-if="tx.infaqAmount && tx.infaqAmount > 0">
+                    <span class="text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 font-medium">
+                      Infaq: Rp {{ formatRupiah(tx.infaqAmount) }}
+                    </span>
+                  </template>
                 </div>
-                <div class="flex items-center gap-3">
+
+                <!-- Sisi Kanan: Aksi Cepat Retur / Koreksi -->
+                <div class="flex items-center gap-2">
                   <button
                     type="button"
                     class="px-2 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded font-bold text-[10.5px] flex items-center gap-1 cursor-pointer transition-colors"
+                    title="Retur atau koreksi barang pada nota ini"
                     @click="returnStore.openRefundModal(tx)"
                   >
                     <RotateCcw :size="11" />
                     <span>Retur / Koreksi Nota</span>
                   </button>
-                  <span class="text-gray-300">|</span>
-                  <span class="text-gray-600 font-normal">Total: <strong>{{ tx.items.length }} barang</strong></span>
-                  <span class="text-gray-300">|</span>
-                  <span class="font-mono text-gray-600 font-normal">Modal: Rp {{ formatRupiah(tx.totalBuy) }}</span>
-                  <span class="text-gray-300">|</span>
-                  <span class="font-mono font-bold text-blue-700">Total Nota: Rp {{ formatRupiah(tx.finalTotal ?? tx.totalSell) }}</span>
-                  <span class="text-gray-300">|</span>
-                  <span class="font-mono font-bold text-emerald-700">Untung: Rp {{ formatRupiah(tx.totalProfit) }}</span>
                 </div>
               </div>
 

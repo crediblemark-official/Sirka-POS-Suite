@@ -22,6 +22,16 @@ function handleKeyDown(e: KeyboardEvent) {
     e.stopPropagation();
     emit('cancel');
   } else if (e.key === 'Enter') {
+    // BUG FIX: Enter tanpa cek target bisa mengonfirmasi perubahan status
+    // dari input yang berada DI BELAKANG modal.
+    const target = e.target as HTMLElement | null;
+    const inInput = !!(target && (
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      target instanceof HTMLSelectElement
+    ));
+    const inModal = !!(target && target.closest && target.closest('[data-status-modal]'));
+    if (inInput && !inModal) return;
     e.preventDefault();
     e.stopPropagation();
     emit('confirm');
@@ -51,7 +61,7 @@ onUnmounted(() => {
     class="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 select-none text-xs"
     @click.self="emit('cancel')"
   >
-    <div class="bg-white rounded-xl shadow-2xl border border-gray-200 w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+    <div data-status-modal class="bg-white rounded-xl shadow-2xl border border-gray-200 w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-100">
       <!-- Modal Header -->
       <div class="px-4 py-3 bg-[#f8f7f5] border-b border-gray-200 flex items-center justify-between font-bold text-sm text-gray-800">
         <div class="flex items-center gap-2">
@@ -81,6 +91,10 @@ onUnmounted(() => {
           <div class="flex justify-between">
             <span class="text-gray-500 font-sans">Pelanggan:</span>
             <span class="font-bold text-gray-800 font-sans truncate max-w-[180px]">{{ transaction.buyer }}</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-gray-500 font-sans">Metode Bayar:</span>
+            <span class="font-semibold text-gray-700 font-sans">{{ transaction.paymentMethod || 'Transfer Bank' }}</span>
           </div>
           <div class="flex justify-between">
             <span class="text-gray-500 font-sans">Total Tagihan:</span>

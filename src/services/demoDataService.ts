@@ -95,17 +95,47 @@ export const demoDataService = {
     await dbService.wipeAllData(wipeCloud);
 
     // 2. Bersihkan seluruh localStorage
+    // BUG FIX: kunci-kunci di bawah TIDAK sesuai dengan yang benar-benar dipakai
+    // store (`kasir_citra_products_v1`, `kasir_citra_markups_v1`,
+    // `kasir_citra_held_carts_v1`). Akibatnya "Kosongkan Database" tidak
+    // menghapus katalog lama, dan saat app dibuka lagi katalog lama muncul
+    // kembali seolah-olah tidak pernah dikosongkan.
     const keysToRemove = [
-      'kasir_citra_products_v2',
-      'kasir_citra_markups_v2',
+      // inventoryStore
+      'kasir_citra_products_v1',
+      'kasir_citra_markups_v1',
+      // buyerStore
       'kasir_citra_buyers_v3',
       'kasir_citra_loyalty_settings_v1',
+      // discountStore
       'kasir_citra_discounts_v1',
+      // ledgerStore
       'kasir_citra_ledger_v1',
+      // preOrderStore
       'kasir_citra_preorders_v2',
+      // purchaseStore
       'kasir_citra_purchases_v1',
-      'kasir_citra_pos_cart_v1',
-      'kasir_citra_suppliers_v1'
+      // posStore (keranjang parkir)
+      'kasir_citra_held_carts_v1',
+      // supplierStore
+      'kasir_citra_suppliers_v1',
+      // unitStore
+      'kasir_citra_units_v1',
+      // stockMovementStore
+      'kasir_citra_stock_movements_v1',
+      'kasir_citra_stock_adjustments_v1',
+      // batchStore
+      'kasir_citra_batches_v1',
+      // returnStore
+      'kasir_citra_refunds_v1',
+      'kasir_citra_waste_v1',
+      // settingsStore
+      'kasir_citra_settings_v1',
+      // shiftStore
+      'kasir_citra_current_shift_v1',
+      'kasir_citra_shift_history_v1',
+      // demoDataService sendiri
+      'kasir_citra_demo_loaded_v1'
     ];
     for (const k of keysToRemove) {
       localStorage.removeItem(k);

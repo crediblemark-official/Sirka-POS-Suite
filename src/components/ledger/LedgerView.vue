@@ -43,6 +43,7 @@ const returnStore = useReturnStore();
 // 1. Reactive Filters & View State
 const filterBuyer = ref<string>('Semua');
 const filterStatus = ref<PaymentStatus | 'Semua'>('Semua');
+const filterMethod = ref<string>('Semua');
 const filterMarket = ref<'Semua' | 'B2B' | 'B2C'>('Semua');
 const viewMode = ref<'transactions' | 'items' | 'refunds'>('transactions');
 const expandedTxIds = ref<Set<string>>(new Set());
@@ -64,11 +65,12 @@ const buyerOptions = computed<SelectOption[]>(() => {
 });
 
 const hasActiveFilter = computed(() => {
-  return filterStatus.value !== 'Semua' || filterMarket.value !== 'Semua' || filterBuyer.value !== 'Semua';
+  return filterStatus.value !== 'Semua' || filterMethod.value !== 'Semua' || filterMarket.value !== 'Semua' || filterBuyer.value !== 'Semua';
 });
 
 function resetFilters() {
   filterStatus.value = 'Semua';
+  filterMethod.value = 'Semua';
   filterMarket.value = 'Semua';
   filterBuyer.value = 'Semua';
 }
@@ -76,25 +78,31 @@ function resetFilters() {
 // 3. Ribbon Counts
 const lunasCount = computed(() => ledgerStore.transactions.filter(t => t.paymentStatus === 'LUNAS').length);
 const tempoCount = computed(() => ledgerStore.transactions.filter(t => t.paymentStatus === 'TEMPO').length);
+const tunaiCount = computed(() => ledgerStore.transactions.filter(t => t.paymentMethod === 'Tunai / Kas' || (t.paymentMethod as string) === 'Tunai').length);
+const transferCount = computed(() => ledgerStore.transactions.filter(t => t.paymentMethod === 'Transfer Bank').length);
+const qrisCount = computed(() => ledgerStore.transactions.filter(t => t.paymentMethod === 'QRIS').length);
+const notaTempoCount = computed(() => ledgerStore.transactions.filter(t => t.paymentMethod === 'Nota Tempo' || (t.paymentMethod as string) === 'TEMPO').length);
 const b2bCount = computed(() => ledgerStore.transactions.filter(t => (t.customerType || 'B2B') === 'B2B').length);
 const b2cCount = computed(() => ledgerStore.transactions.filter(t => t.customerType === 'B2C').length);
 
 // 4. Filtered Data (DRY Helper)
-function matchesCommonFilters(buyer: string, status: PaymentStatus, customerType?: string): boolean {
+function matchesCommonFilters(buyer: string, status: PaymentStatus, customerType?: string, paymentMethod?: string): boolean {
   const matchBuyer = filterBuyer.value === 'Semua' || buyer === filterBuyer.value;
   const matchStatus = filterStatus.value === 'Semua' || status === filterStatus.value;
   const matchMarket = filterMarket.value === 'Semua' || (customerType || 'B2B') === filterMarket.value;
-  return matchBuyer && matchStatus && matchMarket;
+  const matchMethod = filterMethod.value === 'Semua' || (paymentMethod || 'Transfer Bank') === filterMethod.value;
+  return matchBuyer && matchStatus && matchMarket && matchMethod;
 }
 
 const filteredTransactions = computed(() => {
   const q = (props.searchQuery || '').toLowerCase().trim();
   return ledgerStore.transactions.filter(t => {
-    if (!matchesCommonFilters(t.buyer, t.paymentStatus, t.customerType)) return false;
+    if (!matchesCommonFilters(t.buyer, t.paymentStatus, t.customerType, t.paymentMethod)) return false;
     if (!q) return true;
     return (
       t.invoiceNo.toLowerCase().includes(q) ||
       t.buyer.toLowerCase().includes(q) ||
+      (t.paymentMethod || '').toLowerCase().includes(q) ||
       t.items.some(i => i.name.toLowerCase().includes(q))
     );
   });
@@ -103,13 +111,14 @@ const filteredTransactions = computed(() => {
 const filteredFlatRows = computed(() => {
   const q = (props.searchQuery || '').toLowerCase().trim();
   return ledgerStore.flatLedgerRows.filter(r => {
-    if (!matchesCommonFilters(r.buyer, r.paymentStatus, r.customerType)) return false;
+    if (!matchesCommonFilters(r.buyer, r.paymentStatus, r.customerType, r.paymentMethod)) return false;
     if (!q) return true;
     return (
       r.invoiceNo.toLowerCase().includes(q) ||
       r.productName.toLowerCase().includes(q) ||
       r.buyer.toLowerCase().includes(q) ||
-      r.category.toLowerCase().includes(q)
+      r.category.toLowerCase().includes(q) ||
+      (r.paymentMethod || '').toLowerCase().includes(q)
     );
   });
 });
@@ -258,6 +267,7 @@ function handleRefundViewReceipt(invoiceNo: string) {
     <!-- 1. Top Filter Ribbon (Modular Component) -->
     <LedgerRibbon
       v-model:filter-status="filterStatus"
+      v-model:filter-method="filterMethod"
       v-model:filter-market="filterMarket"
       v-model:filter-buyer="filterBuyer"
       v-model:view-mode="viewMode"
@@ -265,6 +275,10 @@ function handleRefundViewReceipt(invoiceNo: string) {
       :total-transactions-count="ledgerStore.transactions.length"
       :lunas-count="lunasCount"
       :tempo-count="tempoCount"
+      :tunai-count="tunaiCount"
+      :transfer-count="transferCount"
+      :qris-count="qrisCount"
+      :nota-tempo-count="notaTempoCount"
       :b2b-count="b2bCount"
       :b2c-count="b2cCount"
       :refunds-count="returnStore.refunds.length"

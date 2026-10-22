@@ -6,7 +6,9 @@ import { useSupplierStore } from '../../stores/supplierStore';
 import { usePurchaseStore } from '../../stores/purchaseStore';
 import { useStockMovementStore } from '../../stores/stockMovementStore';
 import { useBatchStore } from '../../stores/batchStore';
-import { formatRupiah } from '../../utils/formatters';
+import { formatRupiah, localTodayStr } from '../../utils/formatters';
+import { dbService } from '../../services/dbService';
+import { syncService } from '../../services/syncService';
 import FormSidebarDrawer from '../common/FormSidebarDrawer.vue';
 import SearchableSelect, { type SelectOption } from '../common/SearchableSelect.vue';
 import { useConfirmDialog } from '../../composables/useConfirmDialog';
@@ -96,6 +98,7 @@ const productForm = ref<{
   notes: string;
   hasMultiUnits: boolean;
   units: ProductUnitConversion[];
+  isPerishable: boolean;
 }>({
   id: '',
   code: '',
@@ -110,7 +113,8 @@ const productForm = ref<{
   barcode: '',
   notes: '',
   hasMultiUnits: false,
-  units: []
+  units: [],
+  isPerishable: false
 });
 
 // State Kulakan (Barang Masuk)
@@ -172,7 +176,16 @@ const totalInboundCost = computed(() => {
   if (activeInboundFactor.value !== 1 && inboundPackageBuyPrice.value > 0) {
     return received * inboundPackageBuyPrice.value;
   }
-  return received * (Number(productForm.value.lastBuyPrice) || 0);
+  // BUG FIX: bila satuan masuk adalah satuan kemasan, harga beli HARUS dihitung
+  // dari harga per satuan dasar x isi kemasan. Sebelumnya memakai
+  // `lastBuyPrice` (harga per satuan dasar) dikali jumlah kemasan sehingga
+  // total biaya nota ikut terpaut 40x lebih kecil (contoh: 5 DUS x Rp 12.500
+  // dihitung Rp 62.500 padahal nilainya Rp 2.500.000).
+  const baseBuy = Number(productForm.value.lastBuyPrice) || 0;
+  if (activeInboundFactor.value !== 1) {
+    return received * baseBuy * activeInboundFactor.value;
+  }
+  return received * baseBuy;
 });
 
 // Inisialisasi Form untuk Produk Baru
@@ -195,9 +208,12 @@ function resetToNew(initialName = '') {
     barcode: '',
     notes: '',
     hasMultiUnits: false,
-    units: []
+    units: [],
+    isPerishable: false
   };
-  qtyReceived.value = 10;
+  // BUG FIX: default 10 membuat produk baru otomatis mendapat 10 unit stok
+  // gratis dengan HPP Rp 0 -> batch HPP nol menaikkan laba penjualan secara palsu.
+  qtyReceived.value = 0;
   invoiceNumber.value = '';
   selectedInboundUnit.value = 'PCS';
   inboundPackageBuyPrice.value = 0;
@@ -224,7 +240,8 @@ function loadProductData(prod: Product) {
     barcode: prod.barcode || '',
     notes: prod.notes || '',
     hasMultiUnits: existingUnits.length > 0,
-    units: existingUnits
+    units: existingUnits,
+    isPerishable: prod.isPerishable ?? false
   };
   qtyReceived.value = 0;
   selectedInboundUnit.value = prod.unit;
@@ -232,7 +249,25 @@ function loadProductData(prod: Product) {
 }
 
 // Helper Multi-Satuan: Pasang Template Cepat Populer
+/**
+ * BUG FIX: template sebelumnya MENGHAPUS seluruh daftar satuan yang sudah ada
+ * dan (untuk template mie/rokok/air) mengganti satuan dasar produk tanpa
+ * mengubah stok — mis. barang existing 25 KG jadi 25 BUNGKUS (nilai 25x).
+ *
+ * Sekarang template hanya untuk produk BARU, dan satuan dasar tidak
+ * diubah bila produk sudah punya stok.
+ */
 function applyUnitTemplate(type: 'mie' | 'telur' | 'rokok' | 'beras' | 'air' | 'renceng') {
+  const isExistingProduct = Boolean(selectedProductId.value);
+  const hasStock = (Number(productForm.value.currentStock) || 0) > 0;
+  if (isExistingProduct && hasStock) {
+    const ok = window.confirm(
+      'Menerapkan template akan MENGGANTI satuan dasar & daftar satuan produk ini.\n' +
+      'Stok yang sudah tercatat akan ditafsirkan ulang memakai satuan baru.\n\n' +
+      'Lanjutkan? (pastikan stok sudah disesuaikan)'
+    );
+    if (!ok) return;
+  }
   productForm.value.hasMultiUnits = true;
   if (type === 'mie') {
     productForm.value.unit = 'BUNGKUS';
@@ -409,16 +444,35 @@ async function handleSave() {
   if (!productForm.value.name.trim() || !productForm.value.unit.trim()) return;
   if (isSaving.value) return;
 
+  // BUG FIX: nama barang & SKU harus unik. Tanpa validasi ini dua produk
+  // dengan nama sama membuat lookup barcode/SKU ambigu.
+  const dup = inventoryStore.products.find(
+    p => p.name.trim().toUpperCase() === productForm.value.name.trim().toUpperCase()
+      && p.id !== selectedProductId.value
+  );
+  if (dup) {
+    alert(`Barang dengan nama "${productForm.value.name.trim().toUpperCase()}" sudah ada (${dup.code}).\nGunakan nama lain agar pencarian & barcode tidak ambigu.`);
+    return;
+  }
+
   isSaving.value = true;
   try {
     const isNew = !selectedProductId.value;
     const sell = Math.max(0, Number(productForm.value.lastSellPrice) || 0);
     const nowStock = Number(productForm.value.currentStock) || 0;
-    
+
     // Hitung efektif stok & modal per base unit dari input kulakan
     const effectiveQty = effectiveReceivedBaseQty.value;
     const finalStock = isNew ? effectiveQty : Number((nowStock + effectiveQty).toFixed(4));
     const effectiveBuy = effectiveBaseBuyPrice.value;
+
+    // BUG FIX: barang masuk tanpa harga modal akan membuat batch FIFO dengan
+    // HPP Rp 0 sehingga laba penjualan reported jadi lebih besar dari kenyataan.
+    if (effectiveQty > 0 && effectiveBuy <= 0) {
+      alert('Harga beli (modal) wajib diisi untuk barang yang masuk, jika tidak HPP batch akan tersimpan Rp 0 dan laba penjualan jadi tidak akurat.');
+      isSaving.value = false;
+      return;
+    }
 
     const prodId = isNew
       ? `prod-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`
@@ -451,20 +505,28 @@ async function handleSave() {
       barcode: productForm.value.barcode?.trim() || undefined,
       notes: productForm.value.notes?.trim() || undefined,
       units: cleanUnits && cleanUnits.length > 0 ? cleanUnits : undefined,
-      isPerishable: false
+      isPerishable: productForm.value.isPerishable ?? false
     };
 
     if (isNew) {
-      inventoryStore.addProduct(productPayload);
+      // BUG FIX: `inventoryStore.addProduct()` kini menghormati id yang diberikan.
+      // Sebelumnya id di-override sehingga batch / kartu stok / nota kulakan
+      // menunjuk produk yang tidak pernah ada di master.
+      productPayload.id = prodId;
+      await inventoryStore.addProduct(productPayload);
     } else {
-      inventoryStore.updateProduct(productPayload);
+      await inventoryStore.updateProduct(productPayload);
     }
+
+    // Sinkronkan stok form agar penyimpanan berikutnya tidak memakai nilai basi
+    // (BUG FIX: `currentStock` hanya diisi saat load -> simpan 2x kehilangan stok).
+    productForm.value.currentStock = finalStock;
 
     // Jika ada penambahan barang masuk (Nyetok / Kulakan > 0), catat ke Kartu Stok, Riwayat Kulakan, dan Batch FIFO
     if (effectiveQty > 0) {
       const invoiceNo =
         invoiceNumber.value.trim() ||
-        `NOTA-${(productForm.value.supplier || 'KULAKAN').replace(/\s+/g, '-').toUpperCase()}-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`;
+        `NOTA-${(productForm.value.supplier || 'KULAKAN').replace(/\s+/g, '-').toUpperCase()}-${localTodayStr().replace(/-/g, '')}`;
 
       const supplierName = productForm.value.supplier || 'Mitra Pemasok';
       const inboundUnitName = selectedInboundUnit.value || productPayload.unit;
@@ -488,20 +550,27 @@ async function handleSave() {
       });
 
       // 2. Simpan Riwayat Nota Kulakan
+      // BUG FIX: `id` nota & item memakai `Date.now()` saja sehingga dua nota
+      // yang dibuat pada milidetik yang sama bertabrakan. Ditambah sufiks acak.
       const receipt: PurchaseReceipt = {
-        id: `pr-${Date.now()}`,
+        id: `pr-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
         supplierInvoiceNo: invoiceNo,
-        date: new Date().toISOString().slice(0, 10),
+        date: localTodayStr(),
         supplier: supplierName,
         items: [
           {
-            id: `rcv-${Date.now()}`,
+            id: `rcv-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
             productId: productPayload.id,
             code: productPayload.code,
             name: productPayload.name,
             category: productPayload.category,
             unit: inboundUnitName,
             qtyReceived: Math.max(0, Number(qtyReceived.value) || 0),
+            // BUG FIX: `baseQty` & `conversionFactor` wajib disimpan supaya
+            // adjusting stok saat edit/hapus nota memakai satuan DASAR,
+            // bukan jumlah kemasan (5 DUS vs 200 PCS).
+            baseQty: effectiveQty,
+            conversionFactor: activeInboundFactor.value,
             buyPrice: activeInboundFactor.value !== 1 && inboundPackageBuyPrice.value > 0 ? inboundPackageBuyPrice.value : effectiveBuy,
             subtotalBuy: totalInboundCost.value,
             markupPercent: productPayload.defaultMarkupPercent,
@@ -512,8 +581,17 @@ async function handleSave() {
         notes: productForm.value.notes || undefined,
         createdAt: new Date().toISOString()
       };
+      // BUG FIX: nota kulakan harus disimpan ke DATABASE, bukan hanya localStorage.
+      // Sebelumnya `fetchPurchases()` menimpa cache lokal dengan data DB (kosong)
+      // sehingga seluruh riwayat kulakan hilang setelah restart aplikasi.
       purchaseStore.purchaseHistory.unshift(receipt);
       purchaseStore.saveLocal();
+      try {
+        await dbService.savePurchase(receipt);
+      } catch (err) {
+        console.warn('[Sync] Offline: enqueued purchase receipt for sync:', err);
+        syncService.enqueue('SAVE_PURCHASE', { receipt });
+      }
 
       // 3. Catat Batch FIFO/FEFO dalam Base Unit
       batchStore.addBatch({

@@ -53,8 +53,13 @@ const editForm = ref({
 const isSaving = ref(false);
 
 watch(
-  () => props.buyer,
-  (b) => {
+  // BUG FIX: `deep: true` membuat watcher ikut terpicu setiap kali objek buyer
+  // berubah di store (mis. transaksi POS menambah poin) -> input yang sedang
+  // diketik user (nama/alamat) TERHAPUS kembali ke nilai store.
+  // Sekarang hanya perubahan ID buyer yang mengisi ulang form.
+  () => props.buyer?.id,
+  () => {
+    const b = props.buyer;
     if (b) {
       editForm.value = {
         name: b.name || '',
@@ -65,14 +70,15 @@ watch(
       };
     }
   },
-  { immediate: true, deep: true }
+  { immediate: true }
 );
 
 function generateNewCardNumber(type: CustomerType = 'B2B') {
-  const storeAbbr = settingsStore.storeCode || 'CITRA';
-  const rand = Math.floor(1000 + Math.random() * 9000);
-  const prefix = type === 'B2B' ? `${storeAbbr}-B2B` : storeAbbr;
-  return `${prefix}-${rand}`;
+  // BUG FIX: nomor kartu sebelumnya acak 4 digit TANPA cek keunikan
+  // (~1/9000 bentrok) -> dua anggota bisa punya kartu sama dan kasir yang
+  // memindai akan menempelkan member yang SALAH (poin & tier ikut salah).
+  // Sekarang memakai generator aman dari store (50 percobaan + fallback).
+  return buyerStore.generateMemberCardNo(settingsStore.storeCode || 'CITRA', type);
 }
 
 function randomizeCardNumber() {
@@ -87,7 +93,12 @@ async function handleSave() {
       ...props.buyer,
       name: editForm.value.name.trim(),
       memberCardNo: editForm.value.memberCardNo.trim().toUpperCase() || undefined,
-      tier: computedTier.value,
+      // BUG FIX: tier sebelumnya ditulis ulang dari `totalSpend` setiap kali
+      // disimpan. Begitu `totalSpend` sempat jadi 0 (mis. karena edit dari tab
+      // Master Buyer), tier member GOLD/PLATINUM turun permanen ke REGULAR
+      // hanya dengan menyimpan form yang tidak mengubah tier.
+      // Sekarang tier tidak diubah dari form edit (diurus backend saat transaksi).
+      tier: props.buyer.tier,
       customerType: editForm.value.customerType,
       phone: editForm.value.phone.trim() || undefined,
       address: editForm.value.address.trim() || undefined
@@ -95,8 +106,10 @@ async function handleSave() {
 
     await buyerStore.updateBuyer(updatedBuyer);
     emit('saved', updatedBuyer);
-  } catch (err) {
+  } catch (err: any) {
+    // BUG FIX: error hanya masuk console -> user tidak tahu perubahan gagal.
     console.error('Failed to update member:', err);
+    alert(`Gagal menyimpan perubahan anggota: ${err?.message || err}`);
   } finally {
     isSaving.value = false;
   }
@@ -124,8 +137,10 @@ async function handleRemoveCard() {
       };
       await buyerStore.updateBuyer(updatedBuyer);
       emit('saved', updatedBuyer);
-    } catch (err) {
+    } catch (err: any) {
+      // BUG FIX: error hanya masuk console -> user tidak tahu bahwa aksi gagal.
       console.error('Failed to detach member card:', err);
+      alert(`Gagal mencabut kartu member: ${err?.message || err}`);
     } finally {
       isSaving.value = false;
     }

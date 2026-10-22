@@ -181,6 +181,22 @@ function handleSaveSupplier() {
 
 const { confirm: showConfirm } = useConfirmDialog();
 
+/**
+ * BUG FIX: sebelumnya memakai `getSupplierById(id)!` (non-null assertion).
+ * Kalau supplier sudah terhapus (mis. dari tab lain) fungsinya melempar
+ * TypeError dan dialog konfirmasi tidak pernah muncul.
+ */
+async function handleDeleteSupplierById() {
+  if (!activeSupplierId.value) return;
+  const supplier = supplierStore.getSupplierById(activeSupplierId.value);
+  if (!supplier) {
+    alert('Data supplier tidak ditemukan (mungkin sudah dihapus). Silakan tutup dan buka ulang.');
+    showDrawer.value = false;
+    return;
+  }
+  await handleDeleteSupplier(supplier);
+}
+
 async function handleDeleteSupplier(supplier: Supplier) {
   const invoiceCount = getPurchaseCountForSupplier(supplier.name);
   const msg = invoiceCount > 0
@@ -368,7 +384,7 @@ defineExpose({
         @switch-to-new="handleOpenAdd"
         @switch-to-edit="isEditing = true"
         @save="handleSaveSupplier"
-        @delete="activeSupplierId && handleDeleteSupplier(supplierStore.getSupplierById(activeSupplierId)!)"
+        @delete="handleDeleteSupplierById"
         @cancel="showDrawer = false"
       >
         <template #icon>

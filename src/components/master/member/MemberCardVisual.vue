@@ -2,7 +2,6 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import QRCode from 'qrcode';
 import {
-  RotateCw,
   CreditCard,
   QrCode as QrIcon,
   Sparkles,
@@ -123,9 +122,9 @@ watch(
   { immediate: true }
 );
 
-onMounted(() => {
-  generateQr();
-});
+// BUG FIX: `generateQr()` sebelumnya dipanggil DUA kali saat mount (watcher
+// `immediate: true` + `onMounted`) -> kerja sia-sia & ada risiko race gambar QR.
+// Sekarang cukup satu pemicu (watcher immediate).
 
 // Pseudo 1D barcode lines generator based on card number
 const barcodeBars = computed(() => {
@@ -276,17 +275,6 @@ defineExpose({
       </div>
 
       <div class="flex items-center gap-1.5">
-        <!-- Rotate / Flip Button -->
-        <button
-          v-if="interactive"
-          type="button"
-          class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-200/70 rounded-md cursor-pointer transition-colors"
-          title="Putar / Balik Kartu"
-          @click="toggleFlip"
-        >
-          <RotateCw :size="14" />
-        </button>
-
         <!-- Download PNG Split Button with Dropdown -->
         <div ref="downloadDropdownRef" class="relative">
           <div class="flex items-stretch rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-xs transition-colors">
@@ -472,9 +460,15 @@ defineExpose({
       </div>
 
       <!-- 3. Flat Both Sides Side-by-Side (Berdampingan) -->
+      <!--
+        BUG FIX: lebar container 840px dengan padding 24px (content box 792px)
+        tapi isinya 390 + gap 24 + 390 = 804px -> 12px overflow sehingga sisi
+        kiri/kanan kartu (termasuk sisi QR) TERPOTONG pada PNG hasil export.
+        Sekarang lebarnya 828px (792 + 2*24) sehingga tidak ada overflow.
+      -->
       <div
         ref="exportBothRef"
-        style="width: 840px; padding: 24px;"
+        style="width: 828px; padding: 24px; box-sizing: border-box;"
         class="bg-slate-900 rounded-3xl flex items-center justify-center gap-6"
       >
         <div style="width: 390px; height: 225px;" class="overflow-hidden rounded-2xl shadow-2xl">

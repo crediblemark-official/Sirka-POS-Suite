@@ -9,6 +9,11 @@ import { usePreOrderStore } from '../../stores/preOrderStore';
 import { usePurchaseStore } from '../../stores/purchaseStore';
 import { syncService } from '../../services/syncService';
 import { demoDataService } from '../../services/demoDataService';
+import { useModalLock } from '../../composables/useModalLock';
+
+// BUG FIX: register modal-lock agar shortcut global (mis. Enter pada
+// ProductCatalog) tidak menambah produk ke keranjang saat modal terbuka.
+
 import {
   Database,
   Cloud,
@@ -140,6 +145,9 @@ watch(
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown);
 });
+
+const { bind: bindModalLock } = useModalLock();
+bindModalLock(() => props.isOpen);
 </script>
 
 <template>

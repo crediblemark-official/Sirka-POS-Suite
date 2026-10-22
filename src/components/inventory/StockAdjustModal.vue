@@ -5,12 +5,16 @@ import { useStockMovementStore } from '../../stores/stockMovementStore';
 import { StockAdjustReason } from '../../types';
 import SearchableSelect, { SelectOption } from '../common/SearchableSelect.vue';
 import { Scale, X } from 'lucide-vue-next';
+import { useModalLock } from '../../composables/useModalLock';
+
+// BUG FIX: register modal-lock agar shortcut global (mis. Enter pada
+// ProductCatalog) tidak menambah produk ke keranjang saat modal terbuka.
 
 const inventoryStore = useInventoryStore();
 const movementStore = useStockMovementStore();
 
 const selectedProductId = ref<string>('');
-const physicalStockInput = ref<number | null>(null);
+const physicalStockInput = ref<number | null | string>(null);
 const selectedReason = ref<StockAdjustReason>('SELISIH_HITUNG');
 const notes = ref<string>('');
 const isSubmitting = ref<boolean>(false);
@@ -32,8 +36,13 @@ const currentProduct = computed(() => {
 const systemStock = computed(() => currentProduct.value?.stock ?? 0);
 
 const stockDiff = computed(() => {
-  if (physicalStockInput.value === null) return 0;
-  return Number(physicalStockInput.value) - systemStock.value;
+  // BUG FIX: `v-model.number` mengembalikan string '' saat input dikosongkan
+  // (Vue `looseToNumber` mengembalikan nilai asli bila parseFloat gagal).
+  // Tanpa guard, input kosong dianggap 0 sehingga UI menampilkan "seluruh
+  // stok hilang" dan (kalau lolos) stok produk di-set 0.
+  const raw = physicalStockInput.value;
+  if (raw === null || raw === undefined || raw === '' || !Number.isFinite(Number(raw))) return 0;
+  return Number(raw) - systemStock.value;
 });
 
 // Watch when modal opens or activeProductForAdjust changes
@@ -62,18 +71,37 @@ function handleProductChange(prodId: string) {
 }
 
 async function handleSaveAdjustment() {
-  if (!currentProduct.value || physicalStockInput.value === null) return;
+  // BUG FIX: input kosong (nilai '' dari v-model.number) sebelumnya lolos
+  // guard `=== null` sehingga `Number('')` = 0 -> stok produk di-set 0 dan
+  // seluruh stok SKU itu hilang tanpa sengaja.
+  const raw = physicalStockInput.value;
+  if (!currentProduct.value) return;
+  if (raw === null || raw === undefined || raw === '') {
+    alert('Jumlah stok fisik belum diisi. Masukkan angka hasil hitung fisik sebelum menerapkan penyesuaian.');
+    return;
+  }
+  if (!Number.isFinite(Number(raw))) {
+    alert('Jumlah stok fisik harus berupa angka yang valid.');
+    return;
+  }
   if (isSubmitting.value) return;
 
   isSubmitting.value = true;
   try {
-    await movementStore.adjustStock({
+    const ok = await movementStore.adjustStock({
       productId: currentProduct.value.id,
-      physicalStock: physicalStockInput.value,
+      physicalStock: Number(raw),
       reason: selectedReason.value,
       notes: notes.value.trim() || undefined,
       adjustedBy: 'Kasir / Owner'
     });
+    // BUG FIX: hasil `adjustStock` sebelumnya diabaikan sehingga modal tetap
+    // tertutup & menampilkan "sukses" walau produk tidak ditemukan / tidak
+    // ada selisih.
+    if (!ok) {
+      alert('Penyesuaian tidak dapat diterapkan: tidak ada selisih antara stok sistem dan stok fisik, atau produk tidak ditemukan.');
+      return;
+    }
     movementStore.closeAdjustModal();
   } catch (err) {
     alert(`Gagal menyimpan penyesuaian: ${err}`);
@@ -81,6 +109,9 @@ async function handleSaveAdjustment() {
     isSubmitting.value = false;
   }
 }
+
+const { bind: bindModalLock } = useModalLock();
+bindModalLock(() => movementStore.isAdjustModalOpen);
 </script>
 
 <template>
@@ -217,7 +248,7 @@ async function handleSaveAdjustment() {
         <button
           type="button"
           class="px-4 py-1.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-40 text-white rounded-lg text-xs font-bold cursor-pointer transition-colors shadow-sm"
-          :disabled="!currentProduct || physicalStockInput === null || isSubmitting"
+          :disabled="!currentProduct || physicalStockInput === null || physicalStockInput === '' || isSubmitting"
           @click="handleSaveAdjustment"
         >
           {{ isSubmitting ? 'Menyimpan...' : 'Terapkan Penyesuaian Stok' }}

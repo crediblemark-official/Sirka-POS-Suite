@@ -28,7 +28,10 @@ const isEditing = computed(() => Boolean(discountStore.activeDiscountForEdit?.id
 const formCode = ref('');
 const formName = ref('');
 const formType = ref<DiscountType>('PERCENT');
-const formValue = ref<number>(10);
+// BUG FIX: nilai default kupon berbeda tergantung cara form dibuka
+// (ref awal 10, resetForm 5). Sekarang konsisten 5.
+const DEFAULT_DISCOUNT_VALUE = 5;
+const formValue = ref<number>(DEFAULT_DISCOUNT_VALUE);
 const formMinPurchase = ref<number>(0);
 const formMaxDiscount = ref<number | undefined>(undefined);
 const formScope = ref<DiscountScope>('ALL');
@@ -43,6 +46,21 @@ const categoryOptions = computed<SelectOption[]>(() => {
     value: cat,
     label: cat
   }));
+});
+
+/**
+ * BUG FIX: `can-save` sebelumnya tidak memvalidasi target scope. Kupon dengan
+ * scope CATEGORY & kategori kosong tersimpan -> tidak pernah bisa dipakai
+ * ("Kupon hanya berlaku untuk kategori ").
+ */
+const canSave = computed(() => {
+  if (!formCode.value.trim() || !formName.value.trim()) return false;
+  const value = Number(formValue.value);
+  if (!Number.isFinite(value) || value <= 0) return false;
+  if (formType.value === 'PERCENT' && value > 100) return false;
+  if (formScope.value === 'CATEGORY' && !formTargetCategory.value.trim()) return false;
+  if (formScope.value === 'CUSTOMER_TYPE' && !formTargetCustomerType.value) return false;
+  return true;
 });
 
 const scopeOptions: SelectOption[] = [
@@ -61,7 +79,7 @@ function resetForm() {
   formCode.value = '';
   formName.value = '';
   formType.value = 'PERCENT';
-  formValue.value = 5;
+  formValue.value = DEFAULT_DISCOUNT_VALUE;
   formMinPurchase.value = 0;
   formMaxDiscount.value = undefined;
   formScope.value = 'ALL';
@@ -100,7 +118,9 @@ watch(
 watch(
   () => props.modelValue,
   (isOpen) => {
-    if (isOpen && !discountStore.activeDiscountForEdit && !formCode.value) {
+    // BUG FIX: reset hanya dilakukan bila `formCode` masih kosong, sehingga
+    // data form lama bisa bertahan saat drawer dibuka dalam mode "Tambah".
+    if (isOpen && !discountStore.activeDiscountForEdit) {
       resetForm();
     }
   }
@@ -112,12 +132,29 @@ async function handleSave() {
     return;
   }
 
+  // BUG FIX: diskon persen > 100% membuat transaksi gratis (finalTotal = 0)
+  // karena diskon tidak dibatasi terhadap subtotal. Sekarang divalidasi.
+  const numericValue = Number(formValue.value);
+  if (!Number.isFinite(numericValue) || numericValue <= 0) {
+    alert('Nilai diskon harus berupa angka lebih besar dari 0.');
+    return;
+  }
+  if (formType.value === 'PERCENT' && numericValue > 100) {
+    alert('Diskon persen tidak boleh lebih dari 100%. Nilai di atas 100% akan membuat transaksi gratis.');
+    return;
+  }
+  // BUG FIX: scope tanpa target -> kupon tidak akan pernah bisa dipakai.
+  if (formScope.value === 'CATEGORY' && !formTargetCategory.value.trim()) {
+    alert('Pilih kategori barang yang berlaku untuk kupon ini.');
+    return;
+  }
+
   const payload: Omit<Discount, 'id' | 'createdAt' | 'usageCount'> | Discount = {
     ...(discountStore.activeDiscountForEdit ? { id: discountStore.activeDiscountForEdit.id } : {}),
     code: formCode.value.trim().toUpperCase(),
     name: formName.value.trim(),
     type: formType.value,
-    value: Number(formValue.value) || 0,
+    value: numericValue,
     minPurchase: Number(formMinPurchase.value) || 0,
     maxDiscount: formType.value === 'PERCENT' && formMaxDiscount.value ? Number(formMaxDiscount.value) : undefined,
     scope: formScope.value,
@@ -127,10 +164,17 @@ async function handleSave() {
     description: formDescription.value.trim() || undefined
   };
 
-  const saved = await discountStore.upsertDiscount(payload);
-  emit('update:modelValue', false);
-  if (saved) {
-    emit('saved', saved);
+  // BUG FIX: `upsertDiscount` melempar error bila gagal. Tanpa try/catch terjadi
+  // unhandled rejection -> drawer tetap terbuka TANPA pesan error, dan user
+  // menekan Simpan berulang -> kupon DUPLIKAT dengan kode sama.
+  try {
+    const saved = await discountStore.upsertDiscount(payload);
+    emit('update:modelValue', false);
+    if (saved) {
+      emit('saved', saved);
+    }
+  } catch (err: any) {
+    alert(`Gagal menyimpan kupon: ${err?.message || err}`);
   }
 }
 
@@ -153,7 +197,7 @@ function handleClose() {
     title="Diskon"
     :code-badge="formCode"
     :can-edit="!!selectedDiscount"
-    :can-save="!!formCode.trim() && !!formName.trim()"
+    :can-save="canSave"
     :save-label="isEditing ? 'SIMPAN PERUBAHAN' : 'SIMPAN KUPON'"
     theme-color="rose"
     @switch-to-new="emit('switch-to-new')"

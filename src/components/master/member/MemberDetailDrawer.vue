@@ -11,7 +11,8 @@ import {
   Coins,
   Printer,
   Plus,
-  Pencil
+  Pencil,
+  Edit2
 } from 'lucide-vue-next';
 import MemberCardVisual from './MemberCardVisual.vue';
 import MemberLoyaltyRulesForm from './MemberLoyaltyRulesForm.vue';
@@ -44,7 +45,10 @@ watch(
     if (newTab) {
       activeDrawerTab.value = newTab;
     }
-  }
+  },
+  // BUG FIX: tanpa `immediate`, tab drawer tidak mengikuti `initialTab` saat
+  // drawer dibuka untuk buyer lain (state tab lama bertahan).
+  { immediate: true }
 );
 
 function onMemberRegistered(newBuyer: Buyer) {
@@ -129,8 +133,14 @@ function onMemberUpdated(updated: Buyer) {
     </div>
 
     <!-- Drawer Body 1: Tab Form Pendaftaran Member Baru -->
+    <!--
+      BUG FIX: form ini di-`v-if` per tab -> berpindah tab MEMBUAT & MEMECAH
+      ulang form sehingga watcher `immediate` jalan lagi dan isian pengguna
+      (nomor kartu, nama) HILANG. Sekarang form tetap ter-mount (v-show)
+      sehingga isian tidak hilang saat berpindah tab.
+    -->
     <MemberRegisterForm
-      v-if="activeDrawerTab === 'REGISTER'"
+      v-show="activeDrawerTab === 'REGISTER'"
       :initial-buyer-id="initialRegisterBuyerId"
       @registered="onMemberRegistered"
       @cancel="emit('close')"
@@ -138,7 +148,7 @@ function onMemberUpdated(updated: Buyer) {
 
     <!-- Drawer Body 2: Tab Edit Data Member -->
     <MemberEditForm
-      v-else-if="activeDrawerTab === 'EDIT'"
+      v-if="activeDrawerTab === 'EDIT'"
       :buyer="buyer"
       @saved="onMemberUpdated"
       @cancel="activeDrawerTab = 'CARD'"

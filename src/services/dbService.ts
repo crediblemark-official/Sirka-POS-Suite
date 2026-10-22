@@ -103,11 +103,36 @@ export const dbService = {
     await invoke('db_update_markup', { category, markupPercent });
   },
 
-  async createMarkup(category: string, markupPercent: number, description?: string): Promise<void> {
+  async createMarkup(
+    category: string,
+    markupPercent: number,
+    description?: string,
+    color?: string
+  ): Promise<void> {
     await invoke('db_create_markup', {
       category,
       markupPercent,
-      description: description || null
+      description: description || null,
+      color: color || null
+    });
+  },
+
+  /**
+   * BUG FIX: update kategori harus ikut menyimpan warna + deskripsi.
+   * Sebelumnya `dbService.updateMarkup` hanya mengirim margin sehingga warna
+   * kategori hilang setiap kali master dimuat ulang dari database.
+   */
+  async updateMarkupFull(
+    category: string,
+    markupPercent: number,
+    description?: string,
+    color?: string
+  ): Promise<void> {
+    await invoke('db_update_markup_full', {
+      category,
+      markupPercent,
+      description: description || null,
+      color: color || null
     });
   },
 
@@ -225,5 +250,14 @@ export const dbService = {
     last_error: string | null;
   }> {
     return await invoke('db_wipe_all_data', { wipeCloud });
+  },
+
+  /**
+   * BUG FIX: antrean outbox harus bisa diisi dari sisi frontend.
+   * Tanpa ini, fallback "offline" pada semua store membuang data karena
+   * `syncService.enqueue()` hanya memanggil triggerSync tanpa menyimpan apa pun.
+   */
+  async enqueueOutbox(action: string, payload: unknown): Promise<number> {
+    return await invoke<number>('db_enqueue_outbox', { action, payload });
   }
 };

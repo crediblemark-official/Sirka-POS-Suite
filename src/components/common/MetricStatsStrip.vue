@@ -20,7 +20,7 @@ defineProps<{
   <div class="flex items-center divide-x divide-gray-200 border-b border-gray-200 bg-white px-2 py-2 shrink-0 select-none">
     <div
       v-for="(item, idx) in items"
-      :key="idx"
+      :key="`${item.label}-${idx}`"
       class="flex-1 min-w-0 px-2 flex items-center gap-2"
     >
       <div
