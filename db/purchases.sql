@@ -21,6 +21,10 @@ CREATE TABLE IF NOT EXISTS purchase_receipt_items (
     category VARCHAR(100),
     unit VARCHAR(50),
     qty_received NUMERIC(15,2) NOT NULL DEFAULT 0,
+    -- BUG FIX: kuantitas dalam SATUAN DASAR produk & faktor konversi satuan
+    -- kemasan -> satuan dasar. Dipakai untuk adjusting stok saat edit/hapus nota.
+    base_qty NUMERIC(15,2) NOT NULL DEFAULT 0,
+    conversion_factor NUMERIC(15,4) NOT NULL DEFAULT 1,
     buy_price NUMERIC(15,2) NOT NULL DEFAULT 0,
     subtotal_buy NUMERIC(15,2) NOT NULL DEFAULT 0,
     markup_percent NUMERIC(5,2) NOT NULL DEFAULT 0,
@@ -30,4 +34,8 @@ CREATE TABLE IF NOT EXISTS purchase_receipt_items (
 
 CREATE INDEX IF NOT EXISTS idx_purchase_receipt_items_receipt_id ON purchase_receipt_items(receipt_id);
 CREATE INDEX IF NOT EXISTS idx_purchase_receipt_items_product_id ON purchase_receipt_items(product_id);
+
+-- Migrasi idempotent untuk tabel yang sudah ada sebelum kolom base_qty/conversion_factor
+ALTER TABLE purchase_receipt_items ADD COLUMN IF NOT EXISTS base_qty NUMERIC(15,2) DEFAULT 0;
+ALTER TABLE purchase_receipt_items ADD COLUMN IF NOT EXISTS conversion_factor NUMERIC(15,4) DEFAULT 1;
 

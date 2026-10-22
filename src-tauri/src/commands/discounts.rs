@@ -15,7 +15,7 @@ pub async fn db_get_discounts() -> Result<Vec<DiscountRecord>, String> {
 #[tauri::command]
 pub async fn db_upsert_discount(discount: DiscountRecord) -> Result<String, String> {
     let id = if discount.id.is_empty() {
-        format!("disc-{}", chrono::Utc::now().timestamp_millis())
+        format!("disc-{}", uuid::Uuid::new_v4())
     } else {
         discount.id.clone()
     };
@@ -87,7 +87,12 @@ pub async fn pg_upsert_discount(discount: DiscountRecord) -> Result<String, Stri
                target_category = EXCLUDED.target_category,
                target_customer_type = EXCLUDED.target_customer_type,
                is_active = EXCLUDED.is_active,
-               description = EXCLUDED.description",
+               description = EXCLUDED.description,
+               -- BUG FIX: `usage_count` sebelumnya tidak pernah di-update di
+               -- PostgreSQL sehingga penghitung pemakaian kupon di cloud
+               -- menyimpang permanen dari perangkat (dan admin tidak pernah
+               -- bisa meresetnya).
+               usage_count = COALESCE(EXCLUDED.usage_count, discounts.usage_count)",
             &[
                 &id,
                 &discount.code,

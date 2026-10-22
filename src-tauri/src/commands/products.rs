@@ -15,7 +15,7 @@ pub async fn db_get_products() -> Result<Vec<ProductRecord>, String> {
 #[tauri::command]
 pub async fn db_upsert_product(product: ProductRecord) -> Result<String, String> {
     let id = if product.id.is_empty() {
-        format!("prod-{}", chrono::Utc::now().timestamp_millis())
+        format!("prod-{}", uuid::Uuid::new_v4())
     } else {
         product.id.clone()
     };
@@ -94,10 +94,18 @@ pub async fn pg_upsert_product(product: ProductRecord) -> Result<String, String>
     let client = get_pg_client().await?;
     let id = product.id;
 
+    // BUG FIX: multi-satuan (units) & penanda mudah busuk harus ikut tersimpan
+    // ke PostgreSQL, kalau tidak fitur jual per DUS/SAK/PETI hilang saat sinkron.
+    let units_json: Option<String> = product
+        .units
+        .as_ref()
+        .and_then(|u| serde_json::to_string(u).ok());
+    let is_perishable = product.is_perishable.unwrap_or(false);
+
     client
         .execute(
-            "INSERT INTO products (id, code, name, category, unit, default_markup_percent, last_buy_price, last_sell_price, stock, notes, barcode, updated_at)
-             VALUES ($1, $2, $3, $4, $5, $6::float8::numeric, $7::float8::numeric, $8::float8::numeric, $9::float8::numeric, $10, $11, NOW())
+            "INSERT INTO products (id, code, name, category, unit, default_markup_percent, last_buy_price, last_sell_price, stock, notes, barcode, units, is_perishable, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6::float8::numeric, $7::float8::numeric, $8::float8::numeric, $9::float8::numeric, $10, $11, $12::jsonb, $13, NOW())
              ON CONFLICT (id) DO UPDATE SET
                code = EXCLUDED.code,
                name = EXCLUDED.name,
@@ -109,6 +117,8 @@ pub async fn pg_upsert_product(product: ProductRecord) -> Result<String, String>
                stock = EXCLUDED.stock,
                notes = EXCLUDED.notes,
                barcode = EXCLUDED.barcode,
+               units = COALESCE(EXCLUDED.units, products.units),
+               is_perishable = EXCLUDED.is_perishable,
                updated_at = NOW()",
             &[
                 &id,
@@ -122,6 +132,8 @@ pub async fn pg_upsert_product(product: ProductRecord) -> Result<String, String>
                 &product.stock,
                 &product.notes,
                 &product.barcode,
+                &units_json,
+                &is_perishable,
             ],
         )
         .await

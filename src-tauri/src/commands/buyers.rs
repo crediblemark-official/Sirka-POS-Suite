@@ -14,7 +14,7 @@ pub async fn db_get_buyers() -> Result<Vec<BuyerRecord>, String> {
 #[tauri::command]
 pub async fn db_upsert_buyer(buyer: BuyerRecord) -> Result<String, String> {
     let id = if buyer.id.is_empty() {
-        format!("buyer-{}", chrono::Utc::now().timestamp_millis())
+        format!("buyer-{}", uuid::Uuid::new_v4())
     } else {
         buyer.id.clone()
     };
@@ -61,11 +61,15 @@ pub async fn pg_upsert_buyer(buyer: BuyerRecord) -> Result<String, String> {
     let tier = buyer.tier.unwrap_or_else(|| "REGULAR".to_string());
     let points = buyer.points.unwrap_or(0.0);
     let total_spend = buyer.total_spend.unwrap_or(0.0);
+    // BUG FIX: `member_since` sebelumnya tidak pernah ditulis ke PostgreSQL
+    // sehingga anggota lama tampak baru terdaftar di dashboard owner, dan
+    // nilainya hilang permanen setelah cache lokal dibersihkan.
+    let member_since = buyer.member_since.clone().filter(|s| !s.trim().is_empty());
 
     client
         .execute(
-            "INSERT INTO buyers (id, name, code, phone, address, customer_type, member_card_no, tier, points, total_spend)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::float8::numeric, $10::float8::numeric)
+            "INSERT INTO buyers (id, name, code, phone, address, customer_type, member_card_no, tier, points, total_spend, member_since, notes)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::float8::numeric, $10::float8::numeric, $11::text::date, $12)
              ON CONFLICT (id) DO UPDATE SET
                name = EXCLUDED.name,
                code = EXCLUDED.code,
@@ -75,7 +79,9 @@ pub async fn pg_upsert_buyer(buyer: BuyerRecord) -> Result<String, String> {
                member_card_no = EXCLUDED.member_card_no,
                tier = EXCLUDED.tier,
                points = EXCLUDED.points,
-               total_spend = EXCLUDED.total_spend",
+               total_spend = EXCLUDED.total_spend,
+               member_since = COALESCE(EXCLUDED.member_since, buyers.member_since),
+               notes = EXCLUDED.notes",
             &[
                 &id,
                 &buyer.name,
@@ -87,6 +93,8 @@ pub async fn pg_upsert_buyer(buyer: BuyerRecord) -> Result<String, String> {
                 &tier,
                 &points,
                 &total_spend,
+                &member_since,
+                &buyer.notes,
             ],
         )
         .await

@@ -6,7 +6,23 @@ use std::time::Duration;
 /// Menyimpan file export secara native ke filesystem dengan dialog file picker (Explorer / Finder / Zenity)
 #[tauri::command]
 pub fn save_export_file(filename: String, data: Vec<u8>) -> Result<String, String> {
-    let mut dialog = rfd::FileDialog::new().set_file_name(&filename);
+    // BUG FIX (keamanan): nama file dari frontend tidak lagi dipakai mentah-mentah.
+    // Nilai berisi path separator (mis. "../../.bashrc") bisa membuat file ditulis
+    // di luar folder yang dipilih. Sekarang hanya NAMA FILE yang dipakai
+    // (tanpa direktori) dan karakter path dibuang.
+    let safe_filename = filename
+        .rsplit(['/', '\\'])
+        .next()
+        .unwrap_or("export")
+        .trim()
+        .replace("..", "_");
+    let safe_filename = if safe_filename.is_empty() {
+        "export".to_string()
+    } else {
+        safe_filename
+    };
+
+    let mut dialog = rfd::FileDialog::new().set_file_name(&safe_filename);
 
     let home = std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
@@ -16,7 +32,7 @@ pub fn save_export_file(filename: String, data: Vec<u8>) -> Result<String, Strin
         dialog = dialog.set_directory(&downloads);
     }
 
-    let path_ref = std::path::Path::new(&filename);
+    let path_ref = std::path::Path::new(&safe_filename);
     if let Some(ext) = path_ref.extension().and_then(|s| s.to_str()) {
         let ext_lower = ext.to_lowercase();
         match ext_lower.as_str() {
@@ -39,8 +55,22 @@ pub fn save_export_file(filename: String, data: Vec<u8>) -> Result<String, Strin
 
     match selected_path {
         Some(path) => {
-            fs::write(&path, data)
+            // BUG FIX: `fs::write` adalah truncate-write — bila penulisan gagal
+            // di tengah, file asli sudah rusak/hilang. Sekarang file ditulis ke
+            // file sementara lalu di-rename (atomic-ish) supaya file lama tidak
+            // pernah hilang kalau proses gagal.
+            let tmp_path = path.with_extension(format!(
+                "{}.part",
+                path.extension()
+                    .and_then(|e| e.to_str())
+                    .unwrap_or("tmp")
+            ));
+            fs::write(&tmp_path, &data)
                 .map_err(|e| format!("Gagal menulis file: {}", e))?;
+            if let Err(e) = fs::rename(&tmp_path, &path) {
+                let _ = fs::remove_file(&tmp_path);
+                return Err(format!("Gagal menyimpan file: {}", e));
+            }
             Ok(format!("File berhasil disimpan di: {}", path.display()))
         }
         None => Err("CANCELLED".to_string()),
@@ -76,8 +106,31 @@ pub fn print_to_network_printer(
         return Err(format!("Alamat printer tidak ditemukan: {}", addr_str));
     }
 
-    let mut stream = TcpStream::connect_timeout(&socket_addrs[0], Duration::from_secs(3))
-        .map_err(|e| format!("Gagal terhubung ke {}. Pastikan virtual-thermal-printer atau printer thermal Anda aktif: {}", addr_str, e))?;
+    // BUG FIX: hanya mencoba `socket_addrs[0]`. Kalau IP pertama tidak
+    // terjangkau padahal IP lain (mis. printer dengan 2 interface) bisa,
+    // pencetakan gagal padahal printer sebenarnya aktif.
+    // Sekarang mencoba SEMUA alamat yang di-resolve.
+    let mut last_err: Option<String> = None;
+    let mut stream: Option<TcpStream> = None;
+    for sa in &socket_addrs {
+        match TcpStream::connect_timeout(sa, Duration::from_secs(3)) {
+            Ok(s) => {
+                stream = Some(s);
+                break;
+            }
+            Err(e) => {
+                last_err = Some(format!("{}: {}", sa, e));
+            }
+        }
+    }
+    let mut stream = stream.ok_or_else(|| {
+        format!(
+            "Gagal terhubung ke {}. Pastikan virtual-thermal-printer atau printer thermal Anda aktif ({}): {}",
+            addr_str,
+            addr_str,
+            last_err.unwrap_or_else(|| "tidak diketahui".to_string())
+        )
+    })?;
 
     // ESC/POS sequences:
     // 1. ESC @: Initialize printer
@@ -114,6 +167,20 @@ pub fn get_bluetooth_devices() -> Result<Vec<BluetoothDevice>, String> {
         .arg("devices")
         .output()
         .map_err(|e| format!("Gagal menjalankan bluetoothctl: {}", e))?;
+
+    // BUG FIX: exit status & stderr diabaikan. Kalau `bluetoothctl` gagal
+    // (mis. daemon bluetooth tidak jalan) hasilnya list kosong dan aplikasi
+    // menampilkan "Tidak ada perangkat Bluetooth yang terpasang" — pesan yang
+    // menyesatkan. Sekarang error asli dikembalikan.
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let suffix = if stderr.is_empty() {
+            ".".to_string()
+        } else {
+            format!(": {}", stderr)
+        };
+        return Err(format!("Gagal membaca daftar perangkat Bluetooth{}", suffix));
+    }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let mut devices = Vec::new();
@@ -296,14 +363,36 @@ pub fn print_to_usb_printer(
     text: String,
 ) -> Result<String, String> {
     let target = device_path.unwrap_or_else(|| "/dev/usb/lp0".to_string());
-    
+
+    // BUG FIX (keamanan): `device_path` datang langsung dari webview dan
+    // sebelumnya dipakai tanpa validasi. `fs::write` adalah truncate-write,
+    // jadi path arbitrer bisa menimpa file apa pun yang boleh ditulis user
+    // (mis. ~/.bashrc, ~/.config/autostart/*.desktop, ~/Documents/invoice.xlsx).
+    // Sekarang path WAJIB berada di bawah direktori perangkat printer.
+    let target_path = std::path::Path::new(&target);
+    if !target_path.is_absolute() {
+        return Err("Path printer USB harus absolut (contoh: /dev/usb/lp0)".into());
+    }
+    let allowed_prefixes = ["/dev/usb/", "/dev/lp", "/dev/ttyUSB", "/dev/ttyACM"];
+    if !allowed_prefixes.iter().any(|p| target.starts_with(p)) {
+        return Err(format!(
+            "Path printer USB '{}' tidak diizinkan. Hanya perangkat printer \
+             (/dev/usb/lp*, /dev/lp*, /dev/ttyUSB*, /dev/ttyACM*) yang boleh ditulis.",
+            target
+        ));
+    }
+    // Tolak path yang mengandung komponen navigasi (../)
+    if target_path.components().any(|c| c.as_os_str() == "..") {
+        return Err("Path printer USB tidak valid".into());
+    }
+
     let mut payload = Vec::new();
     payload.extend_from_slice(&[0x1b, 0x40]); // ESC @ (Init)
     payload.extend_from_slice(text.as_bytes());
     payload.extend_from_slice(b"\n\n\n");
     payload.extend_from_slice(&[0x1d, 0x56, 0x00]); // GS V 0 (Cut)
 
-    std::fs::write(&target, payload)
+    std::fs::write(&target_path, payload)
         .map_err(|e| format!("Gagal mencetak ke printer USB di {}: {}", target, e))?;
 
     Ok(format!("Struk berhasil dikirim ke printer USB di {}", target))
@@ -366,8 +455,26 @@ pub fn generate_receipt_text(
     let payment_method = get_str("paymentMethod");
 
     // Helper alignment
+    /// Potong teks agar tidak melebihi lebar kolom (mencegah kolom rusak
+    /// saat nama barang / nama toko panjang).
+    fn truncate(text: &str, max: usize) -> String {
+        let count = text.chars().count();
+        if count <= max {
+            return text.to_string();
+        }
+        if max <= 1 {
+            return "…".to_string();
+        }
+        let mut s: String = text.chars().take(max - 1).collect();
+        s.push('…');
+        s
+    }
     fn row(left: &str, right: &str, width: usize) -> String {
-        let right = right.to_string();
+        // BUG FIX: teks yang lebih panjang dari lebar kolom TIDAK dipotong ->
+        // kolom thermal rusak dan subtotal tidak sejajar dengan itemnya.
+        let right = truncate(right, width);
+        let right_len = right.chars().count();
+        let left = truncate(left, width.saturating_sub(right_len + 1));
         let l_len = left.chars().count();
         let r_len = right.chars().count();
         if l_len + r_len + 1 >= width {
@@ -378,6 +485,7 @@ pub fn generate_receipt_text(
         }
     }
     let center = |text: &str| -> String {
+        let text = truncate(text, width);
         let len = text.chars().count();
         let pad = if len < width { (width - len) / 2 } else { 0 };
         format!("{}{}", " ".repeat(pad), text)
@@ -400,10 +508,18 @@ pub fn generate_receipt_text(
     out.push('\n');
     out.push_str(&row("Tgl", get_str("date").as_str(), width));
     out.push('\n');
-    let buyer_label = if is_b2c { "Pelanggan" } else { "Pembeli " };
+    // BUG FIX: label "Pembeli " punya spasi di akhir sedangkan "Pelanggan"
+    // tidak -> nama pelanggan B2B mulai satu kolom lebih kanan dibanding B2C.
+    let buyer_label = if is_b2c { "Pelanggan" } else { "Pembeli" };
     out.push_str(&row(buyer_label, get_str("buyer").as_str(), width));
     out.push('\n');
-    out.push_str(&row("Status", &format!("{} ({})", payment_status, payment_method), width));
+    // BUG FIX: metode bayar kosong membuat struk tercetak "LUNAS ()".
+    let status_text = if payment_method.trim().is_empty() {
+        payment_status.clone()
+    } else {
+        format!("{} ({})", payment_status, payment_method)
+    };
+    out.push_str(&row("Status", &status_text, width));
     out.push('\n');
     if !get_str("picName").is_empty() {
         out.push_str(&row("PIC", get_str("picName").as_str(), width));
@@ -425,11 +541,12 @@ pub fn generate_receipt_text(
                 .get("subtotalSell")
                 .and_then(|v| v.as_f64())
                 .unwrap_or(qty * price);
-            let qty_txt = if qty.fract() == 0.0 {
-                format!("{}", qty as i64)
-            } else {
-                format!("{:.1}", qty)
-            };
+            // BUG FIX: qty dibulatkan ke 1 desimal sehingga penjualan 0,125 KG
+            // tercetak "0.1 KG" dan 2,25 KG tercetak "2.2" (round-half-to-even)
+            // — padahal total dihitung dari qty persisnya. Pelanggan menerima
+            // struk berisi jumlah yang tidak pernah terjual.
+            // Sekarang 3 desimal dengan trailing zero dibuang.
+            let qty_txt = format_qty(qty);
             out.push_str(&format!("{}. {}\n", idx + 1, name));
             out.push_str(&row(
                 &format!("  {} {} x {}", qty_txt, unit, fmt_rp(price)),
@@ -467,9 +584,35 @@ pub fn generate_receipt_text(
     out.push_str(&row("TOTAL", &format!("Rp {}", fmt_rp(final_total)), width));
     out.push('\n');
 
+    // BUG FIX: struk thermal sebelumnya TIDAK menampilkan kembalian, infaq,
+    // maupun rincian split payment — padahal struk HTML/WhatsApp menampilkannya.
+    // Akibatnya pelanggan tidak tahu berapa kembalian yang diterima dan kasir
+    // tidak punya bukti nominal infaq yang masuk kotak amal.
+    let change_amount = get_num("changeAmount");
+    if change_amount > 0.0 {
+        out.push_str(&row("Kembalian", &format!("Rp {}", fmt_rp(change_amount)), width));
+        out.push('\n');
+    }
+    let infaq_amount = get_num("infaqAmount");
+    if infaq_amount > 0.0 {
+        out.push_str(&row("Infaq/Kotak Amal", &format!("Rp {}", fmt_rp(infaq_amount)), width));
+        out.push('\n');
+    }
+    if get_bool("isSplitPayment") {
+        let cash_amt = get_num("cashAmount");
+        let non_cash_amt = get_num("nonCashAmount");
+        let non_cash_method = get_str("nonCashMethod");
+        out.push_str(&row(
+            "Bayar Campur",
+            &format!("Tunai {} + {} {}", fmt_rp(cash_amt), fmt_rp(non_cash_amt), non_cash_method),
+            width,
+        ));
+        out.push('\n');
+    }
+
     let points_earned = get_num("pointsEarned");
     if points_earned > 0.0 {
-        out.push_str(&row("Poin Didapat", &format!("+{}", points_earned as i64), width));
+        out.push_str(&row("Poin Didapat", &format!("+{}", points_earned.round() as i64), width));
         out.push('\n');
     }
 
@@ -496,11 +639,42 @@ pub fn generate_receipt_text(
         out.push('\n');
         out.push_str(&center("TANDA TERIMA PENGIRIMAN"));
         out.push('\n');
-        out.push_str("Penerima:              Pengirim:\n\n\n");
-        out.push_str("(..................)   (..................)\n");
+        // BUG FIX: blok ini sebelumnya hard-coded untuk lebar 32 kolom sehingga
+        // tidak sejajar di kertas 42 kolom (80mm).
+        let half = width / 2;
+        out.push_str(&format!(
+            "{:<width$}{:<width$}\n",
+            "Penerima:",
+            "Pengirim:",
+            width = half
+        ));
+        out.push_str(&format!(
+            "{:<width$}{:<width$}\n",
+            "(..................)",
+            "(..................)",
+            width = half
+        ));
     }
 
     Ok(out)
+}
+
+/// Format jumlah (qty) untuk struk thermal.
+///
+/// BUG FIX: format lama memakai 1 desimal sehingga 0,125 KG tercetak "0.1"
+/// dan 2,25 KG tercetak "2.2" (round-half-to-even) — jumlah yang tidak pernah
+/// terjual. Sekarang 3 desimal dengan trailing zero dibuang.
+fn format_qty(qty: f64) -> String {
+    if !qty.is_finite() {
+        return "0".to_string();
+    }
+    let rounded = (qty * 1000.0).round() / 1000.0;
+    if (rounded - rounded.trunc()).abs() < f64::EPSILON {
+        return format!("{}", rounded as i64);
+    }
+    let s = format!("{:.3}", rounded);
+    let s = s.trim_end_matches('0').trim_end_matches('.').to_string();
+    s
 }
 
 /// Format Rupiah dengan pemisah ribuan titik (untuk struk thermal)
@@ -566,6 +740,21 @@ pub async fn db_reset_cache() -> Result<crate::sync::SyncStatusInfo, String> {
 #[tauri::command]
 pub async fn db_wipe_all_data(wipe_cloud: bool) -> Result<crate::sync::SyncStatusInfo, String> {
     crate::sync::wipe_all_data(wipe_cloud).await
+}
+
+/// BUG FIX: antrean outbox harus bisa diisi langsung dari sisi frontend.
+///
+/// Sebelumnya `syncService.enqueue()` di frontend hanya memanggil `triggerSync()`
+/// tanpa menulis apa pun ke outbox. Akibatnya semua fallback "offline" pada
+/// store (transaksi, pembeli, pre-order, kulakan, produk) membuang data begitu
+/// perintah database gagal — data tidak pernah tersimpan di SQLite maupun PG.
+///
+/// Perintah ini menulis payload apa pun ke tabel `sync_outbox` sehingga data
+/// tetap tersimpan lokal dan terkirim ke cloud saat koneksi kembali.
+#[tauri::command]
+pub fn db_enqueue_outbox(action: String, payload: serde_json::Value) -> Result<i64, String> {
+    let conn = crate::local_db::get_conn().lock().unwrap();
+    crate::local_db::enqueue_outbox(&conn, &action, &payload).map_err(|e| e.to_string())
 }
 
 

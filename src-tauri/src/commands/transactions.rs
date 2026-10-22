@@ -82,6 +82,18 @@ pub async fn pg_create_transaction(
     let final_total = tx.final_total.unwrap_or(tx.total_sell);
     let is_pre_order = tx.is_pre_order.unwrap_or(false);
     let pic_name = tx.pic_name.clone().filter(|s| !s.trim().is_empty());
+    // BUG FIX: field split payment / kembalian / infaq / shift / refund
+    // sebelumnya dibuang serde sehingga tidak pernah sampai ke PostgreSQL.
+    let is_split_payment = tx.is_split_payment.unwrap_or(false);
+    let cash_amount = tx.cash_amount.unwrap_or(0.0);
+    let non_cash_amount = tx.non_cash_amount.unwrap_or(0.0);
+    let change_amount = tx.change_amount.unwrap_or(0.0);
+    let infaq_amount = tx.infaq_amount.unwrap_or(0.0);
+    let refund_status = tx
+        .refund_status
+        .clone()
+        .unwrap_or_else(|| "NONE".to_string());
+    let refund_total = tx.refund_total.unwrap_or(0.0);
 
     let existing = client
         .query_opt(
@@ -98,16 +110,19 @@ pub async fn pg_create_transaction(
     client
         .execute(
             "INSERT INTO transactions (
-                id, invoice_no, date, buyer, items, total_buy, total_sell, total_profit, 
-                profit_percent, payment_status, payment_method, customer_type, notes, 
-                discount_amount, discount_code, points_used, points_discount, points_earned, final_total, 
-                is_pre_order, pic_name, created_at
+                id, invoice_no, date, buyer, items, total_buy, total_sell, total_profit,
+                profit_percent, payment_status, payment_method, customer_type, notes,
+                discount_amount, discount_code, points_used, points_discount, points_earned, final_total,
+                is_pre_order, pic_name, created_at,
+                is_split_payment, cash_amount, non_cash_amount, non_cash_method,
+                change_amount, infaq_amount, shift_id, refund_status, refund_total
              )
              VALUES (
-                $1, $2, $3::text::date, $4, $5, $6::float8, $7::float8, $8::float8, 
-                $9::float8, $10, $11, $12, $13, 
-                $14::float8, $15, $16::float8, $17::float8, $18::float8, $19::float8, 
-                $20, $21, NOW()
+                $1, $2, $3::text::date, $4, $5, $6::float8, $7::float8, $8::float8,
+                $9::float8, $10, $11, $12, $13,
+                $14::float8, $15, $16::float8, $17::float8, $18::float8, $19::float8,
+                $20, $21, NOW(),
+                $22, $23::float8, $24::float8, $25, $26::float8, $27::float8, $28, $29, $30::float8
              )",
             &[
                 &tx.id,
@@ -131,6 +146,15 @@ pub async fn pg_create_transaction(
                 &final_total,
                 &is_pre_order,
                 &pic_name,
+                &is_split_payment,
+                &cash_amount,
+                &non_cash_amount,
+                &tx.non_cash_method,
+                &change_amount,
+                &infaq_amount,
+                &tx.shift_id,
+                &refund_status,
+                &refund_total,
             ],
         )
         .await
@@ -177,16 +201,39 @@ pub async fn pg_create_transaction(
 
     if let Some(items) = tx.items.as_array() {
         for item in items {
-            if let (Some(id), Some(qty), Some(price)) = (
-                item.get("productId").and_then(|v| v.as_str()),
-                item.get("qty").and_then(|v| v.as_f64()),
-                item.get("sellPrice").and_then(|v| v.as_f64()),
-            ) {
+            let pid = item.get("productId").and_then(|v| v.as_str());
+            let qty = item.get("qty").and_then(|v| v.as_f64());
+            let price = item.get("sellPrice").and_then(|v| v.as_f64());
+            if let (Some(id), Some(qty), Some(price)) = (pid, qty, price) {
+                // BUG FIX: `products.stock` disimpan dalam SATUAN DASAR, sedangkan
+                // `qty` adalah jumlah dalam satuan AKTIF (mis. 1 DUS). Gunakan
+                // `baseQty` (fallback qty * conversionFactor) agar PostgreSQL
+                // memotong stok sebanyak yang benar-benar keluar dari rak.
+                let conversion = item
+                    .get("conversionFactor")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(1.0);
+                let base_qty = item
+                    .get("baseQty")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(qty * conversion);
+                let base_qty = if base_qty.is_finite() && base_qty > 0.0 {
+                    base_qty
+                } else {
+                    qty
+                };
+                // Harga jual per satuan dasar hanya relevan bila faktor konversi = 1
+                let sell_price = if (conversion - 1.0).abs() < f64::EPSILON {
+                    price
+                } else {
+                    price / conversion
+                };
+
                 let _ = client
                     .execute(
                         "UPDATE products SET stock = GREATEST(0, stock - $1::float8), last_sell_price = $2::float8,
                          updated_at = NOW() WHERE id = $3",
-                        &[&qty, &price, &id],
+                        &[&base_qty, &sell_price, &id],
                     )
                     .await;
             }

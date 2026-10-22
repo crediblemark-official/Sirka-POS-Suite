@@ -4,7 +4,8 @@
 CREATE TABLE IF NOT EXISTS category_markups (
     category VARCHAR(100) PRIMARY KEY,
     default_markup_percent NUMERIC(5,2) NOT NULL DEFAULT 20.00,
-    description TEXT
+    description TEXT,
+    color VARCHAR(20)
 );
 
 CREATE TABLE IF NOT EXISTS products (
@@ -19,6 +20,8 @@ CREATE TABLE IF NOT EXISTS products (
     stock NUMERIC(15,2) NOT NULL DEFAULT 0,
     barcode TEXT,
     notes TEXT,
+    units JSONB DEFAULT '[]'::jsonb,
+    is_perishable BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -55,6 +58,18 @@ CREATE TABLE IF NOT EXISTS transactions (
     final_total NUMERIC(15,2) DEFAULT 0,
     is_pre_order BOOLEAN DEFAULT FALSE,
     pic_name TEXT,
+    -- BUG FIX: field transaksi yang sebelumnya dibuang serde (split payment,
+    -- kembalian, infaq, shift, refund) — tanpa ini struk tidak bisa
+    -- direkonstruksi dari database dan rekonsiliasi shift mustahil.
+    is_split_payment BOOLEAN DEFAULT FALSE,
+    cash_amount NUMERIC(15,2) DEFAULT 0,
+    non_cash_amount NUMERIC(15,2) DEFAULT 0,
+    non_cash_method VARCHAR(50),
+    change_amount NUMERIC(15,2) DEFAULT 0,
+    infaq_amount NUMERIC(15,2) DEFAULT 0,
+    shift_id VARCHAR(50),
+    refund_status VARCHAR(20) DEFAULT 'NONE',
+    refund_total NUMERIC(15,2) DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -79,6 +94,7 @@ CREATE TABLE IF NOT EXISTS buyers (
     points NUMERIC(10,0) NOT NULL DEFAULT 0,
     total_spend NUMERIC(15,2) NOT NULL DEFAULT 0,
     member_since TIMESTAMPTZ DEFAULT NOW(),
+    notes TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -126,6 +142,8 @@ CREATE TABLE IF NOT EXISTS purchase_receipt_items (
     category VARCHAR(100),
     unit VARCHAR(50),
     qty_received NUMERIC(15,2) NOT NULL DEFAULT 0,
+    base_qty NUMERIC(15,2) NOT NULL DEFAULT 0,
+    conversion_factor NUMERIC(15,4) NOT NULL DEFAULT 1,
     buy_price NUMERIC(15,2) NOT NULL DEFAULT 0,
     subtotal_buy NUMERIC(15,2) NOT NULL DEFAULT 0,
     markup_percent NUMERIC(5,2) NOT NULL DEFAULT 0,

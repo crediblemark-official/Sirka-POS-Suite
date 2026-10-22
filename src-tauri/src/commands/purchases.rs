@@ -37,7 +37,8 @@ async fn read_pg_items(
         .query(
             "SELECT id, product_id, code, name, category, unit,
                     qty_received::float8, buy_price::float8, subtotal_buy::float8,
-                    markup_percent::float8, new_sell_price::float8
+                    markup_percent::float8, new_sell_price::float8,
+                    base_qty::float8, conversion_factor::float8
              FROM purchase_receipt_items WHERE receipt_id = $1
              ORDER BY created_at ASC, id ASC",
             &[&receipt_id],
@@ -60,9 +61,27 @@ async fn read_pg_items(
                 "subtotalBuy": r.get::<_, Option<f64>>(8).unwrap_or(0.0),
                 "markupPercent": r.get::<_, Option<f64>>(9).unwrap_or(0.0),
                 "newSellPrice": r.get::<_, Option<f64>>(10).unwrap_or(0.0),
+                "baseQty": r.get::<_, Option<f64>>(11).unwrap_or(0.0),
+                "conversionFactor": r.get::<_, Option<f64>>(12).unwrap_or(1.0),
             })
         })
         .collect())
+}
+
+/// BUG FIX: kuantitas adjusting stok harus dalam SATUAN DASAR produk.
+/// `qtyReceived` adalah jumlah fisik dalam satuan kemasan (mis. 5 DUS),
+/// sedangkan `products.stock` disimpan dalam satuan dasar (mis. 200 PCS).
+fn receipt_item_base_qty(item: &Value) -> Option<f64> {
+    let qty = item.get("qtyReceived").and_then(Value::as_f64)?;
+    let factor = item
+        .get("conversionFactor")
+        .and_then(Value::as_f64)
+        .unwrap_or(1.0);
+    let base = item
+        .get("baseQty")
+        .and_then(Value::as_f64)
+        .unwrap_or(qty * factor);
+    Some(if base.is_finite() && base > 0.0 { base } else { qty })
 }
 
 async fn adjust(client: &Transaction<'_>, receipt: &Value, reverse: bool) -> Result<(), String> {
@@ -80,10 +99,7 @@ async fn adjust_items(
             .get("productId")
             .and_then(Value::as_str)
             .ok_or("Produk tidak valid")?;
-        let qty = item
-            .get("qtyReceived")
-            .and_then(Value::as_f64)
-            .ok_or("Jumlah tidak valid")?;
+        let qty = receipt_item_base_qty(item).ok_or("Jumlah tidak valid")?;
         let buy = item
             .get("buyPrice")
             .and_then(Value::as_f64)
@@ -254,6 +270,11 @@ pub async fn pg_save_purchase(receipt: Value) -> Result<(), String> {
         let category = item.get("category").and_then(Value::as_str);
         let unit = item.get("unit").and_then(Value::as_str);
         let qty = item.get("qtyReceived").and_then(Value::as_f64).unwrap_or(0.0);
+        let factor = item.get("conversionFactor").and_then(Value::as_f64).unwrap_or(1.0);
+        let base_qty = item
+            .get("baseQty")
+            .and_then(Value::as_f64)
+            .unwrap_or(qty * factor);
         let buy = item.get("buyPrice").and_then(Value::as_f64).unwrap_or(0.0);
         let subtotal = item.get("subtotalBuy").and_then(Value::as_f64).unwrap_or(qty * buy);
         let markup = item.get("markupPercent").and_then(Value::as_f64).unwrap_or(0.0);
@@ -263,9 +284,13 @@ pub async fn pg_save_purchase(receipt: Value) -> Result<(), String> {
             .execute(
                 "INSERT INTO purchase_receipt_items (
                     id, receipt_id, product_id, code, name, category, unit,
-                    qty_received, buy_price, subtotal_buy, markup_percent, new_sell_price
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
-                &[&item_uuid, &id, &pid, &code, &name, &category, &unit, &qty, &buy, &subtotal, &markup, &sell],
+                    qty_received, base_qty, conversion_factor, buy_price, subtotal_buy,
+                    markup_percent, new_sell_price
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)",
+                &[
+                    &item_uuid, &id, &pid, &code, &name, &category, &unit, &qty, &base_qty,
+                    &factor, &buy, &subtotal, &markup, &sell
+                ],
             )
             .await
             .map_err(|e| e.to_string())?;

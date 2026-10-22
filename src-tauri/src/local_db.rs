@@ -5,7 +5,7 @@ use std::sync::{Mutex, OnceLock};
 
 use crate::models::{
     BuyerRecord, CategoryMarkupRecord, DiscountRecord, PreOrderRecord, ProductRecord,
-    StoreSettingRecord, TransactionRecord,
+    ProductUnitConversionRecord, StoreSettingRecord, TransactionRecord,
 };
 
 static DB_CONN: OnceLock<Mutex<Connection>> = OnceLock::new();
@@ -47,7 +47,8 @@ pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
         CREATE TABLE IF NOT EXISTS category_markups (
             category TEXT PRIMARY KEY,
             default_markup_percent REAL NOT NULL DEFAULT 20.0,
-            description TEXT
+            description TEXT,
+            color TEXT
         );
 
         CREATE TABLE IF NOT EXISTS products (
@@ -62,6 +63,8 @@ pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
             stock REAL NOT NULL DEFAULT 0,
             barcode TEXT,
             notes TEXT,
+            units TEXT,
+            is_perishable INTEGER NOT NULL DEFAULT 0,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             updated_at TEXT DEFAULT CURRENT_TIMESTAMP
         );
@@ -78,6 +81,7 @@ pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
             points REAL NOT NULL DEFAULT 0,
             total_spend REAL NOT NULL DEFAULT 0,
             member_since TEXT,
+            notes TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         );
 
@@ -103,6 +107,17 @@ pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
             final_total REAL DEFAULT 0,
             is_pre_order INTEGER DEFAULT 0,
             pic_name TEXT,
+            -- BUG FIX: field transaksi yang sebelumnya dibuang serde
+            -- (split payment, kembalian, infaq, shift, refund).
+            is_split_payment INTEGER DEFAULT 0,
+            cash_amount REAL DEFAULT 0,
+            non_cash_amount REAL DEFAULT 0,
+            non_cash_method TEXT,
+            change_amount REAL DEFAULT 0,
+            infaq_amount REAL DEFAULT 0,
+            shift_id TEXT,
+            refund_status TEXT DEFAULT 'NONE',
+            refund_total REAL DEFAULT 0,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         );
 
@@ -159,6 +174,8 @@ pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
             category TEXT,
             unit TEXT,
             qty_received REAL NOT NULL DEFAULT 0,
+            base_qty REAL NOT NULL DEFAULT 0,
+            conversion_factor REAL NOT NULL DEFAULT 1,
             buy_price REAL NOT NULL DEFAULT 0,
             subtotal_buy REAL NOT NULL DEFAULT 0,
             markup_percent REAL NOT NULL DEFAULT 0,
@@ -191,6 +208,26 @@ pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
     let _ = conn.execute("ALTER TABLE purchase_receipts ADD COLUMN total_buy REAL DEFAULT 0", []);
     let _ = conn.execute("ALTER TABLE purchase_receipts ADD COLUMN notes TEXT", []);
     let _ = conn.execute("ALTER TABLE products ADD COLUMN supplier TEXT", []);
+    // BUG FIX: kolom multi-satuan, penanda mudah busuk, warna kategori, dan
+    // kuantitas dasar nota kulakan. Tanpa kolom ini fitur terkait hilang setiap
+    // kali data dimuat ulang dari database.
+    let _ = conn.execute("ALTER TABLE products ADD COLUMN units TEXT", []);
+    let _ = conn.execute("ALTER TABLE products ADD COLUMN is_perishable INTEGER DEFAULT 0", []);
+    let _ = conn.execute("ALTER TABLE category_markups ADD COLUMN color TEXT", []);
+    let _ = conn.execute("ALTER TABLE purchase_receipt_items ADD COLUMN base_qty REAL DEFAULT 0", []);
+    let _ = conn.execute("ALTER TABLE purchase_receipt_items ADD COLUMN conversion_factor REAL DEFAULT 1", []);
+    // BUG FIX: field transaksi yang sebelumnya dibuang serde (split payment,
+    // kembalian, infaq, shift, refund) — perlu kolom agar tidak hilang.
+    let _ = conn.execute("ALTER TABLE buyers ADD COLUMN notes TEXT", []);
+    let _ = conn.execute("ALTER TABLE transactions ADD COLUMN is_split_payment INTEGER DEFAULT 0", []);
+    let _ = conn.execute("ALTER TABLE transactions ADD COLUMN cash_amount REAL DEFAULT 0", []);
+    let _ = conn.execute("ALTER TABLE transactions ADD COLUMN non_cash_amount REAL DEFAULT 0", []);
+    let _ = conn.execute("ALTER TABLE transactions ADD COLUMN non_cash_method TEXT", []);
+    let _ = conn.execute("ALTER TABLE transactions ADD COLUMN change_amount REAL DEFAULT 0", []);
+    let _ = conn.execute("ALTER TABLE transactions ADD COLUMN infaq_amount REAL DEFAULT 0", []);
+    let _ = conn.execute("ALTER TABLE transactions ADD COLUMN shift_id TEXT", []);
+    let _ = conn.execute("ALTER TABLE transactions ADD COLUMN refund_status TEXT DEFAULT 'NONE'", []);
+    let _ = conn.execute("ALTER TABLE transactions ADD COLUMN refund_total REAL DEFAULT 0", []);
     let _ = conn.execute("CREATE TABLE IF NOT EXISTS suppliers (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL UNIQUE,
@@ -270,6 +307,25 @@ pub fn mark_outbox_failed(conn: &Connection, id: i64, error: &str) -> SqliteResu
     Ok(())
 }
 
+/// Parkir satu item outbox secara permanen (status FAILED) tanpa menambah
+/// retry_count.
+///
+/// BUG FIX (head-of-line blocking): item dengan error permanen (mis. constraint
+/// violation) harus langsung disingkirkan supaya tidak memblokir item lain
+/// di belakangnya. Versi lama membiarkan status PENDING sampai 5 percobaan,
+/// sehingga satu baris rusak tetap jadi kepala antrean.
+pub fn park_outbox_item(conn: &Connection, id: i64, error: &str) -> SqliteResult<()> {
+    conn.execute(
+        "UPDATE sync_outbox SET
+            status = 'FAILED',
+            retry_count = retry_count + 1,
+            last_error = ?2
+         WHERE id = ?1",
+        params![id, error],
+    )?;
+    Ok(())
+}
+
 pub fn retry_failed_outbox(conn: &Connection) -> SqliteResult<usize> {
     conn.execute(
         "UPDATE sync_outbox SET status = 'PENDING', retry_count = 0, last_error = NULL WHERE status = 'FAILED'",
@@ -290,9 +346,13 @@ pub fn count_pending_outbox(conn: &Connection) -> SqliteResult<i64> {
 // ---------------------------------------------------------
 pub fn local_get_products(conn: &Connection) -> SqliteResult<Vec<ProductRecord>> {
     let mut stmt = conn.prepare(
-        "SELECT id, code, name, category, unit, default_markup_percent, last_buy_price, last_sell_price, stock, barcode, notes, supplier FROM products ORDER BY name ASC",
+        "SELECT id, code, name, category, unit, default_markup_percent, last_buy_price, last_sell_price, stock, barcode, notes, supplier, units, is_perishable FROM products ORDER BY name ASC",
     )?;
     let rows = stmt.query_map([], |row| {
+        let units_json: Option<String> = row.get(12)?;
+        let units: Option<Vec<ProductUnitConversionRecord>> = units_json
+            .as_deref()
+            .and_then(|raw| serde_json::from_str(raw).ok());
         Ok(ProductRecord {
             id: row.get(0)?,
             code: row.get(1)?,
@@ -306,6 +366,8 @@ pub fn local_get_products(conn: &Connection) -> SqliteResult<Vec<ProductRecord>>
             barcode: row.get(9)?,
             notes: row.get(10)?,
             supplier: row.get(11)?,
+            units,
+            is_perishable: Some(row.get::<_, i64>(13)? != 0),
         })
     })?;
 
@@ -317,9 +379,14 @@ pub fn local_get_products(conn: &Connection) -> SqliteResult<Vec<ProductRecord>>
 }
 
 pub fn local_upsert_product(conn: &Connection, p: &ProductRecord) -> SqliteResult<()> {
+    let units_json: Option<String> = p
+        .units
+        .as_ref()
+        .and_then(|u| serde_json::to_string(u).ok());
+    let is_perishable = if p.is_perishable.unwrap_or(false) { 1 } else { 0 };
     conn.execute(
-        "INSERT INTO products (id, code, name, category, unit, default_markup_percent, last_buy_price, last_sell_price, stock, barcode, notes, supplier, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, datetime('now'))
+        "INSERT INTO products (id, code, name, category, unit, default_markup_percent, last_buy_price, last_sell_price, stock, barcode, notes, supplier, units, is_perishable, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, datetime('now'))
          ON CONFLICT (id) DO UPDATE SET
             code = excluded.code,
             name = excluded.name,
@@ -332,6 +399,8 @@ pub fn local_upsert_product(conn: &Connection, p: &ProductRecord) -> SqliteResul
             barcode = excluded.barcode,
             notes = excluded.notes,
             supplier = excluded.supplier,
+            units = excluded.units,
+            is_perishable = excluded.is_perishable,
             updated_at = datetime('now')",
         params![
             p.id,
@@ -346,6 +415,8 @@ pub fn local_upsert_product(conn: &Connection, p: &ProductRecord) -> SqliteResul
             p.barcode,
             p.notes,
             p.supplier,
+            units_json,
+            is_perishable,
         ],
     )?;
     Ok(())
@@ -395,13 +466,14 @@ pub fn local_update_stock_and_price(
 // ---------------------------------------------------------
 pub fn local_get_markups(conn: &Connection) -> SqliteResult<Vec<CategoryMarkupRecord>> {
     let mut stmt = conn.prepare(
-        "SELECT category, default_markup_percent, description FROM category_markups ORDER BY category ASC",
+        "SELECT category, default_markup_percent, description, color FROM category_markups ORDER BY category ASC",
     )?;
     let rows = stmt.query_map([], |row| {
         Ok(CategoryMarkupRecord {
             category: row.get(0)?,
             default_markup_percent: row.get(1)?,
             description: row.get(2)?,
+            color: row.get(3)?,
         })
     })?;
     let mut list = Vec::new();
@@ -416,14 +488,16 @@ pub fn local_upsert_markup(
     category: &str,
     percent: f64,
     desc: Option<&str>,
+    color: Option<&str>,
 ) -> SqliteResult<()> {
     conn.execute(
-        "INSERT INTO category_markups (category, default_markup_percent, description)
-         VALUES (?1, ?2, ?3)
+        "INSERT INTO category_markups (category, default_markup_percent, description, color)
+         VALUES (?1, ?2, ?3, ?4)
          ON CONFLICT (category) DO UPDATE SET
             default_markup_percent = excluded.default_markup_percent,
-            description = COALESCE(excluded.description, category_markups.description)",
-        params![category, percent, desc],
+            description = COALESCE(excluded.description, category_markups.description),
+            color = COALESCE(excluded.color, category_markups.color)",
+        params![category, percent, desc, color],
     )?;
     Ok(())
 }
@@ -438,7 +512,7 @@ pub fn local_delete_markup(conn: &Connection, category: &str) -> SqliteResult<()
 // ---------------------------------------------------------
 pub fn local_get_buyers(conn: &Connection) -> SqliteResult<Vec<BuyerRecord>> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, code, phone, address, customer_type, member_card_no, tier, points, total_spend, member_since FROM buyers ORDER BY name ASC",
+        "SELECT id, name, code, phone, address, customer_type, member_card_no, tier, points, total_spend, member_since, notes FROM buyers ORDER BY name ASC",
     )?;
     let rows = stmt.query_map([], |row| {
         Ok(BuyerRecord {
@@ -453,6 +527,7 @@ pub fn local_get_buyers(conn: &Connection) -> SqliteResult<Vec<BuyerRecord>> {
             points: row.get(8)?,
             total_spend: row.get(9)?,
             member_since: row.get(10)?,
+            notes: row.get(11)?,
         })
     })?;
     let mut list = Vec::new();
@@ -466,8 +541,8 @@ pub fn local_upsert_buyer(conn: &Connection, b: &BuyerRecord) -> SqliteResult<()
     let customer_type = b.customer_type.as_deref().unwrap_or("B2B");
     let tier = b.tier.as_deref().unwrap_or("REGULAR");
     conn.execute(
-        "INSERT INTO buyers (id, name, code, phone, address, customer_type, member_card_no, tier, points, total_spend, member_since)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+        "INSERT INTO buyers (id, name, code, phone, address, customer_type, member_card_no, tier, points, total_spend, member_since, notes)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
          ON CONFLICT (id) DO UPDATE SET
             name = excluded.name,
             code = excluded.code,
@@ -478,7 +553,8 @@ pub fn local_upsert_buyer(conn: &Connection, b: &BuyerRecord) -> SqliteResult<()
             tier = excluded.tier,
             points = excluded.points,
             total_spend = excluded.total_spend,
-            member_since = excluded.member_since",
+            member_since = excluded.member_since,
+            notes = excluded.notes",
         params![
             b.id,
             b.name,
@@ -491,6 +567,7 @@ pub fn local_upsert_buyer(conn: &Connection, b: &BuyerRecord) -> SqliteResult<()
             b.points.unwrap_or(0.0),
             b.total_spend.unwrap_or(0.0),
             b.member_since,
+            b.notes,
         ],
     )?;
     Ok(())
@@ -506,12 +583,15 @@ pub fn local_delete_buyer(conn: &Connection, id: &str) -> SqliteResult<()> {
 // ---------------------------------------------------------
 pub fn local_get_transactions(conn: &Connection) -> SqliteResult<Vec<TransactionRecord>> {
     let mut stmt = conn.prepare(
-        "SELECT id, invoice_no, date, buyer, items, total_buy, total_sell, total_profit, profit_percent, payment_status, payment_method, customer_type, notes, discount_amount, discount_code, points_used, points_discount, points_earned, final_total, is_pre_order, pic_name, created_at FROM transactions ORDER BY created_at DESC",
+        "SELECT id, invoice_no, date, buyer, items, total_buy, total_sell, total_profit, profit_percent, payment_status, payment_method, customer_type, notes, discount_amount, discount_code, points_used, points_discount, points_earned, final_total, is_pre_order, pic_name, created_at,
+                is_split_payment, cash_amount, non_cash_amount, non_cash_method, change_amount, infaq_amount, shift_id, refund_status, refund_total
+         FROM transactions ORDER BY created_at DESC",
     )?;
     let rows = stmt.query_map([], |row| {
         let items_raw: String = row.get(4)?;
         let items: Value = serde_json::from_str(&items_raw).unwrap_or(Value::Array(vec![]));
         let is_pre_order_int: i32 = row.get(19)?;
+        let is_split_int: i32 = row.get(22)?;
         Ok(TransactionRecord {
             id: row.get(0)?,
             invoice_no: row.get(1)?,
@@ -535,6 +615,15 @@ pub fn local_get_transactions(conn: &Connection) -> SqliteResult<Vec<Transaction
             is_pre_order: Some(is_pre_order_int == 1),
             pic_name: row.get(20)?,
             created_at: row.get(21)?,
+            is_split_payment: Some(is_split_int == 1),
+            cash_amount: row.get(23)?,
+            non_cash_amount: row.get(24)?,
+            non_cash_method: row.get(25)?,
+            change_amount: row.get(26)?,
+            infaq_amount: row.get(27)?,
+            shift_id: row.get(28)?,
+            refund_status: row.get(29)?,
+            refund_total: row.get(30)?,
         })
     })?;
     let mut list = Vec::new();
@@ -553,18 +642,22 @@ pub fn local_create_transaction(
 
     let items_str = tx.items.to_string();
     let is_pre_order_val = if tx.is_pre_order.unwrap_or(false) { 1 } else { 0 };
+    let is_split_val = if tx.is_split_payment.unwrap_or(false) { 1 } else { 0 };
 
     tx_sqlite.execute(
         "INSERT INTO transactions (
             id, invoice_no, date, buyer, items, total_buy, total_sell, total_profit,
             profit_percent, payment_status, payment_method, customer_type, notes,
             discount_amount, discount_code, points_used, points_discount, points_earned, final_total,
-            is_pre_order, pic_name, created_at
+            is_pre_order, pic_name, created_at,
+            is_split_payment, cash_amount, non_cash_amount, non_cash_method, change_amount,
+            infaq_amount, shift_id, refund_status, refund_total
         ) VALUES (
             ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8,
             ?9, ?10, ?11, ?12, ?13,
             ?14, ?15, ?16, ?17, ?18, ?19,
-            ?20, ?21, datetime('now')
+            ?20, ?21, datetime('now'),
+            ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30
         )",
         params![
             tx.id,
@@ -588,20 +681,54 @@ pub fn local_create_transaction(
             tx.final_total.unwrap_or(tx.total_sell),
             is_pre_order_val,
             tx.pic_name,
+            is_split_val,
+            tx.cash_amount.unwrap_or(0.0),
+            tx.non_cash_amount.unwrap_or(0.0),
+            tx.non_cash_method,
+            tx.change_amount.unwrap_or(0.0),
+            tx.infaq_amount.unwrap_or(0.0),
+            tx.shift_id,
+            tx.refund_status,
+            tx.refund_total.unwrap_or(0.0),
         ],
     )?;
 
     // Kurangi stok barang
+    // BUG FIX: `qty` adalah jumlah dalam SATUAN AKTIF (mis. 1 DUS), sedangkan
+    // `products.stock` disimpan dalam SATUAN DASAR. Sebelumnya SQLite memotong
+    // hanya 1 sehingga stok tidak sinkron dengan layer batch FIFO/FEFO di frontend
+    // (yang memotong baseQty). Digunakan `baseQty` (fallback ke qty * conversionFactor).
+    // `last_sell_price` juga hanya diperbarui bila penjualan memakai satuan dasar,
+    // kalau tidak harga per-kemasan akan ditulis sebagai harga per-satuan-dasar.
     if let Some(items) = tx.items.as_array() {
         for item in items {
-            if let (Some(pid), Some(qty), Some(price)) = (
-                item.get("productId").and_then(Value::as_str),
-                item.get("qty").and_then(Value::as_f64),
-                item.get("sellPrice").and_then(Value::as_f64),
-            ) {
+            let pid = item.get("productId").and_then(Value::as_str);
+            let qty = item.get("qty").and_then(Value::as_f64);
+            let price = item.get("sellPrice").and_then(Value::as_f64);
+            if let (Some(pid), Some(qty), Some(price)) = (pid, qty, price) {
+                let conversion = item
+                    .get("conversionFactor")
+                    .and_then(Value::as_f64)
+                    .unwrap_or(1.0);
+                let base_qty = item
+                    .get("baseQty")
+                    .and_then(Value::as_f64)
+                    .unwrap_or(qty * conversion);
+                let base_qty = if base_qty.is_finite() && base_qty > 0.0 {
+                    base_qty
+                } else {
+                    qty
+                };
+                // Harga jual per satuan dasar hanya relevan bila faktor konversi = 1
+                let sell_price = if (conversion - 1.0).abs() < f64::EPSILON {
+                    price
+                } else {
+                    price / conversion
+                };
+
                 tx_sqlite.execute(
                     "UPDATE products SET stock = MAX(0, stock - ?2), last_sell_price = ?3, updated_at = datetime('now') WHERE id = ?1",
-                    params![pid, qty, price],
+                    params![pid, base_qty, sell_price],
                 )?;
             }
         }
@@ -708,15 +835,29 @@ pub fn local_delete_transaction(conn: &mut Connection, id: &str) -> SqliteResult
 
     if let Ok((items, buyer_name, p_used, p_earned, spend, disc_code)) = found {
         // Rollback stok
+        // BUG FIX: samakan dengan pemotongan stok saat create — gunakan baseQty
+        // (satuan dasar), bukan qty (satuan aktif).
         if let Some(arr) = items.as_array() {
             for item in arr {
-                if let (Some(pid), Some(qty)) = (
-                    item.get("productId").and_then(Value::as_str),
-                    item.get("qty").and_then(Value::as_f64),
-                ) {
+                let pid = item.get("productId").and_then(Value::as_str);
+                let qty = item.get("qty").and_then(Value::as_f64);
+                if let (Some(pid), Some(qty)) = (pid, qty) {
+                    let conversion = item
+                        .get("conversionFactor")
+                        .and_then(Value::as_f64)
+                        .unwrap_or(1.0);
+                    let base_qty = item
+                        .get("baseQty")
+                        .and_then(Value::as_f64)
+                        .unwrap_or(qty * conversion);
+                    let base_qty = if base_qty.is_finite() && base_qty > 0.0 {
+                        base_qty
+                    } else {
+                        qty
+                    };
                     tx.execute(
                         "UPDATE products SET stock = stock + ?2 WHERE id = ?1",
-                        params![pid, qty],
+                        params![pid, base_qty],
                     )?;
                 }
             }
@@ -835,7 +976,8 @@ pub fn local_delete_preorder(conn: &Connection, id: &str) -> SqliteResult<()> {
 fn local_items_from_table(conn: &Connection, receipt_id: &str) -> Vec<Value> {
     let mut stmt = match conn.prepare(
         "SELECT id, product_id, code, name, category, unit,
-                qty_received, buy_price, subtotal_buy, markup_percent, new_sell_price
+                qty_received, buy_price, subtotal_buy, markup_percent, new_sell_price,
+                base_qty, conversion_factor
          FROM purchase_receipt_items WHERE receipt_id = ?1
          ORDER BY created_at ASC, id ASC",
     ) {
@@ -855,12 +997,33 @@ fn local_items_from_table(conn: &Connection, receipt_id: &str) -> Vec<Value> {
             "subtotalBuy": row.get::<_, f64>(8)?,
             "markupPercent": row.get::<_, f64>(9)?,
             "newSellPrice": row.get::<_, f64>(10)?,
+            "baseQty": row.get::<_, f64>(11)?,
+            "conversionFactor": row.get::<_, f64>(12)?,
         }))
     });
     match rows {
         Ok(iter) => iter.filter_map(|r| r.ok()).collect(),
         Err(_) => Vec::new(),
     }
+}
+
+/// BUG FIX: kuantitas yang dipakai untuk adjusting stok harus expressed dalam
+/// SATUAN DASAR produk. `qtyReceived` adalah jumlah fisik dalam satuan kemasan
+/// (mis. 5 DUS), sedangkan stok produk disimpan dalam satuan dasar (mis. 200 PCS).
+///
+/// Tanpa konversi ini, edit/hapus nota kulakan mengembalikan jumlah yang salah
+/// sehingga muncul "hantu stok" (phantom stock).
+fn receipt_item_base_qty(item: &Value) -> Option<f64> {
+    let qty = item.get("qtyReceived").and_then(Value::as_f64)?;
+    let factor = item
+        .get("conversionFactor")
+        .and_then(Value::as_f64)
+        .unwrap_or(1.0);
+    let base = item
+        .get("baseQty")
+        .and_then(Value::as_f64)
+        .unwrap_or(qty * factor);
+    Some(if base.is_finite() && base > 0.0 { base } else { qty })
 }
 
 /// BUG-017 FIX: Baca nota legacy yang itemnya masih tersimpan di kolom `receipt` JSONB.
@@ -926,6 +1089,11 @@ fn local_backfill_purchase_items(conn: &Connection) {
             let category = item.get("category").and_then(Value::as_str);
             let unit = item.get("unit").and_then(Value::as_str);
             let qty = item.get("qtyReceived").and_then(Value::as_f64).unwrap_or(0.0);
+            let factor = item.get("conversionFactor").and_then(Value::as_f64).unwrap_or(1.0);
+            let base_qty = item
+                .get("baseQty")
+                .and_then(Value::as_f64)
+                .unwrap_or(qty * factor);
             let buy = item.get("buyPrice").and_then(Value::as_f64).unwrap_or(0.0);
             let subtotal = item
                 .get("subtotalBuy")
@@ -934,12 +1102,19 @@ fn local_backfill_purchase_items(conn: &Connection) {
             let markup = item.get("markupPercent").and_then(Value::as_f64).unwrap_or(0.0);
             let sell = item.get("newSellPrice").and_then(Value::as_f64).unwrap_or(0.0);
 
+            // BUG FIX: backfill harus menulis base_qty & conversion_factor.
+            // Tanpa ini nota legacy (yang hanya ada di JSONB) tercatat dengan
+            // base_qty = 0 dan saat nota dihapus rollback stoknya salah.
             let _ = conn.execute(
                 "INSERT OR IGNORE INTO purchase_receipt_items (
                     id, receipt_id, product_id, code, name, category, unit,
-                    qty_received, buy_price, subtotal_buy, markup_percent, new_sell_price, created_at
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, datetime('now'))",
-                params![item_uuid, id, pid, code, name, category, unit, qty, buy, subtotal, markup, sell],
+                    qty_received, base_qty, conversion_factor, buy_price, subtotal_buy,
+                    markup_percent, new_sell_price, created_at
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, datetime('now'))",
+                params![
+                    item_uuid, id, pid, code, name, category, unit, qty, base_qty, factor, buy,
+                    subtotal, markup, sell
+                ],
             );
         }
     }
@@ -1023,14 +1198,15 @@ pub fn local_save_purchase(conn: &mut Connection, receipt: &Value) -> SqliteResu
 
     // 1. Jika nota sudah ada sebelumnya (edit nota kulakan), rollback kuantitas lama
     // BUG-017 FIX: sumber item = tabel ternormalisasi (fallback JSONB untuk nota legacy)
+    // BUG FIX: kuantitas rollback memakai SATUAN DASAR (baseQty), bukan satuan kemasan.
     for item in local_receipt_items(&tx, id) {
-        if let (Some(pid), Some(qty)) = (
+        if let (Some(pid), Some(base_qty)) = (
             item.get("productId").and_then(Value::as_str),
-            item.get("qtyReceived").and_then(Value::as_f64),
+            receipt_item_base_qty(&item),
         ) {
             tx.execute(
                 "UPDATE products SET stock = MAX(0, stock - ?2) WHERE id = ?1",
-                params![pid, qty],
+                params![pid, base_qty],
             )?;
         }
     }
@@ -1071,6 +1247,11 @@ pub fn local_save_purchase(conn: &mut Connection, receipt: &Value) -> SqliteResu
             let category = item.get("category").and_then(Value::as_str);
             let unit = item.get("unit").and_then(Value::as_str);
             let qty = item.get("qtyReceived").and_then(Value::as_f64).unwrap_or(0.0);
+            let factor = item.get("conversionFactor").and_then(Value::as_f64).unwrap_or(1.0);
+            let base_qty = item
+                .get("baseQty")
+                .and_then(Value::as_f64)
+                .unwrap_or(qty * factor);
             let buy = item.get("buyPrice").and_then(Value::as_f64).unwrap_or(0.0);
             let subtotal = item.get("subtotalBuy").and_then(Value::as_f64).unwrap_or(qty * buy);
             let markup = item.get("markupPercent").and_then(Value::as_f64).unwrap_or(0.0);
@@ -1079,19 +1260,24 @@ pub fn local_save_purchase(conn: &mut Connection, receipt: &Value) -> SqliteResu
             tx.execute(
                 "INSERT INTO purchase_receipt_items (
                     id, receipt_id, product_id, code, name, category, unit,
-                    qty_received, buy_price, subtotal_buy, markup_percent, new_sell_price, created_at
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, datetime('now'))",
-                params![item_uuid, id, pid, code, name, category, unit, qty, buy, subtotal, markup, sell],
+                    qty_received, base_qty, conversion_factor, buy_price, subtotal_buy,
+                    markup_percent, new_sell_price, created_at
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, datetime('now'))",
+                params![
+                    item_uuid, id, pid, code, name, category, unit, qty, base_qty, factor, buy,
+                    subtotal, markup, sell
+                ],
             )?;
         }
     }
 
     // 3. Tambah stok barang & update HPP + harga jual
+    // BUG FIX: stok bertambah dalam SATUAN DASAR (baseQty), bukan satuan kemasan.
     if let Some(items) = receipt.get("items").and_then(Value::as_array) {
         for item in items {
-            if let (Some(pid), Some(qty), Some(buy), Some(sell)) = (
+            if let (Some(pid), Some(base_qty), Some(buy), Some(sell)) = (
                 item.get("productId").and_then(Value::as_str),
-                item.get("qtyReceived").and_then(Value::as_f64),
+                receipt_item_base_qty(item),
                 item.get("buyPrice").and_then(Value::as_f64),
                 item.get("newSellPrice").and_then(Value::as_f64),
             ) {
@@ -1102,7 +1288,7 @@ pub fn local_save_purchase(conn: &mut Connection, receipt: &Value) -> SqliteResu
                         last_sell_price = CASE WHEN ?4 > 0 THEN ?4 ELSE last_sell_price END,
                         updated_at = datetime('now')
                      WHERE id = ?1",
-                    params![pid, qty, buy, sell],
+                    params![pid, base_qty, buy, sell],
                 )?;
             }
         }
@@ -1118,14 +1304,15 @@ pub fn local_delete_purchase(conn: &mut Connection, id: &str) -> SqliteResult<()
 
     // BUG-017 FIX: rollback stok memakai item dari tabel ternormalisasi
     // (fallback JSONB untuk nota lama yang belum dinormalisasi)
+    // BUG FIX: kuantitas rollback memakai SATUAN DASAR (baseQty).
     for item in local_receipt_items(&tx, id) {
-        if let (Some(pid), Some(qty)) = (
+        if let (Some(pid), Some(base_qty)) = (
             item.get("productId").and_then(Value::as_str),
-            item.get("qtyReceived").and_then(Value::as_f64),
+            receipt_item_base_qty(&item),
         ) {
             tx.execute(
                 "UPDATE products SET stock = MAX(0, stock - ?2) WHERE id = ?1",
-                params![pid, qty],
+                params![pid, base_qty],
             )?;
         }
     }
@@ -1215,10 +1402,16 @@ pub fn local_delete_discount(conn: &Connection, id: &str) -> SqliteResult<()> {
 
 pub fn local_toggle_discount(conn: &Connection, id: &str, is_active: bool) -> SqliteResult<()> {
     let act = if is_active { 1 } else { 0 };
-    conn.execute(
+    let affected = conn.execute(
         "UPDATE discounts SET is_active = ?2 WHERE id = ?1",
         params![id, act],
     )?;
+    // BUG FIX: `rows_affected` tidak diperiksa sehingga toggle untuk id yang
+    // tidak ada tetap "berhasil" (dan UI menyimpan state yang tidak pernah
+    // tersimpan). Sekarang error dikembalikan bila tidak ada baris yang berubah.
+    if affected == 0 {
+        return Err(rusqlite::Error::QueryReturnedNoRows);
+    }
     enqueue_outbox(
         conn,
         "TOGGLE_DISCOUNT",
@@ -1366,6 +1559,11 @@ pub fn local_save_purchase_direct(conn: &Connection, receipt: &Value) -> SqliteR
             let category = item.get("category").and_then(Value::as_str);
             let unit = item.get("unit").and_then(Value::as_str);
             let qty = item.get("qtyReceived").and_then(Value::as_f64).unwrap_or(0.0);
+            let factor = item.get("conversionFactor").and_then(Value::as_f64).unwrap_or(1.0);
+            let base_qty = item
+                .get("baseQty")
+                .and_then(Value::as_f64)
+                .unwrap_or(qty * factor);
             let buy = item.get("buyPrice").and_then(Value::as_f64).unwrap_or(0.0);
             let subtotal = item.get("subtotalBuy").and_then(Value::as_f64).unwrap_or(qty * buy);
             let markup = item.get("markupPercent").and_then(Value::as_f64).unwrap_or(0.0);
@@ -1374,9 +1572,13 @@ pub fn local_save_purchase_direct(conn: &Connection, receipt: &Value) -> SqliteR
             conn.execute(
                 "INSERT INTO purchase_receipt_items (
                     id, receipt_id, product_id, code, name, category, unit,
-                    qty_received, buy_price, subtotal_buy, markup_percent, new_sell_price, created_at
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, datetime('now'))",
-                params![item_uuid, id, pid, code, name, category, unit, qty, buy, subtotal, markup, sell],
+                    qty_received, base_qty, conversion_factor, buy_price, subtotal_buy,
+                    markup_percent, new_sell_price, created_at
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, datetime('now'))",
+                params![
+                    item_uuid, id, pid, code, name, category, unit, qty, base_qty, factor, buy,
+                    subtotal, markup, sell
+                ],
             )?;
         }
     }
@@ -1385,6 +1587,7 @@ pub fn local_save_purchase_direct(conn: &Connection, receipt: &Value) -> SqliteR
 
 pub fn local_save_transaction_direct(conn: &Connection, tx: &TransactionRecord) -> SqliteResult<()> {
     let is_pre_order_val = if tx.is_pre_order.unwrap_or(false) { 1 } else { 0 };
+    let is_split_val = if tx.is_split_payment.unwrap_or(false) { 1 } else { 0 };
     conn.execute(
         "INSERT INTO transactions (
             id, invoice_no, date, buyer, items,
@@ -1392,14 +1595,17 @@ pub fn local_save_transaction_direct(conn: &Connection, tx: &TransactionRecord) 
             payment_status, payment_method, customer_type, notes,
             discount_amount, discount_code, points_used, points_discount,
             points_earned, final_total,
-            is_pre_order, pic_name, created_at
+            is_pre_order, pic_name, created_at,
+            is_split_payment, cash_amount, non_cash_amount, non_cash_method,
+            change_amount, infaq_amount, shift_id, refund_status, refund_total
         ) VALUES (
             ?1, ?2, ?3, ?4, ?5,
             ?6, ?7, ?8, ?9,
             ?10, ?11, ?12, ?13,
             ?14, ?15, ?16, ?17,
             ?18, ?19,
-            ?20, ?21, COALESCE(?22, datetime('now'))
+            ?20, ?21, COALESCE(?22, datetime('now')),
+            ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31
         ) ON CONFLICT (id) DO UPDATE SET
             total_buy = excluded.total_buy,
             total_sell = excluded.total_sell,
@@ -1407,7 +1613,32 @@ pub fn local_save_transaction_direct(conn: &Connection, tx: &TransactionRecord) 
             profit_percent = excluded.profit_percent,
             payment_status = excluded.payment_status,
             payment_method = excluded.payment_method,
-            final_total = excluded.final_total",
+            final_total = excluded.final_total,
+            -- BUG FIX: sebelumnya hanya 7 dari 20 kolom yang di-update. Akibatnya
+            -- `items`, `date`, `buyer`, diskon, poin, dan info split TIDAK ikut
+            -- ter-update -> transaksi lokal menampilkan total yang tidak cocok
+            -- dengan daftar itemnya.
+            items = excluded.items,
+            date = excluded.date,
+            buyer = excluded.buyer,
+            customer_type = excluded.customer_type,
+            notes = excluded.notes,
+            discount_amount = excluded.discount_amount,
+            discount_code = excluded.discount_code,
+            points_used = excluded.points_used,
+            points_discount = excluded.points_discount,
+            points_earned = excluded.points_earned,
+            is_pre_order = excluded.is_pre_order,
+            pic_name = excluded.pic_name,
+            is_split_payment = excluded.is_split_payment,
+            cash_amount = excluded.cash_amount,
+            non_cash_amount = excluded.non_cash_amount,
+            non_cash_method = excluded.non_cash_method,
+            change_amount = excluded.change_amount,
+            infaq_amount = excluded.infaq_amount,
+            shift_id = excluded.shift_id,
+            refund_status = excluded.refund_status,
+            refund_total = excluded.refund_total",
         params![
             tx.id,
             tx.invoice_no,
@@ -1431,6 +1662,15 @@ pub fn local_save_transaction_direct(conn: &Connection, tx: &TransactionRecord) 
             is_pre_order_val,
             tx.pic_name,
             tx.created_at,
+            is_split_val,
+            tx.cash_amount.unwrap_or(0.0),
+            tx.non_cash_amount.unwrap_or(0.0),
+            tx.non_cash_method,
+            tx.change_amount.unwrap_or(0.0),
+            tx.infaq_amount.unwrap_or(0.0),
+            tx.shift_id,
+            tx.refund_status,
+            tx.refund_total.unwrap_or(0.0),
         ],
     )?;
     Ok(())

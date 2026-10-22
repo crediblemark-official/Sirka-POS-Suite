@@ -109,8 +109,13 @@ ORDER BY r.date DESC;
 -- ------------------------------------------------------------
 -- 6. Rekap harga beli per barang per bulan (untuk analisis HPP)
 -- ------------------------------------------------------------
+-- BUG FIX: `purchase_receipts.date` bertipe VARCHAR(50) (bukan DATE).
+-- `to_char(r.date, 'YYYY-MM')` untuk kolom text TIDAK ADA di PostgreSQL
+-- ("function to_char(text, unknown) does not exist") sehingga seluruh
+-- script laporan ini ABORT. Sekarang substring manual dari format ISO.
+-- (Kolom `date` ditulis sebagai 'YYYY-MM-DD' oleh aplikasi.)
 SELECT
-    to_char(r.date, 'YYYY-MM')                  AS periode,
+    LEFT(r.date, 7)                             AS periode,
     i.product_id,
     i.name                                      AS nama_barang,
     COUNT(*)                                    AS jumlah_transaksi,
@@ -119,5 +124,5 @@ SELECT
     ROUND(AVG(i.buy_price), 2)                  AS rata2_harga_beli
 FROM purchase_receipt_items i
 JOIN purchase_receipts r ON r.id = i.receipt_id
-GROUP BY to_char(r.date, 'YYYY-MM'), i.product_id, i.name
+GROUP BY LEFT(r.date, 7), i.product_id, i.name
 ORDER BY periode DESC, total_beli DESC;

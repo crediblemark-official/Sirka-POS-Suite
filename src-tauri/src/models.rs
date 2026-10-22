@@ -17,12 +17,29 @@ pub struct BuyerRecord {
     pub total_spend: Option<f64>,
     #[serde(rename = "memberSince")]
     pub member_since: Option<String>,
+    /// Catatan pelanggan (juga dipakai untuk jejak audit penyesuaian poin).
+    #[serde(default)]
+    pub notes: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct StoreSettingRecord {
     pub key: String,
     pub value: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ProductUnitConversionRecord {
+    #[serde(default)]
+    pub id: Option<String>,
+    #[serde(rename = "unitName")]
+    pub unit_name: String,
+    #[serde(rename = "conversionFactor")]
+    pub conversion_factor: f64,
+    #[serde(default, rename = "sellPrice")]
+    pub sell_price: Option<f64>,
+    #[serde(default)]
+    pub barcode: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -44,6 +61,13 @@ pub struct ProductRecord {
     pub barcode: Option<String>,
     pub stock: f64,
     pub notes: Option<String>,
+    /// BUG FIX: satuan tambahan (multi-unit / konversi kemasan) sebelumnya dibuang
+    /// oleh serde sehingga fitur jual per DUS/SAK/PETI hilang setiap reload.
+    #[serde(default)]
+    pub units: Option<Vec<ProductUnitConversionRecord>>,
+    /// Penanda barang mudah busuk (prioritas FEFO).
+    #[serde(default, rename = "isPerishable")]
+    pub is_perishable: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -52,6 +76,10 @@ pub struct CategoryMarkupRecord {
     #[serde(rename = "defaultMarkupPercent")]
     pub default_markup_percent: f64,
     pub description: Option<String>,
+    /// BUG FIX: warna kategori sebelumnya tidak pernah tersimpan sehingga fitur
+    /// kisi produk berwarna kategori (commit terakhir) selalu kembali ke acak.
+    #[serde(default)]
+    pub color: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -66,7 +94,7 @@ pub struct PreOrderRecord {
     pub is_loaded_to_pos: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct TransactionRecord {
     pub id: String,
     #[serde(rename = "invoiceNo")]
@@ -105,6 +133,29 @@ pub struct TransactionRecord {
     pub is_pre_order: Option<bool>,
     #[serde(default, rename = "picName")]
     pub pic_name: Option<String>,
+    // BUG FIX: 9 field berikut sebelumnya tidak ada di struct ini sehingga
+    // serde DIBUANG diam-diam (serde mengabaikan field tak dikenal). Akibatnya
+    // split payment, kembalian, infaq, shiftId, dan status refund hilang dari
+    // SQLite, PostgreSQL, dan hasil pull — sehingga struk tidak bisa direkonstruksi
+    // dari database dan rekonsiliasi shift mustahil dilakukan dari sisi cloud.
+    #[serde(default, rename = "isSplitPayment")]
+    pub is_split_payment: Option<bool>,
+    #[serde(default, rename = "cashAmount")]
+    pub cash_amount: Option<f64>,
+    #[serde(default, rename = "nonCashAmount")]
+    pub non_cash_amount: Option<f64>,
+    #[serde(default, rename = "nonCashMethod")]
+    pub non_cash_method: Option<String>,
+    #[serde(default, rename = "changeAmount")]
+    pub change_amount: Option<f64>,
+    #[serde(default, rename = "infaqAmount")]
+    pub infaq_amount: Option<f64>,
+    #[serde(default, rename = "shiftId")]
+    pub shift_id: Option<String>,
+    #[serde(default, rename = "refundStatus")]
+    pub refund_status: Option<String>,
+    #[serde(default, rename = "refundTotal")]
+    pub refund_total: Option<f64>,
     #[serde(rename = "createdAt")]
     pub created_at: Option<String>,
 }
