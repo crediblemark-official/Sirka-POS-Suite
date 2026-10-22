@@ -4,9 +4,12 @@ import { useLedgerStore } from '../../stores/ledgerStore';
 import { useInventoryStore } from '../../stores/inventoryStore';
 import { usePurchaseStore } from '../../stores/purchaseStore';
 import { useShiftStore } from '../../stores/shiftStore';
-import { formatRupiah, localTodayStr, localDateOffset, localPreviousMonthStr } from '../../utils/formatters';
+import { formatRupiah, localTodayStr, localPreviousMonthStr } from '../../utils/formatters';
 import { dbService } from '../../services/dbService';
 import MetricStatsStrip, { type MetricStatItem } from '../common/MetricStatsStrip.vue';
+import DateRangePicker from '../common/DateRangePicker.vue';
+import { useCashStore } from '../../stores/cashStore';
+import CashMutationModal from '../cash/CashMutationModal.vue';
 import {
   FileSpreadsheet,
   ArrowLeftRight,
@@ -28,8 +31,11 @@ import {
   Eye,
   LogIn,
   LogOut,
-  Calendar,
-  X
+  Wallet,
+  Building,
+  QrCode,
+  ArrowDownRight,
+  Trash2
 } from 'lucide-vue-next';
 import * as XLSX from 'xlsx';
 
@@ -43,9 +49,37 @@ const ledgerStore = useLedgerStore();
 const inventoryStore = useInventoryStore();
 const purchaseStore = usePurchaseStore();
 const shiftStore = useShiftStore();
+const cashStore = useCashStore();
 
 type ReportSubTab = 'pnl' | 'cashflow' | 'balance_sheet' | 'receivables' | 'analytics' | 'shifts';
 const activeSubTab = ref<ReportSubTab>('pnl');
+
+// Modal Catat Uang Keluar & Pemindahan Kas
+const cashModalState = ref<{
+  isOpen: boolean;
+  tab: 'EXPENSE' | 'TRANSFER';
+  fromAccount?: 'TUNAI' | 'BANK' | 'QRIS';
+}>({
+  isOpen: false,
+  tab: 'EXPENSE',
+  fromAccount: 'TUNAI'
+});
+
+function openExpenseModal(account?: 'TUNAI' | 'BANK' | 'QRIS') {
+  cashModalState.value = {
+    isOpen: true,
+    tab: 'EXPENSE',
+    fromAccount: account || 'TUNAI'
+  };
+}
+
+function openTransferModal(fromAccount?: 'TUNAI' | 'BANK' | 'QRIS') {
+  cashModalState.value = {
+    isOpen: true,
+    tab: 'TRANSFER',
+    fromAccount: fromAccount || 'QRIS'
+  };
+}
 
 // Catatan Keuangan: Inline Expand / Collapse saat diklik
 const expandedNotes = ref<Set<string>>(new Set());
@@ -65,31 +99,28 @@ const selectedPeriod = ref<DatePeriod>('month');
 const customStartDate = ref<string>(localPreviousMonthStr());
 const customEndDate = ref<string>(localTodayStr());
 
-function setPresetPeriod(p: 'today' | 'week' | 'month' | 'all') {
-  selectedPeriod.value = p;
-  if (p === 'today') {
-    customStartDate.value = localTodayStr();
-    customEndDate.value = localTodayStr();
-  } else if (p === 'week') {
-    customStartDate.value = localDateOffset(7);
-    customEndDate.value = localTodayStr();
-  } else if (p === 'month') {
-    customStartDate.value = localPreviousMonthStr();
-    customEndDate.value = localTodayStr();
-  } else if (p === 'all') {
-    customStartDate.value = '';
-    customEndDate.value = '';
-  }
-}
+const cashBalances = computed(() => {
+  return cashStore.calculateAccountBalances(customStartDate.value, customEndDate.value);
+});
 
-function onDateInput(type: 'start' | 'end', val: string) {
-  if (type === 'start') {
-    customStartDate.value = val;
-  } else {
-    customEndDate.value = val;
-  }
-  selectedPeriod.value = 'custom';
-}
+const operationalExpenses = computed(() => {
+  return cashStore.mutations
+    .filter(m => {
+      if (m.type !== 'EXPENSE') return false;
+      if (customStartDate.value && m.date < customStartDate.value) return false;
+      if (customEndDate.value && m.date > customEndDate.value) return false;
+      return true;
+    })
+    .reduce((acc, m) => acc + m.amount, 0);
+});
+
+const periodMutations = computed(() => {
+  return cashStore.mutations.filter(m => {
+    if (customStartDate.value && m.date < customStartDate.value) return false;
+    if (customEndDate.value && m.date > customEndDate.value) return false;
+    return true;
+  });
+});
 
 // 1. Filter Transactions by Period
 const periodTransactions = computed(() => {
@@ -162,7 +193,7 @@ const totalPurchasesCost = computed(() => {
     .reduce((acc, p) => acc + (p.totalBuy || 0), 0);
 });
 
-const netCashFlow = computed(() => (cashInflow.value + nonCashInflow.value) - totalPurchasesCost.value);
+const netCashFlow = computed(() => (cashInflow.value + nonCashInflow.value) - totalPurchasesCost.value - operationalExpenses.value);
 
 // 4. Balance Sheet Metrics (Neraca Posisi Keuangan)
 const totalInventoryAssetValuation = computed(() => {
@@ -655,72 +686,13 @@ async function exportComprehensiveReport() {
         </div>
       </div>
 
-      <!-- Sisi Kanan: Period Selector & Export Button -->
+      <!-- Sisi Kanan: Date Range Picker & Export Button -->
       <div class="flex items-center gap-2 shrink-0">
-        <!-- Preset Switcher -->
-        <div class="flex bg-gray-200/90 p-0.5 rounded border border-gray-300 shrink-0">
-          <button
-            type="button"
-            class="px-2 py-0.5 rounded text-[11px] font-semibold transition-all cursor-pointer"
-            :class="selectedPeriod === 'today' ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
-            @click="setPresetPeriod('today')"
-          >
-            Hari Ini
-          </button>
-          <button
-            type="button"
-            class="px-2 py-0.5 rounded text-[11px] font-semibold transition-all cursor-pointer"
-            :class="selectedPeriod === 'week' ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
-            @click="setPresetPeriod('week')"
-          >
-            7 Hari
-          </button>
-          <button
-            type="button"
-            class="px-2 py-0.5 rounded text-[11px] font-semibold transition-all cursor-pointer"
-            :class="selectedPeriod === 'month' ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
-            @click="setPresetPeriod('month')"
-          >
-            Bulan
-          </button>
-          <button
-            type="button"
-            class="px-2 py-0.5 rounded text-[11px] font-semibold transition-all cursor-pointer"
-            :class="selectedPeriod === 'all' ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
-            @click="setPresetPeriod('all')"
-          >
-            Semua
-          </button>
-        </div>
-
-        <!-- Date Picker Selalu Muncul (Always Visible) -->
-        <div class="flex items-center gap-1.5 bg-white border border-gray-300 rounded px-2 py-0.5 shadow-2xs shrink-0 text-xs text-gray-600 font-medium">
-          <Calendar :size="12" class="text-indigo-600 shrink-0" />
-          <input
-            type="date"
-            :value="customStartDate"
-            class="h-6 px-1 text-[11px] bg-transparent border-0 font-mono text-gray-800 focus:outline-none cursor-pointer"
-            title="Tanggal Mulai"
-            @input="onDateInput('start', ($event.target as HTMLInputElement).value)"
-          />
-          <span class="text-gray-400 text-[11px]">s/d</span>
-          <input
-            type="date"
-            :value="customEndDate"
-            class="h-6 px-1 text-[11px] bg-transparent border-0 font-mono text-gray-800 focus:outline-none cursor-pointer"
-            title="Tanggal Selesai"
-            @input="onDateInput('end', ($event.target as HTMLInputElement).value)"
-          />
-          <button
-            v-if="selectedPeriod === 'custom' || customStartDate || customEndDate"
-            type="button"
-            title="Reset ke bulan ini"
-            class="p-0.5 rounded text-gray-400 hover:text-rose-600 cursor-pointer"
-            @click="setPresetPeriod('month')"
-          >
-            <X :size="11" />
-          </button>
-        </div>
+        <!-- Reusable Modern Date Range Picker Popover (Matches Screenshot) -->
+        <DateRangePicker
+          v-model:start-date="customStartDate"
+          v-model:end-date="customEndDate"
+        />
 
         <!-- Tombol Export Excel -->
         <button
@@ -917,7 +889,99 @@ async function exportComprehensiveReport() {
       </div>
 
       <!-- ================= SUB-TAB 2: ARUS KAS (CASH FLOW) ================= -->
-      <div v-else-if="activeSubTab === 'cashflow'" class="flex-1 overflow-auto">
+      <div v-else-if="activeSubTab === 'cashflow'" class="flex-1 overflow-auto flex flex-col bg-white">
+        <!-- 1. Kartu Posisi Saldo Kas & Rekonsiliasi Real-Time (3 Kantong Kas) -->
+        <div class="p-3.5 bg-gray-50/70 border-b border-gray-200 shrink-0">
+          <div class="flex items-center justify-between mb-2.5">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold text-gray-800 uppercase tracking-wide">
+                Posisi Saldo Kas &amp; Rekonsiliasi Akun
+              </span>
+              <span class="text-[11px] text-gray-500 font-medium">
+                (Riil terpisah: Kas Fisik, Rekening Bank, Saldo QRIS)
+              </span>
+            </div>
+
+            <!-- Tombol Aksi Mutasi Kas -->
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                class="px-2.5 py-1 rounded bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                @click="openExpenseModal()"
+              >
+                <ArrowDownRight :size="13" />
+                <span>+ Catat Uang Keluar (Beban)</span>
+              </button>
+
+              <button
+                type="button"
+                class="px-2.5 py-1 rounded bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                @click="openTransferModal()"
+              >
+                <ArrowLeftRight :size="13" />
+                <span>⇄ Pindah Kas / Cairkan QRIS</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 3 Kartu Saldo Kantong Kas -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <!-- 1. Kas Tunai Laci Kasir -->
+            <div class="p-3 rounded-lg border border-emerald-200 bg-emerald-50/40 flex flex-col justify-between">
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] font-bold text-emerald-900 uppercase">1. Kas Tunai (Laci Fisik)</span>
+                <Wallet :size="15" class="text-emerald-700" />
+              </div>
+              <div class="my-1.5 font-mono font-extrabold text-lg text-emerald-900">
+                Rp {{ formatRupiah(cashBalances.netCashDrawer) }}
+              </div>
+              <div class="text-[10px] text-emerald-800 flex items-center justify-between pt-1 border-t border-emerald-200/60 font-medium">
+                <span>Omzet Tunai: Rp {{ formatRupiah(cashBalances.salesCash) }}</span>
+                <span class="text-rose-700">Keluar: -Rp {{ formatRupiah(cashBalances.expenseCash + cashBalances.transferOutCash) }}</span>
+              </div>
+            </div>
+
+            <!-- 2. Rekening Bank Toko -->
+            <div class="p-3 rounded-lg border border-blue-200 bg-blue-50/40 flex flex-col justify-between">
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] font-bold text-blue-900 uppercase">2. Rekening Bank Toko</span>
+                <Building :size="15" class="text-blue-700" />
+              </div>
+              <div class="my-1.5 font-mono font-extrabold text-lg text-blue-900">
+                Rp {{ formatRupiah(cashBalances.netBankBalance) }}
+              </div>
+              <div class="text-[10px] text-blue-800 flex items-center justify-between pt-1 border-t border-blue-200/60 font-medium">
+                <span>Masuk: Rp {{ formatRupiah(cashBalances.salesBank + cashBalances.transferInBank) }}</span>
+                <span class="text-rose-700">Beban/Kulakan: -Rp {{ formatRupiah(cashBalances.purchasesCostBank + cashBalances.expenseBank) }}</span>
+              </div>
+            </div>
+
+            <!-- 3. Saldo QRIS Menunggu Pencairan -->
+            <div class="p-3 rounded-lg border border-purple-200 bg-purple-50/40 flex flex-col justify-between">
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] font-bold text-purple-900 uppercase">3. Saldo QRIS (Belum Cair)</span>
+                <QrCode :size="15" class="text-purple-700" />
+              </div>
+              <div class="my-1.5 font-mono font-extrabold text-lg text-purple-900 flex items-baseline justify-between">
+                <span>Rp {{ formatRupiah(cashBalances.pendingQrisSettlement) }}</span>
+                <button
+                  v-if="cashBalances.pendingQrisSettlement > 0"
+                  type="button"
+                  class="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-600 hover:bg-purple-700 text-white cursor-pointer shadow-2xs transition-colors"
+                  @click="openTransferModal('QRIS')"
+                >
+                  ⚡ Cairkan ke Bank
+                </button>
+              </div>
+              <div class="text-[10px] text-purple-800 flex items-center justify-between pt-1 border-t border-purple-200/60 font-medium">
+                <span>Total QRIS: Rp {{ formatRupiah(cashBalances.salesQris) }}</span>
+                <span class="text-emerald-700">Sudah Cair: Rp {{ formatRupiah(cashBalances.settledQrisToBank) }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Tabel Standar Arus Kas Operasional -->
         <table class="table-explorer w-full">
           <thead>
             <tr>
@@ -939,64 +1003,32 @@ async function exportComprehensiveReport() {
             <tr class="hover:bg-emerald-50/20">
               <td class="text-center font-mono text-gray-400">1.1</td>
               <td class="pl-6 font-semibold">Penerimaan Pembayaran Tunai Kasir</td>
-              <td class="text-right font-mono font-bold text-emerald-700">{{ formatRupiah(cashInflow) }}</td>
+              <td class="text-right font-mono font-bold text-emerald-700">{{ formatRupiah(cashBalances.salesCash) }}</td>
               <td class="text-right font-mono text-gray-300">-</td>
-              <td class="text-gray-500 text-[11px] max-w-sm lg:max-w-xl xl:max-w-2xl">
-                <div
-                  class="cursor-pointer select-none transition-colors"
-                  :title="isNoteExpanded('cf_1_1') ? 'Klik untuk ciutkan' : 'Uang fisik tunai di laci kasir (Klik untuk baca penuh)'"
-                  @click="toggleNote('cf_1_1')"
-                >
-                  <div
-                    class="hover:underline transition-colors"
-                    :class="isNoteExpanded('cf_1_1') ? 'whitespace-normal break-words py-0.5' : 'truncate'"
-                  >
-                    Uang fisik tunai di laci kasir
-                  </div>
-                </div>
-              </td>
+              <td class="text-gray-500 text-[11px]">Uang fisik tunai di laci kasir</td>
             </tr>
             <tr class="hover:bg-emerald-50/20">
               <td class="text-center font-mono text-gray-400">1.2</td>
-              <td class="pl-6 font-semibold">Penerimaan Transfer Bank &amp; QRIS (Lunas)</td>
-              <td class="text-right font-mono font-bold text-blue-700">{{ formatRupiah(nonCashInflow) }}</td>
+              <td class="pl-6 font-semibold">Penerimaan Transfer Bank (Lunas)</td>
+              <td class="text-right font-mono font-bold text-blue-700">{{ formatRupiah(cashBalances.salesBank) }}</td>
               <td class="text-right font-mono text-gray-300">-</td>
-              <td class="text-gray-500 text-[11px] max-w-sm lg:max-w-xl xl:max-w-2xl">
-                <div
-                  class="cursor-pointer select-none transition-colors"
-                  :title="isNoteExpanded('cf_1_2') ? 'Klik untuk ciutkan' : 'Mutasi rekening giro / QRIS toko (Klik untuk baca penuh)'"
-                  @click="toggleNote('cf_1_2')"
-                >
-                  <div
-                    class="hover:underline transition-colors"
-                    :class="isNoteExpanded('cf_1_2') ? 'whitespace-normal break-words py-0.5' : 'truncate'"
-                  >
-                    Mutasi rekening giro / QRIS toko
-                  </div>
-                </div>
-              </td>
+              <td class="text-gray-500 text-[11px]">Mutasi rekening bank operasional</td>
+            </tr>
+            <tr class="hover:bg-emerald-50/20">
+              <td class="text-center font-mono text-gray-400">1.3</td>
+              <td class="pl-6 font-semibold">Penerimaan QRIS Toko (Lunas)</td>
+              <td class="text-right font-mono font-bold text-purple-700">{{ formatRupiah(cashBalances.salesQris) }}</td>
+              <td class="text-right font-mono text-gray-300">-</td>
+              <td class="text-gray-500 text-[11px]">Scan QRIS masuk saldo merchant aggregator</td>
             </tr>
             <tr class="bg-emerald-50/40 font-bold border-t border-b border-emerald-200">
-              <td class="text-center font-mono text-emerald-900">1.3</td>
-              <td class="pl-6 text-emerald-900">SUBTOTAL KAS MASUK</td>
+              <td class="text-center font-mono text-emerald-900">1.4</td>
+              <td class="pl-6 text-emerald-900 font-bold">SUBTOTAL KAS MASUK PENJUALAN</td>
               <td class="text-right font-mono text-emerald-800 text-sm font-extrabold">
-                {{ formatRupiah(cashInflow + nonCashInflow) }}
+                {{ formatRupiah(cashBalances.salesCash + cashBalances.salesBank + cashBalances.salesQris) }}
               </td>
               <td class="text-right font-mono text-gray-300">-</td>
-              <td class="text-emerald-800 text-[11px] max-w-sm lg:max-w-xl xl:max-w-2xl">
-                <div
-                  class="cursor-pointer select-none transition-colors"
-                  :title="isNoteExpanded('cf_1_3') ? 'Klik untuk ciutkan' : 'Total seluruh kas masuk periode ini (Klik untuk baca penuh)'"
-                  @click="toggleNote('cf_1_3')"
-                >
-                  <div
-                    class="hover:underline transition-colors"
-                    :class="isNoteExpanded('cf_1_3') ? 'whitespace-normal break-words py-0.5' : 'truncate'"
-                  >
-                    Total seluruh kas masuk periode ini
-                  </div>
-                </div>
-              </td>
+              <td class="text-emerald-800 text-[11px] font-medium">Total seluruh penerimaan omzet penjualan periode ini</td>
             </tr>
 
             <!-- 2. Arus Kas Keluar -->
@@ -1011,20 +1043,23 @@ async function exportComprehensiveReport() {
               <td class="pl-6 font-semibold">Pembayaran Faktur Kulakan Barang Supplier</td>
               <td class="text-right font-mono text-gray-300">-</td>
               <td class="text-right font-mono font-bold text-amber-800">{{ formatRupiah(totalPurchasesCost) }}</td>
-              <td class="text-gray-500 text-[11px] max-w-sm lg:max-w-xl xl:max-w-2xl">
-                <div
-                  class="cursor-pointer select-none transition-colors"
-                  :title="isNoteExpanded('cf_2_1') ? 'Klik untuk ciutkan' : `Total ${purchaseStore.purchaseHistory.length} nota kulakan barang dari distributor (Klik untuk baca penuh)`"
-                  @click="toggleNote('cf_2_1')"
-                >
-                  <div
-                    class="hover:underline transition-colors"
-                    :class="isNoteExpanded('cf_2_1') ? 'whitespace-normal break-words py-0.5' : 'truncate'"
-                  >
-                    Total {{ purchaseStore.purchaseHistory.length }} nota kulakan barang dari distributor
-                  </div>
-                </div>
+              <td class="text-gray-500 text-[11px]">Total {{ purchaseStore.purchaseHistory.length }} faktur pembelian barang dagang</td>
+            </tr>
+            <tr class="hover:bg-amber-50/20">
+              <td class="text-center font-mono text-gray-400">2.2</td>
+              <td class="pl-6 font-semibold">Beban &amp; Pengeluaran Kas Toko (Operasional/Prive)</td>
+              <td class="text-right font-mono text-gray-300">-</td>
+              <td class="text-right font-mono font-bold text-rose-700">{{ formatRupiah(operationalExpenses) }}</td>
+              <td class="text-gray-500 text-[11px]">Plastik, listrik, bensin, gaji, konsumsi, dll.</td>
+            </tr>
+            <tr class="bg-amber-50/40 font-bold border-t border-b border-amber-200">
+              <td class="text-center font-mono text-amber-900">2.3</td>
+              <td class="pl-6 text-amber-900 font-bold">SUBTOTAL KAS KELUAR OPERASIONAL</td>
+              <td class="text-right font-mono text-gray-300">-</td>
+              <td class="text-right font-mono text-rose-800 text-sm font-extrabold">
+                {{ formatRupiah(totalPurchasesCost + operationalExpenses) }}
               </td>
+              <td class="text-amber-800 text-[11px] font-medium">Total seluruh pengeluaran uang periode ini</td>
             </tr>
 
             <!-- 3. Net Cash Flow -->
@@ -1036,23 +1071,130 @@ async function exportComprehensiveReport() {
               <td colspan="2" class="text-right font-mono text-blue-800 text-base font-extrabold">
                 {{ netCashFlow >= 0 ? '+' : '' }} {{ formatRupiah(netCashFlow) }}
               </td>
-              <td class="text-blue-800 text-[11px] font-semibold max-w-sm lg:max-w-xl xl:max-w-2xl">
-                <div
-                  class="cursor-pointer select-none transition-colors"
-                  :title="isNoteExpanded('cf_3') ? 'Klik untuk ciutkan' : 'Sisa kas riil (Inflow dikurangi Outflow) (Klik untuk baca penuh)'"
-                  @click="toggleNote('cf_3')"
-                >
-                  <div
-                    class="hover:underline transition-colors"
-                    :class="isNoteExpanded('cf_3') ? 'whitespace-normal break-words py-0.5' : 'truncate'"
-                  >
-                    Sisa kas riil (Inflow dikurangi Outflow)
-                  </div>
-                </div>
+              <td class="text-blue-800 text-[11px] font-semibold">
+                Sisa kas riil (Total Inflow dikurangi Total Outflow)
               </td>
+            </tr>
+
+            <!-- 4. Rekonsiliasi Pemindahan Kas (Non-Beban) -->
+            <tr class="bg-gray-50/80 font-bold">
+              <td class="text-center font-mono">4</td>
+              <td colspan="4" class="text-indigo-900 uppercase tracking-wider text-[11px]">
+                REKONSILIASI &amp; MUTASI PEMINDAHAN ANTAR AKUN
+              </td>
+            </tr>
+            <tr class="hover:bg-indigo-50/20">
+              <td class="text-center font-mono text-gray-400">4.1</td>
+              <td class="pl-6 font-semibold">Pencairan / Settlement QRIS Masuk Rekening Bank</td>
+              <td class="text-right font-mono font-bold text-indigo-700">{{ formatRupiah(cashBalances.settledQrisToBank) }}</td>
+              <td class="text-right font-mono text-gray-300">-</td>
+              <td class="text-gray-500 text-[11px]">Dana QRIS yang telah dipindah/cair ke rekening</td>
+            </tr>
+            <tr class="hover:bg-indigo-50/20">
+              <td class="text-center font-mono text-gray-400">4.2</td>
+              <td class="pl-6 font-semibold">Setor Kas Fisik Tunai ke Rekening Bank</td>
+              <td class="text-right font-mono font-bold text-indigo-700">{{ formatRupiah(cashBalances.transferOutCash) }}</td>
+              <td class="text-right font-mono text-gray-300">-</td>
+              <td class="text-gray-500 text-[11px]">Uang fisik kasir yang disetor ke bank</td>
             </tr>
           </tbody>
         </table>
+
+        <!-- 3. Tabel Riwayat Catatan Pengeluaran & Mutasi Kas Lengkap -->
+        <div class="border-t-2 border-gray-200 mt-4 bg-white flex flex-col">
+          <div class="px-4 py-2.5 bg-gray-100 border-b border-gray-200 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-xs text-gray-800 uppercase tracking-wide">
+                Riwayat Catatan Pengeluaran &amp; Mutasi Kas
+              </span>
+              <span class="px-2 py-0.2 rounded-full bg-gray-200 text-gray-700 font-mono text-[10px] font-bold">
+                {{ periodMutations.length }} Catatan
+              </span>
+            </div>
+            <button
+              type="button"
+              class="px-2 py-0.5 rounded bg-white hover:bg-gray-100 border border-gray-300 text-gray-700 font-semibold text-[11px] cursor-pointer"
+              @click="openExpenseModal()"
+            >
+              + Tambah Catatan
+            </button>
+          </div>
+
+          <table class="table-explorer w-full">
+            <thead>
+              <tr>
+                <th class="w-12 text-center">NO</th>
+                <th class="w-28 text-left">TANGGAL</th>
+                <th class="w-24 text-center">TIPE</th>
+                <th class="w-32 text-left">DARI SUMBER</th>
+                <th class="w-32 text-left">KE TUJUAN</th>
+                <th class="w-36 text-left">KATEGORI</th>
+                <th class="w-32 text-right">NOMINAL (RP)</th>
+                <th class="text-left">KETERANGAN &amp; CATATAN</th>
+                <th class="w-16 text-center">AKSI</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="(mut, mIdx) in periodMutations"
+                :key="mut.id"
+                class="hover:bg-gray-50/60"
+              >
+                <td class="text-center font-mono text-gray-400">{{ mIdx + 1 }}</td>
+                <td class="font-mono text-[11px] text-gray-700">{{ mut.date }}</td>
+                <td class="text-center">
+                  <span
+                    class="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase"
+                    :class="mut.type === 'EXPENSE' ? 'bg-rose-100 text-rose-800' : 'bg-blue-100 text-blue-800'"
+                  >
+                    {{ mut.type === 'EXPENSE' ? 'Keluar' : 'Transfer' }}
+                  </span>
+                </td>
+                <td class="font-semibold text-gray-800">
+                  <span v-if="mut.fromAccount === 'TUNAI'">Kas Tunai</span>
+                  <span v-else-if="mut.fromAccount === 'BANK'">Rekening Bank</span>
+                  <span v-else>Saldo QRIS</span>
+                </td>
+                <td class="text-gray-600">
+                  <template v-if="mut.toAccount">
+                    <span v-if="mut.toAccount === 'TUNAI'" class="font-semibold text-emerald-700">Kas Tunai</span>
+                    <span v-else-if="mut.toAccount === 'BANK'" class="font-semibold text-blue-700">Rekening Bank</span>
+                    <span v-else class="font-semibold text-purple-700">Saldo QRIS</span>
+                  </template>
+                  <span v-else class="text-gray-300">-</span>
+                </td>
+                <td class="font-medium text-gray-800">{{ mut.category }}</td>
+                <td
+                  class="text-right font-mono font-bold"
+                  :class="mut.type === 'EXPENSE' ? 'text-rose-700' : 'text-blue-700'"
+                >
+                  Rp {{ formatRupiah(mut.amount) }}
+                </td>
+                <td class="text-gray-600 text-[11px]">
+                  <span>{{ mut.notes || '-' }}</span>
+                  <span v-if="mut.referenceNo" class="text-gray-400 font-mono ml-1.5">({{ mut.referenceNo }})</span>
+                </td>
+                <td class="text-center">
+                  <button
+                    type="button"
+                    class="p-1 text-gray-400 hover:text-rose-600 rounded hover:bg-rose-50 cursor-pointer transition-colors"
+                    title="Hapus catatan mutasi"
+                    @click="cashStore.deleteMutation(mut.id)"
+                  >
+                    <Trash2 :size="13" />
+                  </button>
+                </td>
+              </tr>
+
+              <tr v-if="periodMutations.length === 0">
+                <td colspan="9" class="p-6 text-center text-gray-400">
+                  <p class="font-semibold text-xs text-gray-600">Belum ada catatan pengeluaran kas atau mutasi transfer</p>
+                  <p class="text-[11px] mt-0.5">Klik tombol "+ Catat Uang Keluar" untuk mencatat beban operasional atau "Pindah Kas" untuk mencairkan saldo QRIS.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <!-- ================= SUB-TAB 3: NERACA POSISI KEUANGAN ================= -->
@@ -1459,5 +1601,13 @@ async function exportComprehensiveReport() {
         </div>
       </div>
     </div>
+
+    <!-- Modal Catat Uang Keluar & Pemindahan Kas -->
+    <CashMutationModal
+      :is-open="cashModalState.isOpen"
+      :initial-tab="cashModalState.tab"
+      :initial-from-account="cashModalState.fromAccount"
+      @close="cashModalState.isOpen = false"
+    />
   </div>
 </template>

@@ -370,4 +370,23 @@ export interface StockAdjustmentRecord {
   createdAt: string;
 }
 
+// Cash Mutation & Outflow Management (Uang Keluar & Pemindahan Kas)
+export type CashAccountType = 'TUNAI' | 'BANK' | 'QRIS';
+export type CashMutationType = 'EXPENSE' | 'TRANSFER' | 'INFLOW';
+
+export interface CashMutation {
+  id: string;
+  date: string; // YYYY-MM-DD
+  time: string; // HH:mm:ss
+  type: CashMutationType;
+  fromAccount: CashAccountType;
+  toAccount?: CashAccountType; // Hanya jika type === 'TRANSFER'
+  amount: number;
+  category: string; // e.g. 'Operasional', 'Plastik & Kemasan', 'Listrik & Air', 'Gaji / Upah', 'Prive', 'Settlement QRIS', 'Setor Bank'
+  notes: string;
+  referenceNo?: string;
+  settled?: boolean; // True jika mutasi/pencairan sudah selesai
+  createdAt: string;
+}
+
 
