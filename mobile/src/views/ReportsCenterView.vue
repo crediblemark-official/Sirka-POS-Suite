@@ -23,7 +23,8 @@ import {
   Percent,
   UserCheck,
   X,
-  Banknote
+  Banknote,
+  ArrowRight
 } from 'lucide-vue-next';
 
 const emit = defineEmits<{
@@ -37,6 +38,11 @@ const agingReport = ref<ReceivablesAgingReport | null>(null);
 const shifts = ref<any[]>([]);
 const showShiftAuditModal = ref(false);
 const errorMessage = ref('');
+const expandedModule = ref<number | null>(null);
+
+function toggleModule(id: number) {
+  expandedModule.value = expandedModule.value === id ? null : id;
+}
 
 async function loadData() {
   loading.value = true;
@@ -192,239 +198,380 @@ const shiftAuditLabel = computed(() => {
         <span class="text-[10px] text-[#6b655f] font-mono">Realtime Live PostgreSQL</span>
       </div>
 
-      <!-- 9 Modules Interactive Explorer List (Full Edge) -->
+      <!-- 9 Modules Interactive Explorer List (Full Edge Expandable) -->
       <div class="w-full bg-white border-b border-[#c8c5c0] divide-y divide-[#e5e3de]">
         <!-- Modul 1: Dead Stock & Modal Terkunci -->
-        <div
-          @click="emit('navigate', 'inventory_asset')"
-          class="p-3 hover:bg-[#faf9f7] cursor-pointer transition-colors flex items-center justify-between gap-3"
-        >
-          <div class="flex items-start gap-2.5 min-w-0">
-            <span class="w-5 h-5 rounded bg-amber-100 text-amber-800 text-[10px] font-mono font-bold flex items-center justify-center shrink-0 mt-0.5">
-              01
-            </span>
-            <div class="min-w-0">
-              <div class="text-xs font-bold text-[#2e2b28] flex items-center gap-1.5">
-                <span>Dead Stock &amp; Modal Terkunci</span>
-                <span class="px-1.5 py-0.2 rounded text-[9px] font-mono bg-amber-100 text-amber-800 border border-amber-200">
-                  {{ productsReport?.totalDeadStockSkus ?? 0 }} SKU Mati
-                </span>
-              </div>
-              <div class="text-[11px] text-[#6b655f] mt-0.5 leading-snug">
-                Deteksi barang tidak laku &gt;30 hari dan hitung total modal HPP yang terkunci di rak.
-              </div>
+        <div class="transition-colors">
+          <div
+            @click="toggleModule(1)"
+            class="px-3 py-2.5 flex items-center justify-between gap-3 cursor-pointer hover:bg-[#faf9f7] select-none"
+            :class="expandedModule === 1 ? 'bg-[#f7f6f4]' : ''"
+          >
+            <div class="flex items-center gap-2.5 min-w-0">
+              <span class="w-5 h-5 rounded bg-[#e8e6e1] text-[#4a4640] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">
+                01
+              </span>
+              <span class="text-xs font-semibold text-[#2e2b28] truncate">
+                Dead Stock &amp; Modal Terkunci
+              </span>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <span v-if="productsReport?.totalCapitalLocked" class="font-mono text-xs font-bold text-amber-700">
+                {{ formatRupiah(productsReport?.totalCapitalLocked ?? 0) }}
+              </span>
+              <ChevronRight
+                class="w-4 h-4 text-[#a8a49e] transition-transform duration-200"
+                :class="expandedModule === 1 ? 'rotate-90 text-[#2563eb]' : ''"
+              />
             </div>
           </div>
-          <div class="text-right shrink-0 flex items-center gap-2">
-            <div class="font-mono text-xs font-bold text-amber-700">
-              {{ formatRupiah(productsReport?.totalCapitalLocked ?? 0) }}
+          <div
+            v-if="expandedModule === 1"
+            class="px-3 pb-3 pt-1 bg-[#f7f6f4] border-t border-[#f0ede8] text-xs text-[#524e48] animate-fade-in space-y-2"
+          >
+            <p class="text-[11.5px] leading-relaxed text-[#6b655f]">
+              Deteksi barang tidak laku &gt;30 hari dan hitung total modal HPP yang terkunci di rak toko.
+            </p>
+            <div class="flex items-center justify-between pt-1">
+              <span class="text-[10.5px] font-mono text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                {{ productsReport?.totalDeadStockSkus ?? 0 }} SKU Mati / Tertahan
+              </span>
+              <button
+                @click.stop="emit('navigate', 'inventory_asset')"
+                class="text-xs text-[#2563eb] font-bold hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                Lihat Detail Aset Stok
+                <ArrowRight class="w-3.5 h-3.5" />
+              </button>
             </div>
-            <ChevronRight class="w-4 h-4 text-[#b0aca5]" />
           </div>
         </div>
 
         <!-- Modul 2: Analisis ABC Pareto (80/20) -->
-        <div
-          @click="emit('navigate', 'inventory_asset')"
-          class="p-3 hover:bg-[#faf9f7] cursor-pointer transition-colors flex items-center justify-between gap-3"
-        >
-          <div class="flex items-start gap-2.5 min-w-0">
-            <span class="w-5 h-5 rounded bg-blue-100 text-blue-800 text-[10px] font-mono font-bold flex items-center justify-center shrink-0 mt-0.5">
-              02
-            </span>
-            <div class="min-w-0">
-              <div class="text-xs font-bold text-[#2e2b28] flex items-center gap-1.5">
-                <span>Analisis ABC Pareto (Prinsip 80/20)</span>
-                <span class="px-1.5 py-0.2 rounded text-[9px] font-mono bg-blue-100 text-blue-800 border border-blue-200">
-                  Prioritas Restock
-                </span>
-              </div>
-              <div class="text-[11px] text-[#6b655f] mt-0.5 leading-snug">
-                Memetakan 20% SKU Kelas A yang menyumbang 80% omzet toko agar tidak pernah kosong.
-              </div>
+        <div class="transition-colors">
+          <div
+            @click="toggleModule(2)"
+            class="px-3 py-2.5 flex items-center justify-between gap-3 cursor-pointer hover:bg-[#faf9f7] select-none"
+            :class="expandedModule === 2 ? 'bg-[#f7f6f4]' : ''"
+          >
+            <div class="flex items-center gap-2.5 min-w-0">
+              <span class="w-5 h-5 rounded bg-[#e8e6e1] text-[#4a4640] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">
+                02
+              </span>
+              <span class="text-xs font-semibold text-[#2e2b28] truncate">
+                Analisis ABC Pareto (80/20)
+              </span>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <span class="text-[11px] font-medium text-[#6b655f]">Prioritas Restock</span>
+              <ChevronRight
+                class="w-4 h-4 text-[#a8a49e] transition-transform duration-200"
+                :class="expandedModule === 2 ? 'rotate-90 text-[#2563eb]' : ''"
+              />
             </div>
           </div>
-          <ChevronRight class="w-4 h-4 text-[#b0aca5] shrink-0" />
+          <div
+            v-if="expandedModule === 2"
+            class="px-3 pb-3 pt-1 bg-[#f7f6f4] border-t border-[#f0ede8] text-xs text-[#524e48] animate-fade-in space-y-2"
+          >
+            <p class="text-[11.5px] leading-relaxed text-[#6b655f]">
+              Memetakan 20% SKU Kelas A yang menyumbang 80% omzet toko agar ketersediaan stok tidak pernah kosong.
+            </p>
+            <div class="flex items-center justify-end pt-1">
+              <button
+                @click.stop="emit('navigate', 'inventory_asset')"
+                class="text-xs text-[#2563eb] font-bold hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                Buka Matriks Stok Pareto
+                <ArrowRight class="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
         </div>
 
         <!-- Modul 3: Matriks Margin vs Volume (4 Kuadran) -->
-        <div
-          @click="emit('navigate', 'inventory_asset')"
-          class="p-3 hover:bg-[#faf9f7] cursor-pointer transition-colors flex items-center justify-between gap-3"
-        >
-          <div class="flex items-start gap-2.5 min-w-0">
-            <span class="w-5 h-5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-mono font-bold flex items-center justify-center shrink-0 mt-0.5">
-              03
-            </span>
-            <div class="min-w-0">
-              <div class="text-xs font-bold text-[#2e2b28] flex items-center gap-1.5">
-                <span>Matriks Kuadran Margin vs Volume</span>
-                <span class="px-1.5 py-0.2 rounded text-[9px] font-mono bg-emerald-100 text-emerald-800 border border-emerald-200">
-                  Star &amp; Cash Cow
-                </span>
-              </div>
-              <div class="text-[11px] text-[#6b655f] mt-0.5 leading-snug">
-                Mengelompokkan barang ke 4 kuadran: Star (laba tebal &amp; laris), Cash Cow, dan Dead Weight.
-              </div>
+        <div class="transition-colors">
+          <div
+            @click="toggleModule(3)"
+            class="px-3 py-2.5 flex items-center justify-between gap-3 cursor-pointer hover:bg-[#faf9f7] select-none"
+            :class="expandedModule === 3 ? 'bg-[#f7f6f4]' : ''"
+          >
+            <div class="flex items-center gap-2.5 min-w-0">
+              <span class="w-5 h-5 rounded bg-[#e8e6e1] text-[#4a4640] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">
+                03
+              </span>
+              <span class="text-xs font-semibold text-[#2e2b28] truncate">
+                Matriks Kuadran Margin vs Volume
+              </span>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <ChevronRight
+                class="w-4 h-4 text-[#a8a49e] transition-transform duration-200"
+                :class="expandedModule === 3 ? 'rotate-90 text-[#2563eb]' : ''"
+              />
             </div>
           </div>
-          <ChevronRight class="w-4 h-4 text-[#b0aca5] shrink-0" />
+          <div
+            v-if="expandedModule === 3"
+            class="px-3 pb-3 pt-1 bg-[#f7f6f4] border-t border-[#f0ede8] text-xs text-[#524e48] animate-fade-in space-y-2"
+          >
+            <p class="text-[11.5px] leading-relaxed text-[#6b655f]">
+              Mengelompokkan barang ke 4 kuadran: <strong>Star</strong> (laba tebal &amp; laris), <strong>Cash Cow</strong> (omzet tinggi), <strong>Puzzle</strong> (laba tinggi tapi lambat), dan <strong>Dead Weight</strong>.
+            </p>
+            <div class="flex items-center justify-end pt-1">
+              <button
+                @click.stop="emit('navigate', 'inventory_asset')"
+                class="text-xs text-[#2563eb] font-bold hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                Lihat Kuadran Produk
+                <ArrowRight class="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
         </div>
 
         <!-- Modul 4: Heatmap Jam & Hari Sibuk (Peak Hours) -->
-        <div
-          @click="emit('navigate', 'income_statement')"
-          class="p-3 hover:bg-[#faf9f7] cursor-pointer transition-colors flex items-center justify-between gap-3"
-        >
-          <div class="flex items-start gap-2.5 min-w-0">
-            <span class="w-5 h-5 rounded bg-purple-100 text-purple-800 text-[10px] font-mono font-bold flex items-center justify-center shrink-0 mt-0.5">
-              04
-            </span>
-            <div class="min-w-0">
-              <div class="text-xs font-bold text-[#2e2b28] flex items-center gap-1.5">
-                <span>Heatmap Jam &amp; Hari Sibuk (Peak Hours)</span>
-                <span class="px-1.5 py-0.2 rounded text-[9px] font-mono bg-purple-100 text-purple-800 border border-purple-200">
-                  08:00 - 21:00
-                </span>
-              </div>
-              <div class="text-[11px] text-[#6b655f] mt-0.5 leading-snug">
-                Grafik jam sibuk untuk efisiensi jadwal kerja kasir dan waktu restock barang.
-              </div>
+        <div class="transition-colors">
+          <div
+            @click="toggleModule(4)"
+            class="px-3 py-2.5 flex items-center justify-between gap-3 cursor-pointer hover:bg-[#faf9f7] select-none"
+            :class="expandedModule === 4 ? 'bg-[#f7f6f4]' : ''"
+          >
+            <div class="flex items-center gap-2.5 min-w-0">
+              <span class="w-5 h-5 rounded bg-[#e8e6e1] text-[#4a4640] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">
+                04
+              </span>
+              <span class="text-xs font-semibold text-[#2e2b28] truncate">
+                Heatmap Jam &amp; Hari Sibuk
+              </span>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <span class="text-[11px] font-mono text-[#6b655f]">08:00 - 21:00</span>
+              <ChevronRight
+                class="w-4 h-4 text-[#a8a49e] transition-transform duration-200"
+                :class="expandedModule === 4 ? 'rotate-90 text-[#2563eb]' : ''"
+              />
             </div>
           </div>
-          <ChevronRight class="w-4 h-4 text-[#b0aca5] shrink-0" />
+          <div
+            v-if="expandedModule === 4"
+            class="px-3 pb-3 pt-1 bg-[#f7f6f4] border-t border-[#f0ede8] text-xs text-[#524e48] animate-fade-in space-y-2"
+          >
+            <p class="text-[11.5px] leading-relaxed text-[#6b655f]">
+              Grafik jam sibuk untuk efisiensi jadwal kerja kasir dan waktu restock barang toko.
+            </p>
+            <div class="flex items-center justify-end pt-1">
+              <button
+                @click.stop="emit('navigate', 'income_statement')"
+                class="text-xs text-[#2563eb] font-bold hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                Buka Pola Transaksi
+                <ArrowRight class="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
         </div>
 
         <!-- Modul 5: Nilai Keranjang Belanja & AOV -->
-        <div
-          @click="emit('navigate', 'income_statement')"
-          class="p-3 hover:bg-[#faf9f7] cursor-pointer transition-colors flex items-center justify-between gap-3"
-        >
-          <div class="flex items-start gap-2.5 min-w-0">
-            <span class="w-5 h-5 rounded bg-indigo-100 text-indigo-800 text-[10px] font-mono font-bold flex items-center justify-center shrink-0 mt-0.5">
-              05
-            </span>
-            <div class="min-w-0">
-              <div class="text-xs font-bold text-[#2e2b28] flex items-center gap-1.5">
-                <span>Nilai Keranjang Belanja &amp; AOV</span>
-                <span class="px-1.5 py-0.2 rounded text-[9px] font-mono bg-indigo-100 text-indigo-800 border border-indigo-200">
-                  Per Struk
-                </span>
-              </div>
-              <div class="text-[11px] text-[#6b655f] mt-0.5 leading-snug">
-                Rata-rata rupiah per nota untuk mengukur keberhasilan kasir dalam menawarkan cross-selling.
-              </div>
+        <div class="transition-colors">
+          <div
+            @click="toggleModule(5)"
+            class="px-3 py-2.5 flex items-center justify-between gap-3 cursor-pointer hover:bg-[#faf9f7] select-none"
+            :class="expandedModule === 5 ? 'bg-[#f7f6f4]' : ''"
+          >
+            <div class="flex items-center gap-2.5 min-w-0">
+              <span class="w-5 h-5 rounded bg-[#e8e6e1] text-[#4a4640] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">
+                05
+              </span>
+              <span class="text-xs font-semibold text-[#2e2b28] truncate">
+                Nilai Keranjang Belanja &amp; AOV
+              </span>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <ChevronRight
+                class="w-4 h-4 text-[#a8a49e] transition-transform duration-200"
+                :class="expandedModule === 5 ? 'rotate-90 text-[#2563eb]' : ''"
+              />
             </div>
           </div>
-          <ChevronRight class="w-4 h-4 text-[#b0aca5] shrink-0" />
+          <div
+            v-if="expandedModule === 5"
+            class="px-3 pb-3 pt-1 bg-[#f7f6f4] border-t border-[#f0ede8] text-xs text-[#524e48] animate-fade-in space-y-2"
+          >
+            <p class="text-[11.5px] leading-relaxed text-[#6b655f]">
+              Rata-rata rupiah per nota (*Average Order Value*) untuk mengukur keberhasilan kasir dalam menawarkan barang rekomendasi (*cross-selling*).
+            </p>
+            <div class="flex items-center justify-end pt-1">
+              <button
+                @click.stop="emit('navigate', 'income_statement')"
+                class="text-xs text-[#2563eb] font-bold hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                Lihat Laporan Penjualan
+                <ArrowRight class="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
         </div>
 
         <!-- Modul 6: Aging Schedule Piutang Bertingkat -->
-        <div
-          @click="emit('navigate', 'receivables')"
-          class="p-3 hover:bg-[#faf9f7] cursor-pointer transition-colors flex items-center justify-between gap-3"
-        >
-          <div class="flex items-start gap-2.5 min-w-0">
-            <span class="w-5 h-5 rounded bg-rose-100 text-rose-800 text-[10px] font-mono font-bold flex items-center justify-center shrink-0 mt-0.5">
-              06
-            </span>
-            <div class="min-w-0">
-              <div class="text-xs font-bold text-[#2e2b28] flex items-center gap-1.5">
-                <span>Aging Schedule Piutang Bertingkat</span>
-                <span class="px-1.5 py-0.2 rounded text-[9px] font-mono bg-rose-100 text-rose-800 border border-rose-200">
-                  0-7d s/d &gt;30d
-                </span>
-              </div>
-              <div class="text-[11px] text-[#6b655f] mt-0.5 leading-snug">
-                Segmentasi umur nota tempo dan deteksi dini piutang macet pelanggan.
-              </div>
+        <div class="transition-colors">
+          <div
+            @click="toggleModule(6)"
+            class="px-3 py-2.5 flex items-center justify-between gap-3 cursor-pointer hover:bg-[#faf9f7] select-none"
+            :class="expandedModule === 6 ? 'bg-[#f7f6f4]' : ''"
+          >
+            <div class="flex items-center gap-2.5 min-w-0">
+              <span class="w-5 h-5 rounded bg-[#e8e6e1] text-[#4a4640] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">
+                06
+              </span>
+              <span class="text-xs font-semibold text-[#2e2b28] truncate">
+                Aging Schedule Piutang
+              </span>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <span class="font-mono text-xs font-bold" :class="(agingReport?.totalPending || 0) > 0 ? 'text-red-700' : 'text-[#6b655f]'">
+                {{ formatRupiah(agingReport?.totalPending || 0) }}
+              </span>
+              <ChevronRight
+                class="w-4 h-4 text-[#a8a49e] transition-transform duration-200"
+                :class="expandedModule === 6 ? 'rotate-90 text-[#2563eb]' : ''"
+              />
             </div>
           </div>
-          <div class="text-right shrink-0 flex items-center gap-2">
-            <div class="font-mono text-xs font-bold text-red-700">
-              {{ formatRupiah(agingReport?.totalPending || 0) }}
+          <div
+            v-if="expandedModule === 6"
+            class="px-3 pb-3 pt-1 bg-[#f7f6f4] border-t border-[#f0ede8] text-xs text-[#524e48] animate-fade-in space-y-2"
+          >
+            <p class="text-[11.5px] leading-relaxed text-[#6b655f]">
+              Segmentasi umur nota tempo (0-7 hari s/d &gt;30 hari) dan deteksi dini piutang macet pelanggan.
+            </p>
+            <div class="flex items-center justify-between pt-1">
+              <span class="text-[10.5px] font-mono text-rose-800 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                {{ agingReport?.totalInvoices || 0 }} Faktur Belum Lunas
+              </span>
+              <button
+                @click.stop="emit('navigate', 'receivables')"
+                class="text-xs text-[#2563eb] font-bold hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                Buka Buku Piutang
+                <ArrowRight class="w-3.5 h-3.5" />
+              </button>
             </div>
-            <ChevronRight class="w-4 h-4 text-[#b0aca5]" />
           </div>
         </div>
 
         <!-- Modul 7: Neraca Posisi Keuangan (Balance Sheet) -->
-        <div
-          class="p-3 hover:bg-[#faf9f7] transition-colors flex items-center justify-between gap-3"
-        >
-          <div class="flex items-start gap-2.5 min-w-0">
-            <span class="w-5 h-5 rounded bg-teal-100 text-teal-800 text-[10px] font-mono font-bold flex items-center justify-center shrink-0 mt-0.5">
-              07
-            </span>
-            <div class="min-w-0">
-              <div class="text-xs font-bold text-[#2e2b28] flex items-center gap-1.5">
-                <span>Neraca Posisi Keuangan (Balance Sheet)</span>
-                <span class="px-1.5 py-0.2 rounded text-[9px] font-mono bg-teal-100 text-teal-800 border border-teal-200">
-                  Kekayaan Bersih
-                </span>
-              </div>
-              <div class="text-[11px] text-[#6b655f] mt-0.5 leading-snug">
-                Total Aset (Kas + Stok + Piutang) dikurangi total hutang supplier untuk melihat Net Worth toko.
-              </div>
+        <div class="transition-colors">
+          <div
+            @click="toggleModule(7)"
+            class="px-3 py-2.5 flex items-center justify-between gap-3 cursor-pointer hover:bg-[#faf9f7] select-none"
+            :class="expandedModule === 7 ? 'bg-[#f7f6f4]' : ''"
+          >
+            <div class="flex items-center gap-2.5 min-w-0">
+              <span class="w-5 h-5 rounded bg-[#e8e6e1] text-[#4a4640] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">
+                07
+              </span>
+              <span class="text-xs font-semibold text-[#2e2b28] truncate">
+                Neraca Posisi Keuangan (Balance Sheet)
+              </span>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <ChevronRight
+                class="w-4 h-4 text-[#a8a49e] transition-transform duration-200"
+                :class="expandedModule === 7 ? 'rotate-90 text-[#2563eb]' : ''"
+              />
             </div>
           </div>
-          <Scale class="w-4 h-4 text-[#2563eb] shrink-0" />
+          <div
+            v-if="expandedModule === 7"
+            class="px-3 pb-3 pt-1 bg-[#f7f6f4] border-t border-[#f0ede8] text-xs text-[#524e48] animate-fade-in space-y-2"
+          >
+            <p class="text-[11.5px] leading-relaxed text-[#6b655f]">
+              Total Aset (Kas + Stok Fisik + Piutang) dikurangi total hutang supplier untuk melihat Nilai Bersih (*Net Worth*) toko.
+            </p>
+          </div>
         </div>
 
         <!-- Modul 8: Buku Hutang Dagang Supplier (AP Aging) -->
-        <div
-          class="p-3 hover:bg-[#faf9f7] transition-colors flex items-center justify-between gap-3"
-        >
-          <div class="flex items-start gap-2.5 min-w-0">
-            <span class="w-5 h-5 rounded bg-orange-100 text-orange-800 text-[10px] font-mono font-bold flex items-center justify-center shrink-0 mt-0.5">
-              08
-            </span>
-            <div class="min-w-0">
-              <div class="text-xs font-bold text-[#2e2b28] flex items-center gap-1.5">
-                <span>Buku Hutang Dagang Supplier (AP)</span>
-                <span class="px-1.5 py-0.2 rounded text-[9px] font-mono bg-orange-100 text-orange-800 border border-orange-200">
-                  Jatuh Tempo Faktur
-                </span>
-              </div>
-              <div class="text-[11px] text-[#6b655f] mt-0.5 leading-snug">
-                Kalender jatuh tempo pembayaran kulakan supplier vs ketersediaan saldo kas riil toko.
-              </div>
+        <div class="transition-colors">
+          <div
+            @click="toggleModule(8)"
+            class="px-3 py-2.5 flex items-center justify-between gap-3 cursor-pointer hover:bg-[#faf9f7] select-none"
+            :class="expandedModule === 8 ? 'bg-[#f7f6f4]' : ''"
+          >
+            <div class="flex items-center gap-2.5 min-w-0">
+              <span class="w-5 h-5 rounded bg-[#e8e6e1] text-[#4a4640] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">
+                08
+              </span>
+              <span class="text-xs font-semibold text-[#2e2b28] truncate">
+                Buku Hutang Dagang Supplier (AP)
+              </span>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <ChevronRight
+                class="w-4 h-4 text-[#a8a49e] transition-transform duration-200"
+                :class="expandedModule === 8 ? 'rotate-90 text-[#2563eb]' : ''"
+              />
             </div>
           </div>
-          <Truck class="w-4 h-4 text-orange-600 shrink-0" />
+          <div
+            v-if="expandedModule === 8"
+            class="px-3 pb-3 pt-1 bg-[#f7f6f4] border-t border-[#f0ede8] text-xs text-[#524e48] animate-fade-in space-y-2"
+          >
+            <p class="text-[11.5px] leading-relaxed text-[#6b655f]">
+              Kalender jatuh tempo pembayaran faktur kulakan supplier vs ketersediaan saldo kas riil toko.
+            </p>
+          </div>
         </div>
 
-        <!-- Modul 9: Audit Kasir & Discrepancy Shift -->
-        <div
-          class="p-3 hover:bg-[#faf9f7] transition-colors flex items-center justify-between gap-3 cursor-pointer"
-          @click="showShiftAuditModal = true"
-        >
-          <div class="flex items-start gap-2.5 min-w-0">
-            <span class="w-5 h-5 rounded bg-red-100 text-red-800 text-[10px] font-mono font-bold flex items-center justify-center shrink-0 mt-0.5">
-              09
-            </span>
-            <div class="min-w-0">
-              <div class="text-xs font-bold text-[#2e2b28] flex items-center gap-1.5">
-                <span>Audit Kasir &amp; Selisih Shift (Anti-Fraud)</span>
-                <span class="px-1.5 py-0.2 rounded text-[9px] font-mono bg-red-100 text-red-800 border border-red-200">
-                  {{ shifts.length }} Sesi
-                </span>
-              </div>
-              <div class="text-[11px] text-[#6b655f] mt-0.5 leading-snug">
-                Rekonsiliasi kas laci fisik vs sistem Cloudflare:
-                <!--
-                  BUG FIX: shift yang BELUM direkonsiliasi (status != CLOSED)
-                  sebelumnya ikut dihitung sebagai "PAS" karena `discrepancy`
-                  bernilai 0 pada shift yang masih terbuka. Metrik anti-fraud
-                  jadi palsu ("Semua Shift Pas 100%") padahal ada shift terbuka.
-                -->
-                <strong :class="reconciledShifts.some(s => Number(s.discrepancy || 0) !== 0) ? 'text-rose-700' : 'text-emerald-700'">
-                  {{ shiftAuditLabel }}
-                </strong>
-              </div>
+        <!-- Modul 9: Audit Kasir & Selisih Shift -->
+        <div class="transition-colors">
+          <div
+            @click="toggleModule(9)"
+            class="px-3 py-2.5 flex items-center justify-between gap-3 cursor-pointer hover:bg-[#faf9f7] select-none"
+            :class="expandedModule === 9 ? 'bg-[#f7f6f4]' : ''"
+          >
+            <div class="flex items-center gap-2.5 min-w-0">
+              <span class="w-5 h-5 rounded bg-[#e8e6e1] text-[#4a4640] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">
+                09
+              </span>
+              <span class="text-xs font-semibold text-[#2e2b28] truncate">
+                Audit Kasir &amp; Selisih Shift
+              </span>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <span
+                class="text-[11px] font-bold"
+                :class="reconciledShifts.some(s => Number(s.discrepancy || 0) !== 0) ? 'text-rose-700' : 'text-emerald-700'"
+              >
+                {{ shiftAuditLabel }}
+              </span>
+              <ChevronRight
+                class="w-4 h-4 text-[#a8a49e] transition-transform duration-200"
+                :class="expandedModule === 9 ? 'rotate-90 text-[#2563eb]' : ''"
+              />
             </div>
           </div>
-          <ChevronRight class="w-4 h-4 text-[#b0aca5] shrink-0" />
+          <div
+            v-if="expandedModule === 9"
+            class="px-3 pb-3 pt-1 bg-[#f7f6f4] border-t border-[#f0ede8] text-xs text-[#524e48] animate-fade-in space-y-2"
+          >
+            <p class="text-[11.5px] leading-relaxed text-[#6b655f]">
+              Rekonsiliasi kas laci fisik vs sistem Cloudflare untuk deteksi selisih uang kasir secara objektif.
+            </p>
+            <div class="flex items-center justify-between pt-1">
+              <span class="text-[10.5px] font-mono text-[#6b655f] bg-[#ecebe9] px-2 py-0.5 rounded border border-[#d6d4cf]">
+                {{ shifts.length }} Sesi Shift
+              </span>
+              <button
+                @click.stop="showShiftAuditModal = true"
+                class="text-xs text-[#2563eb] font-bold hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                Buka Audit Shift Kasir
+                <ArrowRight class="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
