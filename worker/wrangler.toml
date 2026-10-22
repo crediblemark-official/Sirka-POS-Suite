@@ -3,6 +3,16 @@ main = "src/index.ts"
 compatibility_date = "2024-12-30"
 compatibility_flags = ["nodejs_compat"]
 
+# BUG FIX (keamanan): `DATABASE_URL` TIDAK lagi ditulis di sini sebagai nilai
+# literal. Kredensial database produksi yang pernah ada di file ini sudah
+# dibuang dari source control dan HARUS dirotasi (ganti password di provider).
+#
+# Set kredensial sebagai secret Cloudflare (tidak masuk ke git):
+#   wrangler secret put DATABASE_URL
+#
+# Untuk pengembangan lokal, buat file `.dev.vars` (sudah di-ignore git):
+#   echo 'DATABASE_URL=postgresql://...' > .dev.vars
+#
+# `APP_NAME` tetap di [vars] karena bukan rahasia.
 [vars]
-DATABASE_URL = "postgresql://ubjMYAl9vhpXpajHQ.jkt_001:aad2354f32977874bd6a646b@pgsql-dbas-jkt-001.sumobase.my.id:6432/dbd17904386f2e55b4"
 APP_NAME = "Sirka Owner Financial API"

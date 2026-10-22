@@ -31,3 +31,11 @@ src-tauri/target/
 *.db-shm
 .env
 .env.*
+# ...tetapi template konfigurasi (tanpa kredensial asli) tetap di-versioning
+!.env.example
+
+# Cloudflare Worker local secrets
+.dev.vars
+.dev.vars.*
+worker/.dev.vars
+worker/.dev.vars.*
