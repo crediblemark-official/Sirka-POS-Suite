@@ -2,29 +2,72 @@
 import { ref, onMounted } from 'vue';
 import { ownerApi, DEFAULT_API_URL } from '../services/api';
 import HeaderBar from '../components/HeaderBar.vue';
-import { Cloud, ShieldCheck, CheckCircle2, AlertCircle, Save, RotateCcw, Store } from 'lucide-vue-next';
+import { Cloud, ShieldCheck, CheckCircle2, AlertCircle, Save, RotateCcw, Store, KeyRound, Fingerprint } from 'lucide-vue-next';
 import { useStoreProfile } from '../composables/useStoreProfile';
+import { useDeviceAuth } from '../composables/useDeviceAuth';
+import { getDeviceId, isDeviceAuthSupported, getKeyBackend } from '../utils/deviceKey';
 
-const { storeName, storeTagline, storeCode } = useStoreProfile();
+const { storeName, storeTagline, storeCode, isSynced: profileSynced } = useStoreProfile();
+
+const {
+  deviceId: authDeviceId,
+  enableDeviceAuth,
+  disableDeviceAuth,
+  isDeviceAuthEnabled,
+  saveApiTokenSecure,
+  getApiTokenSecure,
+  isTokenEncrypted,
+  savePinHash,
+  clearPin,
+} = useDeviceAuth();
 
 const apiUrl = ref('');
+const apiToken = ref('');
 const pinCode = ref('');
 const pinEnabled = ref(false);
 const testResult = ref<{ success: boolean; message: string } | null>(null);
 const testing = ref(false);
 const savedNotification = ref(false);
+const authMode = ref<{ authEnabled: boolean; reachable: boolean } | null>(null);
+const deviceKeyEnabled = ref(false);
+const deviceKeySupported = ref(false);
+const deviceKeyMessage = ref('');
+const keyBackend = ref<'android-keystore' | 'webcrypto'>(getKeyBackend());
+const tokenEncrypted = ref(false);
 
-onMounted(() => {
+onMounted(async () => {
   apiUrl.value = localStorage.getItem('sirka_owner_api_url') || DEFAULT_API_URL;
-  pinCode.value = localStorage.getItem('sirka_owner_pin') || '';
+  // BUG FIX (SEC-3): token tidak lagi diambil dari localStorage plaintext.
+  // Sekarang dibaca dari penyimpanan terenkripsi (AES-GCM + kunci perangkat).
+  apiToken.value = await getApiTokenSecure();
+  tokenEncrypted.value = isTokenEncrypted();
   pinEnabled.value = localStorage.getItem('sirka_owner_pin_enabled') === 'true';
+  deviceKeyEnabled.value = isDeviceAuthEnabled();
+  deviceKeySupported.value = isDeviceAuthSupported();
+  keyBackend.value = getKeyBackend();
+  checkAuthMode();
 });
+
+/**
+ * BUG FIX (keamanan): cek apakah proteksi token Worker aktif. Kalau belum,
+ * seluruh data keuangan toko bisa dibaca siapa pun yang tahu URL Worker —
+ * owner perlu tahu hal ini.
+ */
+async function checkAuthMode() {
+  authMode.value = await ownerApi.checkAuthMode();
+}
 
 async function runTestConnection() {
   testing.value = true;
   testResult.value = null;
   try {
+    // Simpan token dulu (terenkripsi bila kunci perangkat aktif) supaya
+    // request uji memakai token yang benar
+    await saveApiTokenSecure(apiToken.value);
+    await ownerApi.saveApiToken(apiToken.value);
+    tokenEncrypted.value = isTokenEncrypted();
     testResult.value = await ownerApi.testDbConnection(apiUrl.value);
+    await checkAuthMode();
   } finally {
     testing.value = false;
   }
@@ -35,14 +78,43 @@ function resetDefaultUrl() {
   saveSettings();
 }
 
-function saveSettings() {
+async function saveSettings() {
   localStorage.setItem('sirka_owner_api_url', apiUrl.value);
-  localStorage.setItem('sirka_owner_pin', pinCode.value);
-  localStorage.setItem('sirka_owner_pin_enabled', pinEnabled.value ? 'true' : 'false');
+  await saveApiTokenSecure(apiToken.value);
+  await ownerApi.saveApiToken(apiToken.value);
+  tokenEncrypted.value = isTokenEncrypted();
+  // BUG FIX (SEC-3): PIN disimpan sebagai HASH (salt + SHA-256), bukan teks polos.
+  await savePinHash(pinCode.value);
+  pinCode.value = '';
   savedNotification.value = true;
   setTimeout(() => {
     savedNotification.value = false;
   }, 2500);
+}
+
+async function handleToggleDeviceKey() {
+  if (deviceKeyEnabled.value) {
+    const res = await disableDeviceAuth();
+    deviceKeyMessage.value = res.message;
+    deviceKeyEnabled.value = isDeviceAuthEnabled();
+  } else {
+    const res = await enableDeviceAuth();
+    deviceKeyMessage.value = res.message;
+    deviceKeyEnabled.value = isDeviceAuthEnabled();
+  }
+}
+
+/**
+ * BUG FIX (SEC-3): ketika Kunci Perangkat dinonaktifkan, PIN fallback (yang
+ * disimpan sebagai hash) juga dihapus — tidak boleh ada dua mekanisme kunci
+ * yang bisa saling bertentangan.
+ */
+async function handleTogglePin(enabled: boolean) {
+  pinEnabled.value = enabled;
+  if (!enabled) {
+    clearPin();
+    localStorage.setItem('sirka_owner_pin_enabled', 'false');
+  }
 }
 </script>
 
@@ -80,6 +152,44 @@ function saveSettings() {
             />
           </div>
 
+          <!--
+            BUG FIX (keamanan): token akses Worker (OWNER_SECRET_KEY).
+            Tanpa ini semua data keuangan toko terbuka untuk siapa pun yang
+            mengetahui URL Worker.
+          -->
+          <div>
+            <label class="block text-[11px] font-bold text-[#2e2b28] mb-1 flex items-center gap-1">
+              <KeyRound class="w-3 h-3" />
+              Token Akses Worker:
+            </label>
+            <input
+              v-model="apiToken"
+              type="password"
+              autocomplete="off"
+              placeholder="OWNER_SECRET_KEY (diset di wrangler secret put)"
+              class="w-full bg-[#faf9f7] border border-[#b8b5af] rounded-xs px-2.5 py-1 text-xs font-mono text-[#2e2b28] focus:outline-none focus:border-[#2563eb] focus:bg-white shadow-inner"
+            />
+            <p class="text-[10.5px] text-[#6b655f] mt-1">
+              Token ini dibuat di server dengan perintah
+              <span class="font-mono">wrangler secret put OWNER_SECRET_KEY</span>.
+              Kosongkan bila Worker Anda belum memakai proteksi token.
+            </p>
+          </div>
+
+          <!-- Peringatan bila proteksi token belum aktif di server -->
+          <div
+            v-if="authMode && authMode.reachable && !authMode.authEnabled"
+            class="p-2 rounded-xs text-[11px] flex items-start gap-2 border bg-amber-50 border-amber-300 text-amber-900"
+          >
+            <AlertCircle class="w-3.5 h-3.5 shrink-0 mt-0.5" />
+            <span>
+              <strong>Proteksi token belum aktif</strong> di Worker ini — seluruh data
+              keuangan toko dapat dibaca siapa pun yang mengetahui URL Worker.
+              Jalankan <span class="font-mono">wrangler secret put OWNER_SECRET_KEY</span>
+              lalu isi token di atas.
+            </span>
+          </div>
+
           <div class="flex items-center gap-2 pt-1">
             <button
               @click="runTestConnection"
@@ -112,40 +222,108 @@ function saveSettings() {
         </div>
       </div>
 
-      <!-- 2. Full-Edge PIN Security Section -->
+      <!-- 2. Full-Edge Device Key Security Section -->
       <div class="w-full bg-white border-b border-[#c8c5c0]">
         <div class="bg-[#f0ede8] px-3 py-1.5 border-b border-[#c8c5c0] flex items-center justify-between text-xs font-bold text-[#2e2b28]">
           <span class="flex items-center gap-1.5">
             <ShieldCheck class="w-4 h-4 text-[#2563eb]" />
-            Proteksi PIN Akses Aplikasi
+            Kunci Perangkat (Device Key)
           </span>
         </div>
 
         <div class="p-3 space-y-3 text-xs">
+          <!--
+            BUG FIX (SEC-3): PIN Owner dulu disimpan sebagai TEKS POLA di
+            localStorage (bisa dibaca backup/skirp). Sekarang digantikan kunci
+            kripto NON-EXTRACTABLE milik perangkat ini + konfirmasi kredensial
+            perangkat (sidik jari/pattern HP) bila tersedia.
+          -->
           <div class="flex items-center justify-between">
-            <div>
-              <span class="font-bold text-[#2e2b28]">Kunci dengan PIN</span>
-              <p class="text-[10.5px] text-[#6b655f]">Minta PIN saat aplikasi dibuka</p>
+            <div class="min-w-0 pr-3">
+              <span class="font-bold text-[#2e2b28] flex items-center gap-1.5">
+                <Fingerprint :size="13" class="text-[#2563eb]" />
+                Kunci Aplikasi dengan Kunci Perangkat
+              </span>
+              <p class="text-[10.5px] text-[#6b655f] mt-0.5">
+                <template v-if="deviceKeyEnabled">
+                  Aktif. Aplikasi terkunci saat dibuka &amp; memakai
+                  sidik jari/kunci layar HP bila tersedia.
+                </template>
+                <template v-else-if="deviceKeySupported">
+                  Aktifkan untuk mengunci aplikasi memakai Kunci Perangkat
+                  (kunci kripto privat milik HP ini, tidak bisa dibaca aplikasi lain).
+                </template>
+                <template v-else>
+                  Perangkat ini tidak mendukung Web Crypto — tetap memakai PIN fallback.
+                </template>
+              </p>
             </div>
-            <label class="relative inline-flex items-center cursor-pointer">
+            <label class="relative inline-flex items-center cursor-pointer shrink-0">
               <input
                 type="checkbox"
-                v-model="pinEnabled"
+                :checked="deviceKeyEnabled"
+                :disabled="!deviceKeySupported"
+                @change="handleToggleDeviceKey"
                 class="sr-only peer"
               />
               <div class="w-9 h-5 bg-[#d6d4cf] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-[#b0aca5] after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#2563eb]"></div>
             </label>
           </div>
 
-          <div v-if="pinEnabled">
-            <label class="block text-[11px] font-bold text-[#2e2b28] mb-1">Set PIN Baru (4-6 Angka):</label>
-            <input
-              v-model="pinCode"
-              type="password"
-              maxlength="6"
-              placeholder="Contoh: 1234"
-              class="w-full bg-[#faf9f7] border border-[#b8b5af] rounded-xs px-2.5 py-1 text-xs font-mono text-[#2e2b28] focus:outline-none focus:border-[#2563eb] shadow-inner"
-            />
+          <p v-if="deviceKeyMessage" class="text-[10.5px] text-[#6b655f] font-mono">
+            {{ deviceKeyMessage }}
+          </p>
+
+          <p v-if="deviceKeyEnabled && authDeviceId" class="text-[10.5px] text-[#6b655f] font-mono">
+            ID Perangkat: {{ authDeviceId }}
+            <span v-if="keyBackend === 'android-keystore'" class="text-emerald-700">
+              (Android Keystore — hardware-backed)
+            </span>
+            <span v-else class="text-[#9a958d]">(Web Crypto)</span>
+          </p>
+
+          <!-- Status enkripsi token akses Worker -->
+          <p class="text-[10.5px] text-[#6b655f] font-mono">
+            Penyimpanan token:
+            <span :class="tokenEncrypted ? 'text-emerald-700' : 'text-amber-700'">
+              {{ tokenEncrypted ? 'TERENKRIPSI (AES-GCM, kunci perangkat)' : 'belum terenkripsi' }}
+            </span>
+          </p>
+
+          <!-- Fallback PIN -->
+          <div class="pt-2 border-t border-[#e5e3de]">
+            <div class="flex items-center justify-between">
+              <div>
+                <span class="font-bold text-[#2e2b28]">Cadangan: PIN Akses</span>
+                <p class="text-[10.5px] text-[#6b655f]">
+                  Hanya dipakai bila Kunci Perangkat tidak tersedia
+                </p>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  :checked="pinEnabled"
+                  @change="handleTogglePin(($event.target as HTMLInputElement).checked)"
+                  class="sr-only peer"
+                />
+                <div class="w-9 h-5 bg-[#d6d4cf] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-[#b0aca5] after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#2563eb]"></div>
+              </label>
+            </div>
+
+            <div v-if="pinEnabled" class="pt-2">
+              <label class="block text-[11px] font-bold text-[#2e2b28] mb-1">Set PIN Baru (4-6 Angka):</label>
+              <input
+                v-model="pinCode"
+                type="password"
+                maxlength="6"
+                placeholder="Contoh: 1234"
+                class="w-full bg-[#faf9f7] border border-[#b8b5af] rounded-xs px-2.5 py-1 text-xs font-mono text-[#2e2b28] focus:outline-none focus:border-[#2563eb] shadow-inner"
+              />
+              <p class="text-[10.5px] text-amber-700 mt-1">
+                PIN disimpan di perangkat ini dan akan DIHAPUS otomatis setelah
+                Kunci Perangkat aktif.
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -157,7 +335,14 @@ function saveSettings() {
             <Store class="w-4 h-4 text-[#2563eb]" />
             Identitas Toko (PostgreSQL)
           </span>
-          <span class="text-[10px] text-[#2563eb] font-mono">Tersinkronisasi</span>
+          <!-- BUG FIX: label "Tersinkronisasi" sebelumnya selalu tampil
+               walau fetch setting-nya GAGAL -> user mengira data sudah sinkron. -->
+          <span
+            class="text-[10px] font-mono"
+            :class="profileSynced ? 'text-[#2563eb]' : 'text-rose-700'"
+          >
+            {{ profileSynced ? 'Tersinkronisasi' : 'Gagal Sinkron' }}
+          </span>
         </div>
 
         <div class="p-3 space-y-2 text-xs divide-y divide-[#f0ede8]">

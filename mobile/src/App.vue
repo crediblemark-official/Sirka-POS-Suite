@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import type { ActiveTab } from './types';
 import ReportsCenterView from './views/ReportsCenterView.vue';
 import IncomeStatementView from './views/IncomeStatementView.vue';
@@ -8,23 +8,52 @@ import ReceivablesView from './views/ReceivablesView.vue';
 import InventoryAssetView from './views/InventoryAssetView.vue';
 import SettingsView from './views/SettingsView.vue';
 import BottomNav from './components/BottomNav.vue';
-import StatusBar from './components/StatusBar.vue';
-import { Lock, Delete, Store } from 'lucide-vue-next';
+import { Lock, Delete, Store, Fingerprint, KeyRound } from 'lucide-vue-next';
+import { useDeviceAuth } from './composables/useDeviceAuth';
 
 const currentTab = ref<ActiveTab>('reports');
 
-// PIN Lock State
-const isLocked = ref(false);
+// BUG FIX (SEC-3): PIN Owner dulu disimpan sebagai TEKS POLA di localStorage.
+// Sekarang digantikan Kunci Perangkat (ECDSA non-extractable di IndexedDB) —
+// private key tidak bisa dibaca JavaScript mana pun, dan token Worker
+// dienkripsi (AES-GCM) sehingga tidak ada rahasia plaintext di perangkat.
+const {
+  isLocked,
+  isBusy,
+  errorMessage,
+  deviceId,
+  authMode,
+  biometricAvailable,
+  initAuth,
+  autoEnrollDeviceKey,
+  unlockWithDeviceKey,
+  unlockWithPin,
+  migratePinToDeviceKey,
+  hasPinConfigured,
+} = useDeviceAuth();
+
+// PIN lama (hanya untuk mode fallback / migrasi)
 const inputPin = ref('');
 const pinError = ref(false);
 
-onMounted(() => {
-  const pinEnabled = localStorage.getItem('sirka_owner_pin_enabled') === 'true';
-  const pin = localStorage.getItem('sirka_owner_pin');
-  if (pinEnabled && pin) {
-    isLocked.value = true;
-  }
+const useDeviceKey = computed(() => authMode.value === 'device');
+
+onMounted(async () => {
+  initAuth();
+  // BUG FIX (SEC-3): daftar kunci perangkat secara otomatis (tanpa interaksi)
+  // supaya token akses Worker SELALU bisa disimpan terenkripsi — tidak pernah
+  // ada rahasia plaintext di localStorage.
+  await autoEnrollDeviceKey();
 });
+
+async function handleDeviceUnlock() {
+  const ok = await unlockWithDeviceKey();
+  if (!ok) return;
+  // Migrasi: hapus PIN (plaintext/hash) & enkripsi token
+  if (hasPinConfigured()) {
+    await migratePinToDeviceKey();
+  }
+}
 
 function handlePinInput(num: number) {
   if (inputPin.value.length < 6) {
@@ -39,12 +68,15 @@ function handlePinBackspace() {
   pinError.value = false;
 }
 
-function checkPin() {
-  const savedPin = localStorage.getItem('sirka_owner_pin') || '';
-  if (inputPin.value === savedPin) {
-    isLocked.value = false;
+async function checkPin() {
+  const ok = await unlockWithPin(inputPin.value);
+  if (ok) {
     inputPin.value = '';
-  } else if (inputPin.value.length >= savedPin.length && savedPin.length > 0) {
+    // Migrasi ke kunci perangkat setelah PIN benar dipakai sekali
+    if (hasPinConfigured()) {
+      await migratePinToDeviceKey();
+    }
+  } else {
     pinError.value = true;
     setTimeout(() => {
       inputPin.value = '';
@@ -78,9 +110,44 @@ function checkPin() {
       <!-- Dialog Body -->
       <div class="p-4 flex flex-col items-center">
         <div class="w-10 h-10 rounded-full bg-[#dfddd9] border border-[#c8c5c0] text-[#2563eb] flex items-center justify-center mb-3 shadow-inner">
-          <Lock class="w-5 h-5" />
+          <Fingerprint v-if="useDeviceKey" class="w-5 h-5" />
+          <Lock v-else class="w-5 h-5" />
         </div>
         <h2 class="text-sm font-bold tracking-tight text-[#2e2b28]">Kunci Laporan Finansial</h2>
+
+        <!--
+          BUG FIX (SEC-3): tidak ada lagi PIN plaintext di perangkat.
+          Unlock memakai Kunci Perangkat (kunci kripto non-extractable milik
+          perangkat ini) + konfirmasi kredensial perangkat (sidik jari/pattern
+          HP) bila tersedia.
+        -->
+        <template v-if="useDeviceKey">
+          <p class="text-[11px] text-[#6b655f] text-center mt-0.5 mb-4 font-mono">
+            {{ biometricAvailable
+              ? 'Verifikasi dengan sidik jari / kunci layar HP'
+              : 'Buka dengan Kunci Perangkat' }}
+          </p>
+          <p v-if="deviceId" class="text-[10px] text-[#9a958d] text-center mb-4 font-mono">
+            Perangkat: {{ deviceId }}
+          </p>
+
+          <button
+            type="button"
+            :disabled="isBusy"
+            class="explorer-btn-primary w-full h-11 rounded text-sm font-bold cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+            @click="handleDeviceUnlock"
+          >
+            <KeyRound :size="16" />
+            <span>{{ isBusy ? 'Memverifikasi...' : 'Buka dengan Kunci Perangkat' }}</span>
+          </button>
+
+          <p v-if="errorMessage" class="text-[11px] text-[#dc2626] font-bold mt-3 font-mono text-center">
+            {{ errorMessage }}
+          </p>
+        </template>
+
+        <!-- Fallback PIN (hanya bila kunci perangkat tidak tersedia) -->
+        <template v-else>
         <p class="text-[11px] text-[#6b655f] text-center mt-0.5 mb-4 font-mono">
           Masukkan 4-6 digit PIN Owner
         </p>
@@ -123,6 +190,7 @@ function checkPin() {
         <p v-if="pinError" class="text-[11px] text-[#dc2626] font-bold mt-3 font-mono">
           PIN salah, coba lagi.
         </p>
+        </template>
       </div>
     </div>
   </div>

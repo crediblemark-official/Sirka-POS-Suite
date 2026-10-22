@@ -43,6 +43,15 @@ const tempStore = ref({
   logo: settingsStore.storeLogo
 });
 
+// BUG FIX (keamanan): token akses Worker (OWNER_SECRET_KEY) diperlukan agar
+// rekap shift kasir bisa dikirim ke dashboard owner. Tanpa token, Worker
+// membalas 401 dan rekap shift tidak pernah sampai.
+//
+// Token disimpan KHUSUS di localStorage perangkat ini — BUKAN di
+// `store_settings` (tabel yang ikut ter-sinkron ke PostgreSQL cloud), supaya
+// tidak bocor ke database.
+const ownerApiToken = ref<string>(settingsStore.ownerApiToken || '');
+
 const logoFileInput = ref<HTMLInputElement | null>(null);
 
 function triggerLogoUpload() {
@@ -137,22 +146,33 @@ function resetToDefault() {
 }
 
 async function handleSaveAll() {
-  await Promise.all([
-    settingsStore.updateSetting('store_name', tempStore.value.name.trim()),
-    settingsStore.updateSetting('store_code', tempStore.value.code.trim().toUpperCase() || 'SIRKA'),
-    settingsStore.updateSetting('store_tagline', tempStore.value.tagline.trim()),
-    settingsStore.updateSetting('store_address', tempStore.value.address.trim()),
-    settingsStore.updateSetting('store_phone', tempStore.value.phone.trim()),
-    settingsStore.updateSetting('invoice_prefix', tempStore.value.invoicePrefix.trim() || 'INV-B2B'),
-    settingsStore.updateSetting('store_logo', tempStore.value.logo || ''),
-    settingsStore.setTheme(activeColor.value, activePreset.value, activeHeaderStyle.value),
-    settingsStore.setSurfaceTheme(activeSurface.value, customSurfaceColor.value)
-  ]);
+  // BUG FIX: `Promise.all` tanpa catch -> satu setting yang gagal membuat
+  // seluruh promise menolak sehingga `brandingSaved` tidak pernah true dan
+  // user tidak mendapat pesan error sama sekali.
+  try {
+    await Promise.all([
+      settingsStore.updateSetting('store_name', tempStore.value.name.trim()),
+      settingsStore.updateSetting('store_code', tempStore.value.code.trim().toUpperCase() || 'SIRKA'),
+      settingsStore.updateSetting('store_tagline', tempStore.value.tagline.trim()),
+      settingsStore.updateSetting('store_address', tempStore.value.address.trim()),
+      settingsStore.updateSetting('store_phone', tempStore.value.phone.trim()),
+      settingsStore.updateSetting('invoice_prefix', tempStore.value.invoicePrefix.trim() || 'INV-B2B'),
+      settingsStore.updateSetting('store_logo', tempStore.value.logo || ''),
+      // BUG FIX (keamanan): token disimpan di localStorage saja, tidak di
+      // store_settings (yang ikut ter-sync ke cloud).
+      settingsStore.setOwnerApiToken(ownerApiToken.value),
+      settingsStore.setTheme(activeColor.value, activePreset.value, activeHeaderStyle.value),
+      settingsStore.setSurfaceTheme(activeSurface.value, customSurfaceColor.value)
+    ]);
 
-  brandingSaved.value = true;
-  setTimeout(() => {
-    brandingSaved.value = false;
-  }, 4000);
+    brandingSaved.value = true;
+    setTimeout(() => {
+      brandingSaved.value = false;
+    }, 4000);
+  } catch (err: any) {
+    console.warn('[Branding] Gagal menyimpan pengaturan:', err);
+    alert('Gagal menyimpan pengaturan branding ke database. Perubahan hanya tersimpan sementara di perangkat ini.\n\n' + (err?.message || err));
+  }
 }
 </script>
 
@@ -397,6 +417,30 @@ async function handleSaveAll() {
                   class="w-full bg-white border border-gray-300 rounded px-2.5 py-1.5 text-xs outline-none focus:border-purple-600 font-mono uppercase font-bold text-blue-900"
                   placeholder="SIRKA"
                 />
+              </div>
+              <!--
+                BUG FIX (keamanan): token akses Worker (OWNER_SECRET_KEY).
+                Di-set di server lewat `wrangler secret put OWNER_SECRET_KEY`.
+                Tanpa token, rekap shift kasir ditolak Worker (401) dan tidak
+                pernah sampai ke dashboard owner.
+              -->
+              <div class="md:col-span-2">
+                <label class="text-[11px] font-semibold text-gray-700 block mb-1">
+                  Token Akses Worker (Dashboard Owner)
+                </label>
+                <input
+                  v-model="ownerApiToken"
+                  type="password"
+                  autocomplete="off"
+                  class="w-full bg-white border border-gray-300 rounded px-2.5 py-1.5 text-xs outline-none focus:border-purple-600 font-mono text-gray-800"
+                  placeholder="OWNER_SECRET_KEY (kosongkan bila Worker tanpa proteksi token)"
+                />
+                <p class="text-[10px] text-gray-500 mt-1">
+                  Token dibuat di server dengan perintah
+                  <code class="font-mono">wrangler secret put OWNER_SECRET_KEY</code>.
+                  Nilai ini disimpan di database lokal perangkat ini (bukan di dalam
+                  binary).
+                </p>
               </div>
             </div>
 

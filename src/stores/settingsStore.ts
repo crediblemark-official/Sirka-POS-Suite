@@ -3,31 +3,37 @@ import { ref, computed } from 'vue';
 import { StoreSetting } from '../types';
 import { dbService } from '../services/dbService';
 import { applyTheme } from '../utils/theme';
+import { safeParse } from '../utils/storage';
 
 const STORAGE_KEY_SETTINGS = 'kasir_citra_settings_v1';
+// BUG FIX (keamanan): token akses Worker TIDAK boleh ikut ter-sync ke cloud.
+const STORAGE_KEY_OWNER_API_TOKEN = 'kasir_citra_owner_api_token';
+
+const DEFAULT_SETTINGS: Record<string, string> = {
+  store_name: 'Sirka',
+  store_code: 'SIRKA',
+  store_tagline: 'Distribusi B2B & Hub Pengadaan',
+  store_address: 'Jl. Sentral Distribusi No. 8',
+  store_phone: '0812-3456-7890',
+  invoice_prefix: 'INV-B2B',
+  store_logo: '',
+  primary_color: '#2563eb',
+  theme_preset: 'blue',
+  header_accent_style: 'accent-line',
+  surface_theme: 'bone-white',
+  custom_surface_color: '#fcfbfa',
+  printer_network_address: '127.0.0.1:9100',
+  receipt_paper_width: '58mm'
+};
 
 export const useSettingsStore = defineStore('settings', () => {
   const saved = localStorage.getItem(STORAGE_KEY_SETTINGS);
-  const settings = ref<Record<string, string>>(
-    saved
-      ? JSON.parse(saved)
-      : {
-          store_name: 'Sirka',
-          store_code: 'SIRKA',
-          store_tagline: 'Distribusi B2B & Hub Pengadaan',
-          store_address: 'Jl. Sentral Distribusi No. 8',
-          store_phone: '0812-3456-7890',
-          invoice_prefix: 'INV-B2B',
-          store_logo: '',
-          primary_color: '#2563eb',
-          theme_preset: 'blue',
-          header_accent_style: 'accent-line',
-          surface_theme: 'bone-white',
-          custom_surface_color: '#fcfbfa',
-          printer_network_address: '127.0.0.1:9100',
-          receipt_paper_width: '58mm'
-        }
-  );
+  // BUG FIX: JSON.parse tanpa try/catch + nilai default selalu digabung agar
+  // setting baru (mis. printer) tidak hilang bila cache lama belum punya.
+  const settings = ref<Record<string, string>>({
+    ...DEFAULT_SETTINGS,
+    ...safeParse<Record<string, string>>(saved, {}, 'SettingsStore')
+  });
 
   // If user previously had default classic-gray, upgrade to requested bone-white
   if (!settings.value.surface_theme || settings.value.surface_theme === 'classic-gray') {
@@ -73,7 +79,35 @@ export const useSettingsStore = defineStore('settings', () => {
     if (key === 'primary_color' || key === 'header_accent_style' || key === 'surface_theme' || key === 'custom_surface_color') {
       applyCurrentTheme();
     }
+    // BUG FIX: error DB sebelumnya dibiarkan menetu (unhandled rejection) ->
+    // "Save Branding" gagal diam-diam tanpa pesan ke user. Sekarang error
+    // dilempar agar pemanggil bisa menanganinya.
     await dbService.updateSetting(key, value);
+  }
+
+  /**
+   * Token akses Worker (OWNER_SECRET_KEY).
+   *
+   * BUG FIX (keamanan): token disimpan KHUSUS di localStorage perangkat ini —
+   * BUKAN di `store_settings` (tabel yang ikut ter-sinkron ke PostgreSQL cloud).
+   * Kalau ikut ter-sync, token akses akan tersimpan di database dan bisa
+   * dibaca siapa pun yang punya akses ke cloud.
+   */
+  const ownerApiToken = ref<string>(
+    (typeof localStorage !== 'undefined'
+      ? localStorage.getItem(STORAGE_KEY_OWNER_API_TOKEN)
+      : null) || ''
+  );
+
+  function setOwnerApiToken(token: string) {
+    ownerApiToken.value = (token || '').trim();
+    if (typeof localStorage !== 'undefined') {
+      if (ownerApiToken.value) {
+        localStorage.setItem(STORAGE_KEY_OWNER_API_TOKEN, ownerApiToken.value);
+      } else {
+        localStorage.removeItem(STORAGE_KEY_OWNER_API_TOKEN);
+      }
+    }
   }
 
   async function setTheme(colorHex: string, presetId: string = 'custom', headerStyle?: string) {
@@ -135,6 +169,8 @@ export const useSettingsStore = defineStore('settings', () => {
 
   return {
     settings,
+    ownerApiToken,
+    setOwnerApiToken,
     storeName,
     storeCode,
     storeAbbreviation,

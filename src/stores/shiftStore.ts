@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { CashierShift } from '../types';
+import { useSettingsStore } from './settingsStore';
 
 const STORAGE_KEY_CURRENT_SHIFT = 'kasir_citra_current_shift_v1';
 const STORAGE_KEY_SHIFT_HISTORY = 'kasir_citra_shift_history_v1';
@@ -65,11 +66,31 @@ export const useShiftStore = defineStore('shift', () => {
   // Sync a single shift to Cloudflare Worker & PostgreSQL
   async function syncShiftToCloud(shift: CashierShift) {
     try {
-      await fetch(`${API_BASE_URL}/api/shifts`, {
+      // BUG FIX (keamanan): Worker kini menegakkan token akses
+      // (`OWNER_SECRET_KEY`). Tanpa header ini, POST /api/shifts akan 401 dan
+      // rekap shift tidak pernah sampai ke dashboard owner.
+      const settingsStore = useSettingsStore();
+      // Token disimpan di localStorage perangkat ini, TIDAK di store_settings
+      // (yang ikut ter-sync ke cloud) — supaya tidak bocor ke database.
+      const token = settingsStore.ownerApiToken || '';
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(`${API_BASE_URL}/api/shifts`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(shift)
       });
+
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        console.warn(
+          `[ShiftStore] Sinkronisasi shift ke cloud gagal (${res.status}). ` +
+          (res.status === 401
+            ? 'Token akses Worker belum benar — isi "owner_api_token" di pengaturan toko.'
+            : errText.slice(0, 200))
+        );
+      }
     } catch (err) {
       console.warn('[ShiftStore] Offline or sync failure for shift:', err);
     }
@@ -79,7 +100,15 @@ export const useShiftStore = defineStore('shift', () => {
   async function fetchShiftsFromApi() {
     isLoading.value = true;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/shifts`);
+      // BUG FIX (keamanan): kirim token akses Worker (jika dikonfigurasi).
+      const settingsStore = useSettingsStore();
+      // Token disimpan di localStorage perangkat ini, TIDAK di store_settings
+      // (yang ikut ter-sync ke cloud) — supaya tidak bocor ke database.
+      const token = settingsStore.ownerApiToken || '';
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(`${API_BASE_URL}/api/shifts`, { headers });
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -94,6 +123,8 @@ export const useShiftStore = defineStore('shift', () => {
               cashSales: Number(openOne.cash_sales || openOne.cashSales || 0),
               nonCashSales: Number(openOne.non_cash_sales || openOne.nonCashSales || 0),
               cashOutflow: Number(openOne.cash_outflow || openOne.cashOutflow || 0),
+              cashInflow: Number(openOne.cash_inflow ?? openOne.cashInflow ?? 0),
+              refundOutflow: Number(openOne.refund_outflow ?? openOne.refundOutflow ?? 0),
               expectedCash: Number(openOne.expected_cash || openOne.expectedCash || 0),
               notes: openOne.notes || '',
               status: 'OPEN'
@@ -101,6 +132,9 @@ export const useShiftStore = defineStore('shift', () => {
           }
 
           // Populate shift history
+          // BUG FIX: field infaq/tip, retur tunai, setoran bendahara & sisa
+          // laci harus ikut dibaca dari cloud. Sebelumnya tidak ada kolomnya
+          // sehingga angka di dashboard owner berbeda dari aplikasi kasir.
           shiftHistory.value = data.map((s: any) => ({
             id: s.id,
             cashierName: s.cashier_name || s.cashierName,
@@ -110,6 +144,10 @@ export const useShiftStore = defineStore('shift', () => {
             cashSales: Number(s.cash_sales || s.cashSales || 0),
             nonCashSales: Number(s.non_cash_sales || s.nonCashSales || 0),
             cashOutflow: Number(s.cash_outflow || s.cashOutflow || 0),
+            cashInflow: Number(s.cash_inflow ?? s.cashInflow ?? 0),
+            refundOutflow: Number(s.refund_outflow ?? s.refundOutflow ?? 0),
+            transferredToTreasury: Number(s.transferred_to_treasury ?? s.transferredToTreasury ?? 0),
+            retainedInDrawer: Number(s.retained_in_drawer ?? s.retainedInDrawer ?? 0),
             expectedCash: Number(s.expected_cash || s.expectedCash || 0),
             actualCash: s.actual_cash !== null && s.actual_cash !== undefined ? Number(s.actual_cash) : undefined,
             discrepancy: s.discrepancy !== null && s.discrepancy !== undefined ? Number(s.discrepancy) : undefined,
@@ -163,8 +201,11 @@ export const useShiftStore = defineStore('shift', () => {
       currentShift.value.nonCashSales += nonCashAmount;
     }
 
-    currentShift.value.expectedCash =
-      currentShift.value.startingCash + currentShift.value.cashSales - currentShift.value.cashOutflow;
+    // BUG FIX: gunakan rumus yang sama dengan recalculateExpectedCash() agar
+    // `cashInflow` (infaq/tip/donasi) dan `refundOutflow` (retur tunai) tidak
+    // ikut hilang setiap kali ada penjualan baru. Sebelumnya penjualan berikutnya
+    // menghapus infaq dari kas yang diharapkan sehingga rekonsiliasi shift salah.
+    recalculateExpectedCash();
 
     saveLocal();
     syncShiftToCloud(currentShift.value);
