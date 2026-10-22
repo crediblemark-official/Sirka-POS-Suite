@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue';
-import { RotateCw, Store } from 'lucide-vue-next';
+import { RotateCw, Store, Settings } from 'lucide-vue-next';
 import { useStoreProfile } from '../composables/useStoreProfile';
+import { useNavigation } from '../composables/useNavigation';
 
 defineProps<{
   title?: string;
@@ -14,6 +15,7 @@ const emit = defineEmits<{
 }>();
 
 const { storeName, primaryColor, fetchStoreProfile } = useStoreProfile();
+const { currentTab, toggleSettings } = useNavigation();
 
 /**
  * BUG FIX: badge "Online" sebelumnya SELALU hijau (hard-coded) sehingga owner
@@ -67,8 +69,8 @@ function handleRefresh() {
         </span>
       </div>
 
-      <!-- Sisi Kanan: Status Online + Tombol Refresh Data -->
-      <div class="flex items-center gap-2 shrink-0">
+      <!-- Sisi Kanan: Status Online + Tombol Refresh Data + Tombol Setelan Gerigi -->
+      <div class="flex items-center gap-1.5 shrink-0">
         <!-- Status Online dengan Dot Hijau -->
         <div
           class="flex items-center gap-1.5 px-2 py-0.5 rounded bg-white/80 border border-[#c8c5c0] text-[10px] font-mono"
@@ -90,6 +92,17 @@ function handleRefresh() {
           title="Perbarui Data (F5)"
         >
           <RotateCw :size="13" class="text-[#2e2b28]" :class="{ 'animate-spin': loading }" />
+        </button>
+
+        <!-- Tombol Setelan (Ikon Gerigi) -->
+        <button
+          type="button"
+          @click="toggleSettings"
+          class="explorer-btn p-1.5 rounded cursor-pointer shrink-0 flex items-center justify-center transition-colors"
+          :class="currentTab === 'settings' ? 'bg-[#2563eb] text-white border-[#1d4ed8]' : 'text-[#2e2b28] hover:bg-white'"
+          title="Setelan Toko & Perangkat"
+        >
+          <Settings :size="13" />
         </button>
       </div>
     </div>

@@ -10,8 +10,9 @@ import SettingsView from './views/SettingsView.vue';
 import BottomNav from './components/BottomNav.vue';
 import { Lock, Delete, Store, Fingerprint, KeyRound } from 'lucide-vue-next';
 import { useDeviceAuth } from './composables/useDeviceAuth';
+import { useNavigation } from './composables/useNavigation';
 
-const currentTab = ref<ActiveTab>('reports');
+const { currentTab, navigateTo } = useNavigation();
 
 // BUG FIX (SEC-3): PIN Owner dulu disimpan sebagai TEKS POLA di localStorage.
 // Sekarang digantikan Kunci Perangkat (ECDSA non-extractable di IndexedDB) —
@@ -198,7 +199,7 @@ async function checkPin() {
   <!-- Main Mobile Financial Reports Shell (Desktop Aesthetic) -->
   <div v-else class="min-h-screen bg-[#ecebe9] text-[#2e2b28] flex flex-col font-sans select-none pb-20">
     <div class="flex-1">
-      <ReportsCenterView v-if="currentTab === 'reports'" @navigate="(tab) => currentTab = tab" />
+      <ReportsCenterView v-if="currentTab === 'reports'" @navigate="navigateTo" />
       <IncomeStatementView v-else-if="currentTab === 'income_statement'" />
       <CashFlowView v-else-if="currentTab === 'cash_flow'" />
       <ReceivablesView v-else-if="currentTab === 'receivables'" />
@@ -209,7 +210,7 @@ async function checkPin() {
     <!-- Desktop Style Bottom Navigation -->
     <BottomNav
       :active-tab="currentTab"
-      @update:active-tab="(tab) => currentTab = tab"
+      @update:active-tab="navigateTo"
     />
   </div>
 </template>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { LayoutDashboard, FileSpreadsheet, ArrowLeftRight, Clock, Landmark, Settings } from 'lucide-vue-next';
+import { LayoutDashboard, FileSpreadsheet, ArrowLeftRight, Clock, Landmark } from 'lucide-vue-next';
 import type { ActiveTab } from '../types';
 
 defineProps<{
@@ -16,7 +16,6 @@ const tabs = [
   { id: 'cash_flow', label: 'Arus Kas', icon: ArrowLeftRight },
   { id: 'receivables', label: 'Piutang', icon: Clock },
   { id: 'inventory_asset', label: 'Aset Stok', icon: Landmark },
-  { id: 'settings', label: 'Setelan', icon: Settings },
 ] as const;
 </script>
 
