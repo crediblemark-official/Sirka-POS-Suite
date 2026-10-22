@@ -23,7 +23,11 @@ import LedgerItemsTable from './LedgerItemsTable.vue';
 import LedgerStatusModal from './LedgerStatusModal.vue';
 import RefundModal from '../returns/RefundModal.vue';
 import RefundHistoryTable from '../returns/RefundHistoryTable.vue';
+import LedgerMutationsTable from './LedgerMutationsTable.vue';
+import CashMutationModal from '../cash/CashMutationModal.vue';
 import { useReturnStore } from '../../stores/returnStore';
+import { useCashStore } from '../../stores/cashStore';
+import { CashAccountType } from '../../types';
 import { useConfirmDialog } from '../../composables/useConfirmDialog';
 
 const props = withDefaults(defineProps<{
@@ -39,6 +43,7 @@ const emit = defineEmits<{
 const ledgerStore = useLedgerStore();
 const buyerStore = useBuyerStore();
 const returnStore = useReturnStore();
+const cashStore = useCashStore();
 
 // 1. Reactive Filters & View State
 const filterBuyer = ref<string>('Semua');
@@ -48,8 +53,35 @@ const filterMarket = ref<'Semua' | 'B2B' | 'B2C'>('Semua');
 const filterStartDate = ref<string>('');
 const filterEndDate = ref<string>('');
 const displayLimit = ref<number>(50);
-const viewMode = ref<'transactions' | 'items' | 'refunds'>('transactions');
+const viewMode = ref<'transactions' | 'items' | 'refunds' | 'mutations'>('transactions');
 const expandedTxIds = ref<Set<string>>(new Set());
+
+// Modal Catat Uang Keluar & Pemindahan Kas
+const cashModalState = ref<{
+  isOpen: boolean;
+  tab: 'EXPENSE' | 'TRANSFER';
+  fromAccount?: CashAccountType;
+}>({
+  isOpen: false,
+  tab: 'EXPENSE',
+  fromAccount: 'TUNAI'
+});
+
+function openExpenseModal(account?: CashAccountType) {
+  cashModalState.value = {
+    isOpen: true,
+    tab: 'EXPENSE',
+    fromAccount: account || 'TUNAI'
+  };
+}
+
+function openTransferModal(fromAccount?: CashAccountType) {
+  cashModalState.value = {
+    isOpen: true,
+    tab: 'TRANSFER',
+    fromAccount: fromAccount || 'QRIS'
+  };
+}
 
 // 2. Buyer select options
 const buyers = computed(() => ['Semua', ...buyerStore.buyers.map(b => b.name)]);
@@ -329,13 +361,16 @@ function handleRefundViewReceipt(invoiceNo: string) {
       :b2b-count="b2bCount"
       :b2c-count="b2cCount"
       :refunds-count="returnStore.refunds.length"
+      :mutations-count="cashStore.mutations.length"
       :buyer-options="buyerOptions"
       :has-active-filter="hasActiveFilter"
+      @open-expense="openExpenseModal"
+      @open-transfer="openTransferModal"
       @reset-filters="resetFilters"
     />
 
     <!-- 2. Reusable MetricStatsStrip (DRY) -->
-    <MetricStatsStrip v-if="viewMode !== 'refunds'" :items="metricStats" />
+    <MetricStatsStrip v-if="viewMode !== 'refunds' && viewMode !== 'mutations'" :items="metricStats" />
 
     <!-- 3. Main Workspace: Edge-to-Edge Table (Modular & DRY) -->
     <div class="flex-1 flex flex-col overflow-hidden bg-white">
@@ -343,7 +378,7 @@ function handleRefundViewReceipt(invoiceNo: string) {
         <!-- Reusable Empty State -->
 
         <AppEmptyState
-          v-if="viewMode !== 'refunds' && ledgerStore.transactions.length === 0"
+          v-if="viewMode !== 'refunds' && viewMode !== 'mutations' && ledgerStore.transactions.length === 0"
           :icon="BookOpen"
           title="Belum Ada Transaksi Tercatat"
           description="Selesaikan transaksi penjualan di tab Kasir POS untuk mengisi buku besar."
@@ -373,6 +408,16 @@ function handleRefundViewReceipt(invoiceNo: string) {
           v-else-if="viewMode === 'refunds'"
           :search-query="props.searchQuery"
           @view-receipt="handleRefundViewReceipt"
+        />
+
+        <!-- Mode 4: Mutasi Kas, Uang Keluar & Pemindahan Akun -->
+        <LedgerMutationsTable
+          v-else-if="viewMode === 'mutations'"
+          :filter-start-date="filterStartDate"
+          :filter-end-date="filterEndDate"
+          :search-query="props.searchQuery"
+          @open-expense="openExpenseModal"
+          @open-transfer="openTransferModal"
         />
       </div>
 
@@ -426,5 +471,13 @@ function handleRefundViewReceipt(invoiceNo: string) {
 
     <!-- 5. Modal Retur Transaksi Nota -->
     <RefundModal />
+
+    <!-- 6. Modal Catat Uang Keluar & Pemindahan Kas -->
+    <CashMutationModal
+      :is-open="cashModalState.isOpen"
+      :initial-tab="cashModalState.tab"
+      :initial-from-account="cashModalState.fromAccount"
+      @close="cashModalState.isOpen = false"
+    />
   </div>
 </template>

@@ -9,7 +9,6 @@ import { dbService } from '../../services/dbService';
 import MetricStatsStrip, { type MetricStatItem } from '../common/MetricStatsStrip.vue';
 import DateRangePicker from '../common/DateRangePicker.vue';
 import { useCashStore } from '../../stores/cashStore';
-import CashMutationModal from '../cash/CashMutationModal.vue';
 import {
   FileSpreadsheet,
   ArrowLeftRight,
@@ -33,9 +32,7 @@ import {
   LogOut,
   Wallet,
   Building,
-  QrCode,
-  ArrowDownRight,
-  Trash2
+  QrCode
 } from 'lucide-vue-next';
 import * as XLSX from 'xlsx';
 
@@ -53,33 +50,6 @@ const cashStore = useCashStore();
 
 type ReportSubTab = 'pnl' | 'cashflow' | 'balance_sheet' | 'receivables' | 'analytics' | 'shifts';
 const activeSubTab = ref<ReportSubTab>('pnl');
-
-// Modal Catat Uang Keluar & Pemindahan Kas
-const cashModalState = ref<{
-  isOpen: boolean;
-  tab: 'EXPENSE' | 'TRANSFER';
-  fromAccount?: 'TUNAI' | 'BANK' | 'QRIS';
-}>({
-  isOpen: false,
-  tab: 'EXPENSE',
-  fromAccount: 'TUNAI'
-});
-
-function openExpenseModal(account?: 'TUNAI' | 'BANK' | 'QRIS') {
-  cashModalState.value = {
-    isOpen: true,
-    tab: 'EXPENSE',
-    fromAccount: account || 'TUNAI'
-  };
-}
-
-function openTransferModal(fromAccount?: 'TUNAI' | 'BANK' | 'QRIS') {
-  cashModalState.value = {
-    isOpen: true,
-    tab: 'TRANSFER',
-    fromAccount: fromAccount || 'QRIS'
-  };
-}
 
 // Catatan Keuangan: Inline Expand / Collapse saat diklik
 const expandedNotes = ref<Set<string>>(new Set());
@@ -901,30 +871,9 @@ async function exportComprehensiveReport() {
                 (Riil terpisah: Kas Fisik, Rekening Bank, Saldo QRIS)
               </span>
             </div>
-
-            <!-- Tombol Aksi Mutasi Kas -->
-            <div class="flex items-center gap-2">
-              <button
-                type="button"
-                class="px-2.5 py-1 rounded bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
-                @click="openExpenseModal()"
-              >
-                <ArrowDownRight :size="13" />
-                <span>+ Catat Uang Keluar (Beban)</span>
-              </button>
-
-              <button
-                type="button"
-                class="px-2.5 py-1 rounded bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
-                @click="openTransferModal()"
-              >
-                <ArrowLeftRight :size="13" />
-                <span>⇄ Pindah Kas / Cairkan QRIS</span>
-              </button>
-            </div>
           </div>
 
-          <!-- 3 Kartu Saldo Kantong Kas -->
+          <!-- 3 Kartu Saldo Kantong Kas (Read-Only) -->
           <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
             <!-- 1. Kas Tunai Laci Kasir -->
             <div class="p-3 rounded-lg border border-emerald-200 bg-emerald-50/40 flex flex-col justify-between">
@@ -964,14 +913,6 @@ async function exportComprehensiveReport() {
               </div>
               <div class="my-1.5 font-mono font-extrabold text-lg text-purple-900 flex items-baseline justify-between">
                 <span>Rp {{ formatRupiah(cashBalances.pendingQrisSettlement) }}</span>
-                <button
-                  v-if="cashBalances.pendingQrisSettlement > 0"
-                  type="button"
-                  class="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-600 hover:bg-purple-700 text-white cursor-pointer shadow-2xs transition-colors"
-                  @click="openTransferModal('QRIS')"
-                >
-                  ⚡ Cairkan ke Bank
-                </button>
               </div>
               <div class="text-[10px] text-purple-800 flex items-center justify-between pt-1 border-t border-purple-200/60 font-medium">
                 <span>Total QRIS: Rp {{ formatRupiah(cashBalances.salesQris) }}</span>
@@ -1100,7 +1041,7 @@ async function exportComprehensiveReport() {
           </tbody>
         </table>
 
-        <!-- 3. Tabel Riwayat Catatan Pengeluaran & Mutasi Kas Lengkap -->
+        <!-- 3. Tabel Riwayat Catatan Pengeluaran & Mutasi Kas Lengkap (Read-Only) -->
         <div class="border-t-2 border-gray-200 mt-4 bg-white flex flex-col">
           <div class="px-4 py-2.5 bg-gray-100 border-b border-gray-200 flex items-center justify-between">
             <div class="flex items-center gap-2">
@@ -1111,13 +1052,9 @@ async function exportComprehensiveReport() {
                 {{ periodMutations.length }} Catatan
               </span>
             </div>
-            <button
-              type="button"
-              class="px-2 py-0.5 rounded bg-white hover:bg-gray-100 border border-gray-300 text-gray-700 font-semibold text-[11px] cursor-pointer"
-              @click="openExpenseModal()"
-            >
-              + Tambah Catatan
-            </button>
+            <span class="text-[11px] text-gray-500 font-medium">
+              (Pencatatan kas dikelola melalui menu Buku Kas)
+            </span>
           </div>
 
           <table class="table-explorer w-full">
@@ -1131,7 +1068,6 @@ async function exportComprehensiveReport() {
                 <th class="w-36 text-left">KATEGORI</th>
                 <th class="w-32 text-right">NOMINAL (RP)</th>
                 <th class="text-left">KETERANGAN &amp; CATATAN</th>
-                <th class="w-16 text-center">AKSI</th>
               </tr>
             </thead>
             <tbody>
@@ -1174,22 +1110,12 @@ async function exportComprehensiveReport() {
                   <span>{{ mut.notes || '-' }}</span>
                   <span v-if="mut.referenceNo" class="text-gray-400 font-mono ml-1.5">({{ mut.referenceNo }})</span>
                 </td>
-                <td class="text-center">
-                  <button
-                    type="button"
-                    class="p-1 text-gray-400 hover:text-rose-600 rounded hover:bg-rose-50 cursor-pointer transition-colors"
-                    title="Hapus catatan mutasi"
-                    @click="cashStore.deleteMutation(mut.id)"
-                  >
-                    <Trash2 :size="13" />
-                  </button>
-                </td>
               </tr>
 
               <tr v-if="periodMutations.length === 0">
-                <td colspan="9" class="p-6 text-center text-gray-400">
+                <td colspan="8" class="p-6 text-center text-gray-400">
                   <p class="font-semibold text-xs text-gray-600">Belum ada catatan pengeluaran kas atau mutasi transfer</p>
-                  <p class="text-[11px] mt-0.5">Klik tombol "+ Catat Uang Keluar" untuk mencatat beban operasional atau "Pindah Kas" untuk mencairkan saldo QRIS.</p>
+                  <p class="text-[11px] mt-0.5">Catatan pengeluaran dan mutasi kas dicatat melalui menu Buku Kas.</p>
                 </td>
               </tr>
             </tbody>
@@ -1601,13 +1527,5 @@ async function exportComprehensiveReport() {
         </div>
       </div>
     </div>
-
-    <!-- Modal Catat Uang Keluar & Pemindahan Kas -->
-    <CashMutationModal
-      :is-open="cashModalState.isOpen"
-      :initial-tab="cashModalState.tab"
-      :initial-from-account="cashModalState.fromAccount"
-      @close="cashModalState.isOpen = false"
-    />
   </div>
 </template>

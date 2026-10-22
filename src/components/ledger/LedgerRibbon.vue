@@ -11,7 +11,9 @@ import {
   Landmark,
   QrCode,
   FileText,
-  Calendar
+  Calendar,
+  ArrowDownRight,
+  ArrowLeftRight
 } from 'lucide-vue-next';
 import { PaymentStatus } from '../../types';
 import SearchableSelect, { type SelectOption } from '../common/SearchableSelect.vue';
@@ -26,7 +28,7 @@ const props = defineProps<{
   filterBuyer: string;
   filterStartDate?: string;
   filterEndDate?: string;
-  viewMode: 'transactions' | 'items' | 'refunds';
+  viewMode: 'transactions' | 'items' | 'refunds' | 'mutations';
   searchQuery?: string;
   totalTransactionsCount: number;
   lunasCount: number;
@@ -38,6 +40,7 @@ const props = defineProps<{
   b2bCount: number;
   b2cCount: number;
   refundsCount?: number;
+  mutationsCount?: number;
   buyerOptions: SelectOption[];
   hasActiveFilter: boolean;
 }>();
@@ -49,7 +52,9 @@ const emit = defineEmits<{
   (e: 'update:filterBuyer', value: string): void;
   (e: 'update:filterStartDate', value: string): void;
   (e: 'update:filterEndDate', value: string): void;
-  (e: 'update:viewMode', value: 'transactions' | 'items' | 'refunds'): void;
+  (e: 'update:viewMode', value: 'transactions' | 'items' | 'refunds' | 'mutations'): void;
+  (e: 'open-expense'): void;
+  (e: 'open-transfer'): void;
   (e: 'reset-filters'): void;
 }>();
 
@@ -348,7 +353,7 @@ function onBuyerChange(val: string | number) {
           :class="viewMode === 'refunds' ? 'bg-white text-rose-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
           @click="emit('update:viewMode', 'refunds')"
         >
-          <span>Retur & Refund</span>
+          <span>Retur &amp; Refund</span>
           <span
             v-if="(refundsCount || 0) > 0"
             class="px-1.5 py-0.2 rounded-full text-[9.5px] font-mono font-bold"
@@ -356,6 +361,45 @@ function onBuyerChange(val: string | number) {
           >
             {{ refundsCount }}
           </span>
+        </button>
+
+        <button
+          type="button"
+          class="px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all flex items-center gap-1"
+          :class="viewMode === 'mutations' ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
+          @click="emit('update:viewMode', 'mutations')"
+        >
+          <span>Mutasi Kas</span>
+          <span
+            v-if="(mutationsCount || 0) > 0"
+            class="px-1.5 py-0.2 rounded-full text-[9.5px] font-mono font-bold"
+            :class="viewMode === 'mutations' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-300 text-gray-700'"
+          >
+            {{ mutationsCount }}
+          </span>
+        </button>
+      </div>
+
+      <!-- Quick Action Buttons: Uang Keluar & Pindah Kas -->
+      <div class="flex items-center gap-1.5 ml-1">
+        <button
+          type="button"
+          class="h-7 px-2.5 rounded bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors shadow-2xs shrink-0"
+          title="Catat uang keluar dari kas/bank untuk beban operasional"
+          @click="emit('open-expense')"
+        >
+          <ArrowDownRight :size="13" />
+          <span>+ Uang Keluar</span>
+        </button>
+
+        <button
+          type="button"
+          class="h-7 px-2.5 rounded bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors shadow-2xs shrink-0"
+          title="Pindah kas atau cairkan saldo QRIS ke rekening bank"
+          @click="emit('open-transfer')"
+        >
+          <ArrowLeftRight :size="13" />
+          <span>⇄ Pindah Kas</span>
         </button>
       </div>
     </div>
