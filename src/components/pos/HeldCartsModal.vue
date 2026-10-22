@@ -1,6 +1,13 @@
 <script setup lang="ts">
+import { onMounted, onUnmounted } from 'vue';
 import { usePosStore } from '../../stores/posStore';
 import { formatRupiah } from '../../utils/formatters';
+import { useModalLock } from '../../composables/useModalLock';
+import { useConfirmDialog } from '../../composables/useConfirmDialog';
+
+// BUG FIX: register modal-lock agar shortcut global (mis. Enter pada
+// ProductCatalog) tidak menambah produk ke keranjang saat modal terbuka.
+
 import {
   Clock,
   X,
@@ -11,7 +18,7 @@ import {
   PackageCheck
 } from 'lucide-vue-next';
 
-defineProps<{
+const props = defineProps<{
   isOpen: boolean;
 }>();
 
@@ -20,8 +27,37 @@ const emit = defineEmits<{
 }>();
 
 const posStore = usePosStore();
+const { confirm: showConfirm } = useConfirmDialog();
 
-function handleRecall(heldId: string) {
+// BUG FIX: tombol "Tutup (Esc)" sebelumnya tidak punya handler Esc,
+// sehingga modal hanya bisa ditutup dengan klik mouse.
+function handleKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    e.stopPropagation();
+    emit('close');
+  }
+}
+
+onMounted(() => window.addEventListener('keydown', handleKeydown));
+onUnmounted(() => window.removeEventListener('keydown', handleKeydown));
+
+/**
+ * BUG FIX: `recallHeldCart` menimpa SELURUH keranjang. Kalau kasir sudah
+ * memindai beberapa barang untuk pelanggan lain, barang-barang itu hilang
+ * tanpa konfirmasi dan tanpa kemungkinan dibatalkan.
+ */
+async function handleRecall(heldId: string) {
+  if (posStore.cartItems.length > 0) {
+    const ok = await showConfirm({
+      title: 'Ganti Keranjang Aktif?',
+      message: `Keranjang saat ini berisi ${posStore.cartItems.length} item. Keranjang aktif akan DITIMPA oleh keranjang yang diparkir. Lanjutkan?`,
+      confirmText: 'Ya, Ganti Keranjang',
+      cancelText: 'Batal',
+      type: 'warning'
+    });
+    if (!ok) return;
+  }
   posStore.recallHeldCart(heldId);
   emit('close');
 }
@@ -32,6 +68,9 @@ function handleDelete(heldId: string) {
     emit('close');
   }
 }
+
+const { bind: bindModalLock } = useModalLock();
+bindModalLock(() => props.isOpen);
 </script>
 
 <template>

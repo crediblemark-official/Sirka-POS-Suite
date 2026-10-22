@@ -4,6 +4,10 @@ import { usePosStore } from '../../stores/posStore';
 import { useDiscountStore } from '../../stores/discountStore';
 import { formatRupiah } from '../../utils/formatters';
 import { Tag, X } from 'lucide-vue-next';
+import { useModalLock } from '../../composables/useModalLock';
+
+// BUG FIX: register modal-lock agar shortcut global (mis. Enter pada
+// ProductCatalog) tidak menambah produk ke keranjang saat modal terbuka.
 
 const props = defineProps<{
   isOpen: boolean;
@@ -40,12 +44,26 @@ watch(
     } else {
       window.removeEventListener('keydown', handleKeydown);
     }
-  }
+  },
+  // BUG FIX: tanpa `immediate`, listener Escape tidak pernah didaftarkan bila
+  // modal ter-mount dalam keadaan terbuka.
+  { immediate: true }
 );
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown);
+  if (closeTimer) {
+    clearTimeout(closeTimer);
+    closeTimer = null;
+  }
+  if (errorTimer) {
+    clearTimeout(errorTimer);
+    errorTimer = null;
+  }
 });
+
+let closeTimer: ReturnType<typeof setTimeout> | null = null;
+let errorTimer: ReturnType<typeof setTimeout> | null = null;
 
 function handleApplyCoupon() {
   couponError.value = '';
@@ -56,12 +74,38 @@ function handleApplyCoupon() {
   if (ok) {
     couponSuccess.value = `Kupon ${code} berhasil dipasang!`;
     couponInput.value = '';
-    setTimeout(() => {
+    // BUG FIX: timer tidak di-clear -> menerapkan kupon kedua dalam 400 ms tetap
+    // menutup modal, dan timer tetap hidup setelah unmount.
+    if (closeTimer) clearTimeout(closeTimer);
+    closeTimer = setTimeout(() => {
+      closeTimer = null;
       emit('close');
     }, 400);
   } else {
-    couponError.value = 'Kupon tidak berlaku atau S&K belanja belum terpenuhi.';
-    setTimeout(() => { couponError.value = ''; }, 3500);
+    // BUG FIX: pesan generik membuang alasan spesifik dari
+    // `calculateDiscountAmount` ("Minimal belanja Rp …", "Khusus member",
+    // "Khusus transaksi Eceran (B2C)") sehingga kasir tidak tahu kenapa
+    // kupon ditolak.
+    const disc = discountStore.findDiscountByCode(code);
+    let reason = 'Kupon tidak berlaku atau S&K belanja belum terpenuhi.';
+    if (disc) {
+      const check = discountStore.calculateDiscountAmount(
+        disc,
+        posStore.totalSell,
+        posStore.selectedBuyerData,
+        posStore.cartItems,
+        posStore.saleMode
+      );
+      if (!check.valid && check.reason) reason = check.reason;
+    } else {
+      reason = `Kupon "${code}" tidak ditemukan.`;
+    }
+    couponError.value = reason;
+    if (errorTimer) clearTimeout(errorTimer);
+    errorTimer = setTimeout(() => {
+      errorTimer = null;
+      couponError.value = '';
+    }, 3500);
   }
 }
 
@@ -74,6 +118,9 @@ function handleRemoveCoupon() {
   posStore.removeDiscount();
   emit('close');
 }
+
+const { bind: bindModalLock } = useModalLock();
+bindModalLock(() => props.isOpen);
 </script>
 
 <template>
@@ -151,12 +198,23 @@ function handleRemoveCoupon() {
                   <span v-if="v.minPurchase > 0">Min. Belanja: Rp {{ formatRupiah(v.minPurchase) }}</span>
                   <span v-else>Tanpa minimal belanja</span>
                   <span v-if="v.scope === 'MEMBER_ONLY'" class="ml-1 text-amber-700 font-bold">• Khusus Member</span>
+                  <span v-if="v.scope === 'CUSTOMER_TYPE'" class="ml-1 text-amber-700 font-bold">
+                    • Khusus {{ v.targetCustomerType === 'B2B' ? 'Grosir' : 'Eceran' }}
+                  </span>
+                  <span v-if="v.scope === 'CATEGORY'" class="ml-1 text-amber-700 font-bold">• Kategori {{ v.targetCategory }}</span>
                 </div>
               </div>
 
               <div class="text-right shrink-0 ml-2">
                 <span class="font-bold font-mono text-emerald-700 text-xs block">
                   {{ v.type === 'PERCENT' ? `${v.value}%` : `Rp ${formatRupiah(v.value)}` }}
+                </span>
+                <!-- BUG FIX: plafon (maxDiscount) & hasil potongan aktual harus
+                     ditampilkan. Sebelumnya kupon 50% ber-plafon Rp 5.000 hanya
+                     tertulis "50%" sehingga kasir salah paham mengira potongannya
+                     50% dari seluruh belanja. -->
+                <span v-if="v.type === 'PERCENT' && v.maxDiscount && v.maxDiscount > 0" class="text-[9.5px] text-amber-700 font-bold block">
+                  Maks. Rp {{ formatRupiah(v.maxDiscount) }}
                 </span>
                 <span class="text-[9.5px] text-rose-600 font-bold underline">
                   {{ posStore.appliedDiscount?.id === v.id ? 'Terpasang' : 'Pilih' }}

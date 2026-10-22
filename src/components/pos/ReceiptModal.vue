@@ -7,6 +7,10 @@ import { Printer, Copy, Check, X, Loader2, Bluetooth, Cable, AlertCircle, Settin
 import { formatRupiah } from '../../utils/formatters';
 import JsBarcode from 'jsbarcode';
 import PrinterConfigModal from '../settings/PrinterConfigModal.vue';
+import { useModalLock } from '../../composables/useModalLock';
+
+// BUG FIX: register modal-lock agar shortcut global (mis. Enter pada
+// ProductCatalog) tidak menambah produk ke keranjang saat modal terbuka.
 
 const props = defineProps<{
   transaction: Transaction | null;
@@ -235,11 +239,16 @@ const waText = computed(() => {
 
 function copyToWhatsApp() {
   if (!navigator.clipboard) return;
+  // BUG FIX: clipboard ditolak (permission denied / WebView Tauri) ->
+  // unhandled promise rejection dan tombol tidak pernah menampilkan "Tersalin".
   navigator.clipboard.writeText(waText.value).then(() => {
     copied.value = true;
     setTimeout(() => {
       copied.value = false;
     }, 2000);
+  }).catch((err: any) => {
+    console.warn('[ReceiptModal] Gagal menyalin teks:', err);
+    alert('Gagal menyalin ke clipboard. Salin manual dari pratinjau teks.');
   });
 }
 
@@ -252,6 +261,9 @@ function handlePrintGraphic() {
     window.print();
   });
 }
+
+const { bind: bindModalLock } = useModalLock();
+bindModalLock(() => !!props.transaction);
 </script>
 
 <template>

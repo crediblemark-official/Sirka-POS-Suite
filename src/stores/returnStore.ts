@@ -13,6 +13,7 @@ import { useInventoryStore } from './inventoryStore';
 import { useLedgerStore } from './ledgerStore';
 import { useShiftStore } from './shiftStore';
 import { useStockMovementStore } from './stockMovementStore';
+import { safeParse } from '../utils/storage';
 
 const STORAGE_KEY_REFUNDS = 'kasir_citra_refunds_v1';
 const STORAGE_KEY_WASTE = 'kasir_citra_waste_v1';
@@ -22,12 +23,13 @@ export const useReturnStore = defineStore('return', () => {
   const inventoryStore = useInventoryStore();
   const ledgerStore = useLedgerStore();
   const shiftStore = useShiftStore();
+  const movementStore = useStockMovementStore();
 
   const savedRefunds = localStorage.getItem(STORAGE_KEY_REFUNDS);
-  const refunds = ref<TransactionRefund[]>(savedRefunds ? JSON.parse(savedRefunds) : []);
+  const refunds = ref<TransactionRefund[]>(safeParse<TransactionRefund[]>(savedRefunds, [], 'ReturnStore'));
 
   const savedWaste = localStorage.getItem(STORAGE_KEY_WASTE);
-  const wasteRecords = ref<WasteRecord[]>(savedWaste ? JSON.parse(savedWaste) : []);
+  const wasteRecords = ref<WasteRecord[]>(safeParse<WasteRecord[]>(savedWaste, [], 'ReturnStore'));
 
   // Modal State Controls
   const showRefundModal = ref(false);
@@ -90,7 +92,23 @@ export const useReturnStore = defineStore('return', () => {
         if (item.batchDeductions && item.batchDeductions.length > 0) {
           batchStore.restoreBatchDeductions(item.batchDeductions);
         }
+        const prod = inventoryStore.products.find(p => p.id === item.productId);
+        const stockBefore = prod?.stock ?? 0;
         await inventoryStore.updateStockAndPrice(item.productId, item.baseQty, 0, 0);
+        // Catat di Kartu Stok agar jejak retur masuk terlihat
+        if (prod) {
+          movementStore.recordMovement({
+            product: prod,
+            type: 'RETUR_MASUK',
+            refNo: transaction.invoiceNo,
+            qtyChange: item.baseQty,
+            stockBefore,
+            stockAfter: prod.stock,
+            costPrice: prod.lastBuyPrice,
+            notes: `Retur masuk dari nota ${transaction.invoiceNo} (${item.qty} ${item.unit})`,
+            operator: activeCashier
+          });
+        }
       } else {
         // Barang rusak / basi: Uang kembali ke pembeli, tapi barang TIDAK masuk stok aktif
         // Otomatis dicatat ke buku Waste & Spoilage sebagai kerugian barang rusak

@@ -3,6 +3,7 @@ import { syncService } from '../services/syncService';
 import { defineStore } from 'pinia';
 import { ref, computed, watch } from 'vue';
 import { PurchaseReceipt, PurchaseReceiptItem, Product } from '../types';
+import { localTodayStr } from '../utils/formatters';
 import { useInventoryStore } from './inventoryStore';
 import { useBatchStore } from './batchStore';
 import { useSupplierStore } from './supplierStore';
@@ -10,17 +11,45 @@ import { useStockMovementStore } from './stockMovementStore';
 
 const STORAGE_KEY_PURCHASES = 'kasir_citra_purchases_v1';
 
+/** BUG FIX: JSON.parse tanpa try/catch membuat 1 nilai korup mematikan boot aplikasi. */
+function safeParse<T>(raw: string | null, fallback: T): T {
+  if (!raw) return fallback;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed === null || parsed === undefined) return fallback;
+    return parsed as T;
+  } catch (e) {
+    console.warn('[PurchaseStore] Gagal parse localStorage, memakai nilai default:', e);
+    return fallback;
+  }
+}
+
 export const usePurchaseStore = defineStore('purchase', () => {
   const inventoryStore = useInventoryStore();
   const batchStore = useBatchStore();
   const supplierStore = useSupplierStore();
 
   const saved = localStorage.getItem(STORAGE_KEY_PURCHASES);
-  const purchaseHistory = ref<PurchaseReceipt[]>(saved ? JSON.parse(saved) : []);
+  const purchaseHistory = ref<PurchaseReceipt[]>(safeParse<PurchaseReceipt[]>(saved, []));
 
+  /**
+   * BUG FIX: `fetchPurchases()` sebelumnya MENGGANTI seluruh riwayat dengan
+   * data database lalu menimpa cache localStorage. Nota kulakan yang dibuat
+   * lewat drawer (hanya tersimpan lokal) hilang total setelah restart aplikasi
+   * sementara stok yang ditimbulkannya tetap ada di database.
+   * Sekarang: hasil DB digabung dengan catatan lokal yang belum ada di DB.
+   */
   async function fetchPurchases() {
-    purchaseHistory.value = await dbService.getPurchases();
-    saveLocal();
+    try {
+      const fromDb = await dbService.getPurchases();
+      const dbList = Array.isArray(fromDb) ? fromDb : [];
+      const dbIds = new Set(dbList.map(p => p?.id).filter(Boolean));
+      const localOnly = purchaseHistory.value.filter(p => p && p.id && !dbIds.has(p.id));
+      purchaseHistory.value = [...dbList, ...localOnly];
+      saveLocal();
+    } catch (error) {
+      console.warn('Riwayat kulakan belum tersinkron:', error);
+    }
   }
   let ready = fetchPurchases().then(() => true).catch(error => {
     console.warn('Riwayat kulakan belum tersinkron:', error);
@@ -52,7 +81,7 @@ export const usePurchaseStore = defineStore('purchase', () => {
   );
 
   const supplierInvoiceNo = ref<string>('');
-  const receiptDate = ref<string>(new Date().toISOString().slice(0, 10));
+  const receiptDate = ref<string>(localTodayStr());
   const receiptNotes = ref<string>('');
   const receivingItems = ref<PurchaseReceiptItem[]>([]);
   const showHistoryDrawer = ref<boolean>(false);
@@ -62,12 +91,34 @@ export const usePurchaseStore = defineStore('purchase', () => {
     localStorage.setItem(STORAGE_KEY_PURCHASES, JSON.stringify(purchaseHistory.value));
   }
 
+  /**
+   * BUG FIX: kuantitas yang dipakai untuk adjusting stok harus dalam SATUAN
+   * DASAR. `qtyReceived` adalah jumlah fisik dalam satuan kemasan (mis. 5 DUS)
+   * sedangkan stok produk disimpan dalam satuan dasar (mis. 200 PCS).
+   * Tanpa konversi ini, edit/hapus nota kulakan mengembalikan jumlah yang
+   * salah sehingga muncul "hantu stok".
+   */
+  function receiptBaseQty(item: PurchaseReceiptItem): number {
+    if (item.baseQty !== undefined && item.baseQty !== null && item.baseQty > 0) {
+      return item.baseQty;
+    }
+    const factor = item.conversionFactor ?? 1;
+    return (item.qtyReceived || 0) * factor;
+  }
+
   function addItemToReceiving(product: Product, qty = 1, customBuyPrice?: number, customSellPrice?: number, expiryDate?: string) {
     const existing = receivingItems.value.find(i => i.productId === product.id);
     if (existing) {
       existing.qtyReceived += qty;
       existing.subtotalBuy = existing.qtyReceived * existing.buyPrice;
       if (expiryDate) existing.expiryDate = expiryDate;
+      // BUG FIX: harga beli baru TIDAK pernah diterapkan pada jalur merge.
+      // Akibatnya nota understated dan HPP lama ikut tersimpan ke master.
+      if (customBuyPrice !== undefined && customBuyPrice >= 0) {
+        existing.buyPrice = customBuyPrice;
+        existing.subtotalBuy = existing.qtyReceived * existing.buyPrice;
+        existing.newSellPrice = Math.round(existing.buyPrice * (1 + existing.markupPercent / 100));
+      }
       if (customSellPrice !== undefined && customSellPrice > 0) {
         existing.newSellPrice = customSellPrice;
         if (existing.buyPrice > 0) {
@@ -195,9 +246,10 @@ export const usePurchaseStore = defineStore('purchase', () => {
     const movementStore = useStockMovementStore();
     for (const item of receipt.items) {
       const prod = inventoryStore.products.find(p => p.id === item.productId);
+      const baseQty = receiptBaseQty(item);
       if (prod) {
         const stockBefore = prod.stock;
-        prod.stock += item.qtyReceived;
+        prod.stock += baseQty;
         if (item.buyPrice > 0) prod.lastBuyPrice = item.buyPrice;
         if (item.newSellPrice > 0) prod.lastSellPrice = item.newSellPrice;
 
@@ -205,7 +257,7 @@ export const usePurchaseStore = defineStore('purchase', () => {
           product: prod,
           type: 'KULAKAN',
           refNo: receipt.supplierInvoiceNo || receipt.id,
-          qtyChange: item.qtyReceived,
+          qtyChange: baseQty,
           stockBefore,
           stockAfter: prod.stock,
           costPrice: item.buyPrice,
@@ -214,12 +266,12 @@ export const usePurchaseStore = defineStore('purchase', () => {
         });
       }
 
-      // Catat Batch FIFO/FEFO Baru
+      // Catat Batch FIFO/FEFO Baru (dalam satuan dasar)
       batchStore.addBatch({
         productId: item.productId,
         batchNo: item.batchNo,
         purchaseReceiptId: receipt.id,
-        qty: item.qtyReceived,
+        qty: baseQty,
         buyPrice: item.buyPrice,
         sellPrice: item.newSellPrice,
         expiryDate: item.expiryDate
@@ -264,20 +316,33 @@ export const usePurchaseStore = defineStore('purchase', () => {
       purchaseHistory.value[idx] = updatedReceipt;
     }
 
-    // Local-First: Rollback stok lama dan terapkan stok & harga baru di memori
+    // Local-First: Rollback stok lama dan terapkan stok & harga baru di memori.
+    // BUG FIX: memakai kuantitas SATUAN DASAR (baseQty) & membatalkan batch
+    // FIFO lama agar ledger batch tidak lagi melenceng dari stok master.
     for (const item of oldReceipt.items) {
       const prod = inventoryStore.products.find(p => p.id === item.productId);
       if (prod) {
-        prod.stock = Math.max(0, prod.stock - item.qtyReceived);
+        prod.stock = Math.max(0, prod.stock - receiptBaseQty(item));
       }
     }
+    batchStore.removeBatchesForReceipt(oldReceipt.id);
     for (const item of updatedReceipt.items) {
       const prod = inventoryStore.products.find(p => p.id === item.productId);
+      const baseQty = receiptBaseQty(item);
       if (prod) {
-        prod.stock += item.qtyReceived;
+        prod.stock += baseQty;
         if (item.buyPrice > 0) prod.lastBuyPrice = item.buyPrice;
         if (item.newSellPrice > 0) prod.lastSellPrice = item.newSellPrice;
       }
+      batchStore.addBatch({
+        productId: item.productId,
+        batchNo: item.batchNo,
+        purchaseReceiptId: updatedReceipt.id,
+        qty: baseQty,
+        buyPrice: item.buyPrice,
+        sellPrice: item.newSellPrice,
+        expiryDate: item.expiryDate
+      });
     }
     inventoryStore.saveLocal();
     saveLocal();
@@ -302,13 +367,14 @@ export const usePurchaseStore = defineStore('purchase', () => {
     const rcp = purchaseHistory.value.find(p => p.id === id);
     if (!rcp) return false;
 
-    // Rollback stok lokal
+    // Rollback stok lokal (BUG FIX: kuantitas satuan dasar + hapus batch FIFO)
     for (const item of rcp.items) {
       const prod = inventoryStore.products.find(p => p.id === item.productId);
       if (prod) {
-        prod.stock = Math.max(0, prod.stock - item.qtyReceived);
+        prod.stock = Math.max(0, prod.stock - receiptBaseQty(item));
       }
     }
+    batchStore.removeBatchesForReceipt(rcp.id);
     inventoryStore.saveLocal();
 
     purchaseHistory.value = purchaseHistory.value.filter(p => p.id !== id);

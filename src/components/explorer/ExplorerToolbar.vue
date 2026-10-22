@@ -89,13 +89,15 @@ function clearSearch() {
 
 // BUG-016 FIX: Scan barcode saat kursor sedang di kotak pencarian.
 const SCAN_GAP_MS = 80;
-let lastSearchCharAt = 0;
+// BUG FIX: nilai awal 0 membuat selisih karakter pertama sangat besar
+// (> SCAN_GAP_MS) sehingga barcode 1 karakter tidak pernah dikenali.
+let lastSearchCharAt = Date.now();
 let lastSearchInterval = 0;
 
 function handleSearchKeydown(e: KeyboardEvent) {
   if (props.activeTab !== 'pos') return;
   const now = Date.now();
-  if (e.key.length === 1) {
+  if (e.key.length === 1 && e.key !== ' ') {
     lastSearchInterval = now - lastSearchCharAt;
     lastSearchCharAt = now;
     return;
@@ -106,11 +108,31 @@ function handleSearchKeydown(e: KeyboardEvent) {
     // Deteksi scanner: karakter terakhir baru masuk < gap scanner
     if (lastSearchInterval > SCAN_GAP_MS) return;
     const prods = inventoryStore.products;
-    const found =
-      prods.find(p => (p.barcode || '').trim() === query) ||
-      prods.find(p => p.code.trim().toUpperCase() === query.toUpperCase());
+    // BUG FIX: barcode barcode SATUAN KEMASAN (product.units[].barcode) ikut
+    // dicari. Sebelumnya hanya barcode produk & SKU yang dicari sehingga
+    // barcode DUS yang valid di katalog kasir diabaikan di kotak pencarian.
+    let found = prods.find(p => (p.barcode || '').trim() === query);
+    let foundUnit: string | undefined;
+    if (!found) {
+      for (const p of prods) {
+        const unit = (p.units || []).find(u => (u.barcode || '').trim() === query);
+        if (unit) {
+          found = p;
+          foundUnit = unit.unitName;
+          break;
+        }
+      }
+    }
+    if (!found) {
+      found = prods.find(p => (p.code || '').trim().toUpperCase() === query.toUpperCase());
+    }
     if (found) {
-      posStore.addProductToCart(found, 1);
+      // Barcode satuan kemasan -> masukkan keranjang memakai satuan tersebut
+      if (foundUnit) {
+        posStore.addProductToCart(found, 1, foundUnit);
+      } else {
+        posStore.addProductToCart(found, 1);
+      }
       emit('update:searchQuery', '');
       emit('update:showCartDrawer', true);
     }

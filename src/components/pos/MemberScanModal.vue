@@ -15,6 +15,10 @@ import {
 } from 'lucide-vue-next';
 import { Buyer } from '../../types';
 import { useBuyerStore } from '../../stores/buyerStore';
+import { useModalLock } from '../../composables/useModalLock';
+
+// BUG FIX: register modal-lock agar shortcut global (mis. Enter pada
+// ProductCatalog) tidak menambah produk ke keranjang saat modal terbuka.
 
 const props = defineProps<{
   isOpen: boolean;
@@ -66,16 +70,26 @@ function playScanSound() {
 const scannedMemberMatch = computed<Buyer | undefined>(() => {
   const q = scanInput.value.trim().toUpperCase();
   if (!q) return undefined;
+
+  // BUG FIX: pencocokan fuzzy dengan 1 karakter bisa memilih member yang SALAH
+  // (mis. mengetik "A" langsung memilih anggota pertama yang namanya
+  // mengandung "A") -> tier diskon & poin yang dipakai salah pelanggan.
+  // Pencocokan substring hanya boleh mulai dari minimal 3 karakter; nomor
+  ///kode / telepon tetap boleh lebih pendek.
+  const MIN_SUBSTRING_LEN = 3;
+  const allowSubstring = q.length >= MIN_SUBSTRING_LEN;
+
   return buyerStore.buyers.find(b => {
     const isMbr = Boolean(b.memberCardNo);
     const card = (b.memberCardNo || '').toUpperCase();
     const phone = (b.phone || '').toUpperCase();
     const code = (b.code || '').toUpperCase();
     const name = (b.name || '').toUpperCase();
-    return isMbr && (
-      card === q || card.includes(q) || q.includes(card) ||
-      phone === q || code === q || name.includes(q)
-    );
+    if (!isMbr) return false;
+
+    if (card === q || phone === q || code === q) return true;
+    if (!allowSubstring) return false;
+    return card.includes(q) || q.includes(card) || name.includes(q);
   });
 });
 
@@ -347,6 +361,9 @@ onUnmounted(() => {
   window.removeEventListener('keydown', handleGlobalKeydown);
   stopWebcamScanner();
 });
+
+const { bind: bindModalLock } = useModalLock();
+bindModalLock(() => props.isOpen);
 </script>
 
 <template>

@@ -2,18 +2,37 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { StockMovement, StockAdjustmentRecord, StockMovementType, StockAdjustReason, Product } from '../types';
 import { useInventoryStore } from './inventoryStore';
+import { useBatchStore } from './batchStore';
+import { dbService } from '../services/dbService';
+import { syncService } from '../services/syncService';
 
 const STORAGE_KEY_MOVEMENTS = 'kasir_citra_stock_movements_v1';
 const STORAGE_KEY_ADJUSTMENTS = 'kasir_citra_stock_adjustments_v1';
+
+/**
+ * BUG FIX: helper parsing localStorage yang aman.
+ * JSON.parse tanpa try/catch membuat 1 nilai korup mematikan boot aplikasi.
+ */
+function safeParse<T>(raw: string | null, fallback: T): T {
+  if (!raw) return fallback;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed === null || parsed === undefined) return fallback;
+    return parsed as T;
+  } catch (e) {
+    console.warn('[StockMovement] Gagal parse localStorage, memakai nilai default:', e);
+    return fallback;
+  }
+}
 
 export const useStockMovementStore = defineStore('stockMovement', () => {
   const inventoryStore = useInventoryStore();
 
   const savedMovements = localStorage.getItem(STORAGE_KEY_MOVEMENTS);
-  const movements = ref<StockMovement[]>(savedMovements ? JSON.parse(savedMovements) : []);
+  const movements = ref<StockMovement[]>(safeParse<StockMovement[]>(savedMovements, []));
 
   const savedAdjustments = localStorage.getItem(STORAGE_KEY_ADJUSTMENTS);
-  const adjustments = ref<StockAdjustmentRecord[]>(savedAdjustments ? JSON.parse(savedAdjustments) : []);
+  const adjustments = ref<StockAdjustmentRecord[]>(safeParse<StockAdjustmentRecord[]>(savedAdjustments, []));
 
   // UI state untuk Drawer & Modal
   const isStockCardOpen = ref(false);
@@ -73,9 +92,20 @@ export const useStockMovementStore = defineStore('stockMovement', () => {
     const prod = inventoryStore.products.find(p => p.id === params.productId);
     if (!prod) return false;
 
+    // BUG FIX: input kosong / teks tidak valid menghasilkan NaN yang membuat
+    // `prod.stock` jadi NaN dan meracuni seluruh perhitungan inventori.
+    const raw = Number(params.physicalStock);
+    if (!Number.isFinite(raw)) {
+      console.warn('[StockMovement] physicalStock tidak valid, penyesuaian dibatalkan:', params.physicalStock);
+      return false;
+    }
+    const physical = Math.max(0, raw);
     const stockBefore = prod.stock || 0;
-    const physical = Math.max(0, Number(params.physicalStock));
     const difference = physical - stockBefore;
+    if (difference === 0) {
+      // Tidak ada selisih -> tidak perlu penyesuaian
+      return false;
+    }
 
     const adjRecord: StockAdjustmentRecord = {
       id: `adj-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
@@ -107,6 +137,31 @@ export const useStockMovementStore = defineStore('stockMovement', () => {
     });
 
     saveLocal();
+
+    // BUG FIX: penyesuaian stok WAJIB disimpan ke database. Sebelumnya hanya
+    // localStorage sehingga setiap `fetchFromDb()` (setiap penjualan/pembelian)
+    // mengembalikan stok ke nilai lama dan penyesuaian hilang.
+    try {
+      await dbService.updateStockAndPrice(prod.id, difference, 0, 0);
+    } catch (err) {
+      console.warn('[Sync] Offline: enqueued stock adjustment for sync:', err);
+      syncService.enqueue('UPDATE_STOCK_AND_PRICE', {
+        productId: prod.id,
+        addedStock: difference,
+        buyPrice: 0,
+        sellPrice: 0
+      });
+    }
+
+    // Sinkronkan batch FIFO/FEFO agar remainingQty tidak lagi berbeda dengan
+    // stok master (batch = sumber kebenaran HPP).
+    try {
+      const batchStore = useBatchStore();
+      batchStore.syncStockWithBatches(prod.id, physical);
+    } catch (err) {
+      console.warn('[StockMovement] Gagal sinkronkan batch FIFO:', err);
+    }
+
     return true;
   }
 

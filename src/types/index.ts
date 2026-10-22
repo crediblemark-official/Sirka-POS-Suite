@@ -28,6 +28,8 @@ export interface Buyer {
   points?: number;
   totalSpend?: number;
   memberSince?: string;
+  /** Catatan pelanggan — dipakai juga untuk jejak audit penyesuaian poin. */
+  notes?: string;
 }
 
 export type DiscountType = 'PERCENT' | 'FIXED';
@@ -227,8 +229,10 @@ export interface PurchaseReceiptItem {
   code: string;
   name: string;
   category: SupplierCategory;
-  unit: string;
-  qtyReceived: number;
+  unit: string;                 // Satuan fisik item nota (mis. 'DUS')
+  qtyReceived: number;          // Jumlah dalam satuan fisik nota (mis. 5 DUS)
+  baseQty?: number;             // Jumlah dalam satuan DASAR produk (mis. 200 PCS)
+  conversionFactor?: number;    // Faktor satuan nota -> satuan dasar (mis. 40)
   buyPrice: number;            // Harga beli fisik dari nota supplier
   subtotalBuy: number;         // qtyReceived * buyPrice
   markupPercent: number;       // % markup yang diterapkan

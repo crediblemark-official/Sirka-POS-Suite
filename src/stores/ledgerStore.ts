@@ -3,14 +3,28 @@ import { ref, computed } from 'vue';
 import { Transaction, PaymentStatus } from '../types';
 import { dbService } from '../services/dbService';
 import * as XLSX from 'xlsx';
+import { localTodayStr } from '../utils/formatters';
 
 import { syncService } from '../services/syncService';
 
 const STORAGE_KEY_LEDGER = 'kasir_citra_ledger_v1';
 
+/** BUG FIX: JSON.parse tanpa try/catch membuat 1 nilai korup mematikan boot aplikasi. */
+function safeParse<T>(raw: string | null, fallback: T): T {
+  if (!raw) return fallback;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed === null || parsed === undefined) return fallback;
+    return parsed as T;
+  } catch (e) {
+    console.warn('[LedgerStore] Gagal parse localStorage, memakai nilai default:', e);
+    return fallback;
+  }
+}
+
 export const useLedgerStore = defineStore('ledger', () => {
   const saved = localStorage.getItem(STORAGE_KEY_LEDGER);
-  const transactions = ref<Transaction[]>(saved ? JSON.parse(saved) : []);
+  const transactions = ref<Transaction[]>(safeParse<Transaction[]>(saved, []));
 
   function saveLocal() {
     localStorage.setItem(STORAGE_KEY_LEDGER, JSON.stringify(transactions.value));
@@ -20,7 +34,11 @@ export const useLedgerStore = defineStore('ledger', () => {
     try {
       const data = await dbService.getTransactions();
       if (data) {
-        transactions.value = data;
+        // BUG FIX: jangan menimpa transaksi yang dibuat lokal tapi belum
+        // tersimpan di DB (mis. fallback offline) — menggabungkan keduanya.
+        const dbIds = new Set(data.map((t: Transaction) => t.id));
+        const localOnly = transactions.value.filter(t => t && t.id && !dbIds.has(t.id));
+        transactions.value = [...data, ...localOnly];
         saveLocal();
       }
     } catch (e) {
@@ -71,13 +89,15 @@ export const useLedgerStore = defineStore('ledger', () => {
   }
 
   // Summary Metrics
-  const totalRevenue = computed(() => transactions.value.reduce((acc, t) => acc + (t.finalTotal ?? t.totalSell), 0));
-  const totalCost = computed(() => transactions.value.reduce((acc, t) => acc + t.totalBuy, 0));
-  const totalProfit = computed(() => transactions.value.reduce((acc, t) => acc + t.totalProfit, 0));
+  // BUG FIX: guard `|| 0` supaya 1 transaksi lama tanpa `totalBuy`/`totalProfit`
+  // tidak membuat seluruh metrik menjadi NaN.
+  const totalRevenue = computed(() => transactions.value.reduce((acc, t) => acc + (t.finalTotal ?? t.totalSell ?? 0), 0));
+  const totalCost = computed(() => transactions.value.reduce((acc, t) => acc + (t.totalBuy || 0), 0));
+  const totalProfit = computed(() => transactions.value.reduce((acc, t) => acc + (t.totalProfit || 0), 0));
   const totalReceivables = computed(() =>
     transactions.value
       .filter(t => t.paymentStatus === 'TEMPO')
-      .reduce((acc, t) => acc + (t.finalTotal ?? t.totalSell), 0)
+      .reduce((acc, t) => acc + (t.finalTotal ?? t.totalSell ?? 0), 0)
   );
 
   // Flat ledger rows for spreadsheet-like view & export
@@ -92,17 +112,38 @@ export const useLedgerStore = defineStore('ledger', () => {
       productName: string;
       qty: number;
       unit: string;
+      baseQty: number;
+      baseUnit?: string;
+      conversionFactor: number;
       buyPrice: number;
       totalBuy: number;
       sellPrice: number;
       totalSell: number;
       profit: number;
+      discountAmount: number;
+      pointsDiscount: number;
+      finalTotal: number;
       paymentStatus: PaymentStatus;
       paymentMethod: string;
     }> = [];
 
     for (const tx of transactions.value) {
-      for (const item of tx.items) {
+      // BUG FIX: diskon kupon & potong poin loyalitas harus ikut diekspor
+      // supaya kolom LABA BERSIH bisa direkonsiliasi dengan TOTAL BAYAR.
+      const txDiscount = (tx.discountAmount || 0) + (tx.pointsDiscount || 0);
+      const txFinal = tx.finalTotal ?? tx.totalSell ?? 0;
+      const itemCount = (tx.items || []).length || 1;
+
+      for (const item of tx.items || []) {
+        // BUG FIX: HPP (`buyPrice`) disimpan per SATUAN DASAR sedangkan `qty`
+        // adalah jumlah dalam SATUAN AKTIF. Ekspor keduanya apa adanya
+        // membuat baris tidak konsisten secara aritmetika (2 x 10.000 !=
+        // 800.000). Sekarang keduanya diekspor dalam satuan yang sama
+        // (satuan aktif) dan satuan dasar disediakan sebagai kolom terpisah.
+        const factor = item.conversionFactor || 1;
+        const baseQty = item.baseQty ?? item.qty * factor;
+        const buyPricePerActiveUnit = Math.round((item.buyPrice || 0) * factor);
+
         rows.push({
           txId: tx.id,
           invoiceNo: tx.invoiceNo,
@@ -113,11 +154,18 @@ export const useLedgerStore = defineStore('ledger', () => {
           productName: item.name,
           qty: item.qty,
           unit: item.unit,
-          buyPrice: item.buyPrice,
+          baseQty,
+          baseUnit: item.baseUnit,
+          conversionFactor: factor,
+          buyPrice: buyPricePerActiveUnit,
           totalBuy: item.subtotalBuy,
           sellPrice: item.sellPrice,
           totalSell: item.subtotalSell,
-          profit: item.profit,
+          profit: item.subtotalSell - item.subtotalBuy - (txDiscount / itemCount),
+          // Diskon yang dialokasikan ke baris item ini (agar LABA = SUBTOTAL - MODAL - DISKON)
+          discountAmount: txDiscount / itemCount,
+          pointsDiscount: tx.pointsDiscount || 0,
+          finalTotal: txFinal,
           paymentStatus: tx.paymentStatus,
           paymentMethod: tx.paymentMethod,
         });
@@ -137,10 +185,15 @@ export const useLedgerStore = defineStore('ledger', () => {
       'NAMA BARANG': r.productName,
       'JUMLAH': r.qty,
       'SATUAN': r.unit,
+      'JUMLAH (SATUAN DASAR)': r.baseQty,
+      'SATUAN DASAR': r.baseUnit || r.unit,
+      'FAKTOR KONVERSI': r.conversionFactor,
       'HARGA BELI SATUAN': r.buyPrice,
       'TOTAL BELI': r.totalBuy,
       'HARGA JUAL SATUAN': r.sellPrice,
       'TOTAL JUAL': r.totalSell,
+      'DISKON (KUPON + POIN)': r.discountAmount,
+      'TOTAL BAYAR': r.finalTotal,
       'LABA BERSIH': r.profit,
       'STATUS BAYAR': r.paymentStatus,
       'METODE BAYAR': r.paymentMethod,
@@ -149,7 +202,8 @@ export const useLedgerStore = defineStore('ledger', () => {
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Buku Besar Penjualan');
-    const filename = `BUKU_BESAR_PENJUALAN_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    // BUG FIX: gunakan tanggal LOKAL, bukan UTC.
+    const filename = `BUKU_BESAR_PENJUALAN_${localTodayStr()}.xlsx`;
 
     try {
       const buffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });

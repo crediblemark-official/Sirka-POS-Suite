@@ -2,6 +2,11 @@
 import { computed } from 'vue';
 import { useShiftStore } from '../../stores/shiftStore';
 import { formatRupiah } from '../../utils/formatters';
+import { useModalLock } from '../../composables/useModalLock';
+
+// BUG FIX: register modal-lock agar shortcut global (mis. Enter pada
+// ProductCatalog) tidak menambah produk ke keranjang saat modal terbuka.
+
 import {
   Printer,
   X,
@@ -45,6 +50,9 @@ const durationText = computed(() => {
 function handlePrint() {
   window.print();
 }
+
+const { bind: bindModalLock } = useModalLock();
+bindModalLock(() => props.isOpen);
 </script>
 
 <template>
@@ -245,7 +253,14 @@ function handlePrint() {
   </div>
 </template>
 
-<style scoped>
+<!--
+  BUG FIX: aturan cetak tidak boleh memakai `scoped`.
+  Vue mengubah `body *` menjadi `body *[data-v-hash]`, sehingga elemen di luar
+  komponen ini TIDAK ikut disembunyikan -> hasil cetak berisi seluruh tampilan
+  aplikasi di belakang struk. ReceiptModal memakai blok `<style>` (tanpa
+  scoped) untuk alasan yang sama.
+-->
+<style>
 @media print {
   body * {
     visibility: hidden;

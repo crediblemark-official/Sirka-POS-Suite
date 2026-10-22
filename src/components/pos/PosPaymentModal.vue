@@ -4,6 +4,11 @@ import { usePosStore } from '../../stores/posStore';
 import { useBuyerStore } from '../../stores/buyerStore';
 import { PaymentMethod } from '../../types';
 import { formatRupiah } from '../../utils/formatters';
+import { useModalLock } from '../../composables/useModalLock';
+
+// BUG FIX: register modal-lock agar shortcut global (mis. Enter pada
+// ProductCatalog) tidak menambah produk ke keranjang saat modal terbuka.
+
 import {
   Receipt,
   X,
@@ -169,6 +174,9 @@ watch(
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown);
 });
+
+const { bind: bindModalLock } = useModalLock();
+bindModalLock(() => props.isOpen);
 </script>
 
 <template>

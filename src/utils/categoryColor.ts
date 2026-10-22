@@ -150,16 +150,36 @@ export const CATEGORY_PALETTES: CategoryColorTheme[] = [
 ];
 
 /**
- * Deterministic hash dari string kategori untuk mendapatkan warna bawaan yang konsisten
+ * Deterministic hash dari string kategori untuk mendapatkan warna bawaan yang konsisten.
+ *
+ * BUG FIX: hash dihitung dari nama yang sudah dinormalisasi (trim + lowercase)
+ * supaya "Sembako", "sembako", dan "Sembako " menghasilkan warna yang sama.
+ * Sebelumnya kategori yang sama bisa tampil dengan 3 warna berbeda.
  */
 export function getDeterministicCategoryColor(categoryName: string): CategoryColorTheme {
   if (!categoryName) return CATEGORY_PALETTES[0];
+  const normalized = categoryName.trim().toLowerCase();
   let hash = 0;
-  for (let i = 0; i < categoryName.length; i++) {
-    hash = categoryName.charCodeAt(i) + ((hash << 5) - hash);
+  for (let i = 0; i < normalized.length; i++) {
+    hash = normalized.charCodeAt(i) + ((hash << 5) - hash);
   }
   const index = Math.abs(hash) % CATEGORY_PALETTES.length;
   return CATEGORY_PALETTES[index];
+}
+
+/**
+ * BUG FIX: badge teks untuk warna kustom harus digelapkan agar kontrasnya
+ * terbaca. Sebelumnya `badgeText` = warna kustom itu sendiri sehingga teks
+ * badge kontrasnya sangat rendah (semua palet bawaan memakai versi gelap).
+ */
+function darkenHex(hex: string, factor = 0.55): string {
+  const m = hex.replace('#', '');
+  if (m.length !== 6) return hex;
+  const num = parseInt(m, 16);
+  const r = Math.round(((num >> 16) & 255) * factor);
+  const g = Math.round(((num >> 8) & 255) * factor);
+  const b = Math.round((num & 255) * factor);
+  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
 }
 
 /**
@@ -178,7 +198,7 @@ export function getCategoryTheme(categoryName: string, customColorOrId?: string)
         gradientFrom: customColorOrId,
         gradientTo: customColorOrId,
         badgeBg: `${customColorOrId}15`,
-        badgeText: customColorOrId,
+        badgeText: darkenHex(customColorOrId),
         borderHex: customColorOrId,
         bgLightHex: `${customColorOrId}08`
       };

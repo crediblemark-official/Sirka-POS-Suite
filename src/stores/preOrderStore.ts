@@ -3,6 +3,7 @@ import { ref } from 'vue';
 import { PreOrderSchedule, BuyerName, SupplierCategory } from '../types';
 import { dbService } from '../services/dbService';
 import { syncService } from '../services/syncService';
+import { safeParse } from '../utils/storage';
 
 const STORAGE_KEY_PREORDERS = 'kasir_citra_preorders_v2';
 
@@ -10,7 +11,7 @@ export const usePreOrderStore = defineStore('preOrder', () => {
   const showPreOrderSidebar = ref(false);
   const activeScheduleForSidebar = ref<PreOrderSchedule | null>(null);
   const saved = localStorage.getItem(STORAGE_KEY_PREORDERS);
-  const schedules = ref<PreOrderSchedule[]>(saved ? JSON.parse(saved) : []);
+  const schedules = ref<PreOrderSchedule[]>(safeParse<PreOrderSchedule[]>(saved, [], 'PreOrderStore'));
 
   function saveLocal() {
     localStorage.setItem(STORAGE_KEY_PREORDERS, JSON.stringify(schedules.value));
@@ -35,8 +36,11 @@ export const usePreOrderStore = defineStore('preOrder', () => {
   function filterSchedules(buyerFilter?: BuyerName | 'Semua', categoryFilter?: SupplierCategory | 'Semua') {
     return schedules.value.filter(s => {
       const matchBuyer = !buyerFilter || buyerFilter === 'Semua' || s.buyer === buyerFilter;
+      // BUG FIX: jadwal lama/parse rusak tidak punya array `items` -> accessing
+      // `.some` melempar TypeError yang mematikan seluruh filter.
+      const items = Array.isArray(s.items) ? s.items : [];
       const matchCategory =
-        !categoryFilter || categoryFilter === 'Semua' || s.items.some(i => i.category === categoryFilter);
+        !categoryFilter || categoryFilter === 'Semua' || items.some(i => i.category === categoryFilter);
       return matchBuyer && matchCategory;
     });
   }

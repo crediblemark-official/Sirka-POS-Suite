@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import {
   ShoppingCart,
   Truck,
@@ -177,9 +177,14 @@ function onPointerUp() {
   const item = shortcuts.value.find(i => i.id === currentId);
 
   if (item && isMoved.value) {
-    // Snap halus ke kelipatan 8px agar tetap rapi
-    item.x = Math.round(item.x / 8) * 8;
-    item.y = Math.round(item.y / 8) * 8;
+    const area = desktopAreaRef.value;
+    const maxX = area ? Math.max(100, area.clientWidth - 88) : 2000;
+    const maxY = area ? Math.max(100, area.clientHeight - 96) : 2000;
+    // BUG FIX: snapping ke kelipatan 8px dilakukan SETELAH clamping sehingga
+    // bisa mendorong ikon keluar area (mis. max 812 -> 816, terpotong 4px).
+    // Sekarang clamp dilakukan lagi setelah snapping.
+    item.x = Math.max(8, Math.min(maxX, Math.round(item.x / 8) * 8));
+    item.y = Math.max(8, Math.min(maxY, Math.round(item.y / 8) * 8));
     savePositions();
   }
 
@@ -191,6 +196,15 @@ function onPointerUp() {
     emit('open-tab', currentId);
   }
 }
+
+// BUG FIX: listener pointermove/pointerup hanya dilepas saat pointerup.
+// Kalau tab di-unmount saat sedang drag, listener tetap terpasang selamanya
+// dan terus mengubah posisi shortcut.
+onUnmounted(() => {
+  window.removeEventListener('pointermove', onPointerMove);
+  window.removeEventListener('pointerup', onPointerUp);
+  draggingId.value = null;
+});
 </script>
 
 <template>

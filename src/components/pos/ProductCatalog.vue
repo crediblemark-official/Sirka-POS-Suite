@@ -16,6 +16,7 @@ import {
 import AppEmptyState from '../common/AppEmptyState.vue';
 import CashInflowModal from './CashInflowModal.vue';
 import { demoDataService } from '../../services/demoDataService';
+import { useModalLock } from '../../composables/useModalLock';
 
 const props = withDefaults(defineProps<{
   searchQuery?: string;
@@ -33,6 +34,7 @@ const emit = defineEmits<{
 
 const inventoryStore = useInventoryStore();
 const posStore = usePosStore();
+const { isAnyModalOpen } = useModalLock();
 
 const selectedCategory = ref<SupplierCategory | 'Semua'>('Semua');
 const selectedProductId = ref<string | null>(null);
@@ -176,10 +178,28 @@ const dynamicMultipliers = computed(() => {
   ];
 });
 
+// BUG FIX: peta pengali shortcut Alt+N harus IKUT daftar di atas.
+// Sebelumnya hard-coded {1:1, 2:5, 3:10, 4:25, 5:50} (daftar satuan bijian),
+// sehingga untuk produk KG tombol "Alt+2" yang berlabel "½ kg" sebenarnya
+// menambah 5 kg (10x lebih banyak dari yang dimaksud kasir).
+const dynamicMultiplierMap = computed(() => {
+  const map: Record<string, number> = {};
+  dynamicMultipliers.value.forEach((m, idx) => {
+    map[String(idx + 1)] = m.value;
+  });
+  return map;
+});
+
 watch(selectedProductId, () => {
   const unit = selectedProduct.value?.unit?.toUpperCase();
-  if (activeMultiplier.value < 1 && unit !== 'KG' && unit !== 'LITER' && unit !== 'LTR') {
-    activeMultiplier.value = 1;
+  const isMetric = unit === 'KG' || unit === 'LITER' || unit === 'LTR';
+  // BUG FIX: pengali harus divalidasi ulang terhadap daftar pengali yang valid
+  // untuk produk yang dipilih. Sebelumnya hanya di-reset bila nilainya < 1,
+  // sehingga "+50" dari produk bijian masih aktif setelah pindah ke produk KG
+  // (kasir menambah 50 kg) dan sebaliknya.
+  const valid = dynamicMultipliers.value.map(m => m.value);
+  if (!valid.includes(activeMultiplier.value)) {
+    activeMultiplier.value = isMetric ? 1 : 1;
   }
 });
 
@@ -237,6 +257,11 @@ function scrollCategory(direction: 'left' | 'right') {
 
 function handleKeyDown(e: KeyboardEvent) {
   if (!props.isActive) return;
+  // BUG FIX: jangan proses shortcut katalog ketika ada modal terbuka
+  // (mis. modal pembayaran). Sebelumnya Enter untuk "selesaikan pembayaran"
+  // ALSO menambah produk katalog terpilih ke keranjang -> pelanggan ditagih
+  // barang yang tidak pernah diminta.
+  if (isAnyModalOpen.value) return;
   const activeEl = document.activeElement;
   const isInputActive = activeEl instanceof HTMLInputElement || activeEl instanceof HTMLTextAreaElement || activeEl instanceof HTMLSelectElement;
   if (isInputActive) {
@@ -247,7 +272,9 @@ function handleKeyDown(e: KeyboardEvent) {
 
   // --- BUG-016 FIX: Pipeline scanner barcode ---
   // 1) Karakter alfanumerik tunggal dari scanner ditaruh di buffer berkecepatan tinggi
-  if (e.key.length === 1 && !e.altKey && !e.ctrlKey && !e.metaKey) {
+  //    BUG FIX: Space (e.key === ' ') juga punya panjang 1 sehingga sebelumnya
+  //    tertangkap buffer scanner dan shortcut "tambah barang" jadi tidak pernah jalan.
+  if (e.key.length === 1 && e.key !== ' ' && !e.altKey && !e.ctrlKey && !e.metaKey) {
     handleScanBuffer(e);
     scanning.value = true;
     // scanning menangkap '1' (mis. nama barcode) tanpa mengganggu shortcut Alt+N
@@ -297,8 +324,8 @@ function handleKeyDown(e: KeyboardEvent) {
     e.preventDefault();
     handleAddSelected();
   } else if (['1', '2', '3', '4', '5'].includes(e.key) && (e.altKey || (!e.ctrlKey && !e.metaKey))) {
-    const multiplierMap: Record<string, number> = { '1': 1, '2': 5, '3': 10, '4': 25, '5': 50 };
-    if (e.altKey && multiplierMap[e.key]) {
+    const multiplierMap = dynamicMultiplierMap.value;
+    if (e.altKey && multiplierMap[e.key] !== undefined) {
       e.preventDefault();
       activeMultiplier.value = multiplierMap[e.key];
     }

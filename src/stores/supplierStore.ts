@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { Supplier } from '../types';
+import { safeParse } from '../utils/storage';
 
 const STORAGE_KEY_SUPPLIERS = 'kasir_citra_suppliers_v1';
 
@@ -9,7 +10,7 @@ export const useSupplierStore = defineStore('supplier', () => {
   const activeSupplierForDrawer = ref<Supplier | null>(null);
 
   const saved = localStorage.getItem(STORAGE_KEY_SUPPLIERS);
-  const suppliers = ref<Supplier[]>(saved ? JSON.parse(saved) : []);
+  const suppliers = ref<Supplier[]>(safeParse<Supplier[]>(saved, [], 'SupplierStore'));
 
   function saveLocal() {
     localStorage.setItem(STORAGE_KEY_SUPPLIERS, JSON.stringify(suppliers.value));

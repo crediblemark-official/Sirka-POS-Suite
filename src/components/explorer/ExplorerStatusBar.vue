@@ -96,7 +96,13 @@ const unitStore = useUnitStore();
       <template v-else-if="activeTab === 'branding'">
         <span class="text-purple-800 font-bold">Identitas Usaha & Desain Nota Struk</span>
       </template>
-      <template v-else>
+      <!--
+        BUG FIX: fallback ini (untuk tab pos/reports/returns/launcher) menampilkan
+        info kasir POS (shift, pelanggan, total belanja) pada tab yang BUKAN
+        POS — mis. tab Laporan Keuangan. Sekarang info POS hanya tampil di tab
+        'pos'; tab lain mendapat konteks yang relevan.
+      -->
+      <template v-else-if="activeTab === 'pos'">
         <span v-if="shiftStore.isShiftActive" class="text-emerald-700 font-semibold flex items-center gap-1.5">
           <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
           <span>Shift: <strong>{{ shiftStore.currentShift?.cashierName }}</strong> ({{ shiftStore.shiftDuration }})</span>
@@ -111,6 +117,15 @@ const unitStore = useUnitStore();
         <span class="text-blue-700 font-bold text-xs">
           Total Belanja: Rp {{ formatRupiah(posStore.totalSell) }}
         </span>
+      </template>
+      <template v-else-if="activeTab === 'reports'">
+        <span class="text-teal-800 font-bold">Laporan Keuangan, Arus Kas &amp; Audit Shift Kasir</span>
+      </template>
+      <template v-else-if="activeTab === 'launcher'">
+        <span class="text-gray-700 font-bold">Launcher Aplikasi &amp; Pintasan Modul</span>
+      </template>
+      <template v-else>
+        <span class="text-gray-700 font-bold">Sistem Kasir Sirka</span>
       </template>
     </div>
   </footer>

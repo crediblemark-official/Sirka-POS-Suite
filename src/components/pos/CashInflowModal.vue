@@ -10,6 +10,10 @@ import {
 } from 'lucide-vue-next';
 import { useShiftStore } from '../../stores/shiftStore';
 import { formatRupiah } from '../../utils/formatters';
+import { useModalLock } from '../../composables/useModalLock';
+
+// BUG FIX: register modal-lock agar shortcut global (mis. Enter pada
+// ProductCatalog) tidak menambah produk ke keranjang saat modal terbuka.
 
 const props = defineProps<{
   isOpen: boolean;
@@ -35,8 +39,22 @@ function handleSave() {
   const num = Number(amount.value);
   if (!num || num <= 0) return;
 
+  // BUG FIX: nominal kas harus bilangan bulat (rupiah penuh, tanpa sen).
+  // Pecahan desimal membuat `expectedCash` pecahan sehingga rekonsiliasi
+  // shift tidak bisa cocok dengan uang fisik.
+  const rounded = Math.round(num);
+  if (!Number.isFinite(rounded) || rounded <= 0) return;
+
+  // BUG FIX: inflow hanya bisa dicatat bila ada shift kasir aktif. Sebelumnya
+  // `recordCashInflow` keluar diam-diam (early return) tetapi modal tetap
+  // tertutup seolah-olah tersimpan -> uang hilang tanpa jejak.
+  if (!shiftStore.isShiftActive) {
+    alert('Tidak ada shift kasir aktif. Buka shift kasir terlebih dahulu sebelum mencatat penerimaan kas.');
+    return;
+  }
+
   shiftStore.recordCashInflow(
-    num,
+    rounded,
     reason.value.trim() || `Penerimaan kas ${category.value}`,
     category.value
   );
@@ -46,6 +64,9 @@ function handleSave() {
   category.value = 'INFAQ';
   emit('close');
 }
+
+const { bind: bindModalLock } = useModalLock();
+bindModalLock(() => props.isOpen);
 </script>
 
 <template>

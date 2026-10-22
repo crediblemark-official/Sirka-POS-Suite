@@ -3,6 +3,10 @@ import { ref, computed, watch, nextTick, onUnmounted } from 'vue';
 import { usePosStore } from '../../stores/posStore';
 import { formatRupiah } from '../../utils/formatters';
 import { X, Calculator, Check, RotateCcw, DollarSign, Percent, Tag, Info, ArrowDown } from 'lucide-vue-next';
+import { useModalLock } from '../../composables/useModalLock';
+
+// BUG FIX: register modal-lock agar shortcut global (mis. Enter pada
+// ProductCatalog) tidak menambah produk ke keranjang saat modal terbuka.
 
 const props = defineProps<{
   isOpen: boolean;
@@ -99,6 +103,13 @@ function focusCurrentInput() {
 function onFinalTotalChange(val: number) {
   const base = baseTotal.value;
   finalTotalInput.value = Math.max(0, val);
+  // BUG FIX: total yang diketik LEBIH BESAR dari base tidak mungkin dicapai
+  // (diskon tidak boleh negatif). Sebelumnya `Math.max(0, base - final)` membuat
+  // diskon 0 sementara pratinjau tetap menampilkan total yang diketik ->
+  // kasir mengonfirmasi Rp 600.000 padahal yang ditagih Rp 500.000.
+  if (finalTotalInput.value > base) {
+    finalTotalInput.value = base;
+  }
   const diff = Math.max(0, base - finalTotalInput.value);
   discountNominalInput.value = diff;
   discountPercentInput.value = base > 0 ? Number(((diff / base) * 100).toFixed(1)) : 0;
@@ -138,12 +149,17 @@ const simulatedProfitPercent = computed(() => {
 });
 
 function handleSave() {
+  // BUG FIX: simpan NOMINAL hasil pratinjau (bukan persen).
+  // Store menghitung diskon manual persen dari `totalSell`, sedangkan modal
+  // mempratinjau dari `baseTotal` (setelah kupon/tier/poin) -> nominal yang
+  // disetujui kasir berbeda dari yang benar-benar ditagih.
   if (discountNominalInput.value <= 0) {
-    posStore.setManualDiscount(0, 0);
-  } else if (activeMode.value === 'discountPercent' && discountPercentInput.value > 0) {
-    posStore.setManualDiscount(discountPercentInput.value, 0);
+    posStore.setManualDiscountByNominal(0, 0);
   } else {
-    posStore.setManualDiscount(0, discountNominalInput.value);
+    posStore.setManualDiscountByNominal(
+      discountNominalInput.value,
+      activeMode.value === 'discountPercent' ? discountPercentInput.value : 0
+    );
   }
   emit('close');
 }
@@ -158,6 +174,9 @@ function handleKeyDown(e: KeyboardEvent) {
     handleSave();
   }
 }
+
+const { bind: bindModalLock } = useModalLock();
+bindModalLock(() => props.isOpen);
 </script>
 
 <template>

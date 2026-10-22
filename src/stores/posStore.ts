@@ -20,6 +20,8 @@ import { useDiscountStore } from './discountStore';
 import { useShiftStore } from './shiftStore';
 import { useBatchStore } from './batchStore';
 import { useStockMovementStore } from './stockMovementStore';
+import { safeParse, safeClone } from '../utils/storage';
+import { localTodayStr } from '../utils/formatters';
 
 export const usePosStore = defineStore('pos', () => {
   const inventoryStore = useInventoryStore();
@@ -34,7 +36,7 @@ export const usePosStore = defineStore('pos', () => {
   const selectedBuyer = ref<BuyerName>(
     buyerStore.b2bBuyers[0]?.name || ''
   );
-  const transactionDate = ref<string>(new Date().toISOString().slice(0, 10));
+  const transactionDate = ref<string>(localTodayStr());
   const paymentStatus = ref<PaymentStatus>('LUNAS');
   const paymentMethod = ref<PaymentMethod>('Transfer Bank');
   const transactionNotes = ref<string>('');
@@ -45,7 +47,7 @@ export const usePosStore = defineStore('pos', () => {
   // Fitur Parkir / Tahan Keranjang (Hold & Recall Cart - F6)
   const STORAGE_KEY_HELD_CARTS = 'kasir_citra_held_carts_v1';
   const savedHeldCarts = localStorage.getItem(STORAGE_KEY_HELD_CARTS);
-  const heldCarts = ref<HeldCart[]>(savedHeldCarts ? JSON.parse(savedHeldCarts) : []);
+  const heldCarts = ref<HeldCart[]>(safeParse<HeldCart[]>(savedHeldCarts, [], 'PosStore'));
 
   function saveHeldCartsLocal() {
     localStorage.setItem(STORAGE_KEY_HELD_CARTS, JSON.stringify(heldCarts.value));
@@ -233,13 +235,26 @@ export const usePosStore = defineStore('pos', () => {
     }
   }
 
+  /**
+   * BUG FIX (satuan multi-unit): `CartItem.buyPrice` (HPP) disimpan per SATUAN
+   * DASAR sedangkan `CartItem.sellPrice` (harga jual) per SATUAN AKTIF.
+   * Untuk penjualan per DUS (faktor 40) keduanya harus diselaraskan lewat
+   * faktor konversi, kalau tidak margin jadi 40x lebih besar dan
+   * "reset ke harga master" menulis harga 1 satuan dasar.
+   */
+  function sellPricePerBaseUnit(item: CartItem): number {
+    const factor = item.conversionFactor || 1;
+    return factor > 0 ? item.sellPrice / factor : item.sellPrice;
+  }
+
   function updateItemSellPrice(itemId: string, newSellPrice: number) {
     const item = cartItems.value.find(i => i.id === itemId);
     if (item) {
       item.sellPrice = Math.max(0, newSellPrice);
       item.isManualSellPrice = true;
       if (item.buyPrice > 0) {
-        item.markupPercent = Number((((item.sellPrice - item.buyPrice) / item.buyPrice) * 100).toFixed(1));
+        const sellBase = sellPricePerBaseUnit(item);
+        item.markupPercent = Number((((sellBase - item.buyPrice) / item.buyPrice) * 100).toFixed(1));
       }
       recalculateItem(item);
     }
@@ -253,8 +268,9 @@ export const usePosStore = defineStore('pos', () => {
     const item = cartItems.value.find(i => i.id === itemId);
     if (item) {
       item.buyPrice = Math.max(0, newBuyPrice);
+      const factor = item.conversionFactor || 1;
       if (!item.isManualSellPrice && item.buyPrice > 0) {
-        item.sellPrice = Math.round(item.buyPrice * (100 + item.markupPercent) / 100);
+        item.sellPrice = Math.round(item.buyPrice * factor * (100 + item.markupPercent) / 100);
       }
       recalculateItem(item);
     }
@@ -265,8 +281,9 @@ export const usePosStore = defineStore('pos', () => {
     const item = cartItems.value.find(i => i.id === itemId);
     if (item) {
       item.markupPercent = newPercent;
+      const factor = item.conversionFactor || 1;
       if (!item.isManualSellPrice && item.buyPrice > 0) {
-        item.sellPrice = Math.round(item.buyPrice * (100 + item.markupPercent) / 100);
+        item.sellPrice = Math.round(item.buyPrice * factor * (100 + item.markupPercent) / 100);
       }
       recalculateItem(item);
     }
@@ -283,8 +300,9 @@ export const usePosStore = defineStore('pos', () => {
     for (const item of cartItems.value) {
       if (item.isManualSellPrice) continue;
       item.markupPercent = percent;
+      const factor = item.conversionFactor || 1;
       if (item.buyPrice > 0) {
-        item.sellPrice = Math.round(item.buyPrice * (100 + item.markupPercent) / 100);
+        item.sellPrice = Math.round(item.buyPrice * factor * (100 + item.markupPercent) / 100);
       }
       recalculateItem(item);
     }
@@ -295,9 +313,13 @@ export const usePosStore = defineStore('pos', () => {
     transactionMarkupPercent.value = null;
     for (const item of cartItems.value) {
       if (item.isManualSellPrice) continue;
-      item.sellPrice = Math.max(0, item.buyPrice + nominalRp);
+      const factor = item.conversionFactor || 1;
+      // Nominal ditambahkan pada harga modal SATUAN DASAR lalu dikonversi ke
+      // satuan aktif, supaya konsisten dengan basis perhitungan margin.
+      item.sellPrice = Math.max(0, (item.buyPrice + nominalRp) * factor);
       if (item.buyPrice > 0) {
-        item.markupPercent = Number((((item.sellPrice - item.buyPrice) / item.buyPrice) * 100).toFixed(1));
+        const sellBase = sellPricePerBaseUnit(item);
+        item.markupPercent = Number((((sellBase - item.buyPrice) / item.buyPrice) * 100).toFixed(1));
       }
       recalculateItem(item);
     }
@@ -308,10 +330,13 @@ export const usePosStore = defineStore('pos', () => {
     transactionMarkupNominal.value = null;
     for (const item of cartItems.value) {
       item.isManualSellPrice = false;
-      const orig = inventoryStore.products.find(p => p.id === item.id);
+      // BUG FIX: `item.id` adalah ID baris keranjang ("cart-..."), bukan ID produk.
+      // Akibatnya reset ke harga master tidak pernah menemukan produk & diam-diam tidak berefek.
+      const orig = inventoryStore.products.find(p => p.id === item.productId);
       if (orig) {
         item.buyPrice = orig.lastBuyPrice;
-        item.sellPrice = orig.lastSellPrice;
+        // Harga master disimpan per satuan DASAR; harga jual baris keranjang per satuan AKTIF.
+        item.sellPrice = Math.round(orig.lastSellPrice * (item.conversionFactor || 1));
         item.markupPercent = orig.defaultMarkupPercent;
       }
       recalculateItem(item);
@@ -329,15 +354,54 @@ export const usePosStore = defineStore('pos', () => {
     manualDiscountPercent.value = 0;
     manualDiscountNominal.value = 0;
     transactionMarkupPercent.value = null;
+    transactionMarkupNominal.value = null;
     pointsToRedeem.value = 0;
     attachedMemberCard.value = null;
+    // BUG FIX: state pembayaran harus ikut dibersihkan. Sebelumnya `cashTendered`,
+    // `infaqAmount`, dan nominal split bocor ke transaksi berikutnya sehingga
+    // kembalian fiktif & infaq palsu ikut tercatat pada shift kasir.
+    cashTendered.value = 0;
+    infaqAmount.value = 0;
+    isSplitPayment.value = false;
+    splitCashAmount.value = 0;
+    splitNonCashAmount.value = 0;
+    // Status & metode bayar juga di-reset supaya penjualan berikutnya tidak
+    // diam-diam mewarisi "TEMPO"/"Transfer Bank" dari penjualan sebelumnya.
+    paymentStatus.value = 'LUNAS';
+    paymentMethod.value = saleMode.value === 'B2C' ? 'Tunai / Kas' : 'Transfer Bank';
+  }
+
+  /**
+   * Reset seluruh state transaksi (dipakai setelah checkout sukses maupun
+   * saat keranjang dikosongkan manual) agar tidak ada kebocoran antar transaksi.
+   */
+  function resetTransactionState() {
+    clearCart();
+    transactionNotes.value = '';
+    isPreOrder.value = false;
+    picName.value = '';
+    isSplitPayment.value = false;
+    splitCashAmount.value = 0;
+    splitNonCashAmount.value = 0;
+    cashTendered.value = 0;
+    infaqAmount.value = 0;
+    // BUG FIX: status & metode bayar harus di-reset. Kalau tidak, penjualan
+    // berikutnya diam-diam mewarisi "TEMPO" / "Transfer Bank" dari penjualan
+    // sebelumnya sehingga klasifikasi piutang & rekonsiliasi kas jadi salah.
+    paymentStatus.value = 'LUNAS';
+    paymentMethod.value = 'Transfer Bank';
   }
 
   // Logika Parkir / Tahan Keranjang (Hold & Recall Cart - F6)
   function holdCurrentCart(customLabel?: string): boolean {
     if (cartItems.value.length === 0) return false;
 
-    const cartNumber = heldCarts.value.length + 1;
+    // BUG FIX: nomor antrean bisa kembar. `length + 1` menghasilkan nomor yang
+    // sama setelah ada keranjang dihapus (mis. antrean 1,2,3 -> hapus 2 ->
+    // panjang 2 -> nomor baru 3, bentrok dengan antrean 3 yang sudah ada).
+    const usedNumbers = new Set(heldCarts.value.map(h => h.cartNumber));
+    let cartNumber = 1;
+    while (usedNumbers.has(cartNumber)) cartNumber += 1;
     const now = new Date();
     const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     const autoLabel = customLabel?.trim() || `${selectedBuyer.value || 'Pelanggan'} (${cartItems.value.length} item) - ${timeStr}`;
@@ -346,7 +410,7 @@ export const usePosStore = defineStore('pos', () => {
       id: `hold-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       cartNumber,
       label: autoLabel,
-      items: JSON.parse(JSON.stringify(cartItems.value)),
+      items: safeClone(cartItems.value, []),
       buyer: selectedBuyer.value,
       saleMode: saleMode.value,
       totalSell: totalSell.value,
@@ -365,7 +429,7 @@ export const usePosStore = defineStore('pos', () => {
     if (idx === -1) return false;
 
     const held = heldCarts.value[idx];
-    cartItems.value = JSON.parse(JSON.stringify(held.items));
+    cartItems.value = safeClone(held.items, []);
     selectedBuyer.value = held.buyer;
     saleMode.value = held.saleMode;
 
@@ -397,7 +461,8 @@ export const usePosStore = defineStore('pos', () => {
       disc,
       totalSell.value,
       selectedBuyerData.value,
-      cartItems.value
+      cartItems.value,
+      saleMode.value
     );
     if (!check.valid) {
       return false;
@@ -413,6 +478,22 @@ export const usePosStore = defineStore('pos', () => {
   function setManualDiscount(percent: number, nominal: number) {
     manualDiscountPercent.value = Math.max(0, percent);
     manualDiscountNominal.value = Math.max(0, nominal);
+  }
+
+  /**
+   * BUG FIX: set diskon manual dari NOMINAL final (hasil pratinjau modal nego).
+   *
+   * Store menghitung diskon manual persen dari `totalSell`, sedangkan modal
+   * Total Adjust mempratinjau dari `baseTotal` (total setelah kupon, tier, dan
+   * potong poin). Akibatnya nominal yang disetujui kasir berbeda dari yang
+   * benar-benar ditagih (contoh: pratinjau Rp 810.000, ditagih Rp 800.000).
+   *
+   * `displayPercent` hanya untuk label di keranjang — nilainya TIDAK dipakai
+   * menghitung nominal (yang sudah final dari modal).
+   */
+  function setManualDiscountByNominal(nominal: number, displayPercent = 0) {
+    manualDiscountNominal.value = Math.max(0, Math.min(nominal, totalSell.value));
+    manualDiscountPercent.value = Math.max(0, displayPercent);
   }
 
   function setPointsToRedeem(points: number) {
@@ -482,7 +563,8 @@ export const usePosStore = defineStore('pos', () => {
       appliedDiscount.value,
       totalSell.value,
       selectedBuyerData.value,
-      cartItems.value
+      cartItems.value,
+      saleMode.value
     );
     return res.amount;
   });
@@ -490,10 +572,16 @@ export const usePosStore = defineStore('pos', () => {
   // 3. Diskon Manual Kasir (% atau Rp)
   const manualDiscountAmount = computed(() => {
     if (totalSell.value <= 0) return 0;
+    // BUG FIX: bila nominal sudah diisi (hasil modal nego), nominal itu yang
+    // dipakai supaya yang ditagih = yang disetujui kasir. Persen hanya dipakai
+    // bila nominal kosong (panel diskon inline di keranjang).
+    if (manualDiscountNominal.value > 0) {
+      return Math.min(manualDiscountNominal.value, totalSell.value);
+    }
     if (manualDiscountPercent.value > 0) {
       return Math.round(totalSell.value * (manualDiscountPercent.value / 100));
     }
-    return Math.min(manualDiscountNominal.value, totalSell.value);
+    return 0;
   });
 
   // Total Diskon Gabungan
@@ -569,9 +657,22 @@ export const usePosStore = defineStore('pos', () => {
           ? `MEMBER-${memberTier.value}`
           : undefined;
 
-    const isSplit = isSplitPayment.value && splitCashAmount.value > 0 && splitNonCashAmount.value > 0;
+    // BUG FIX: `isSplit` sebelumnya mensyaratkan kedua kaki > 0. Bila kaki tunai
+    // diisi 0 (mis. pelanggan bayar 100% QRIS) transaksi degradasi menjadi
+    // "Tunai / Kas" sehingga laci kasir dikreditkan uang yang tidak pernah masuk.
+    // Sekarang: bila mode campur aktif, kaki yang bernilai 0 tetap dianggap
+    // sebagai bagian dari pembayaran (dinyatakan eksplisit oleh UI).
+    const isSplit = isSplitPayment.value;
     const finalSale = finalTotal.value;
-    const change = cashTendered.value > 0 ? Math.max(0, cashTendered.value - (isSplit ? splitCashAmount.value : finalSale)) : 0;
+    // BUG FIX: kembalian hanya boleh dihitung untuk transaksi yang benar-benar
+    // menerima uang tunai. Sebelumnya `cashTendered` tidak dicek terhadap metode
+    // bayar sehingga penjualan transfer bank ikut mencetak "Kembalian Tunai".
+    const isCashTransaction = isSplit
+      ? splitCashAmount.value > 0
+      : paymentMethod.value === 'Tunai / Kas';
+    const change = isCashTransaction && cashTendered.value > 0
+      ? Math.max(0, cashTendered.value - (isSplit ? splitCashAmount.value : finalSale))
+      : 0;
     const netChange = Math.max(0, change - infaqAmount.value);
 
     const tx: Transaction = {
@@ -579,7 +680,7 @@ export const usePosStore = defineStore('pos', () => {
       invoiceNo,
       date: transactionDate.value,
       buyer: selectedBuyer.value,
-      items: JSON.parse(JSON.stringify(cartItems.value)),
+      items: safeClone(cartItems.value, []),
       totalBuy: totalBuy.value,
       totalSell: totalSell.value,
       totalProfit: totalProfit.value,
@@ -651,14 +752,21 @@ export const usePosStore = defineStore('pos', () => {
     try {
       await ledgerStore.addTransaction(tx, isMember.value ? selectedBuyerData.value?.id : undefined);
 
-      // Local-First: Catat akumulasi penjualan ke Shift Kasir aktif
+      // Local-First: Catat akumulasi penjualan ke Shift Kasir aktif.
+      // BUG FIX: transaksi TEMPO (piutang) & metode "Nota Tempo" TIDAK boleh
+      // menambah kas yang diharapkan — uangnya belum diterima. Sebelumnya
+      // penjualan piutang ikut menambah `cashSales` sehingga saat tutup shift
+      // kasir diminta menyediakan uang yang tidak pernah dibayarkan pelanggan.
       const saleAmount = tx.finalTotal ?? tx.totalSell;
-      if (tx.isSplitPayment) {
-        shiftStore.recordSale(tx.cashAmount || 0, tx.nonCashAmount || 0);
-      } else if (tx.paymentMethod === 'Tunai / Kas') {
-        shiftStore.recordSale(saleAmount, 0);
-      } else if (tx.paymentMethod === 'Transfer Bank' || tx.paymentMethod === 'QRIS') {
-        shiftStore.recordSale(0, saleAmount);
+      const isReceivable = tx.paymentStatus === 'TEMPO' || tx.paymentMethod === 'Nota Tempo';
+      if (!isReceivable) {
+        if (tx.isSplitPayment) {
+          shiftStore.recordSale(tx.cashAmount || 0, tx.nonCashAmount || 0);
+        } else if (tx.paymentMethod === 'Tunai / Kas') {
+          shiftStore.recordSale(saleAmount, 0);
+        } else if (tx.paymentMethod === 'Transfer Bank' || tx.paymentMethod === 'QRIS') {
+          shiftStore.recordSale(0, saleAmount);
+        }
       }
 
       // Jika ada alokasi infaq dari sisa kembalian receh kasir, catat kas masuk
@@ -685,15 +793,9 @@ export const usePosStore = defineStore('pos', () => {
     lastProcessedTransaction.value = tx;
     await Promise.all([inventoryStore.fetchFromDb(), buyerStore.fetchBuyers()]).catch(() => {});
 
-    clearCart();
-    transactionNotes.value = '';
-    isPreOrder.value = false;
-    picName.value = '';
-    isSplitPayment.value = false;
-    splitCashAmount.value = 0;
-    splitNonCashAmount.value = 0;
-    cashTendered.value = 0;
-    infaqAmount.value = 0;
+    // BUG FIX: gunakan resetTransactionState() agar status/metode bayar, nominal
+    // split, cashTendered, dan infaq ikut ter-reset (tidak bocor ke transaksi berikutnya).
+    resetTransactionState();
 
     isCheckingOut.value = false;
     return tx;
@@ -757,10 +859,12 @@ export const usePosStore = defineStore('pos', () => {
     transactionMarkupNominal,
     removeItem,
     clearCart,
+    resetTransactionState,
     loadPreOrderItems,
     applyDiscount,
     removeDiscount,
     setManualDiscount,
+    setManualDiscountByNominal,
     setPointsToRedeem,
     totalBuy,
     totalSell,

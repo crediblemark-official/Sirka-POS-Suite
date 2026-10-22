@@ -148,6 +148,19 @@ export function hexToRgb(hex: string): RGB {
       .map(c => c + c)
       .join('');
   }
+  // BUG FIX: `applyTheme` MENERIMA hex 4-digit ("#f00a" = RGBA), tapi
+  // `hexToRgb` hanya.expand 3-digit. Akibatnya alpha (0xa) dibaca sebagai
+  // komponen biru -> warna salah untuk tema custom.
+  if (cleanHex.length === 4) {
+    cleanHex = cleanHex
+      .split('')
+      .map(c => c + c)
+      .join('');
+  }
+  // Abaikan kanal alpha bila format 8-digit (#rrggbbaa)
+  if (cleanHex.length === 8) {
+    cleanHex = cleanHex.slice(0, 6);
+  }
   const num = parseInt(cleanHex, 16);
   if (isNaN(num)) {
     return { r: 37, g: 99, b: 235 }; // Fallback to Citra blue

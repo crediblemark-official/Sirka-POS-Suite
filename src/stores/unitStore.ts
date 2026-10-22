@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { MasterUnit, UnitCategory } from '../types';
 import { useInventoryStore } from './inventoryStore';
+import { safeParse } from '../utils/storage';
 
 const STORAGE_KEY_UNITS = 'kasir_citra_units_v1';
 
@@ -41,7 +42,9 @@ const DEFAULT_UNITS: MasterUnit[] = [
 
 export const useUnitStore = defineStore('unit', () => {
   const saved = localStorage.getItem(STORAGE_KEY_UNITS);
-  const units = ref<MasterUnit[]>(saved ? JSON.parse(saved) : DEFAULT_UNITS);
+  const units = ref<MasterUnit[]>(
+    safeParse<MasterUnit[]>(saved, DEFAULT_UNITS.map(u => ({ ...u })), 'UnitStore')
+  );
 
   function saveLocal() {
     localStorage.setItem(STORAGE_KEY_UNITS, JSON.stringify(units.value));
@@ -79,10 +82,10 @@ export const useUnitStore = defineStore('unit', () => {
     const cleanName = payload.name.trim().toUpperCase();
     const existing = units.value.find(u => u.name.toUpperCase() === cleanName);
     if (existing) {
-      existing.category = payload.category;
-      if (payload.description) existing.description = payload.description;
-      if (payload.defaultContent) existing.defaultContent = payload.defaultContent;
-      saveLocal();
+      // BUG FIX: `addUnit` diam-diam MENGUBAH satuan yang sudah ada (mis.
+      // satuan sistem "KG" jadi kategori BASE). Sekarang satuan existing
+      // dikembalikan apa adanya; perubahan harus lewat `updateUnit`.
+      console.warn(`[UnitStore] Satuan "${cleanName}" sudah ada, tidak dibuat ulang.`);
       return existing;
     }
 
@@ -91,7 +94,9 @@ export const useUnitStore = defineStore('unit', () => {
       name: cleanName,
       category: payload.category,
       description: payload.description || '',
-      defaultContent: payload.defaultContent || (payload.category === 'PACKAGING' ? 10 : 1),
+      // BUG FIX: `||` mengabaikan nilai 0 yang valid (mis. 1 GRAM = 0.001,
+      // atau satuan dengan isi 0). Gunakan ?? agar 0 tidak tertimpa.
+      defaultContent: payload.defaultContent ?? (payload.category === 'PACKAGING' ? 10 : 1),
       isDefault: false
     };
 
@@ -103,7 +108,17 @@ export const useUnitStore = defineStore('unit', () => {
   function updateUnit(id: string, updates: Partial<MasterUnit>) {
     const found = units.value.find(u => u.id === id);
     if (!found) return;
-    if (updates.name) updates.name = updates.name.trim().toUpperCase();
+    if (updates.name) {
+      const newName = updates.name.trim().toUpperCase();
+      // BUG FIX: nama satuan harus unik. Duplikat (mis. "SAK" ganda) membuat
+      // `find(u => u.name === ...)` bergantung urutan array.
+      const clash = units.value.find(u => u.id !== id && u.name.toUpperCase() === newName);
+      if (clash) {
+        console.warn(`[UnitStore] Nama satuan "${newName}" sudah dipakai satuan lain.`);
+        return;
+      }
+      updates.name = newName;
+    }
     Object.assign(found, updates);
     saveLocal();
   }

@@ -3,6 +3,11 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useShiftStore } from '../../stores/shiftStore';
 import { formatRupiah } from '../../utils/formatters';
 import { useConfirmDialog } from '../../composables/useConfirmDialog';
+import { useModalLock } from '../../composables/useModalLock';
+
+// BUG FIX: register modal-lock agar shortcut global (mis. Enter pada
+// ProductCatalog) tidak menambah produk ke keranjang saat modal terbuka.
+
 import {
   LogOut,
   X,
@@ -87,10 +92,15 @@ const transferredToTreasury = computed(() => {
 });
 
 // Otomatis isi default uang yang ditinggal di laci kasir = modal awal saat modal dibuka
+// BUG FIX: hitungan uang fisik harus di-reset setiap kali modal dibuka.
+// Sebelumnya hanya `retainedInDrawer` yang di-reset sehingga nominal hitungan
+// lama masih tampil & bisa dikonfirmasi tanpa sengaja saat modal dibuka ulang.
 watch(
   () => props.isOpen,
   (open) => {
     if (open) {
+      resetCounts();
+      countMode.value = 'denominations';
       retainedInDrawer.value = startingCash.value;
     }
   },
@@ -183,6 +193,9 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown);
 });
+
+const { bind: bindModalLock } = useModalLock();
+bindModalLock(() => props.isOpen);
 </script>
 
 <template>

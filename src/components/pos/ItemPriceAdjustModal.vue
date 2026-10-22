@@ -4,6 +4,10 @@ import { CartItem } from '../../types';
 import { formatRupiah } from '../../utils/formatters';
 import { useInventoryStore } from '../../stores/inventoryStore';
 import { X, Calculator, Check, Tag, DollarSign, Percent, RotateCcw, Info } from 'lucide-vue-next';
+import { useModalLock } from '../../composables/useModalLock';
+
+// BUG FIX: register modal-lock agar shortcut global (mis. Enter pada
+// ProductCatalog) tidak menambah produk ke keranjang saat modal terbuka.
 
 const props = defineProps<{
   isOpen: boolean;
@@ -28,7 +32,15 @@ const priceInputRef = ref<HTMLInputElement | null>(null);
 const nominalInputRef = ref<HTMLInputElement | null>(null);
 const percentInputRef = ref<HTMLInputElement | null>(null);
 
-const buyPrice = computed(() => props.item?.buyPrice || 0);
+// BUG FIX: harga pada baris keranjang expressed dalam SATUAN AKTIF (mis. 1 DUS),
+// sedangkan `CartItem.buyPrice` & `Product.lastSellPrice` disimpan per SATUAN
+// DASAR. Tanpa konversi, "Reset ke Harga Master" untuk penjualan per DUS
+// menulis harga 1 satuan dasar (harga jual DUS jadi 40x terlalu murah) dan
+// perhitungan margin menampilkan diskon palsu.
+const conversionFactor = computed(() => props.item?.conversionFactor || 1);
+
+/** Harga modal per satuan AKTIF (dikalikan faktor konversi). */
+const buyPrice = computed(() => Math.round((props.item?.buyPrice || 0) * conversionFactor.value));
 
 // Ambil data harga baku master barang asli
 const masterProduct = computed(() => {
@@ -36,8 +48,9 @@ const masterProduct = computed(() => {
   return inventoryStore.products.find(p => p.id === props.item?.productId) || null;
 });
 
+/** Harga jual master per satuan AKTIF. */
 const masterSellPrice = computed(() => {
-  return masterProduct.value?.lastSellPrice || 0;
+  return Math.round((masterProduct.value?.lastSellPrice || 0) * conversionFactor.value);
 });
 
 const isPriceModifiedFromMaster = computed(() => {
@@ -145,6 +158,9 @@ function handleKeyDown(e: KeyboardEvent) {
     handleSave();
   }
 }
+
+const { bind: bindModalLock } = useModalLock();
+bindModalLock(() => props.isOpen);
 </script>
 
 <template>

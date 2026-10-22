@@ -3,6 +3,7 @@ import { ref } from 'vue';
 import { Product, CategoryMarkupSetting, SupplierCategory } from '../types';
 import { dbService } from '../services/dbService';
 import { syncService } from '../services/syncService';
+import { safeParse } from '../utils/storage';
 
 const STORAGE_KEY_PRODUCTS = 'kasir_citra_products_v1';
 const STORAGE_KEY_MARKUPS = 'kasir_citra_markups_v1';
@@ -13,11 +14,11 @@ export const useInventoryStore = defineStore('inventory', () => {
   const showVendorSidebar = ref(false);
   const activeVendorForSidebar = ref<CategoryMarkupSetting | null>(null);
   const savedProducts = localStorage.getItem(STORAGE_KEY_PRODUCTS);
-  const products = ref<Product[]>(savedProducts ? JSON.parse(savedProducts) : []);
+  const products = ref<Product[]>(safeParse<Product[]>(savedProducts, [], 'InventoryStore'));
 
   const savedMarkups = localStorage.getItem(STORAGE_KEY_MARKUPS);
   const categoryMarkups = ref<CategoryMarkupSetting[]>(
-    savedMarkups ? JSON.parse(savedMarkups) : []
+    safeParse<CategoryMarkupSetting[]>(savedMarkups, [], 'InventoryStore')
   );
 
   const isConnectedToPg = ref(false);
@@ -35,8 +36,49 @@ export const useInventoryStore = defineStore('inventory', () => {
         dbService.getMarkups()
       ]);
 
-      products.value = prodData || [];
-      categoryMarkups.value = markupData || [];
+      // BUG FIX: `fetchFromDb()` sebelumnya mengganti SELURUH array sehingga field
+      // yang hanya tersimpan lokal (units multi-satuan, warna kategori) hilang
+      // setiap kali app start / setelah setiap penjualan. Sekarang digabung:
+      // data dari DB dipakai, tetapi field lokal dipertahankan bila DB belum
+      // memilikinya (mis. database lama sebelum migrasi).
+      const dbProducts = prodData || [];
+      const localById = new Map(products.value.map(p => [p.id, p]));
+      const merged = dbProducts.map(p => {
+        const local = localById.get(p.id);
+        if (!local) return p;
+        return {
+          ...local,
+          ...p,
+          units: (p.units && p.units.length) ? p.units : local.units,
+          isPerishable: p.isPerishable ?? local.isPerishable ?? false
+        };
+      });
+      // BUG FIX: produk/kategori yang HANYA ada di lokal (mis. upsert ke DB
+      // gagal saat offline) sebelumnya HILANG dari UI setiap kali
+      // `fetchFromDb()` dipanggil — dan itu terjadi setelah SETIAP penjualan.
+      // Sekarang entri lokal yang tidak ada di DB tetap dipertahankan.
+      const dbIds = new Set(dbProducts.map(p => p.id));
+      const localOnly = products.value.filter(p => p && p.id && !dbIds.has(p.id));
+      products.value = [...merged, ...localOnly];
+
+      const dbMarkups = markupData || [];
+      const localMarkupByCat = new Map(categoryMarkups.value.map(c => [c.category, c]));
+      const mergedMarkups = dbMarkups.map(c => {
+        const local = localMarkupByCat.get(c.category);
+        if (!local) return c;
+        return {
+          ...local,
+          ...c,
+          color: c.color || local.color,
+          description: c.description ?? local.description ?? ''
+        };
+      });
+      const dbCats = new Set(dbMarkups.map(c => c.category));
+      const localOnlyMarkups = categoryMarkups.value.filter(
+        c => c && c.category && !dbCats.has(c.category)
+      );
+      categoryMarkups.value = [...mergedMarkups, ...localOnlyMarkups];
+
       isConnectedToPg.value = true;
       saveLocal();
     } catch (e) {
@@ -78,11 +120,22 @@ export const useInventoryStore = defineStore('inventory', () => {
       Object.assign(found, updates);
       saveLocal();
       try {
-        if (updates.defaultMarkupPercent !== undefined) {
-          await dbService.updateMarkup(category, updates.defaultMarkupPercent);
-        }
+        // BUG FIX: warna kategori harus ikut disimpan ke DB, kalau tidak fitur
+        // kisi produk berwarna kategori selalu kembali ke warna acak.
+        await dbService.updateMarkupFull(
+          category,
+          found.defaultMarkupPercent,
+          found.description,
+          found.color
+        );
       } catch (err) {
         console.warn('[Sync] Offline: enqueued category update for sync:', err);
+        syncService.enqueue('UPDATE_MARKUP', {
+          category,
+          markupPercent: found.defaultMarkupPercent,
+          description: found.description,
+          color: found.color
+        });
       }
     }
   }
@@ -95,6 +148,22 @@ export const useInventoryStore = defineStore('inventory', () => {
       if (color) existing.color = color;
       if (description) existing.description = description;
       saveLocal();
+      try {
+        await dbService.updateMarkupFull(
+          existing.category,
+          existing.defaultMarkupPercent,
+          existing.description,
+          existing.color
+        );
+      } catch (err) {
+        console.warn('[Sync] Offline: enqueued category update for sync:', err);
+        syncService.enqueue('UPDATE_MARKUP', {
+          category: existing.category,
+          markupPercent: existing.defaultMarkupPercent,
+          description: existing.description,
+          color: existing.color
+        });
+      }
       return;
     }
 
@@ -109,20 +178,43 @@ export const useInventoryStore = defineStore('inventory', () => {
     saveLocal();
 
     try {
-      await dbService.createMarkup(trimmed, defaultMarkupPercent, description);
+      await dbService.createMarkup(trimmed, defaultMarkupPercent, description, color);
     } catch (err) {
       console.warn('[Sync] Offline: enqueued create category for sync:', err);
-      syncService.enqueue('CREATE_MARKUP', { category: trimmed, markupPercent: defaultMarkupPercent, description });
+      syncService.enqueue('CREATE_MARKUP', {
+        category: trimmed,
+        markupPercent: defaultMarkupPercent,
+        description,
+        color
+      });
     }
   }
 
   async function deleteCategory(category: string): Promise<boolean> {
-    categoryMarkups.value = categoryMarkups.value.filter(c => c.category !== category);
+    // BUG FIX: error PostgreSQL (mis. FK constraint — produk masih memakai
+    // kategori ini) sebelumnya ditelan & fungsi tetap mengembalikan `true`.
+    // Akibatnya state lokal menghapus kategori sementara cloud tetap
+    // menyimpannya -> kategori muncul lagi setelah restart & margin produk
+    // kembali ke fallback 20%. Sekarang error FATAL (constraint) dilempar,
+    // sedangkan error offline tetap di-enqueue.
+    const removed = categoryMarkups.value.filter(c => c.category !== category);
+    const previous = categoryMarkups.value;
+    categoryMarkups.value = removed;
     saveLocal();
     try {
       await dbService.deleteMarkup(category);
       return true;
     } catch (err: any) {
+      const msg = String(err?.message || err);
+      const isConstraint = /foreign key|violates|still referenced|does not exist/i.test(msg);
+      if (isConstraint) {
+        // Kembalikan state lokal — kategori masih dipakai.
+        categoryMarkups.value = previous;
+        saveLocal();
+        throw new Error(
+          `Kategori "${category}" masih digunakan oleh produk sehingga tidak bisa dihapus.`
+        );
+      }
       console.warn('[Sync] Offline: enqueued delete category for sync:', err);
       syncService.enqueue('DELETE_MARKUP', { category });
       return true;
@@ -160,9 +252,12 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
   }
 
-  async function addProduct(newProd: Omit<Product, 'id'>): Promise<Product> {
-    const id = `prod-${Date.now()}`;
-    const product: Product = { ...newProd, id };
+  async function addProduct(newProd: Omit<Product, 'id'> & { id?: string }): Promise<Product> {
+    // BUG FIX: id yang diberikan pemanggil harus dihormati. Sebelumnya id selalu
+    // di-override dengan `prod-${Date.now()}` sehingga batch / kartu stok / nota
+    // kulakan yang memakai id tersebut menunjuk produk yang tidak pernah ada.
+    const id = newProd.id || `prod-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+    const product: Product = { ...newProd, id } as Product;
 
     products.value.push(product);
     saveLocal();

@@ -31,19 +31,47 @@ import CloseShiftModal from '../pos/CloseShiftModal.vue';
 import ShiftSummaryModal from '../pos/ShiftSummaryModal.vue';
 import WasteModal from '../returns/WasteModal.vue';
 import { useShiftStore } from '../../stores/shiftStore';
+import { safeParse } from '../../utils/storage';
 
 const posStore = usePosStore();
 const shiftStore = useShiftStore();
 
 // Open tabs initialized with Kasir POS & Pusat Inventaris by default, and persisted in localStorage
-const savedOpenTabs = localStorage.getItem('kasir_citra_open_tabs_v1');
-const rawInitialTabs: ModuleTab[] = savedOpenTabs ? JSON.parse(savedOpenTabs) : ['pos', 'products'];
-// Map old merged tabs ('receiving' -> 'products', 'returns' -> 'ledger')
-const normalizedTabs = rawInitialTabs.map(t => (t === 'receiving' ? 'products' : (t === 'returns' ? 'ledger' : t)));
-const openTabIds = ref<ModuleTab[]>([...new Set(normalizedTabs)]);
+//
+// BUG FIX: `JSON.parse` tanpa try/catch + tanpa validasi di file ini (shell/root
+// aplikasi) membuat SATU nilai localStorage korup menyebabkan SyntaxError saat
+// `setup()` -> komponen tidak ter-render -> APLIKASI TIDAK BISA DIBUKA tanpa
+// cara lain membersihkan cache.
+//
+// Sekarang: parse aman, harus berupa array, dan setiap id tab divalidasi
+// terhadap daftar tab yang dikenal.
+const KNOWN_TABS: ModuleTab[] = [
+  'pos', 'products', 'preorder', 'ledger', 'reports', 'vendors',
+  'suppliers', 'buyers', 'branding', 'discounts', 'loyalty', 'launcher',
+  'receiving', 'returns', 'master'
+];
 
-const savedActiveTab = localStorage.getItem('kasir_citra_active_tab_v1') as ModuleTab | null;
-const initialActive = savedActiveTab === 'receiving' ? 'products' : (savedActiveTab === 'returns' ? 'ledger' : (savedActiveTab || 'products'));
+function normalizeTabId(id: unknown): ModuleTab | null {
+  if (typeof id !== 'string') return null;
+  // Map tab lama ('receiving' -> 'products', 'returns' -> 'ledger')
+  const mapped = id === 'receiving' ? 'products' : (id === 'returns' ? 'ledger' : id);
+  return (KNOWN_TABS as string[]).includes(mapped) ? (mapped as ModuleTab) : null;
+}
+
+const savedOpenTabs = localStorage.getItem('kasir_citra_open_tabs_v1');
+const rawInitialTabs: ModuleTab[] = (() => {
+  const parsed = safeParse<unknown>(savedOpenTabs, []);
+  if (!Array.isArray(parsed)) return ['pos', 'products'];
+  const valid = parsed
+    .map(normalizeTabId)
+    .filter((t): t is ModuleTab => t !== null);
+  return valid.length > 0 ? [...new Set(valid)] : ['pos', 'products'];
+})();
+const openTabIds = ref<ModuleTab[]>([...new Set(rawInitialTabs)]);
+
+const savedActiveTab = localStorage.getItem('kasir_citra_active_tab_v1');
+const initialActive: ModuleTab =
+  normalizeTabId(savedActiveTab) || (openTabIds.value.length > 0 ? openTabIds.value[0] : 'pos');
 const activeTab = ref<ModuleTab>(initialActive);
 
 watch(activeTab, (val) => {

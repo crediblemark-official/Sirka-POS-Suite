@@ -3,6 +3,11 @@ import { ref, watch, onMounted, onUnmounted } from 'vue';
 import { useShiftStore } from '../../stores/shiftStore';
 import { formatRupiah } from '../../utils/formatters';
 import { LogIn, X, Banknote, User, FileText, CheckCircle2 } from 'lucide-vue-next';
+import { useModalLock } from '../../composables/useModalLock';
+import { useConfirmDialog } from '../../composables/useConfirmDialog';
+
+// BUG FIX: register modal-lock agar shortcut global (mis. Enter pada
+// ProductCatalog) tidak menambah produk ke keranjang saat modal terbuka.
 
 const props = defineProps<{
   isOpen: boolean;
@@ -13,6 +18,7 @@ const emit = defineEmits<{
 }>();
 
 const shiftStore = useShiftStore();
+const { confirm: showConfirm } = useConfirmDialog();
 
 const cashierName = ref('');
 const startingCash = ref<number>(200000);
@@ -38,6 +44,19 @@ async function handleConfirm() {
   if (!cashierName.value.trim()) {
     alert('Harap isi nama kasir yang bertugas!');
     return;
+  }
+  // BUG FIX: `shiftStore.openShift()` menimpa shift yang sedang berjalan
+  // sehingga akumulasi penjualan kasir sebelumnya hilang tanpa jejak.
+  if (shiftStore.isShiftActive) {
+    const ok = await showConfirm({
+      title: 'Shift Masih Aktif',
+      message: `Shift "${shiftStore.currentShift?.cashierName}" masih terbuka. Membuka shift baru akan mengakhiri shift lama secara otomatis.`,
+      details: 'Pastikan shift lama sudah direkonsiliasi (tutup shift) sebelum membuka shift baru.',
+      confirmText: 'Ya, Buka Shift Baru',
+      cancelText: 'Batal',
+      type: 'warning'
+    });
+    if (!ok) return;
   }
   isSubmitting.value = true;
   try {
@@ -67,6 +86,10 @@ watch(() => props.isOpen, (open) => {
   if (open) {
     cashierName.value = '';
     notes.value = '';
+    // BUG FIX: modal awal sebelumnya "sticky" — nilai shift sebelumnya ikut
+    // terbawa sehingga kasir bisa tanpa sengaja memakai modal shift lama.
+    startingCash.value = 200000;
+    startingCashInput.value = '200000';
     window.addEventListener('keydown', handleKeydown);
   } else {
     window.removeEventListener('keydown', handleKeydown);
@@ -80,6 +103,9 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown);
 });
+
+const { bind: bindModalLock } = useModalLock();
+bindModalLock(() => props.isOpen);
 </script>
 
 <template>

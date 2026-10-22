@@ -36,6 +36,7 @@ import PosVoucherModal from './PosVoucherModal.vue';
 import ItemPriceAdjustModal from './ItemPriceAdjustModal.vue';
 import TotalAdjustModal from './TotalAdjustModal.vue';
 import HeldCartsModal from './HeldCartsModal.vue';
+import { useModalLock } from '../../composables/useModalLock';
 
 const emit = defineEmits<{
   (e: 'show-receipt'): void;
@@ -43,6 +44,7 @@ const emit = defineEmits<{
 }>();
 
 const posStore = usePosStore();
+const { isAnyModalOpen } = useModalLock();
 const buyerStore = useBuyerStore();
 const inventoryStore = useInventoryStore();
 const shiftStore = useShiftStore();
@@ -55,6 +57,31 @@ function getMasterPrice(productId: string): number {
 function getProductUnits(productId: string) {
   const prod = inventoryStore.products.find(p => p.id === productId);
   return prod ? posStore.getAvailableUnitsForProduct(prod) : [];
+}
+
+const METRIC_UNITS = ['KG', 'LITER', 'LTR'];
+
+function isMetricUnit(unit?: string): boolean {
+  return METRIC_UNITS.includes((unit || '').toUpperCase());
+}
+
+/**
+ * BUG FIX: langkah pengurangan qty untuk satuan metrik.
+ * Sebelumnya `qty > 0.25` membuat qty 0,2 kg dikurangi 1 (bukan 0,25) sehingga
+ * hasilnya minus lalu baris keranjang terhapus. Sekarang langkah tidak pernah
+ * melebihi sisa qty.
+ */
+function qtyDecrement(item: CartItem): number {
+  if (!isMetricUnit(item.unit)) return 1;
+  const qty = Number(item.qty) || 0;
+  if (qty > 1) return 1;
+  return Math.min(0.25, qty);
+}
+
+/** BUG FIX: pertahankan langkah 0,25 kg untuk satuan metrik di bawah 1 kg. */
+function qtyIncrement(item: CartItem): number {
+  if (!isMetricUnit(item.unit)) return 1;
+  return (Number(item.qty) || 0) < 1 ? 0.25 : 1;
 }
 
 // Modal States
@@ -183,6 +210,12 @@ const buyerOptions = computed<SelectOption[]>(() =>
 
 // Global POS Keyboard Shortcuts
 function handleKeydown(e: KeyboardEvent) {
+  // BUG FIX: shortcut global tidak boleh aktif ketika ada modal terbuka.
+  // Sebelumnya F6 (parkir keranjang) bisa mengosongkan keranjang di tengah
+  // proses pembayaran, dan Alt+G/Alt+E mengganti mode penjualan sehingga
+  // transaksi yang sedang dikonfirmasi berubah buyer/tipe pelanggan.
+  if (isAnyModalOpen.value) return;
+
   // F12: Bayar & Cetak Nota -> Buka Modal Pembayaran
   if (e.key === 'F12') {
     e.preventDefault();
@@ -265,7 +298,7 @@ onUnmounted(() => {
         <button
           type="button"
           class="p-1 text-gray-400 hover:text-gray-700 hover:bg-black/10 rounded cursor-pointer transition-colors"
-          title="Tutup Keranjang Kasir (F3)"
+          title="Tutup Keranjang Kasir"
           @click="emit('close')"
         >
           <X :size="14" />
@@ -543,7 +576,7 @@ onUnmounted(() => {
                 type="button"
                 class="w-5 h-5 rounded text-gray-400 hover:text-black hover:bg-gray-200 flex items-center justify-center cursor-pointer transition-colors"
                 title="Kurangi Qty"
-                @click="posStore.updateItemQty(item.id, Number((item.qty - (['KG', 'LITER', 'LTR'].includes((item.unit || '').toUpperCase()) && item.qty <= 1 && item.qty > 0.25 ? 0.25 : 1)).toFixed(3)))"
+                @click="posStore.updateItemQty(item.id, Number(Math.max(0, item.qty - qtyDecrement(item)).toFixed(3)))"
               >
                 <Minus :size="11" />
               </button>
@@ -558,14 +591,14 @@ onUnmounted(() => {
                   const val = parseFloat(cleaned);
                   posStore.updateItemQty(item.id, isNaN(val) ? 1 : Math.max(0.001, val));
                 }"
-                @keydown.up.prevent="posStore.updateItemQty(item.id, Number((item.qty + (['KG', 'LITER', 'LTR'].includes((item.unit || '').toUpperCase()) && item.qty < 1 ? 0.25 : 1)).toFixed(3)))"
-                @keydown.down.prevent="posStore.updateItemQty(item.id, Number((item.qty - (['KG', 'LITER', 'LTR'].includes((item.unit || '').toUpperCase()) && item.qty <= 1 && item.qty > 0.25 ? 0.25 : 1)).toFixed(3)))"
+                @keydown.up.prevent="posStore.updateItemQty(item.id, Number((item.qty + qtyIncrement(item)).toFixed(3)))"
+                @keydown.down.prevent="posStore.updateItemQty(item.id, Number(Math.max(0, item.qty - qtyDecrement(item)).toFixed(3)))"
               />
               <button
                 type="button"
                 class="w-5 h-5 rounded text-gray-400 hover:text-black hover:bg-gray-200 flex items-center justify-center cursor-pointer transition-colors"
                 title="Tambah Qty"
-                @click="posStore.updateItemQty(item.id, Number((item.qty + (['KG', 'LITER', 'LTR'].includes((item.unit || '').toUpperCase()) && item.qty < 1 ? 0.25 : 1)).toFixed(3)))"
+                @click="posStore.updateItemQty(item.id, Number((item.qty + qtyIncrement(item)).toFixed(3)))"
               >
                 <Plus :size="11" />
               </button>
