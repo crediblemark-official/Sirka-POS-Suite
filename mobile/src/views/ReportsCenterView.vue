@@ -24,7 +24,8 @@ import {
   UserCheck,
   X,
   Banknote,
-  ArrowRight
+  ArrowRight,
+  Sparkles
 } from 'lucide-vue-next';
 
 const emit = defineEmits<{
@@ -43,6 +44,114 @@ const expandedModule = ref<number | null>(null);
 function toggleModule(id: number) {
   expandedModule.value = expandedModule.value === id ? null : id;
 }
+
+// Insight Cerdas Otomatis Toko (Smart Business Insights)
+const smartInsights = computed(() => {
+  const items: Array<{
+    id: string;
+    title: string;
+    desc: string;
+    type: 'warning' | 'info' | 'success';
+    badge: string;
+    actionTab?: ActiveTab;
+    actionLabel?: string;
+  }> = [];
+
+  // 1. Insight Modal Terkunci (Dead Stock)
+  const lockedCapital = productsReport.value?.totalCapitalLocked ?? 0;
+  const deadSkus = productsReport.value?.totalDeadStockSkus ?? 0;
+  if (lockedCapital > 0 || deadSkus > 0) {
+    items.push({
+      id: 'dead-stock',
+      title: 'Modal Tertahan di Rak Barang',
+      desc: `Ada ${deadSkus} SKU yang tidak bergerak >30 hari dengan nilai modal HPP ${formatRupiah(lockedCapital)}. Pertimbangkan diskon clearance atau bundling.`,
+      type: 'warning',
+      badge: `${deadSkus} SKU Macet`,
+      actionTab: 'inventory_asset',
+      actionLabel: 'Audit Stok Mati'
+    });
+  }
+
+  // 2. Insight Piutang Jatuh Tempo (>30 Hari)
+  const badDebt = agingReport.value?.bucketOver30 ?? 0;
+  const totalPending = agingReport.value?.totalPending ?? 0;
+  if (badDebt > 0) {
+    items.push({
+      id: 'bad-debt',
+      title: 'Perhatian Piutang Jatuh Tempo',
+      desc: `Terdapat piutang macet >30 hari sebesar ${formatRupiah(badDebt)} dari total tagihan berjalan ${formatRupiah(totalPending)}. Segera hubungi pelanggan.`,
+      type: 'warning',
+      badge: 'Tempo Kritis',
+      actionTab: 'receivables',
+      actionLabel: 'Buka Buku Piutang'
+    });
+  } else if (totalPending > 0) {
+    items.push({
+      id: 'active-receivables',
+      title: 'Piutang Berjalan Terkendali',
+      desc: `Total piutang berjalan saat ini ${formatRupiah(totalPending)} dan seluruhnya masih dalam rentang tempo wajar (<30 hari).`,
+      type: 'info',
+      badge: 'Piutang Lancar',
+      actionTab: 'receivables',
+      actionLabel: 'Jadwal Tagihan'
+    });
+  }
+
+  // 3. Insight Profitabilitas & Arus Kas
+  const netSales = financialReport.value?.netSales ?? 0;
+  const grossProfit = financialReport.value?.grossProfit ?? 0;
+  const marginPct = financialReport.value?.profitMarginPercent ?? 0;
+  if (netSales > 0) {
+    items.push({
+      id: 'profitability',
+      title: `Estimasi Margin Laba: ${marginPct}%`,
+      desc: `Omzet penjualan tercatat ${formatRupiah(netSales)} dengan estimasi laba kotor ${formatRupiah(grossProfit)}.`,
+      type: marginPct >= 20 ? 'success' : 'info',
+      badge: marginPct >= 20 ? 'Margin Prima' : 'Margin Wajar',
+      actionTab: 'income_statement',
+      actionLabel: 'Rincian Laba Rugi'
+    });
+  }
+
+  // 4. Insight Rekonsiliasi Kasir & Shift
+  if (shifts.value.length > 0) {
+    const hasDiscrepancy = reconciledShifts.value.some((s: any) => Number(s.discrepancy || 0) !== 0);
+    if (hasDiscrepancy) {
+      items.push({
+        id: 'shift-discrepancy',
+        title: 'Deteksi Selisih Kasir Terbuka',
+        desc: 'Terdapat ketidakcocokan saldo kas fisik laci kasir vs hitungan sistem pada shift terakhir.',
+        type: 'warning',
+        badge: 'Selisih Kas',
+        actionLabel: 'Periksa Audit Shift'
+      });
+    } else if (reconciledShifts.value.length > 0) {
+      items.push({
+        id: 'shift-clean',
+        title: 'Integritas Kasir 100% Pas',
+        desc: `Semua ${reconciledShifts.value.length} sesi shift yang ditutup terekonsiliasi seimbang antara laci fisik dan sistem nota.`,
+        type: 'success',
+        badge: 'Shift Akurat',
+        actionLabel: 'Riwayat Shift'
+      });
+    }
+  }
+
+  // Fallback info bila transaksi awal
+  if (items.length === 0) {
+    items.push({
+      id: 'system-ready',
+      title: 'Sistem Terhubung & Siap Monitoring',
+      desc: 'Database PostgreSQL Cloud terhubung. Rekomendasi bisnis otomatis akan dianalisis saat transaksi kasir berjalan.',
+      type: 'info',
+      badge: 'Aktif',
+      actionTab: 'income_statement',
+      actionLabel: 'Pantau Transaksi'
+    });
+  }
+
+  return items;
+});
 
 async function loadData() {
   loading.value = true;
@@ -189,7 +298,67 @@ const shiftAuditLabel = computed(() => {
         </div>
       </div>
 
-      <!-- 2. Section Titlebar: 9 Modul Analisis Bisnis Tajam -->
+      <!-- 2. Smart Insight Bisnis Section (Full Edge, Minimalist) -->
+      <div class="w-full bg-[#dfddd9] border-b border-[#c8c5c0] px-3 py-1.5 flex items-center justify-between text-xs select-none">
+        <span class="font-bold text-[#2e2b28] flex items-center gap-1.5 uppercase tracking-wide text-[11px]">
+          <Sparkles class="w-3.5 h-3.5 text-[#2563eb]" />
+          Insight &amp; Analisis Otomatis
+        </span>
+        <span class="text-[10px] text-[#6b655f] font-mono font-medium">Realtime Evaluasi</span>
+      </div>
+
+      <div class="w-full bg-white border-b border-[#c8c5c0] divide-y divide-[#e5e3de]">
+        <div
+          v-for="item in smartInsights"
+          :key="item.id"
+          class="p-3 hover:bg-[#faf9f7] transition-colors flex items-start gap-3"
+        >
+          <!-- Status Indicator Dot -->
+          <div
+            class="w-2 h-2 rounded-full mt-1.5 shrink-0"
+            :class="{
+              'bg-amber-500 ring-4 ring-amber-100': item.type === 'warning',
+              'bg-[#2563eb] ring-4 ring-blue-100': item.type === 'info',
+              'bg-emerald-500 ring-4 ring-emerald-100': item.type === 'success'
+            }"
+          />
+
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-xs font-bold text-[#2e2b28] truncate">
+                {{ item.title }}
+              </span>
+              <span
+                class="text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded shrink-0 border"
+                :class="{
+                  'bg-amber-50 text-amber-800 border-amber-200': item.type === 'warning',
+                  'bg-blue-50 text-blue-800 border-blue-200': item.type === 'info',
+                  'bg-emerald-50 text-emerald-800 border-emerald-200': item.type === 'success'
+                }"
+              >
+                {{ item.badge }}
+              </span>
+            </div>
+
+            <p class="text-[11.5px] text-[#6b655f] mt-1 leading-snug">
+              {{ item.desc }}
+            </p>
+
+            <div v-if="item.actionLabel" class="mt-2 flex items-center justify-end">
+              <button
+                type="button"
+                @click="item.actionTab ? emit('navigate', item.actionTab) : (showShiftAuditModal = true)"
+                class="text-[11px] font-bold text-[#2563eb] hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                <span>{{ item.actionLabel }}</span>
+                <ArrowRight class="w-3 h-3" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Section Titlebar: 9 Modul Intelijen Bisnis Tajam -->
       <div class="w-full bg-[#dfddd9] border-b border-[#c8c5c0] px-3 py-1.5 flex items-center justify-between text-xs select-none">
         <span class="font-bold text-[#2e2b28] flex items-center gap-1.5 uppercase tracking-wide text-[11px]">
           <Zap class="w-3.5 h-3.5 text-[#2563eb]" />

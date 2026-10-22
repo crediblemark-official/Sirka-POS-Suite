@@ -11,7 +11,7 @@ const emit = defineEmits<{
 }>();
 
 const tabs = [
-  { id: 'reports', label: 'Laporan', icon: LayoutDashboard },
+  { id: 'reports', label: 'Home', icon: LayoutDashboard },
   { id: 'income_statement', label: 'Laba Rugi', icon: FileSpreadsheet },
   { id: 'cash_flow', label: 'Arus Kas', icon: ArrowLeftRight },
   { id: 'receivables', label: 'Piutang', icon: Clock },
