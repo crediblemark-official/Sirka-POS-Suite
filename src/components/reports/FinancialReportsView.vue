@@ -27,7 +27,9 @@ import {
   ShieldCheck,
   Eye,
   LogIn,
-  LogOut
+  LogOut,
+  Calendar,
+  X
 } from 'lucide-vue-next';
 import * as XLSX from 'xlsx';
 
@@ -60,52 +62,50 @@ function isNoteExpanded(key: string): boolean {
 
 type DatePeriod = 'today' | 'week' | 'month' | 'year' | 'all' | 'custom';
 const selectedPeriod = ref<DatePeriod>('month');
-const customStartDate = ref<string>('');
-const customEndDate = ref<string>('');
+const customStartDate = ref<string>(localPreviousMonthStr());
+const customEndDate = ref<string>(localTodayStr());
+
+function setPresetPeriod(p: 'today' | 'week' | 'month' | 'all') {
+  selectedPeriod.value = p;
+  if (p === 'today') {
+    customStartDate.value = localTodayStr();
+    customEndDate.value = localTodayStr();
+  } else if (p === 'week') {
+    customStartDate.value = localDateOffset(7);
+    customEndDate.value = localTodayStr();
+  } else if (p === 'month') {
+    customStartDate.value = localPreviousMonthStr();
+    customEndDate.value = localTodayStr();
+  } else if (p === 'all') {
+    customStartDate.value = '';
+    customEndDate.value = '';
+  }
+}
+
+function onDateInput(type: 'start' | 'end', val: string) {
+  if (type === 'start') {
+    customStartDate.value = val;
+  } else {
+    customEndDate.value = val;
+  }
+  selectedPeriod.value = 'custom';
+}
 
 // 1. Filter Transactions by Period
-/**
- * BUG FIX: batas bawah periode dihitung dengan tanggal LOKAL.
- * `toISOString()` memakai UTC sehingga di WIB (UTC+7) setelah pukul 00:00
- * "Hari Ini" menampilkan penjualan KEMARIN.
- * `setMonth()` juga bisa overflow (31 Mar -> 3 Mar) sehingga memakai helper.
- */
-const periodStartStr = computed<string>(() => {
-  if (selectedPeriod.value === 'all') return '';
-  if (selectedPeriod.value === 'custom') return customStartDate.value;
-  const now = new Date();
-  if (selectedPeriod.value === 'today') return localTodayStr(now);
-  if (selectedPeriod.value === 'week') return localDateOffset(7, now);
-  if (selectedPeriod.value === 'month') return localPreviousMonthStr(now);
-  // 'year'
-  const d = new Date(now.getTime());
-  d.setDate(1);
-  d.setFullYear(d.getFullYear() - 1);
-  return localTodayStr(d);
-});
-
 const periodTransactions = computed(() => {
   const txs = ledgerStore.transactions;
-  if (selectedPeriod.value === 'all') return txs;
-
-  if (selectedPeriod.value === 'custom') {
-    const start = customStartDate.value;
-    const end = customEndDate.value;
-    return txs.filter(t => {
-      if (start && t.date < start) return false;
-      if (end && t.date > end) return false;
-      return true;
-    });
+  if (selectedPeriod.value === 'all' && !customStartDate.value && !customEndDate.value) {
+    return txs;
   }
 
-  const todayStr = localTodayStr();
-  const from = periodStartStr.value;
+  const start = customStartDate.value;
+  const end = customEndDate.value;
 
-  if (selectedPeriod.value === 'today') {
-    return txs.filter(t => t.date === todayStr);
-  }
-
-  return txs.filter(t => t.date >= from && t.date <= todayStr);
+  return txs.filter(t => {
+    if (start && t.date < start) return false;
+    if (end && t.date > end) return false;
+    return true;
+  });
 });
 
 // 2. Financial Metrics (Laba Rugi)
@@ -145,25 +145,18 @@ const nonCashInflow = computed(() => {
 // Sebelumnya memakai seluruh riwayat (all-time) sehingga arus kas untuk
 // periode pendek selalu negatif besar.
 const totalPurchasesCost = computed(() => {
-  if (selectedPeriod.value === 'custom') {
-    const start = customStartDate.value;
-    const end = customEndDate.value;
-    return purchaseStore.purchaseHistory
-      .filter(p => {
-        if (!p?.date) return false;
-        if (start && p.date < start) return false;
-        if (end && p.date > end) return false;
-        return true;
-      })
-      .reduce((acc, p) => acc + (p.totalBuy || 0), 0);
+  if (selectedPeriod.value === 'all' && !customStartDate.value && !customEndDate.value) {
+    return purchaseStore.purchaseHistory.reduce((acc, p) => acc + (p.totalBuy || 0), 0);
   }
 
-  const from = periodStartStr.value;
-  const to = localTodayStr();
+  const start = customStartDate.value;
+  const end = customEndDate.value;
+
   return purchaseStore.purchaseHistory
     .filter(p => {
       if (!p?.date) return false;
-      if (from) return p.date >= from && p.date <= to;
+      if (start && p.date < start) return false;
+      if (end && p.date > end) return false;
       return true;
     })
     .reduce((acc, p) => acc + (p.totalBuy || 0), 0);
@@ -664,36 +657,69 @@ async function exportComprehensiveReport() {
 
       <!-- Sisi Kanan: Period Selector & Export Button -->
       <div class="flex items-center gap-2 shrink-0">
-        <!-- Period Switcher & Custom Date Range -->
-        <div class="flex items-center gap-1.5 shrink-0">
-          <div class="flex bg-gray-200/90 p-0.5 rounded border border-gray-300 shrink-0">
-            <button
-              v-for="p in ([{ id: 'today', l: 'Hari Ini' }, { id: 'week', l: '7 Hari' }, { id: 'month', l: 'Bulan' }, { id: 'all', l: 'Semua' }, { id: 'custom', l: 'Rentang' }] as const)"
-              :key="p.id"
-              type="button"
-              @click="selectedPeriod = p.id"
-              class="px-2 py-0.5 rounded text-[11px] font-semibold transition-all cursor-pointer"
-              :class="selectedPeriod === p.id ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
-            >
-              {{ p.l }}
-            </button>
-          </div>
+        <!-- Preset Switcher -->
+        <div class="flex bg-gray-200/90 p-0.5 rounded border border-gray-300 shrink-0">
+          <button
+            type="button"
+            class="px-2 py-0.5 rounded text-[11px] font-semibold transition-all cursor-pointer"
+            :class="selectedPeriod === 'today' ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
+            @click="setPresetPeriod('today')"
+          >
+            Hari Ini
+          </button>
+          <button
+            type="button"
+            class="px-2 py-0.5 rounded text-[11px] font-semibold transition-all cursor-pointer"
+            :class="selectedPeriod === 'week' ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
+            @click="setPresetPeriod('week')"
+          >
+            7 Hari
+          </button>
+          <button
+            type="button"
+            class="px-2 py-0.5 rounded text-[11px] font-semibold transition-all cursor-pointer"
+            :class="selectedPeriod === 'month' ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
+            @click="setPresetPeriod('month')"
+          >
+            Bulan
+          </button>
+          <button
+            type="button"
+            class="px-2 py-0.5 rounded text-[11px] font-semibold transition-all cursor-pointer"
+            :class="selectedPeriod === 'all' ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
+            @click="setPresetPeriod('all')"
+          >
+            Semua
+          </button>
+        </div>
 
-          <!-- Date Picker Inputs when 'custom' is active -->
-          <div v-if="selectedPeriod === 'custom'" class="flex items-center gap-1 bg-white border border-gray-300 rounded px-2 py-0.5 shadow-2xs shrink-0 text-xs text-gray-600 font-medium">
-            <span>Dari:</span>
-            <input
-              type="date"
-              v-model="customStartDate"
-              class="h-6 px-1 text-[11px] bg-transparent border-0 font-mono text-gray-800 focus:outline-none"
-            />
-            <span class="text-gray-400">s/d</span>
-            <input
-              type="date"
-              v-model="customEndDate"
-              class="h-6 px-1 text-[11px] bg-transparent border-0 font-mono text-gray-800 focus:outline-none"
-            />
-          </div>
+        <!-- Date Picker Selalu Muncul (Always Visible) -->
+        <div class="flex items-center gap-1.5 bg-white border border-gray-300 rounded px-2 py-0.5 shadow-2xs shrink-0 text-xs text-gray-600 font-medium">
+          <Calendar :size="12" class="text-indigo-600 shrink-0" />
+          <input
+            type="date"
+            :value="customStartDate"
+            class="h-6 px-1 text-[11px] bg-transparent border-0 font-mono text-gray-800 focus:outline-none cursor-pointer"
+            title="Tanggal Mulai"
+            @input="onDateInput('start', ($event.target as HTMLInputElement).value)"
+          />
+          <span class="text-gray-400 text-[11px]">s/d</span>
+          <input
+            type="date"
+            :value="customEndDate"
+            class="h-6 px-1 text-[11px] bg-transparent border-0 font-mono text-gray-800 focus:outline-none cursor-pointer"
+            title="Tanggal Selesai"
+            @input="onDateInput('end', ($event.target as HTMLInputElement).value)"
+          />
+          <button
+            v-if="selectedPeriod === 'custom' || customStartDate || customEndDate"
+            type="button"
+            title="Reset ke bulan ini"
+            class="p-0.5 rounded text-gray-400 hover:text-rose-600 cursor-pointer"
+            @click="setPresetPeriod('month')"
+          >
+            <X :size="11" />
+          </button>
         </div>
 
         <!-- Tombol Export Excel -->
