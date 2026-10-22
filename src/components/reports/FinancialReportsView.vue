@@ -58,8 +58,10 @@ function isNoteExpanded(key: string): boolean {
   return expandedNotes.value.has(key);
 }
 
-type DatePeriod = 'today' | 'week' | 'month' | 'year' | 'all';
+type DatePeriod = 'today' | 'week' | 'month' | 'year' | 'all' | 'custom';
 const selectedPeriod = ref<DatePeriod>('month');
+const customStartDate = ref<string>('');
+const customEndDate = ref<string>('');
 
 // 1. Filter Transactions by Period
 /**
@@ -70,6 +72,7 @@ const selectedPeriod = ref<DatePeriod>('month');
  */
 const periodStartStr = computed<string>(() => {
   if (selectedPeriod.value === 'all') return '';
+  if (selectedPeriod.value === 'custom') return customStartDate.value;
   const now = new Date();
   if (selectedPeriod.value === 'today') return localTodayStr(now);
   if (selectedPeriod.value === 'week') return localDateOffset(7, now);
@@ -84,6 +87,16 @@ const periodStartStr = computed<string>(() => {
 const periodTransactions = computed(() => {
   const txs = ledgerStore.transactions;
   if (selectedPeriod.value === 'all') return txs;
+
+  if (selectedPeriod.value === 'custom') {
+    const start = customStartDate.value;
+    const end = customEndDate.value;
+    return txs.filter(t => {
+      if (start && t.date < start) return false;
+      if (end && t.date > end) return false;
+      return true;
+    });
+  }
 
   const todayStr = localTodayStr();
   const from = periodStartStr.value;
@@ -132,6 +145,19 @@ const nonCashInflow = computed(() => {
 // Sebelumnya memakai seluruh riwayat (all-time) sehingga arus kas untuk
 // periode pendek selalu negatif besar.
 const totalPurchasesCost = computed(() => {
+  if (selectedPeriod.value === 'custom') {
+    const start = customStartDate.value;
+    const end = customEndDate.value;
+    return purchaseStore.purchaseHistory
+      .filter(p => {
+        if (!p?.date) return false;
+        if (start && p.date < start) return false;
+        if (end && p.date > end) return false;
+        return true;
+      })
+      .reduce((acc, p) => acc + (p.totalBuy || 0), 0);
+  }
+
   const from = periodStartStr.value;
   const to = localTodayStr();
   return purchaseStore.purchaseHistory
@@ -488,7 +514,7 @@ async function exportComprehensiveReport() {
   // Sheet 1: Laba Rugi & Arus Kas
   const pnlData = [
     ['LAPORAN KEUANGAN & LABA RUGI - KASIR CITRA'],
-    ['Periode', selectedPeriod.value.toUpperCase()],
+    ['Periode', selectedPeriod.value === 'custom' ? `${customStartDate.value || '...'} s/d ${customEndDate.value || '...'}` : selectedPeriod.value.toUpperCase()],
     ['Tanggal Cetak', new Date().toLocaleString('id-ID')],
     [],
     ['KOMPONEN', 'NOMINAL (RP)'],
@@ -638,18 +664,36 @@ async function exportComprehensiveReport() {
 
       <!-- Sisi Kanan: Period Selector & Export Button -->
       <div class="flex items-center gap-2 shrink-0">
-        <!-- Period Switcher -->
-        <div class="flex bg-gray-200/90 p-0.5 rounded border border-gray-300 shrink-0">
-          <button
-            v-for="p in ([{ id: 'today', l: 'Hari Ini' }, { id: 'week', l: '7 Hari' }, { id: 'month', l: 'Bulan' }, { id: 'all', l: 'Semua' }] as const)"
-            :key="p.id"
-            type="button"
-            @click="selectedPeriod = p.id"
-            class="px-2 py-0.5 rounded text-[11px] font-semibold transition-all cursor-pointer"
-            :class="selectedPeriod === p.id ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
-          >
-            {{ p.l }}
-          </button>
+        <!-- Period Switcher & Custom Date Range -->
+        <div class="flex items-center gap-1.5 shrink-0">
+          <div class="flex bg-gray-200/90 p-0.5 rounded border border-gray-300 shrink-0">
+            <button
+              v-for="p in ([{ id: 'today', l: 'Hari Ini' }, { id: 'week', l: '7 Hari' }, { id: 'month', l: 'Bulan' }, { id: 'all', l: 'Semua' }, { id: 'custom', l: 'Rentang' }] as const)"
+              :key="p.id"
+              type="button"
+              @click="selectedPeriod = p.id"
+              class="px-2 py-0.5 rounded text-[11px] font-semibold transition-all cursor-pointer"
+              :class="selectedPeriod === p.id ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
+            >
+              {{ p.l }}
+            </button>
+          </div>
+
+          <!-- Date Picker Inputs when 'custom' is active -->
+          <div v-if="selectedPeriod === 'custom'" class="flex items-center gap-1 bg-white border border-gray-300 rounded px-2 py-0.5 shadow-2xs shrink-0 text-xs text-gray-600 font-medium">
+            <span>Dari:</span>
+            <input
+              type="date"
+              v-model="customStartDate"
+              class="h-6 px-1 text-[11px] bg-transparent border-0 font-mono text-gray-800 focus:outline-none"
+            />
+            <span class="text-gray-400">s/d</span>
+            <input
+              type="date"
+              v-model="customEndDate"
+              class="h-6 px-1 text-[11px] bg-transparent border-0 font-mono text-gray-800 focus:outline-none"
+            />
+          </div>
         </div>
 
         <!-- Tombol Export Excel -->

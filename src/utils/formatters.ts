@@ -55,6 +55,15 @@ export function localPreviousMonthStr(d: Date = new Date()): string {
 }
 
 /**
+ * Awal bulan berjalan (YYYY-MM-DD) dalam zona waktu lokal.
+ */
+export function localMonthStartStr(d: Date = new Date()): string {
+  const copy = new Date(d.getTime());
+  copy.setDate(1);
+  return localTodayStr(copy);
+}
+
+/**
  * Memastikan nama mitra supplier selalu terisi dengan benar (fallback bila database lama/sinkronisasi sempat kosong)
  */
 export function resolveProductSupplier(prod?: {

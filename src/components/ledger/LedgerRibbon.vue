@@ -10,18 +10,23 @@ import {
   Banknote,
   Landmark,
   QrCode,
-  FileText
+  FileText,
+  Calendar,
+  X
 } from 'lucide-vue-next';
 import { PaymentStatus } from '../../types';
 import SearchableSelect, { type SelectOption } from '../common/SearchableSelect.vue';
+import { localTodayStr, localDateOffset, localMonthStartStr } from '../../utils/formatters';
 
-type LedgerFilterType = 'status' | 'method' | 'market' | 'buyer';
+type LedgerFilterType = 'status' | 'method' | 'market' | 'buyer' | 'date';
 
 const props = defineProps<{
   filterStatus: PaymentStatus | 'Semua';
   filterMethod?: string;
   filterMarket: 'Semua' | 'B2B' | 'B2C';
   filterBuyer: string;
+  filterStartDate?: string;
+  filterEndDate?: string;
   viewMode: 'transactions' | 'items' | 'refunds';
   searchQuery?: string;
   totalTransactionsCount: number;
@@ -43,6 +48,8 @@ const emit = defineEmits<{
   (e: 'update:filterMethod', value: string): void;
   (e: 'update:filterMarket', value: 'Semua' | 'B2B' | 'B2C'): void;
   (e: 'update:filterBuyer', value: string): void;
+  (e: 'update:filterStartDate', value: string): void;
+  (e: 'update:filterEndDate', value: string): void;
   (e: 'update:viewMode', value: 'transactions' | 'items' | 'refunds'): void;
   (e: 'reset-filters'): void;
 }>();
@@ -105,6 +112,17 @@ function onBuyerChange(val: string | number) {
           <Users :size="12" />
           <span>Pelanggan</span>
           <span v-if="filterBuyer !== 'Semua'" class="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
+        </button>
+
+        <button
+          type="button"
+          class="px-2 py-0.5 rounded text-xs font-semibold cursor-pointer transition-all flex items-center gap-1"
+          :class="activeFilterType === 'date' ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
+          @click="activeFilterType = 'date'"
+        >
+          <Calendar :size="12" />
+          <span>Tanggal</span>
+          <span v-if="filterStartDate || filterEndDate" class="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
         </button>
       </div>
 
@@ -277,6 +295,74 @@ function onBuyerChange(val: string | number) {
           size="sm"
           @update:model-value="onBuyerChange"
         />
+      </div>
+
+      <!-- 1.4 Date Range Filter: Rentang Tanggal & Presets -->
+      <div v-else-if="activeFilterType === 'date'" class="flex items-center gap-2 shrink-0">
+        <!-- Quick Presets -->
+        <div class="flex items-center gap-1">
+          <button
+            type="button"
+            class="px-2 py-0.5 rounded text-[11px] font-semibold border transition-all cursor-pointer"
+            :class="!filterStartDate && !filterEndDate ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'"
+            @click="emit('update:filterStartDate', ''); emit('update:filterEndDate', '')"
+          >
+            Semua
+          </button>
+          <button
+            type="button"
+            class="px-2 py-0.5 rounded text-[11px] font-semibold border transition-all cursor-pointer"
+            :class="filterStartDate === localTodayStr() && filterEndDate === localTodayStr() ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'"
+            @click="emit('update:filterStartDate', localTodayStr()); emit('update:filterEndDate', localTodayStr())"
+          >
+            Hari Ini
+          </button>
+          <button
+            type="button"
+            class="px-2 py-0.5 rounded text-[11px] font-semibold border transition-all cursor-pointer"
+            :class="filterStartDate === localDateOffset(7) && filterEndDate === localTodayStr() ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'"
+            @click="emit('update:filterStartDate', localDateOffset(7)); emit('update:filterEndDate', localTodayStr())"
+          >
+            7 Hari
+          </button>
+          <button
+            type="button"
+            class="px-2 py-0.5 rounded text-[11px] font-semibold border transition-all cursor-pointer"
+            :class="filterStartDate === localMonthStartStr() && filterEndDate === localTodayStr() ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'"
+            @click="emit('update:filterStartDate', localMonthStartStr()); emit('update:filterEndDate', localTodayStr())"
+          >
+            Bulan Ini
+          </button>
+        </div>
+
+        <div class="h-4 w-px bg-gray-300"></div>
+
+        <!-- Date Inputs (Dari & S/d) -->
+        <div class="flex items-center gap-1.5 text-xs text-gray-600 font-medium">
+          <span>Dari:</span>
+          <input
+            type="date"
+            :value="filterStartDate"
+            class="h-6 px-1.5 text-[11px] bg-white border border-gray-300 rounded font-mono text-gray-800 focus:outline-none focus:border-indigo-500"
+            @input="emit('update:filterStartDate', ($event.target as HTMLInputElement).value)"
+          />
+          <span>S/d:</span>
+          <input
+            type="date"
+            :value="filterEndDate"
+            class="h-6 px-1.5 text-[11px] bg-white border border-gray-300 rounded font-mono text-gray-800 focus:outline-none focus:border-indigo-500"
+            @input="emit('update:filterEndDate', ($event.target as HTMLInputElement).value)"
+          />
+          <button
+            v-if="filterStartDate || filterEndDate"
+            type="button"
+            title="Hapus filter rentang tanggal"
+            class="p-0.5 rounded text-gray-500 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
+            @click="emit('update:filterStartDate', ''); emit('update:filterEndDate', '')"
+          >
+            <X :size="13" />
+          </button>
+        </div>
       </div>
     </div>
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useLedgerStore } from '../../stores/ledgerStore';
 import { useBuyerStore } from '../../stores/buyerStore';
 import { PaymentStatus, Transaction } from '../../types';
@@ -45,6 +45,9 @@ const filterBuyer = ref<string>('Semua');
 const filterStatus = ref<PaymentStatus | 'Semua'>('Semua');
 const filterMethod = ref<string>('Semua');
 const filterMarket = ref<'Semua' | 'B2B' | 'B2C'>('Semua');
+const filterStartDate = ref<string>('');
+const filterEndDate = ref<string>('');
+const displayLimit = ref<number>(50);
 const viewMode = ref<'transactions' | 'items' | 'refunds'>('transactions');
 const expandedTxIds = ref<Set<string>>(new Set());
 
@@ -65,7 +68,14 @@ const buyerOptions = computed<SelectOption[]>(() => {
 });
 
 const hasActiveFilter = computed(() => {
-  return filterStatus.value !== 'Semua' || filterMethod.value !== 'Semua' || filterMarket.value !== 'Semua' || filterBuyer.value !== 'Semua';
+  return (
+    filterStatus.value !== 'Semua' ||
+    filterMethod.value !== 'Semua' ||
+    filterMarket.value !== 'Semua' ||
+    filterBuyer.value !== 'Semua' ||
+    !!filterStartDate.value ||
+    !!filterEndDate.value
+  );
 });
 
 function resetFilters() {
@@ -73,6 +83,9 @@ function resetFilters() {
   filterMethod.value = 'Semua';
   filterMarket.value = 'Semua';
   filterBuyer.value = 'Semua';
+  filterStartDate.value = '';
+  filterEndDate.value = '';
+  displayLimit.value = 50;
 }
 
 // 3. Ribbon Counts
@@ -86,7 +99,9 @@ const b2bCount = computed(() => ledgerStore.transactions.filter(t => (t.customer
 const b2cCount = computed(() => ledgerStore.transactions.filter(t => t.customerType === 'B2C').length);
 
 // 4. Filtered Data (DRY Helper)
-function matchesCommonFilters(buyer: string, status: PaymentStatus, customerType?: string, paymentMethod?: string): boolean {
+function matchesCommonFilters(date: string, buyer: string, status: PaymentStatus, customerType?: string, paymentMethod?: string): boolean {
+  if (filterStartDate.value && date < filterStartDate.value) return false;
+  if (filterEndDate.value && date > filterEndDate.value) return false;
   const matchBuyer = filterBuyer.value === 'Semua' || buyer === filterBuyer.value;
   const matchStatus = filterStatus.value === 'Semua' || status === filterStatus.value;
   const matchMarket = filterMarket.value === 'Semua' || (customerType || 'B2B') === filterMarket.value;
@@ -97,7 +112,7 @@ function matchesCommonFilters(buyer: string, status: PaymentStatus, customerType
 const filteredTransactions = computed(() => {
   const q = (props.searchQuery || '').toLowerCase().trim();
   return ledgerStore.transactions.filter(t => {
-    if (!matchesCommonFilters(t.buyer, t.paymentStatus, t.customerType, t.paymentMethod)) return false;
+    if (!matchesCommonFilters(t.date, t.buyer, t.paymentStatus, t.customerType, t.paymentMethod)) return false;
     if (!q) return true;
     return (
       t.invoiceNo.toLowerCase().includes(q) ||
@@ -111,7 +126,7 @@ const filteredTransactions = computed(() => {
 const filteredFlatRows = computed(() => {
   const q = (props.searchQuery || '').toLowerCase().trim();
   return ledgerStore.flatLedgerRows.filter(r => {
-    if (!matchesCommonFilters(r.buyer, r.paymentStatus, r.customerType, r.paymentMethod)) return false;
+    if (!matchesCommonFilters(r.date, r.buyer, r.paymentStatus, r.customerType, r.paymentMethod)) return false;
     if (!q) return true;
     return (
       r.invoiceNo.toLowerCase().includes(q) ||
@@ -123,9 +138,39 @@ const filteredFlatRows = computed(() => {
   });
 });
 
-// 5. Expand state management
+// 5. Progressive Loading & Displayed Slices
+const displayedTransactions = computed(() => {
+  return filteredTransactions.value.slice(0, displayLimit.value);
+});
+
+const displayedFlatRows = computed(() => {
+  return filteredFlatRows.value.slice(0, displayLimit.value);
+});
+
+const hasMoreTransactions = computed(() => {
+  return filteredTransactions.value.length > displayLimit.value;
+});
+
+const hasMoreFlatRows = computed(() => {
+  return filteredFlatRows.value.length > displayLimit.value;
+});
+
+function loadMore() {
+  displayLimit.value += 50;
+}
+
+function showAll() {
+  displayLimit.value = Math.max(filteredTransactions.value.length, filteredFlatRows.value.length);
+}
+
+// Reset limit ketika filter atau query pencarian berubah
+watch([filterBuyer, filterStatus, filterMethod, filterMarket, filterStartDate, filterEndDate, () => props.searchQuery, viewMode], () => {
+  displayLimit.value = 50;
+});
+
+// 6. Expand state management
 const isAllExpanded = computed(() => {
-  return filteredTransactions.value.length > 0 && filteredTransactions.value.every(tx => expandedTxIds.value.has(tx.id));
+  return displayedTransactions.value.length > 0 && displayedTransactions.value.every(tx => expandedTxIds.value.has(tx.id));
 });
 
 function toggleTxExpand(id: string) {
@@ -140,7 +185,7 @@ function toggleExpandAll() {
   if (isAllExpanded.value) {
     expandedTxIds.value.clear();
   } else {
-    filteredTransactions.value.forEach(tx => expandedTxIds.value.add(tx.id));
+    displayedTransactions.value.forEach(tx => expandedTxIds.value.add(tx.id));
   }
 }
 
@@ -270,6 +315,8 @@ function handleRefundViewReceipt(invoiceNo: string) {
       v-model:filter-method="filterMethod"
       v-model:filter-market="filterMarket"
       v-model:filter-buyer="filterBuyer"
+      v-model:filter-start-date="filterStartDate"
+      v-model:filter-end-date="filterEndDate"
       v-model:view-mode="viewMode"
       :search-query="props.searchQuery"
       :total-transactions-count="ledgerStore.transactions.length"
@@ -305,7 +352,7 @@ function handleRefundViewReceipt(invoiceNo: string) {
         <!-- Mode 1: Per Nota Transaksi (Modular Table) -->
         <LedgerTransactionsTable
           v-else-if="viewMode === 'transactions'"
-          :transactions="filteredTransactions"
+          :transactions="displayedTransactions"
           :expanded-tx-ids="expandedTxIds"
           :is-all-expanded="isAllExpanded"
           @toggle-expand="toggleTxExpand"
@@ -318,7 +365,7 @@ function handleRefundViewReceipt(invoiceNo: string) {
         <!-- Mode 2: Per Baris Barang Spreadsheet (Modular Table) -->
         <LedgerItemsTable
           v-else-if="viewMode === 'items'"
-          :rows="filteredFlatRows"
+          :rows="displayedFlatRows"
         />
 
         <!-- Mode 3: Riwayat Retur & Refund (Poin 8) -->
@@ -327,6 +374,44 @@ function handleRefundViewReceipt(invoiceNo: string) {
           :search-query="props.searchQuery"
           @view-receipt="handleRefundViewReceipt"
         />
+      </div>
+
+      <!-- Toolbar Pagination / Load More Bar -->
+      <div
+        v-if="(viewMode === 'transactions' && hasMoreTransactions) || (viewMode === 'items' && hasMoreFlatRows)"
+        class="shrink-0 bg-[#faf9f6] border-t border-gray-200 px-4 py-2 flex items-center justify-between text-xs text-gray-600 shadow-2xs select-none"
+      >
+        <div class="flex items-center gap-2 font-medium">
+          <span class="inline-block w-2 h-2 rounded-full bg-indigo-500"></span>
+          <span>
+            Menampilkan
+            <strong class="text-gray-900 font-mono">
+              {{ viewMode === 'transactions' ? displayedTransactions.length : displayedFlatRows.length }}
+            </strong>
+            dari
+            <strong class="text-gray-900 font-mono">
+              {{ viewMode === 'transactions' ? filteredTransactions.length : filteredFlatRows.length }}
+            </strong>
+            {{ viewMode === 'transactions' ? 'nota transaksi' : 'baris rincian barang' }}
+          </span>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button
+            type="button"
+            class="px-3 py-1 rounded bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs cursor-pointer transition-colors shadow-2xs"
+            @click="loadMore"
+          >
+            + Muat 50 Lagi
+          </button>
+          <button
+            type="button"
+            class="px-2.5 py-1 rounded bg-white hover:bg-gray-100 border border-gray-300 text-gray-700 font-semibold text-xs cursor-pointer transition-colors"
+            @click="showAll"
+          >
+            Tampilkan Semua
+          </button>
+        </div>
       </div>
     </div>
 
