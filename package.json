@@ -11,7 +11,7 @@
     "test": "bun test",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
     "test:all": "bun test && cargo test --manifest-path src-tauri/Cargo.toml",
-    "tauri": "cargo tauri",
+    "tauri": "tauri",
     "mobile:dev": "cd mobile && bun run dev",
     "mobile:build": "cd mobile && bun run build",
     "worker:dev": "cd worker && bun run dev",
