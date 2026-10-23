@@ -45,7 +45,6 @@ jobs:
         run: |
           if [ ! -d "src-tauri/gen/android" ]; then
             bun run tauri android init --ci
-            node scripts/install-android-keystore.mjs
           fi
 
       - name: Build APK Release
