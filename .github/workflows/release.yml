@@ -51,6 +51,12 @@ jobs:
         with:
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
+      # 2.1 Install cargo-tauri CLI binary
+      - name: Install Tauri CLI
+        uses: taiki-e/install-action@v2
+        with:
+          tool: tauri-cli
+
       # 3. Cache Rust dependencies
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
