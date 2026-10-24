@@ -1,9 +1,13 @@
-use std::sync::OnceLock;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Once, OnceLock};
 use tokio_postgres::{Client, NoTls};
 
 use crate::tls::{self, SslMode};
 
 static CACHED_DB_URL: OnceLock<String> = OnceLock::new();
+static TLS_UNSUPPORTED: AtomicBool = AtomicBool::new(false);
+static TLS_WARN_ONCE: Once = Once::new();
+static SSL_DISABLE_WARN_ONCE: Once = Once::new();
 
 /// Mencari `DATABASE_URL` dari berbagai sumber:
 /// 1. Environment variable sistem (`std::env::var("DATABASE_URL")`)
@@ -114,10 +118,17 @@ pub async fn get_pg_client() -> Result<Client, String> {
     let clean = tls::strip_ssl_mode(&conn_str);
 
     if mode == SslMode::Disable {
-        eprintln!(
-            "[PG] sslmode=disable — koneksi PostgreSQL TANPA enkripsi. \
-             Jangan gunakan ini di jaringan publik."
-        );
+        SSL_DISABLE_WARN_ONCE.call_once(|| {
+            eprintln!(
+                "[PG] sslmode=disable — koneksi PostgreSQL TANPA enkripsi TLS."
+            );
+        });
+        return connect_plain(&clean).await;
+    }
+
+    // Jika pada percobaan sebelumnya server tidak mendukung TLS, langsung pakai koneksi polos
+    // untuk menghemat latensi handshake dan menghindari spam log.
+    if mode != SslMode::Require && TLS_UNSUPPORTED.load(Ordering::Relaxed) {
         return connect_plain(&clean).await;
     }
 
@@ -133,21 +144,26 @@ pub async fn get_pg_client() -> Result<Client, String> {
                         e
                     ));
                 }
-                eprintln!(
-                    "[PG] Koneksi TLS gagal ({}), mencoba koneksi polos. \
-                     DATA KASIR MENGIRIM MELINTAS JARINGAN TANPA ENKRIPSI.",
-                    e
-                );
+                TLS_UNSUPPORTED.store(true, Ordering::Relaxed);
+                TLS_WARN_ONCE.call_once(|| {
+                    eprintln!(
+                        "[PG] Server database tidak merespons handshake TLS ({}), beralih ke koneksi polos.",
+                        e
+                    );
+                });
             }
         },
         Err(e) => {
             if mode == SslMode::Require {
                 return Err(format!("TLS tidak dapat disiapkan: {}", e));
             }
-            eprintln!(
-                "[PG] TLS tidak dapat disiapkan ({}), memakai koneksi polos.",
-                e
-            );
+            TLS_UNSUPPORTED.store(true, Ordering::Relaxed);
+            TLS_WARN_ONCE.call_once(|| {
+                eprintln!(
+                    "[PG] TLS tidak dapat disiapkan ({}), memakai koneksi polos.",
+                    e
+                );
+            });
         }
     }
 

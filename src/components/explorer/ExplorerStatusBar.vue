@@ -13,6 +13,7 @@ import { formatRupiah } from '../../utils/formatters';
 import { Clock, Timer, Database } from 'lucide-vue-next';
 import { syncService } from '../../services/syncService';
 import SyncStatusModal from '../common/SyncStatusModal.vue';
+import LicenseBadge from '../common/LicenseBadge.vue';
 import type { ModuleTab } from './AppLauncherTab.vue';
 
 defineProps<{
@@ -198,22 +199,28 @@ const liveShiftDurationText = computed(() => {
       <!-- Separator -->
       <span class="text-gray-300 select-none">|</span>
 
+      <!-- Badge Indikator Status Lisensi (Tertaut.com) -->
+      <LicenseBadge />
+
+      <!-- Separator -->
+      <span class="text-gray-300 select-none">|</span>
+
       <!-- Badge Indikator Status Database (Local-First SQLite + Cloud PG Sync) -->
       <button
         type="button"
-        class="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-medium border transition-all cursor-pointer hover:opacity-85 active:scale-95 shadow-2xs select-none"
+        class="flex items-center gap-1.5 px-1 py-0.5 text-[10.5px] font-medium transition-all cursor-pointer hover:opacity-80 active:scale-95 select-none bg-transparent border-0"
         :class="
           syncService.isOnline.value
             ? (syncService.pendingCount.value > 0
-                ? 'bg-amber-500/10 text-amber-700 border-amber-500/25'
-                : 'bg-emerald-500/10 text-emerald-700 border-emerald-500/25')
-            : 'bg-indigo-500/10 text-indigo-700 border-indigo-500/25'
+                ? 'text-amber-700'
+                : 'text-emerald-700')
+            : 'text-indigo-700'
         "
         title="Klik untuk membuka menu Status Database & Hapus Cache"
         @click="showSyncModal = true"
       >
         <span
-          class="w-1.5 h-1.5 rounded-full"
+          class="w-1.5 h-1.5 rounded-full shrink-0"
           :class="
             syncService.isOnline.value
               ? (syncService.pendingCount.value > 0
@@ -223,7 +230,7 @@ const liveShiftDurationText = computed(() => {
           "
         ></span>
         <span class="flex items-center gap-1 font-mono">
-          <Database :size="10" />
+          <Database :size="11" class="shrink-0" />
           <span>
             {{
               syncService.isOnline.value
@@ -240,20 +247,20 @@ const liveShiftDurationText = computed(() => {
 
       <!-- Timer Count (Stopwatch / Durasi Shift Aktif) -->
       <div
-        class="flex items-center gap-1.5 px-2 py-0.5 rounded text-[10.5px] font-mono transition-colors shadow-2xs select-none"
-        :class="shiftStore.isShiftActive ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-gray-100 text-gray-500 border border-gray-200'"
+        class="flex items-center gap-1.5 px-1 py-0.5 text-[10.5px] font-mono select-none"
+        :class="shiftStore.isShiftActive ? 'text-emerald-700' : 'text-gray-400'"
         :title="shiftStore.isShiftActive ? `Timer Durasi Shift Kasir (${liveShiftDurationText})` : 'Shift Kasir Sedang Tutup'"
       >
-        <Timer :size="12" :class="shiftStore.isShiftActive ? 'text-emerald-600 animate-pulse' : 'text-gray-400'" />
+        <Timer :size="12" class="shrink-0" :class="shiftStore.isShiftActive ? 'text-emerald-600 animate-pulse' : 'text-gray-400'" />
         <span class="font-bold tracking-tight">{{ shiftStore.isShiftActive ? liveShiftTimer : '--:--:--' }}</span>
       </div>
 
       <!-- Jam Digital Realtime (Waktu Lokal Sekarang) -->
       <div
-        class="flex items-center gap-1.5 px-2 py-0.5 rounded text-[10.5px] font-mono bg-indigo-50/70 text-indigo-900 border border-indigo-200/80 transition-colors shadow-2xs select-none"
+        class="flex items-center gap-1.5 px-1 py-0.5 text-[10.5px] font-mono text-indigo-700 select-none"
         :title="currentDateTooltip"
       >
-        <Clock :size="12" class="text-indigo-600" />
+        <Clock :size="12" class="text-indigo-600 shrink-0" />
         <span class="font-bold tracking-wider">{{ currentTimeStr }}</span>
       </div>
     </div>

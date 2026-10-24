@@ -10,6 +10,7 @@ import {
   Store
 } from 'lucide-vue-next';
 
+
 const settingsStore = useSettingsStore();
 
 const isMaximized = ref(false);

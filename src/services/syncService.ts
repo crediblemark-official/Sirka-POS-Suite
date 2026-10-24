@@ -10,17 +10,17 @@ export interface SyncStatus {
 }
 
 // Reactive status for Vue components (e.g. AppTitleBar, ExplorerToolbar, etc.)
-const isOnline = ref<boolean>(false);
-const pendingCount = ref<number>(0);
-const isSyncing = ref<boolean>(false);
-const lastSyncAt = ref<Date | null>(null);
-const lastError = ref<string | null>(null);
+export const isOnline = ref<boolean>(false);
+export const pendingCount = ref<number>(0);
+export const isSyncing = ref<boolean>(false);
+export const lastSyncAt = ref<Date | null>(null);
+export const lastError = ref<string | null>(null);
 
 let pollTimer: any = null;
 let onlineListener: (() => void) | null = null;
 let focusListener: (() => void) | null = null;
 
-async function refreshStatus(): Promise<void> {
+export async function refreshStatus(): Promise<void> {
   try {
     const res = await dbService.getSyncStatus();
     isOnline.value = res.is_online;
@@ -35,7 +35,7 @@ async function refreshStatus(): Promise<void> {
   }
 }
 
-async function triggerSync(): Promise<void> {
+export async function triggerSync(): Promise<void> {
   if (isSyncing.value) return;
   isSyncing.value = true;
   try {
@@ -54,7 +54,7 @@ async function triggerSync(): Promise<void> {
   }
 }
 
-async function resetCache(): Promise<void> {
+export async function resetCache(): Promise<void> {
   if (isSyncing.value) return;
   isSyncing.value = true;
   try {
@@ -73,7 +73,7 @@ async function resetCache(): Promise<void> {
   }
 }
 
-function startPolling(intervalMs = 4000) {
+export function startPolling(intervalMs = 4000) {
   if (pollTimer) return;
   refreshStatus();
 
@@ -100,7 +100,7 @@ function startPolling(intervalMs = 4000) {
   }, intervalMs);
 }
 
-function stopPolling() {
+export function stopPolling() {
   if (pollTimer) {
     clearInterval(pollTimer);
     pollTimer = null;
@@ -122,6 +122,25 @@ if (typeof window !== 'undefined') {
   startPolling();
 }
 
+/**
+ * BUG FIX: `enqueue()` sebelumnya membuang kedua argumennya sehingga seluruh
+ * fallback offline pada store (transaksi, pembeli, pre-order, kulakan, produk)
+ * TIDAK pernah mengantre data — data hilang begitu aplikasi direstart.
+ * Sekarang payload benar-benar ditulis ke tabel `sync_outbox` (SQLite) dan
+ * akan dikirim ke cloud saat koneksi tersedia.
+ */
+export function enqueue(action: string, payload: any) {
+  dbService
+    .enqueueOutbox(action, payload ?? {})
+    .then(() => {
+      refreshStatus();
+      triggerSync().catch(() => {});
+    })
+    .catch((err: any) => {
+      console.warn(`[SyncService] Gagal mengantre "${action}" ke outbox:`, err);
+    });
+}
+
 export const syncService = {
   isOnline,
   pendingCount,
@@ -133,22 +152,5 @@ export const syncService = {
   resetCache,
   startPolling,
   stopPolling,
-  /**
-   * BUG FIX: `enqueue()` sebelumnya membuang kedua argumennya sehingga seluruh
-   * fallback offline pada store (transaksi, pembeli, pre-order, kulakan, produk)
-   * TIDAK pernah mengantre data — data hilang begitu aplikasi direstart.
-   * Sekarang payload benar-benar ditulis ke tabel `sync_outbox` (SQLite) dan
-   * akan dikirim ke cloud saat koneksi tersedia.
-   */
-  enqueue: (action: string, payload: any) => {
-    dbService
-      .enqueueOutbox(action, payload ?? {})
-      .then(() => {
-        refreshStatus();
-        triggerSync().catch(() => {});
-      })
-      .catch((err: any) => {
-        console.warn(`[SyncService] Gagal mengantre "${action}" ke outbox:`, err);
-      });
-  }
+  enqueue,
 };

@@ -67,6 +67,14 @@ const cashModalState = ref<{
   fromAccount: 'TUNAI'
 });
 
+function openMutationModal(account?: CashAccountType) {
+  cashModalState.value = {
+    isOpen: true,
+    tab: 'EXPENSE',
+    fromAccount: account || 'TUNAI'
+  };
+}
+
 function openExpenseModal(account?: CashAccountType) {
   cashModalState.value = {
     isOpen: true,
@@ -364,6 +372,7 @@ function handleRefundViewReceipt(invoiceNo: string) {
       :mutations-count="cashStore.mutations.length"
       :buyer-options="buyerOptions"
       :has-active-filter="hasActiveFilter"
+      @open-mutation="openMutationModal"
       @open-expense="openExpenseModal"
       @open-transfer="openTransferModal"
       @reset-filters="resetFilters"
@@ -416,6 +425,7 @@ function handleRefundViewReceipt(invoiceNo: string) {
           :filter-start-date="filterStartDate"
           :filter-end-date="filterEndDate"
           :search-query="props.searchQuery"
+          @open-mutation="openMutationModal"
           @open-expense="openExpenseModal"
           @open-transfer="openTransferModal"
         />

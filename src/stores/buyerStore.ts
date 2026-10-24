@@ -254,6 +254,40 @@ export const useBuyerStore = defineStore('buyer', () => {
     return 'REGULAR';
   }
 
+  /**
+   * Enkapsulasi: Catat mutasi poin & akumulasi belanja member akibat transaksi kasir.
+   */
+  function recordPurchase(
+    buyerId: string,
+    spendAmount: number,
+    pointsEarned: number = 0,
+    pointsUsed: number = 0
+  ) {
+    const b = buyers.value.find(x => x.id === buyerId);
+    if (!b) return;
+    b.points = Math.max(0, (b.points || 0) - pointsUsed + pointsEarned);
+    b.totalSpend = (b.totalSpend || 0) + spendAmount;
+    b.tier = computeTierFromSpend(b.totalSpend);
+    saveLocal();
+  }
+
+  /**
+   * Enkapsulasi: Balikkan mutasi poin & akumulasi belanja member (mis. saat retur/pembatalan).
+   */
+  function revertPurchase(
+    buyerId: string,
+    spendAmount: number,
+    pointsEarned: number = 0,
+    pointsUsed: number = 0
+  ) {
+    const b = buyers.value.find(x => x.id === buyerId);
+    if (!b) return;
+    b.points = Math.max(0, (b.points || 0) + pointsUsed - pointsEarned);
+    b.totalSpend = Math.max(0, (b.totalSpend || 0) - spendAmount);
+    b.tier = computeTierFromSpend(b.totalSpend);
+    saveLocal();
+  }
+
   return {
     showMemberDrawer,
     showBuyerSidebar,
@@ -272,6 +306,8 @@ export const useBuyerStore = defineStore('buyer', () => {
     deleteBuyer,
     updateLoyaltySettings,
     computeTierFromSpend,
+    recordPurchase,
+    revertPurchase,
     saveLocal
   };
 });

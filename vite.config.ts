@@ -29,4 +29,27 @@ export default defineConfig(() => ({
       ignored: ["**/src-tauri/**"],
     },
   },
+  build: {
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('xlsx')) {
+              return 'vendor-xlsx';
+            }
+            if (id.includes('lucide-vue-next')) {
+              return 'vendor-icons';
+            }
+            if (id.includes('qrcode') || id.includes('jsbarcode') || id.includes('html5-qrcode') || id.includes('jsqr')) {
+              return 'vendor-barcode';
+            }
+            if (id.includes('@tertaut/sdk')) {
+              return 'vendor-license';
+            }
+          }
+        },
+      },
+    },
+  },
 }));

@@ -315,6 +315,39 @@ export const useInventoryStore = defineStore('inventory', () => {
     saveLocal();
   }
 
+  /**
+   * Enkapsulasi: Kurangi stok produk saat transaksi penjualan.
+   * Mengembalikan snapshot status stok sebelum dan sesudah untuk audit log.
+   */
+  function deductStock(
+    productId: string,
+    qtyToDeduct: number,
+    lastSellPrice?: number
+  ): { product: Product; stockBefore: number; stockAfter: number } | null {
+    const prod = products.value.find(p => p.id === productId);
+    if (!prod) return null;
+    const stockBefore = prod.stock;
+    prod.stock = Math.max(0, Number((prod.stock - qtyToDeduct).toFixed(4)));
+    if (lastSellPrice !== undefined && lastSellPrice > 0) {
+      prod.lastSellPrice = lastSellPrice;
+    }
+    return { product: prod, stockBefore, stockAfter: prod.stock };
+  }
+
+  /**
+   * Enkapsulasi: Kembalikan stok produk (misalnya saat pembatalan atau retur).
+   */
+  function restoreStock(
+    productId: string,
+    qtyToRestore: number
+  ): { product: Product; stockBefore: number; stockAfter: number } | null {
+    const prod = products.value.find(p => p.id === productId);
+    if (!prod) return null;
+    const stockBefore = prod.stock;
+    prod.stock = Number((prod.stock + qtyToRestore).toFixed(4));
+    return { product: prod, stockBefore, stockAfter: prod.stock };
+  }
+
   return {
     showProductSidebar,
     activeProductForSidebar,
@@ -336,6 +369,8 @@ export const useInventoryStore = defineStore('inventory', () => {
     updateProduct,
     deleteProduct,
     resetToDefaults,
+    deductStock,
+    restoreStock,
     saveLocal,
   };
 });

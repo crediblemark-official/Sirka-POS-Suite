@@ -14,13 +14,37 @@ import {
   Trash2,
   Phone,
   MapPin,
-  RefreshCw
+  RefreshCw,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-vue-next';
 import FormSidebarDrawer from '../common/FormSidebarDrawer.vue';
 import AppEmptyState from '../common/AppEmptyState.vue';
 import MetricStatsStrip, { MetricStatItem } from '../common/MetricStatsStrip.vue';
 import SearchableSelect, { type SelectOption } from '../common/SearchableSelect.vue';
 import { useConfirmDialog } from '../../composables/useConfirmDialog';
+
+type BuyerSortField = 'code' | 'name' | 'customerType' | 'phone' | 'address' | 'memberCardNo' | 'tier';
+type SortDirection = 'asc' | 'desc';
+
+const sortField = ref<BuyerSortField>('name');
+const sortDirection = ref<SortDirection>('asc');
+
+function toggleSort(field: BuyerSortField) {
+  if (sortField.value === field) {
+    sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortField.value = field;
+    sortDirection.value = 'asc';
+  }
+}
+
+const tierOrder: Record<string, number> = {
+  'REGULAR': 1,
+  'SILVER': 2,
+  'GOLD': 3,
+  'PLATINUM': 4
+};
 
 const tierOptions: SelectOption[] = [
   { value: 'REGULAR', label: 'REGULAR', badge: '1x Poin' },
@@ -173,6 +197,38 @@ const filteredBuyers = computed(() => {
     (b.address && norm(b.address).includes(q)) ||
     (b.memberCardNo && norm(b.memberCardNo).includes(q))
   );
+});
+
+const sortedBuyers = computed(() => {
+  const list = [...filteredBuyers.value];
+  const field = sortField.value;
+  const dir = sortDirection.value === 'asc' ? 1 : -1;
+
+  list.sort((a, b) => {
+    switch (field) {
+      case 'code':
+        return dir * (a.code || '').localeCompare(b.code || '');
+      case 'name':
+        return dir * (a.name || '').localeCompare(b.name || '');
+      case 'customerType':
+        return dir * (a.customerType || '').localeCompare(b.customerType || '');
+      case 'phone':
+        return dir * (a.phone || '').localeCompare(b.phone || '');
+      case 'address':
+        return dir * (a.address || '').localeCompare(b.address || '');
+      case 'memberCardNo':
+        return dir * (a.memberCardNo || '').localeCompare(b.memberCardNo || '');
+      case 'tier': {
+        const orderA = tierOrder[a.tier || ''] || 0;
+        const orderB = tierOrder[b.tier || ''] || 0;
+        return dir * (orderA - orderB);
+      }
+      default:
+        return 0;
+    }
+  });
+
+  return list;
 });
 
 function handleOpenAdd(defaultType: CustomerType = 'B2B') {
@@ -402,25 +458,102 @@ defineExpose({
             description="Klik tombol Tambah Pelanggan untuk mendaftarkan kontak baru."
           />
 
-          <table v-else class="table-explorer" :class="showBuyerDrawer ? 'min-w-[700px]' : ''">
+          <table v-else class="table-explorer whitespace-nowrap" :class="showBuyerDrawer ? 'min-w-[700px]' : ''">
             <thead>
               <tr>
-                <th class="w-24">KODE</th>
-                <th>NAMA PELANGGAN</th>
-                <th class="w-28 text-center">TIPE PASAR</th>
-                <th class="w-36">NO. WHATSAPP</th>
-                <th>ALAMAT PENGIRIMAN</th>
-                <th class="w-32 text-center">KARTU MEMBER</th>
-                <th class="w-24 text-center">TIER</th>
+                <th
+                  class="is-sortable w-24"
+                  :class="{ 'is-sorted': sortField === 'code' }"
+                  title="Klik untuk mengurutkan kode"
+                  @click="toggleSort('code')"
+                >
+                  <div class="flex items-center gap-1.5">
+                    <span>KODE</span>
+                    <ArrowUp v-if="sortField === 'code' && sortDirection === 'asc'" :size="12" class="text-purple-600 shrink-0" />
+                    <ArrowDown v-else-if="sortField === 'code' && sortDirection === 'desc'" :size="12" class="text-purple-600 shrink-0" />
+                  </div>
+                </th>
+                <th
+                  class="is-sortable"
+                  :class="{ 'is-sorted': sortField === 'name' }"
+                  title="Klik untuk mengurutkan nama pelanggan"
+                  @click="toggleSort('name')"
+                >
+                  <div class="flex items-center gap-1.5">
+                    <span>NAMA PELANGGAN</span>
+                    <ArrowUp v-if="sortField === 'name' && sortDirection === 'asc'" :size="12" class="text-purple-600 shrink-0" />
+                    <ArrowDown v-else-if="sortField === 'name' && sortDirection === 'desc'" :size="12" class="text-purple-600 shrink-0" />
+                  </div>
+                </th>
+                <th
+                  class="is-sortable w-28 text-center"
+                  :class="{ 'is-sorted': sortField === 'customerType' }"
+                  title="Klik untuk mengurutkan tipe pasar"
+                  @click="toggleSort('customerType')"
+                >
+                  <div class="flex items-center justify-center gap-1.5">
+                    <span>TIPE PASAR</span>
+                    <ArrowUp v-if="sortField === 'customerType' && sortDirection === 'asc'" :size="12" class="text-purple-600 shrink-0" />
+                    <ArrowDown v-else-if="sortField === 'customerType' && sortDirection === 'desc'" :size="12" class="text-purple-600 shrink-0" />
+                  </div>
+                </th>
+                <th
+                  class="is-sortable w-36"
+                  :class="{ 'is-sorted': sortField === 'phone' }"
+                  title="Klik untuk mengurutkan no. telepon"
+                  @click="toggleSort('phone')"
+                >
+                  <div class="flex items-center gap-1.5">
+                    <span>NO. WHATSAPP</span>
+                    <ArrowUp v-if="sortField === 'phone' && sortDirection === 'asc'" :size="12" class="text-purple-600 shrink-0" />
+                    <ArrowDown v-else-if="sortField === 'phone' && sortDirection === 'desc'" :size="12" class="text-purple-600 shrink-0" />
+                  </div>
+                </th>
+                <th
+                  class="is-sortable"
+                  :class="{ 'is-sorted': sortField === 'address' }"
+                  title="Klik untuk mengurutkan alamat"
+                  @click="toggleSort('address')"
+                >
+                  <div class="flex items-center gap-1.5">
+                    <span>ALAMAT PENGIRIMAN</span>
+                    <ArrowUp v-if="sortField === 'address' && sortDirection === 'asc'" :size="12" class="text-purple-600 shrink-0" />
+                    <ArrowDown v-else-if="sortField === 'address' && sortDirection === 'desc'" :size="12" class="text-purple-600 shrink-0" />
+                  </div>
+                </th>
+                <th
+                  class="is-sortable w-32 text-center"
+                  :class="{ 'is-sorted': sortField === 'memberCardNo' }"
+                  title="Klik untuk mengurutkan no. kartu member"
+                  @click="toggleSort('memberCardNo')"
+                >
+                  <div class="flex items-center justify-center gap-1.5">
+                    <span>KARTU MEMBER</span>
+                    <ArrowUp v-if="sortField === 'memberCardNo' && sortDirection === 'asc'" :size="12" class="text-purple-600 shrink-0" />
+                    <ArrowDown v-else-if="sortField === 'memberCardNo' && sortDirection === 'desc'" :size="12" class="text-purple-600 shrink-0" />
+                  </div>
+                </th>
+                <th
+                  class="is-sortable w-24 text-center"
+                  :class="{ 'is-sorted': sortField === 'tier' }"
+                  title="Klik untuk mengurutkan tier"
+                  @click="toggleSort('tier')"
+                >
+                  <div class="flex items-center justify-center gap-1.5">
+                    <span>TIER</span>
+                    <ArrowUp v-if="sortField === 'tier' && sortDirection === 'asc'" :size="12" class="text-purple-600 shrink-0" />
+                    <ArrowDown v-else-if="sortField === 'tier' && sortDirection === 'desc'" :size="12" class="text-purple-600 shrink-0" />
+                  </div>
+                </th>
                 <!-- Sticky Action Header -->
                 <th class="th-action-sticky w-20 text-center">AKSI</th>
               </tr>
             </thead>
             <tbody class="font-mono">
               <tr
-                v-for="buyer in filteredBuyers"
+                v-for="buyer in sortedBuyers"
                 :key="buyer.id"
-                class="cursor-pointer group font-sans"
+                class="cursor-pointer group font-sans whitespace-nowrap"
                 :class="activeBuyerId === buyer.id && showBuyerDrawer ? 'bg-purple-50/90 font-medium' : ''"
                 @click="handleOpenEdit(buyer)"
               >
@@ -435,11 +568,11 @@ defineExpose({
                   {{ buyer.code || '—' }}
                 </td>
 
-                <td class="font-bold text-gray-900 group-hover:text-purple-900 truncate">
-                  <div class="flex items-center gap-1.5">
+                <td class="font-bold text-gray-900 group-hover:text-purple-900 truncate whitespace-nowrap">
+                  <div class="flex items-center gap-1.5 whitespace-nowrap">
                     <Building v-if="buyer.customerType === 'B2B'" :size="13" class="text-indigo-600 shrink-0" />
                     <ShoppingBag v-else :size="13" class="text-teal-600 shrink-0" />
-                    <span class="truncate">{{ buyer.name }}</span>
+                    <span class="truncate whitespace-nowrap">{{ buyer.name }}</span>
                   </div>
                 </td>
 

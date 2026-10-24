@@ -1,4 +1,3 @@
-use crate::db::get_pg_client;
 use crate::local_db::{get_conn, local_get_settings, local_update_setting};
 use crate::models::StoreSettingRecord;
 
@@ -19,24 +18,6 @@ pub async fn db_update_setting(key: String, value: String) -> Result<(), String>
     tauri::async_runtime::spawn(async move {
         let _ = crate::sync::run_sync_cycle().await;
     });
-
-    Ok(())
-}
-
-// -------------------------------------------------------------
-// POSTGRES DIRECT METHODS
-// -------------------------------------------------------------
-pub async fn pg_update_setting(key: String, value: String) -> Result<(), String> {
-    let client = get_pg_client().await?;
-    client
-        .execute(
-            "INSERT INTO store_settings (key, value, updated_at)
-             VALUES ($1, $2, NOW())
-             ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()",
-            &[&key, &value],
-        )
-        .await
-        .map_err(|e| format!("Gagal menyimpan pengaturan ke PostgreSQL {}: {}", key, e))?;
 
     Ok(())
 }

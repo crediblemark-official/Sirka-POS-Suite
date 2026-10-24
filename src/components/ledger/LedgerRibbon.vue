@@ -12,8 +12,7 @@ import {
   QrCode,
   FileText,
   Calendar,
-  ArrowDownRight,
-  ArrowLeftRight
+  Plus
 } from 'lucide-vue-next';
 import { PaymentStatus } from '../../types';
 import SearchableSelect, { type SelectOption } from '../common/SearchableSelect.vue';
@@ -53,6 +52,7 @@ const emit = defineEmits<{
   (e: 'update:filterStartDate', value: string): void;
   (e: 'update:filterEndDate', value: string): void;
   (e: 'update:viewMode', value: 'transactions' | 'items' | 'refunds' | 'mutations'): void;
+  (e: 'open-mutation'): void;
   (e: 'open-expense'): void;
   (e: 'open-transfer'): void;
   (e: 'reset-filters'): void;
@@ -66,64 +66,52 @@ function onBuyerChange(val: string | number) {
 </script>
 
 <template>
-  <div
-    v-horizontal-scroll
-    class="h-10 relative z-30 flex items-center justify-between bg-[#f6f5f2] border-b border-gray-200 px-3 select-none shrink-0 gap-2 overflow-x-auto no-scrollbar"
-  >
+  <div v-horizontal-scroll
+    class="h-10 relative z-30 flex items-center justify-between bg-[#f6f5f2] border-b border-gray-200 px-3 select-none shrink-0 gap-2 overflow-x-auto no-scrollbar">
     <!-- Sisi Kiri: Switcher Tab Jenis Filter + Pill Opsi -->
     <div class="flex items-center gap-2 shrink-0">
       <!-- Tab Pilihan Jenis Filter -->
       <div class="flex bg-gray-200/90 p-0.5 rounded border border-gray-300 shrink-0">
-        <button
-          type="button"
+        <button type="button"
           class="px-2 py-0.5 rounded text-xs font-semibold cursor-pointer transition-all flex items-center gap-1"
           :class="activeFilterType === 'status' ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
-          @click="activeFilterType = 'status'"
-        >
+          @click="activeFilterType = 'status'">
           <Clock :size="12" />
           <span>Status</span>
           <span v-if="filterStatus !== 'Semua'" class="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
         </button>
 
-        <button
-          type="button"
+        <button type="button"
           class="px-2 py-0.5 rounded text-xs font-semibold cursor-pointer transition-all flex items-center gap-1"
           :class="activeFilterType === 'method' ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
-          @click="activeFilterType = 'method'"
-        >
+          @click="activeFilterType = 'method'">
           <CreditCard :size="12" />
           <span>Metode</span>
           <span v-if="filterMethod && filterMethod !== 'Semua'" class="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
         </button>
 
-        <button
-          type="button"
+        <button type="button"
           class="px-2 py-0.5 rounded text-xs font-semibold cursor-pointer transition-all flex items-center gap-1"
           :class="activeFilterType === 'market' ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
-          @click="activeFilterType = 'market'"
-        >
+          @click="activeFilterType = 'market'">
           <Building :size="12" />
           <span>Pasar</span>
           <span v-if="filterMarket !== 'Semua'" class="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
         </button>
 
-        <button
-          type="button"
+        <button type="button"
           class="px-2 py-0.5 rounded text-xs font-semibold cursor-pointer transition-all flex items-center gap-1"
           :class="activeFilterType === 'buyer' ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
-          @click="activeFilterType = 'buyer'"
-        >
+          @click="activeFilterType = 'buyer'">
           <Users :size="12" />
           <span>Pelanggan</span>
           <span v-if="filterBuyer !== 'Semua'" class="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
         </button>
 
-        <button
-          type="button"
+        <button type="button"
           class="px-2 py-0.5 rounded text-xs font-semibold cursor-pointer transition-all flex items-center gap-1"
           :class="activeFilterType === 'date' ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
-          @click="activeFilterType = 'date'"
-        >
+          @click="activeFilterType = 'date'">
           <Calendar :size="12" />
           <span>Tanggal</span>
           <span v-if="filterStartDate || filterEndDate" class="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
@@ -134,40 +122,37 @@ function onBuyerChange(val: string | number) {
 
       <!-- 1.1 Pill Options: Status Pembayaran -->
       <div v-if="activeFilterType === 'status'" class="flex items-center gap-1 shrink-0">
-        <button
-          type="button"
+        <button type="button"
           class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1"
           :class="filterStatus === 'Semua' ? 'bg-indigo-600 text-white font-bold shadow-2xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
-          @click="emit('update:filterStatus', 'Semua')"
-        >
+          @click="emit('update:filterStatus', 'Semua')">
           <span>Semua Status</span>
-          <span class="text-[10px] px-1 rounded-full" :class="filterStatus === 'Semua' ? 'bg-indigo-700 text-white' : 'bg-gray-100 text-gray-600'">
+          <span class="text-[10px] px-1 rounded-full"
+            :class="filterStatus === 'Semua' ? 'bg-indigo-700 text-white' : 'bg-gray-100 text-gray-600'">
             {{ totalTransactionsCount }}
           </span>
         </button>
 
-        <button
-          type="button"
+        <button type="button"
           class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1"
           :class="filterStatus === 'LUNAS' ? 'bg-emerald-600 text-white font-bold shadow-2xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
-          @click="emit('update:filterStatus', 'LUNAS')"
-        >
+          @click="emit('update:filterStatus', 'LUNAS')">
           <span class="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span>
           <span>Lunas</span>
-          <span class="text-[10px] px-1 rounded-full" :class="filterStatus === 'LUNAS' ? 'bg-emerald-700 text-white' : 'bg-gray-100 text-gray-600'">
+          <span class="text-[10px] px-1 rounded-full"
+            :class="filterStatus === 'LUNAS' ? 'bg-emerald-700 text-white' : 'bg-gray-100 text-gray-600'">
             {{ lunasCount }}
           </span>
         </button>
 
-        <button
-          type="button"
+        <button type="button"
           class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1"
           :class="filterStatus === 'TEMPO' ? 'bg-amber-600 text-white font-bold shadow-2xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
-          @click="emit('update:filterStatus', 'TEMPO')"
-        >
+          @click="emit('update:filterStatus', 'TEMPO')">
           <span class="w-2 h-2 rounded-full bg-amber-300 inline-block"></span>
           <span>Bon / Utang (Tempo)</span>
-          <span class="text-[10px] px-1 rounded-full" :class="filterStatus === 'TEMPO' ? 'bg-amber-700 text-white' : 'bg-amber-50 text-amber-900 border border-amber-200 font-bold'">
+          <span class="text-[10px] px-1 rounded-full"
+            :class="filterStatus === 'TEMPO' ? 'bg-amber-700 text-white' : 'bg-amber-50 text-amber-900 border border-amber-200 font-bold'">
             {{ tempoCount }}
           </span>
         </button>
@@ -175,14 +160,14 @@ function onBuyerChange(val: string | number) {
 
       <!-- 1.2 Pill Options: Metode Bayar -->
       <div v-else-if="activeFilterType === 'method'" class="flex items-center gap-1 shrink-0">
-        <button
-          type="button"
-          class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1"
+        <button type="button"
+          class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1.5"
           :class="filterMethod === 'Semua' ? 'bg-indigo-600 text-white font-bold shadow-2xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
-          @click="emit('update:filterMethod', 'Semua')"
-        >
-          <span>Semua Metode</span>
-          <span class="text-[10px] px-1 rounded-full" :class="filterMethod === 'Semua' ? 'bg-indigo-700 text-white' : 'bg-gray-100 text-gray-600'">
+          title="Semua Metode" @click="emit('update:filterMethod', 'Semua')">
+          <CreditCard :size="13" />
+          <span v-if="filterMethod === 'Semua'">Semua Metode</span>
+          <span class="text-[10px] px-1 rounded-full font-mono"
+            :class="filterMethod === 'Semua' ? 'bg-indigo-700 text-white' : 'bg-gray-100 text-gray-600'">
             <!--
               BUG FIX: pill "Semua Metode" menampilkan total transaksi SEMUA,
               sementara pill-method di sebelahnya menampilkan jumlah per
@@ -193,54 +178,50 @@ function onBuyerChange(val: string | number) {
           </span>
         </button>
 
-        <button
-          type="button"
-          class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1"
+        <button type="button"
+          class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1.5"
           :class="filterMethod === 'Tunai / Kas' ? 'bg-emerald-600 text-white font-bold shadow-2xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
-          @click="emit('update:filterMethod', 'Tunai / Kas')"
-        >
-          <Banknote :size="11" />
-          <span>Tunai</span>
-          <span class="text-[10px] px-1 rounded-full" :class="filterMethod === 'Tunai / Kas' ? 'bg-emerald-700 text-white' : 'bg-gray-100 text-gray-600'">
+          title="Tunai" @click="emit('update:filterMethod', 'Tunai / Kas')">
+          <Banknote :size="13" />
+          <span v-if="filterMethod === 'Tunai / Kas'">Tunai</span>
+          <span class="text-[10px] px-1 rounded-full font-mono"
+            :class="filterMethod === 'Tunai / Kas' ? 'bg-emerald-700 text-white' : 'bg-gray-100 text-gray-600'">
             {{ tunaiCount ?? 0 }}
           </span>
         </button>
 
-        <button
-          type="button"
-          class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1"
+        <button type="button"
+          class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1.5"
           :class="filterMethod === 'Transfer Bank' ? 'bg-blue-600 text-white font-bold shadow-2xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
-          @click="emit('update:filterMethod', 'Transfer Bank')"
-        >
-          <Landmark :size="11" />
-          <span>Transfer</span>
-          <span class="text-[10px] px-1 rounded-full" :class="filterMethod === 'Transfer Bank' ? 'bg-blue-700 text-white' : 'bg-gray-100 text-gray-600'">
+          title="Transfer" @click="emit('update:filterMethod', 'Transfer Bank')">
+          <Landmark :size="13" />
+          <span v-if="filterMethod === 'Transfer Bank'">Transfer</span>
+          <span class="text-[10px] px-1 rounded-full font-mono"
+            :class="filterMethod === 'Transfer Bank' ? 'bg-blue-700 text-white' : 'bg-gray-100 text-gray-600'">
             {{ transferCount ?? 0 }}
           </span>
         </button>
 
-        <button
-          type="button"
-          class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1"
+        <button type="button"
+          class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1.5"
           :class="filterMethod === 'QRIS' ? 'bg-purple-600 text-white font-bold shadow-2xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
-          @click="emit('update:filterMethod', 'QRIS')"
-        >
-          <QrCode :size="11" />
-          <span>QRIS</span>
-          <span class="text-[10px] px-1 rounded-full" :class="filterMethod === 'QRIS' ? 'bg-purple-700 text-white' : 'bg-gray-100 text-gray-600'">
+          title="QRIS" @click="emit('update:filterMethod', 'QRIS')">
+          <QrCode :size="13" />
+          <span v-if="filterMethod === 'QRIS'">QRIS</span>
+          <span class="text-[10px] px-1 rounded-full font-mono"
+            :class="filterMethod === 'QRIS' ? 'bg-purple-700 text-white' : 'bg-gray-100 text-gray-600'">
             {{ qrisCount ?? 0 }}
           </span>
         </button>
 
-        <button
-          type="button"
-          class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1"
+        <button type="button"
+          class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1.5"
           :class="filterMethod === 'Nota Tempo' ? 'bg-amber-600 text-white font-bold shadow-2xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
-          @click="emit('update:filterMethod', 'Nota Tempo')"
-        >
-          <FileText :size="11" />
-          <span>Nota Tempo</span>
-          <span class="text-[10px] px-1 rounded-full" :class="filterMethod === 'Nota Tempo' ? 'bg-amber-700 text-white' : 'bg-gray-100 text-gray-600'">
+          title="Nota Tempo" @click="emit('update:filterMethod', 'Nota Tempo')">
+          <FileText :size="13" />
+          <span v-if="filterMethod === 'Nota Tempo'">Nota Tempo</span>
+          <span class="text-[10px] px-1 rounded-full font-mono"
+            :class="filterMethod === 'Nota Tempo' ? 'bg-amber-700 text-white' : 'bg-gray-100 text-gray-600'">
             {{ notaTempoCount ?? 0 }}
           </span>
         </button>
@@ -248,42 +229,39 @@ function onBuyerChange(val: string | number) {
 
       <!-- 1.3 Pill Options: Jenis Pasar -->
       <div v-else-if="activeFilterType === 'market'" class="flex items-center gap-1 shrink-0">
-        <button
-          type="button"
+        <button type="button"
           class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1"
           :class="filterMarket === 'Semua' ? 'bg-gray-800 text-white font-bold shadow-2xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
-          @click="emit('update:filterMarket', 'Semua')"
-        >
+          @click="emit('update:filterMarket', 'Semua')">
           <span>Semua Transaksi</span>
-          <span class="text-[10px] px-1 rounded-full" :class="filterMarket === 'Semua' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600'">
+          <span class="text-[10px] px-1 rounded-full"
+            :class="filterMarket === 'Semua' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600'">
             <!-- BUG FIX: samakan dengan pill B2B + B2C (dulu memakai total
                  transaksi SEMUA termasuk yang tidak terfilter). -->
             {{ b2bCount + b2cCount }}
           </span>
         </button>
 
-        <button
-          type="button"
+        <button type="button"
           class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1"
           :class="filterMarket === 'B2B' ? 'bg-indigo-600 text-white font-bold shadow-2xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
-          @click="emit('update:filterMarket', 'B2B')"
-        >
+          @click="emit('update:filterMarket', 'B2B')">
           <Building :size="11" />
           <span>Grosir (B2B)</span>
-          <span class="text-[10px] px-1 rounded-full" :class="filterMarket === 'B2B' ? 'bg-indigo-700 text-white' : 'bg-gray-100 text-gray-600'">
+          <span class="text-[10px] px-1 rounded-full"
+            :class="filterMarket === 'B2B' ? 'bg-indigo-700 text-white' : 'bg-gray-100 text-gray-600'">
             {{ b2bCount }}
           </span>
         </button>
 
-        <button
-          type="button"
+        <button type="button"
           class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1"
           :class="filterMarket === 'B2C' ? 'bg-teal-600 text-white font-bold shadow-2xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
-          @click="emit('update:filterMarket', 'B2C')"
-        >
+          @click="emit('update:filterMarket', 'B2C')">
           <UserCheck :size="11" />
           <span>Eceran (B2C)</span>
-          <span class="text-[10px] px-1 rounded-full" :class="filterMarket === 'B2C' ? 'bg-teal-700 text-white' : 'bg-gray-100 text-gray-600'">
+          <span class="text-[10px] px-1 rounded-full"
+            :class="filterMarket === 'B2C' ? 'bg-teal-700 text-white' : 'bg-gray-100 text-gray-600'">
             {{ b2cCount }}
           </span>
         </button>
@@ -291,117 +269,75 @@ function onBuyerChange(val: string | number) {
 
       <!-- 1.3 SearchableSelect: Pelanggan -->
       <div v-else-if="activeFilterType === 'buyer'" class="w-64 shrink-0 relative z-40">
-        <SearchableSelect
-          :model-value="filterBuyer"
-          :options="buyerOptions"
-          placeholder="Cari / Pilih Pelanggan..."
-          search-placeholder="Ketik nama pelanggan..."
-          size="sm"
-          @update:model-value="onBuyerChange"
-        />
+        <SearchableSelect :model-value="filterBuyer" :options="buyerOptions" placeholder="Cari / Pilih Pelanggan..."
+          search-placeholder="Ketik nama pelanggan..." size="sm" @update:model-value="onBuyerChange" />
       </div>
 
       <!-- 1.4 Date Range Filter: Rentang Tanggal Popover -->
       <div v-else-if="activeFilterType === 'date'" class="flex items-center gap-2 shrink-0">
-        <DateRangePicker
-          :start-date="filterStartDate"
-          :end-date="filterEndDate"
+        <DateRangePicker :start-date="filterStartDate" :end-date="filterEndDate"
           @update:start-date="emit('update:filterStartDate', $event)"
-          @update:end-date="emit('update:filterEndDate', $event)"
-        />
+          @update:end-date="emit('update:filterEndDate', $event)" />
       </div>
     </div>
 
     <!-- Sisi Kanan: Reset, Search, Mode Switcher & Ekspor Excel -->
     <div class="flex items-center gap-2 shrink-0">
-      <button
-        v-if="hasActiveFilter"
-        type="button"
+      <button v-if="hasActiveFilter" type="button"
         class="flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded cursor-pointer transition-colors"
-        title="Reset semua filter"
-        @click="emit('reset-filters')"
-      >
+        title="Reset semua filter" @click="emit('reset-filters')">
         <RotateCcw :size="11" />
         <span>Reset Filter</span>
       </button>
 
-      <span v-if="searchQuery" class="text-[11px] text-gray-600 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 font-medium">
+      <span v-if="searchQuery"
+        class="text-[11px] text-gray-600 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 font-medium">
         Cari: "<span class="font-bold text-gray-800">{{ searchQuery }}</span>"
       </span>
 
       <!-- View Mode Switcher -->
       <div class="flex bg-gray-200/80 p-0.5 rounded border border-gray-300">
-        <button
-          type="button"
-          class="px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all"
+        <button type="button" class="px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all"
           :class="viewMode === 'transactions' ? 'bg-white text-gray-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
-          @click="emit('update:viewMode', 'transactions')"
-        >
+          @click="emit('update:viewMode', 'transactions')">
           Nota
         </button>
-        <button
-          type="button"
-          class="px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all"
+        <button type="button" class="px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all"
           :class="viewMode === 'items' ? 'bg-white text-gray-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
-          @click="emit('update:viewMode', 'items')"
-        >
+          @click="emit('update:viewMode', 'items')">
           Rincian Barang
         </button>
-        <button
-          type="button"
+        <button type="button"
           class="px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all flex items-center gap-1"
           :class="viewMode === 'refunds' ? 'bg-white text-rose-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
-          @click="emit('update:viewMode', 'refunds')"
-        >
+          @click="emit('update:viewMode', 'refunds')">
           <span>Retur &amp; Refund</span>
-          <span
-            v-if="(refundsCount || 0) > 0"
-            class="px-1.5 py-0.2 rounded-full text-[9.5px] font-mono font-bold"
-            :class="viewMode === 'refunds' ? 'bg-rose-100 text-rose-700' : 'bg-gray-300 text-gray-700'"
-          >
+          <span v-if="(refundsCount || 0) > 0" class="px-1.5 py-0.2 rounded-full text-[9.5px] font-mono font-bold"
+            :class="viewMode === 'refunds' ? 'bg-rose-100 text-rose-700' : 'bg-gray-300 text-gray-700'">
             {{ refundsCount }}
           </span>
         </button>
 
-        <button
-          type="button"
+        <button type="button"
           class="px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all flex items-center gap-1"
           :class="viewMode === 'mutations' ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
-          @click="emit('update:viewMode', 'mutations')"
-        >
+          @click="emit('update:viewMode', 'mutations')">
           <span>Mutasi Kas</span>
-          <span
-            v-if="(mutationsCount || 0) > 0"
-            class="px-1.5 py-0.2 rounded-full text-[9.5px] font-mono font-bold"
-            :class="viewMode === 'mutations' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-300 text-gray-700'"
-          >
+          <span v-if="(mutationsCount || 0) > 0" class="px-1.5 py-0.2 rounded-full text-[9.5px] font-mono font-bold"
+            :class="viewMode === 'mutations' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-300 text-gray-700'">
             {{ mutationsCount }}
           </span>
         </button>
       </div>
 
-      <!-- Quick Action Buttons: Uang Keluar & Pindah Kas -->
-      <div class="flex items-center gap-1.5 ml-1">
-        <button
-          type="button"
-          class="h-7 px-2.5 rounded bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors shadow-2xs shrink-0"
-          title="Catat uang keluar dari kas/bank untuk beban operasional"
-          @click="emit('open-expense')"
-        >
-          <ArrowDownRight :size="13" />
-          <span>+ Uang Keluar</span>
-        </button>
-
-        <button
-          type="button"
-          class="h-7 px-2.5 rounded bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors shadow-2xs shrink-0"
-          title="Pindah kas atau cairkan saldo QRIS ke rekening bank"
-          @click="emit('open-transfer')"
-        >
-          <ArrowLeftRight :size="13" />
-          <span>⇄ Pindah Kas</span>
-        </button>
-      </div>
+      <!-- Quick Action Button: Catat Mutasi Kas -->
+      <button type="button"
+        class="h-7 px-2.5 rounded bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors shadow-2xs shrink-0 ml-1"
+        title="Catat mutasi kas (uang keluar operasional / pemindahan dana / cairkan QRIS)"
+        @click="emit('open-mutation')">
+        <Plus :size="13" />
+        <span>+ Mutasi</span>
+      </button>
     </div>
   </div>
 </template>

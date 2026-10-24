@@ -15,7 +15,9 @@ import {
   Truck,
   Scale,
   AlertTriangle,
-  FileText
+  FileText,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-vue-next';
 import AppEmptyState from '../common/AppEmptyState.vue';
 import MetricStatsStrip, { MetricStatItem } from '../common/MetricStatsStrip.vue';
@@ -222,6 +224,60 @@ const metricStats = computed<MetricStatItem[]>(() => [
   }
 ]);
 
+type SkuSortField = 'code' | 'name' | 'category' | 'supplier' | 'unit' | 'margin' | 'buyPrice' | 'sellPrice' | 'stock';
+type SortDirection = 'asc' | 'desc';
+
+const sortField = ref<SkuSortField>('name');
+const sortDirection = ref<SortDirection>('asc');
+
+function toggleSort(field: SkuSortField) {
+  if (sortField.value === field) {
+    sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortField.value = field;
+    sortDirection.value = ['margin', 'buyPrice', 'sellPrice', 'stock'].includes(field) ? 'desc' : 'asc';
+  }
+}
+
+const sortedProducts = computed(() => {
+  const list = [...filteredProducts.value];
+  const field = sortField.value;
+  const dir = sortDirection.value === 'asc' ? 1 : -1;
+
+  list.sort((a, b) => {
+    switch (field) {
+      case 'code':
+        return dir * (a.code || '').localeCompare(b.code || '');
+      case 'name':
+        return dir * (a.name || '').localeCompare(b.name || '');
+      case 'category':
+        return dir * (a.category || '').localeCompare(b.category || '');
+      case 'supplier': {
+        const suppA = a.supplier || resolveProductSupplier(a) || '';
+        const suppB = b.supplier || resolveProductSupplier(b) || '';
+        return dir * suppA.localeCompare(suppB);
+      }
+      case 'unit':
+        return dir * (a.unit || '').localeCompare(b.unit || '');
+      case 'margin': {
+        const mA = a.defaultMarkupPercent ?? inventoryStore.getCategoryMarkup(a.category) ?? 0;
+        const mB = b.defaultMarkupPercent ?? inventoryStore.getCategoryMarkup(b.category) ?? 0;
+        return dir * (mA - mB);
+      }
+      case 'buyPrice':
+        return dir * ((a.lastBuyPrice || 0) - (b.lastBuyPrice || 0));
+      case 'sellPrice':
+        return dir * ((a.lastSellPrice || 0) - (b.lastSellPrice || 0));
+      case 'stock':
+        return dir * ((a.stock || 0) - (b.stock || 0));
+      default:
+        return 0;
+    }
+  });
+
+  return list;
+});
+
 function handleDblClick(prod: Product) {
   emit('edit-product', prod);
 }
@@ -331,27 +387,126 @@ function handleDblClick(prod: Product) {
         description="Tidak ada barang atau SKU yang cocok dengan pencarian."
       />
 
-      <table v-else class="table-explorer" :class="inventoryStore.showProductSidebar ? 'min-w-[720px]' : ''">
+      <table v-else class="table-explorer whitespace-nowrap" :class="inventoryStore.showProductSidebar ? 'min-w-[720px]' : ''">
         <thead>
           <tr>
-            <th class="w-28">KODE</th>
-            <th>NAMA BARANG</th>
-            <th class="w-32">KATEGORI</th>
-            <th class="w-32">MITRA SUPPLIER</th>
-            <th class="w-16 text-center">SATUAN</th>
-            <th class="w-24 text-center">MARGIN (%)</th>
-            <th class="w-28 text-right">MODAL BELI</th>
-            <th class="w-28 text-right">HARGA JUAL</th>
-            <th class="w-24 text-center">STOK FISIK</th>
+            <th
+              class="is-sortable w-28 whitespace-nowrap"
+              :class="{ 'is-sorted': sortField === 'code' }"
+              title="Klik untuk mengurutkan kode"
+              @click="toggleSort('code')"
+            >
+              <div class="flex items-center gap-1.5">
+                <span>KODE</span>
+                <ArrowUp v-if="sortField === 'code' && sortDirection === 'asc'" :size="12" class="text-purple-600 shrink-0" />
+                <ArrowDown v-else-if="sortField === 'code' && sortDirection === 'desc'" :size="12" class="text-purple-600 shrink-0" />
+              </div>
+            </th>
+            <th
+              class="is-sortable whitespace-nowrap"
+              :class="{ 'is-sorted': sortField === 'name' }"
+              title="Klik untuk mengurutkan nama barang"
+              @click="toggleSort('name')"
+            >
+              <div class="flex items-center gap-1.5">
+                <span>NAMA BARANG</span>
+                <ArrowUp v-if="sortField === 'name' && sortDirection === 'asc'" :size="12" class="text-purple-600 shrink-0" />
+                <ArrowDown v-else-if="sortField === 'name' && sortDirection === 'desc'" :size="12" class="text-purple-600 shrink-0" />
+              </div>
+            </th>
+            <th
+              class="is-sortable w-32 whitespace-nowrap"
+              :class="{ 'is-sorted': sortField === 'category' }"
+              title="Klik untuk mengurutkan kategori"
+              @click="toggleSort('category')"
+            >
+              <div class="flex items-center gap-1.5">
+                <span>KATEGORI</span>
+                <ArrowUp v-if="sortField === 'category' && sortDirection === 'asc'" :size="12" class="text-purple-600 shrink-0" />
+                <ArrowDown v-else-if="sortField === 'category' && sortDirection === 'desc'" :size="12" class="text-purple-600 shrink-0" />
+              </div>
+            </th>
+            <th
+              class="is-sortable w-32 whitespace-nowrap"
+              :class="{ 'is-sorted': sortField === 'supplier' }"
+              title="Klik untuk mengurutkan mitra supplier"
+              @click="toggleSort('supplier')"
+            >
+              <div class="flex items-center gap-1.5">
+                <span>MITRA SUPPLIER</span>
+                <ArrowUp v-if="sortField === 'supplier' && sortDirection === 'asc'" :size="12" class="text-purple-600 shrink-0" />
+                <ArrowDown v-else-if="sortField === 'supplier' && sortDirection === 'desc'" :size="12" class="text-purple-600 shrink-0" />
+              </div>
+            </th>
+            <th
+              class="is-sortable w-16 text-center whitespace-nowrap"
+              :class="{ 'is-sorted': sortField === 'unit' }"
+              title="Klik untuk mengurutkan satuan"
+              @click="toggleSort('unit')"
+            >
+              <div class="flex items-center justify-center gap-1.5">
+                <span>SATUAN</span>
+                <ArrowUp v-if="sortField === 'unit' && sortDirection === 'asc'" :size="12" class="text-purple-600 shrink-0" />
+                <ArrowDown v-else-if="sortField === 'unit' && sortDirection === 'desc'" :size="12" class="text-purple-600 shrink-0" />
+              </div>
+            </th>
+            <th
+              class="is-sortable w-24 text-center whitespace-nowrap"
+              :class="{ 'is-sorted': sortField === 'margin' }"
+              title="Klik untuk mengurutkan margin"
+              @click="toggleSort('margin')"
+            >
+              <div class="flex items-center justify-center gap-1.5">
+                <span>MARGIN (%)</span>
+                <ArrowUp v-if="sortField === 'margin' && sortDirection === 'asc'" :size="12" class="text-purple-600 shrink-0" />
+                <ArrowDown v-else-if="sortField === 'margin' && sortDirection === 'desc'" :size="12" class="text-purple-600 shrink-0" />
+              </div>
+            </th>
+            <th
+              class="is-sortable w-28 text-right whitespace-nowrap"
+              :class="{ 'is-sorted': sortField === 'buyPrice' }"
+              title="Klik untuk mengurutkan modal beli"
+              @click="toggleSort('buyPrice')"
+            >
+              <div class="flex items-center justify-end gap-1.5">
+                <span>MODAL BELI</span>
+                <ArrowUp v-if="sortField === 'buyPrice' && sortDirection === 'asc'" :size="12" class="text-purple-600 shrink-0" />
+                <ArrowDown v-else-if="sortField === 'buyPrice' && sortDirection === 'desc'" :size="12" class="text-purple-600 shrink-0" />
+              </div>
+            </th>
+            <th
+              class="is-sortable w-28 text-right whitespace-nowrap"
+              :class="{ 'is-sorted': sortField === 'sellPrice' }"
+              title="Klik untuk mengurutkan harga jual"
+              @click="toggleSort('sellPrice')"
+            >
+              <div class="flex items-center justify-end gap-1.5">
+                <span>HARGA JUAL</span>
+                <ArrowUp v-if="sortField === 'sellPrice' && sortDirection === 'asc'" :size="12" class="text-purple-600 shrink-0" />
+                <ArrowDown v-else-if="sortField === 'sellPrice' && sortDirection === 'desc'" :size="12" class="text-purple-600 shrink-0" />
+              </div>
+            </th>
+            <th
+              class="is-sortable w-24 text-center whitespace-nowrap"
+              :class="{ 'is-sorted': sortField === 'stock' }"
+              title="Klik untuk mengurutkan stok fisik"
+              @click="toggleSort('stock')"
+            >
+              <div class="flex items-center justify-center gap-1.5">
+                <span>STOK FISIK</span>
+                <ArrowUp v-if="sortField === 'stock' && sortDirection === 'asc'" :size="12" class="text-purple-600 shrink-0" />
+                <ArrowDown v-else-if="sortField === 'stock' && sortDirection === 'desc'" :size="12" class="text-purple-600 shrink-0" />
+              </div>
+            </th>
             <!-- Sticky Action Header -->
             <th class="th-action-sticky w-24 text-center">KARTU & AKSI</th>
           </tr>
         </thead>
         <tbody>
           <tr
-            v-for="prod in filteredProducts"
+            v-for="prod in sortedProducts"
             :key="prod.id"
-            class="cursor-pointer"
+            class="cursor-pointer whitespace-nowrap"
             :class="inventoryStore.activeProductForSidebar?.id === prod.id ? 'bg-[#f7f0fa] ring-1 ring-inset ring-purple-400 font-semibold' : ''"
             @click="emit('edit-product', prod)"
             @dblclick="handleDblClick(prod)"

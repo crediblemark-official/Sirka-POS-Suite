@@ -1,7 +1,7 @@
 {
   "name": "sirka",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,8 +11,9 @@
     "test": "bun test",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
     "test:all": "bun test && cargo test --manifest-path src-tauri/Cargo.toml",
-    "tauri": "tauri",
+    "tauri": "cargo tauri",
     "mobile:dev": "cd mobile && bun run dev",
+
     "mobile:build": "cd mobile && bun run build",
     "worker:dev": "cd worker && bun run dev",
     "worker:deploy": "cd worker && bun run deploy"
@@ -21,6 +22,7 @@
     "@tailwindcss/vite": "^4.3.3",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-opener": "^2",
+    "@tertaut/sdk": "^0.2.2",
     "@types/jsbarcode": "^3.11.4",
     "@types/pg": "^8.23.1",
     "@vueuse/core": "^15.0.0",

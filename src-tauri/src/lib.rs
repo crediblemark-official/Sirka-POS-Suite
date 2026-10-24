@@ -1,6 +1,7 @@
 // Native Rust backend for Kasir Citra (POS Distribusi SPPG)
 // Modular Architecture
 
+pub mod cloud_db;
 pub mod commands;
 pub mod db;
 pub mod local_db;

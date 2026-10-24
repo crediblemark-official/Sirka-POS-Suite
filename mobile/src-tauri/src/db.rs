@@ -64,9 +64,13 @@ pub async fn get_pg_client(custom_url: Option<String>) -> Result<Client, String>
     connect_plain(&clean).await
 }
 
+use std::time::Duration;
+
 async fn connect_plain(conn_str: &str) -> Result<Client, String> {
-    let (client, connection) = tokio_postgres::connect(conn_str, NoTls)
+    let connect_fut = tokio_postgres::connect(conn_str, NoTls);
+    let (client, connection) = tokio::time::timeout(Duration::from_secs(7), connect_fut)
         .await
+        .map_err(|_| "Koneksi PostgreSQL timeout (7s)".to_string())?
         .map_err(|e| format!("Koneksi PostgreSQL gagal: {}", e))?;
 
     tauri::async_runtime::spawn(async move {
@@ -82,8 +86,10 @@ async fn connect_tls(
     conn_str: &str,
     connector: crate::tls::RustlsConnect,
 ) -> Result<Client, String> {
-    let (client, connection) = tokio_postgres::connect(conn_str, connector)
+    let connect_fut = tokio_postgres::connect(conn_str, connector);
+    let (client, connection) = tokio::time::timeout(Duration::from_secs(7), connect_fut)
         .await
+        .map_err(|_| "Koneksi PostgreSQL TLS timeout (7s)".to_string())?
         .map_err(|e| format!("{}", e))?;
 
     tauri::async_runtime::spawn(async move {

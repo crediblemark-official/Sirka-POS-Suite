@@ -757,7 +757,7 @@ async fn execute_push(
                 .and_then(Value::as_str)
                 .map(|s| s.to_string());
 
-            crate::commands::transactions::pg_create_transaction(tx, member_id).await?;
+            crate::cloud_db::pg_create_transaction(tx, member_id).await?;
         }
         "UPDATE_TRANSACTION_STATUS" => {
             let id = payload
@@ -768,7 +768,7 @@ async fn execute_push(
                 .get("paymentStatus")
                 .and_then(Value::as_str)
                 .ok_or("status hilang")?;
-            crate::commands::transactions::pg_update_transaction_status(
+            crate::cloud_db::pg_update_transaction_status(
                 id.to_string(),
                 status.to_string(),
             )
@@ -779,20 +779,20 @@ async fn execute_push(
                 .get("id")
                 .and_then(Value::as_str)
                 .ok_or("id hilang")?;
-            crate::commands::transactions::pg_delete_transaction(id.to_string()).await?;
+            crate::cloud_db::pg_delete_transaction(id.to_string()).await?;
         }
         "UPSERT_PRODUCT" => {
             let prod_val = payload.get("product").unwrap_or(payload);
             let prod: ProductRecord =
                 serde_json::from_value(prod_val.clone()).map_err(|e| e.to_string())?;
-            crate::commands::products::pg_upsert_product(prod).await?;
+            crate::cloud_db::pg_upsert_product(prod).await?;
         }
         "DELETE_PRODUCT" => {
             let id = payload
                 .get("id")
                 .and_then(Value::as_str)
                 .ok_or("id hilang")?;
-            crate::commands::products::pg_delete_product(id.to_string()).await?;
+            crate::cloud_db::pg_delete_product(id.to_string()).await?;
         }
         "UPDATE_STOCK_AND_PRICE" => {
             let pid = payload
@@ -808,7 +808,7 @@ async fn execute_push(
                 .get("sellPrice")
                 .and_then(Value::as_f64)
                 .unwrap_or(0.0);
-            crate::commands::products::pg_update_stock_and_price(pid.to_string(), stock, buy, sell)
+            crate::cloud_db::pg_update_stock_and_price(pid.to_string(), stock, buy, sell)
                 .await?;
         }
         "UPDATE_MARKUP" => {
@@ -828,7 +828,7 @@ async fn execute_push(
                 .get("color")
                 .and_then(Value::as_str)
                 .map(|s| s.to_string());
-            crate::commands::markups::pg_update_markup_full(
+            crate::cloud_db::pg_update_markup_full(
                 cat.to_string(),
                 pct,
                 desc,
@@ -853,64 +853,64 @@ async fn execute_push(
                 .get("color")
                 .and_then(Value::as_str)
                 .map(|s| s.to_string());
-            crate::commands::markups::pg_create_markup(cat.to_string(), pct, desc, color).await?;
+            crate::cloud_db::pg_create_markup(cat.to_string(), pct, desc, color).await?;
         }
         "DELETE_MARKUP" => {
             let cat = payload
                 .get("category")
                 .and_then(Value::as_str)
                 .ok_or("category hilang")?;
-            crate::commands::markups::pg_delete_markup(cat.to_string()).await?;
+            crate::cloud_db::pg_delete_markup(cat.to_string()).await?;
         }
         "UPSERT_BUYER" => {
             let b_val = payload.get("buyer").unwrap_or(payload);
             let buyer: BuyerRecord =
                 serde_json::from_value(b_val.clone()).map_err(|e| e.to_string())?;
-            crate::commands::buyers::pg_upsert_buyer(buyer).await?;
+            crate::cloud_db::pg_upsert_buyer(buyer).await?;
         }
         "DELETE_BUYER" => {
             let id = payload
                 .get("id")
                 .and_then(Value::as_str)
                 .ok_or("id hilang")?;
-            crate::commands::buyers::pg_delete_buyer(id.to_string()).await?;
+            crate::cloud_db::pg_delete_buyer(id.to_string()).await?;
         }
         "SAVE_PREORDER" => {
             let r_val = payload.get("record").unwrap_or(payload);
             let record: crate::models::PreOrderRecord =
                 serde_json::from_value(r_val.clone()).map_err(|e| e.to_string())?;
-            crate::commands::preorders::pg_save_preorder(record).await?;
+            crate::cloud_db::pg_save_preorder(record).await?;
         }
         "DELETE_PREORDER" => {
             let id = payload
                 .get("id")
                 .and_then(Value::as_str)
                 .ok_or("id hilang")?;
-            crate::commands::preorders::pg_delete_preorder(id.to_string()).await?;
+            crate::cloud_db::pg_delete_preorder(id.to_string()).await?;
         }
         "SAVE_PURCHASE" => {
             let receipt = payload.get("receipt").unwrap_or(payload);
-            crate::commands::purchases::pg_save_purchase(receipt.clone()).await?;
+            crate::cloud_db::pg_save_purchase(receipt.clone()).await?;
         }
         "DELETE_PURCHASE" => {
             let id = payload
                 .get("id")
                 .and_then(Value::as_str)
                 .ok_or("id hilang")?;
-            crate::commands::purchases::pg_delete_purchase(id.to_string()).await?;
+            crate::cloud_db::pg_delete_purchase(id.to_string()).await?;
         }
         "UPSERT_DISCOUNT" => {
             let d_val = payload.get("discount").unwrap_or(payload);
             let d: crate::models::DiscountRecord =
                 serde_json::from_value(d_val.clone()).map_err(|e| e.to_string())?;
-            crate::commands::discounts::pg_upsert_discount(d).await?;
+            crate::cloud_db::pg_upsert_discount(d).await?;
         }
         "DELETE_DISCOUNT" => {
             let id = payload
                 .get("id")
                 .and_then(Value::as_str)
                 .ok_or("id hilang")?;
-            crate::commands::discounts::pg_delete_discount(id.to_string()).await?;
+            crate::cloud_db::pg_delete_discount(id.to_string()).await?;
         }
         "TOGGLE_DISCOUNT" => {
             let id = payload
@@ -921,7 +921,7 @@ async fn execute_push(
                 .get("isActive")
                 .and_then(Value::as_bool)
                 .unwrap_or(true);
-            crate::commands::discounts::pg_toggle_discount(id.to_string(), active).await?;
+            crate::cloud_db::pg_toggle_discount(id.to_string(), active).await?;
         }
         "UPDATE_SETTING" => {
             let key = payload

@@ -34,7 +34,10 @@ import {
   CheckCircle2,
   ShoppingBag,
   Truck,
-  UserCheck
+  UserCheck,
+  Wallet,
+  Building,
+  QrCode
 } from 'lucide-vue-next';
 import * as XLSX from 'xlsx';
 
@@ -71,14 +74,6 @@ const operationalExpenses = computed(() => {
       return true;
     })
     .reduce((acc, m) => acc + m.amount, 0);
-});
-
-const periodMutations = computed(() => {
-  return cashStore.mutations.filter(m => {
-    if (customStartDate.value && m.date < customStartDate.value) return false;
-    if (customEndDate.value && m.date > customEndDate.value) return false;
-    return true;
-  });
 });
 
 // 1. Filter Transactions by Period
@@ -214,7 +209,7 @@ const metricStats = computed<MetricStatItem[]>(() => {
   if (activeSubTab.value === 'pnl') {
     return [
       {
-        label: 'Penjualan Bersih (Omzet)',
+        label: 'Total Penjualan Bersih',
         value: `Rp ${formatRupiah(netSales.value)}`,
         sublabel: `${periodTransactions.value.length} Nota`,
         icon: TrendingUp,
@@ -222,14 +217,14 @@ const metricStats = computed<MetricStatItem[]>(() => {
         valClass: 'text-blue-700'
       },
       {
-        label: 'Harga Pokok (HPP)',
+        label: 'Modal Barang Terjual',
         value: `Rp ${formatRupiah(totalCogs.value)}`,
         icon: PackageCheck,
         iconBoxClass: 'bg-emerald-50 text-emerald-700',
         valClass: 'text-gray-800'
       },
       {
-        label: 'Laba Kotor Operasional',
+        label: 'Keuntungan Penjualan (Laba)',
         value: `+Rp ${formatRupiah(grossProfit.value)}`,
         sublabel: `(+${marginPercent.value.toFixed(1)}%)`,
         icon: Coins,
@@ -238,14 +233,14 @@ const metricStats = computed<MetricStatItem[]>(() => {
         sublabelClass: 'text-emerald-600 font-bold font-mono'
       },
       {
-        label: 'Pajak UMKM 0.5% (PP 55)',
+        label: 'Perkiraan Pajak UMKM (0.5%)',
         value: `Rp ${formatRupiah(taxUmkmEstimated.value)}`,
         icon: Percent,
         iconBoxClass: 'bg-purple-50 text-purple-700',
         valClass: 'text-purple-800'
       },
       {
-        label: 'Rata-rata Nota (AOV)',
+        label: 'Rata-rata Belanja per Pembeli',
         value: `Rp ${formatRupiah(avgTicketSize.value)}`,
         icon: ShoppingBag,
         iconBoxClass: 'bg-indigo-50 text-indigo-700',
@@ -255,30 +250,46 @@ const metricStats = computed<MetricStatItem[]>(() => {
   } else if (activeSubTab.value === 'cashflow') {
     return [
       {
-        label: 'Kas Masuk Tunai',
-        value: `Rp ${formatRupiah(cashInflow.value)}`,
-        icon: Coins,
+        label: 'Kas Tunai (Laci)',
+        value: `Rp ${formatRupiah(cashBalances.value.netCashDrawer)}`,
+        sublabel: 'Laci Kasir',
+        tooltip: `Omzet Tunai: Rp ${formatRupiah(cashBalances.value.salesCash)} | Keluar: -Rp ${formatRupiah(cashBalances.value.expenseCash + cashBalances.value.transferOutCash)}`,
+        icon: Wallet,
         iconBoxClass: 'bg-emerald-50 text-emerald-700',
         valClass: 'text-emerald-700'
       },
       {
-        label: 'Kas Masuk Non-Tunai / Bank',
-        value: `Rp ${formatRupiah(nonCashInflow.value)}`,
-        icon: TrendingUp,
+        label: 'Rekening Bank',
+        value: `Rp ${formatRupiah(cashBalances.value.netBankBalance)}`,
+        sublabel: 'Bank Toko',
+        tooltip: `Masuk: Rp ${formatRupiah(cashBalances.value.salesBank + cashBalances.value.transferInBank)} | Keluar: -Rp ${formatRupiah(cashBalances.value.purchasesCostBank + cashBalances.value.expenseBank)}`,
+        icon: Building,
         iconBoxClass: 'bg-blue-50 text-blue-700',
         valClass: 'text-blue-700'
       },
       {
+        label: 'Saldo QRIS',
+        value: `Rp ${formatRupiah(cashBalances.value.pendingQrisSettlement)}`,
+        sublabel: 'Belum Cair',
+        tooltip: `Total QRIS: Rp ${formatRupiah(cashBalances.value.salesQris)} | Sudah Cair: Rp ${formatRupiah(cashBalances.value.settledQrisToBank)}`,
+        icon: QrCode,
+        iconBoxClass: 'bg-purple-50 text-purple-700',
+        valClass: 'text-purple-700'
+      },
+      {
         label: 'Kas Keluar (Kulakan)',
-        value: `Rp ${formatRupiah(totalPurchasesCost.value)}`,
+        value: `Rp ${formatRupiah(totalPurchasesCost.value + operationalExpenses.value)}`,
         sublabel: `${purchaseStore.purchaseHistory.length} Faktur`,
+        tooltip: `Kulakan: Rp ${formatRupiah(totalPurchasesCost.value)} | Beban: Rp ${formatRupiah(operationalExpenses.value)}`,
         icon: Truck,
         iconBoxClass: 'bg-amber-50 text-amber-700',
         valClass: 'text-amber-800'
       },
       {
-        label: 'Arus Kas Bersih (Net Cash)',
+        label: 'Arus Kas Bersih',
         value: `${netCashFlow.value >= 0 ? '+' : ''}Rp ${formatRupiah(netCashFlow.value)}`,
+        sublabel: 'Sisa Kas Bersih',
+        tooltip: 'Total Inflow dikurangi Total Outflow',
         icon: ArrowLeftRight,
         iconBoxClass: netCashFlow.value >= 0 ? 'bg-teal-50 text-teal-700' : 'bg-red-50 text-red-700',
         valClass: netCashFlow.value >= 0 ? 'text-teal-800' : 'text-red-700'
@@ -287,21 +298,21 @@ const metricStats = computed<MetricStatItem[]>(() => {
   } else if (activeSubTab.value === 'balance_sheet') {
     return [
       {
-        label: 'Kas & Bank (Estimasi)',
+        label: 'Uang Kas & Bank Toko',
         value: `Rp ${formatRupiah(estimatedCashBalance.value)}`,
         icon: Coins,
         iconBoxClass: 'bg-emerald-50 text-emerald-700',
         valClass: 'text-emerald-700'
       },
       {
-        label: 'Piutang Pelanggan (AR)',
+        label: 'Total Bon Belum Dibayar',
         value: `Rp ${formatRupiah(totalReceivables.value)}`,
         icon: Clock,
         iconBoxClass: 'bg-amber-50 text-amber-700',
         valClass: 'text-amber-800'
       },
       {
-        label: 'Persediaan Barang (HPP)',
+        label: 'Modal Stok Barang Toko',
         value: `Rp ${formatRupiah(totalInventoryAssetValuation.value)}`,
         sublabel: `${inventoryStore.products.length} SKU`,
         icon: PackageCheck,
@@ -309,14 +320,14 @@ const metricStats = computed<MetricStatItem[]>(() => {
         valClass: 'text-blue-700'
       },
       {
-        label: 'Total Aktiva Lancar',
+        label: 'Total Semua Harta Toko',
         value: `Rp ${formatRupiah(totalCurrentAssets.value)}`,
         icon: Scale,
         iconBoxClass: 'bg-indigo-50 text-indigo-700',
         valClass: 'text-indigo-900 font-bold'
       },
       {
-        label: 'Ekuitas Bersih (Net Worth)',
+        label: 'Modal Bersih Toko',
         value: `Rp ${formatRupiah(netWorthEquity.value)}`,
         icon: CheckCircle2,
         iconBoxClass: 'bg-teal-50 text-teal-700',
@@ -326,36 +337,36 @@ const metricStats = computed<MetricStatItem[]>(() => {
   } else if (activeSubTab.value === 'receivables') {
     return [
       {
-        label: 'Total Piutang Tempo',
+        label: 'Total Bon Belum Lunas',
         value: `Rp ${formatRupiah(totalReceivables.value)}`,
-        sublabel: `${agingReceivables.value.length} Faktur`,
+        sublabel: `${agingReceivables.value.length} Nota Bon`,
         icon: Clock,
         iconBoxClass: 'bg-amber-50 text-amber-700',
         valClass: 'text-amber-800'
       },
       {
-        label: 'Lancar (0-7 Hari)',
+        label: 'Lancar (0 - 7 Hari)',
         value: `Rp ${formatRupiah(bucket0_7.value)}`,
         icon: CheckCircle2,
         iconBoxClass: 'bg-emerald-50 text-emerald-700',
         valClass: 'text-emerald-700'
       },
       {
-        label: 'Normal (8-14 Hari)',
+        label: 'Normal (8 - 14 Hari)',
         value: `Rp ${formatRupiah(bucket8_14.value)}`,
         icon: Clock,
         iconBoxClass: 'bg-blue-50 text-blue-700',
         valClass: 'text-blue-700'
       },
       {
-        label: 'Peringatan (15-30 Hari)',
+        label: 'Perlu Ditagih (15 - 30 Hari)',
         value: `Rp ${formatRupiah(bucket15_30.value)}`,
         icon: AlertTriangle,
         iconBoxClass: 'bg-yellow-50 text-yellow-800',
         valClass: 'text-yellow-800'
       },
       {
-        label: 'Macet (>30 Hari)',
+        label: 'Tunggakan Macet (>30 Hari)',
         value: `Rp ${formatRupiah(bucketOver30.value)}`,
         icon: AlertTriangle,
         iconBoxClass: 'bg-red-50 text-red-700',
@@ -376,7 +387,7 @@ const metricStats = computed<MetricStatItem[]>(() => {
 
     return [
       {
-        label: 'Total Sesi Shift',
+        label: 'Total Riwayat Kerja Kasir',
         value: `${shiftStore.shiftHistory.length} Sesi`,
         sublabel: shiftStore.isShiftActive ? `1 Aktif (${shiftStore.currentShift?.cashierName})` : 'Shift Tutup',
         icon: UserCheck,
@@ -385,22 +396,22 @@ const metricStats = computed<MetricStatItem[]>(() => {
         sublabelClass: shiftStore.isShiftActive ? 'text-emerald-600 font-bold' : 'text-gray-500'
       },
       {
-        label: 'Total Penjualan Tunai Laci',
+        label: 'Total Penjualan Tunai di Kasir',
         value: `Rp ${formatRupiah(totalCashSalesAllShifts)}`,
         icon: Coins,
         iconBoxClass: 'bg-emerald-50 text-emerald-700',
         valClass: 'text-emerald-700'
       },
       {
-        label: 'Akurasi Kas (Tingkat Pas)',
+        label: 'Kecocokan Uang Laci (Pas)',
         value: `${balanceRate.toFixed(0)}%`,
-        sublabel: `${reconciledShifts.filter(s => (s.discrepancy || 0) === 0).length} dari ${reconciledShifts.length} Shift Terekonsiliasi Cocok`,
+        sublabel: `${reconciledShifts.filter(s => (s.discrepancy || 0) === 0).length} dari ${reconciledShifts.length} Shift Cocok Pas`,
         icon: CheckCircle2,
         iconBoxClass: 'bg-teal-50 text-teal-700',
         valClass: 'text-teal-800'
       },
       {
-        label: 'Total Net Selisih Kas',
+        label: 'Total Selisih Kas Laci',
         value: `${totalDiscrepancyAllShifts >= 0 ? '+' : ''}Rp ${formatRupiah(totalDiscrepancyAllShifts)}`,
         sublabel: totalDiscrepancyAllShifts === 0 ? 'Kas Seimbang (Pas)' : totalDiscrepancyAllShifts < 0 ? 'Total Tekor Kas' : 'Total Kelebihan Kas',
         icon: AlertTriangle,
@@ -410,32 +421,32 @@ const metricStats = computed<MetricStatItem[]>(() => {
       }
     ];
   } else {
-    // Analytics (9 Modul Analisis Bisnis)
+    // Analytics (Ringkasan Analisis Toko)
     return [
       {
-        label: 'Modal Terkunci (Dead Stock)',
+        label: 'Modal Macet di Barang Tidak Laku',
         value: `Rp ${formatRupiah(totalDeadStockCapital.value)}`,
-        sublabel: `${deadStockItems.value.length} SKU Mati`,
+        sublabel: `${deadStockItems.value.length} Jenis Barang Macet`,
         icon: AlertTriangle,
         iconBoxClass: 'bg-amber-50 text-amber-700',
         valClass: 'text-amber-800 font-bold'
       },
       {
-        label: 'Total Persediaan Aset',
+        label: 'Total Modal Stok Barang di Toko',
         value: `Rp ${formatRupiah(totalInventoryAssetValuation.value)}`,
         icon: PackageCheck,
         iconBoxClass: 'bg-blue-50 text-blue-700',
         valClass: 'text-blue-700'
       },
       {
-        label: 'Rata-rata Nota Belanja',
+        label: 'Rata-rata Belanja per Pembeli',
         value: `Rp ${formatRupiah(avgTicketSize.value)}`,
         icon: ShoppingBag,
         iconBoxClass: 'bg-indigo-50 text-indigo-700',
         valClass: 'text-indigo-900'
       },
       {
-        label: 'Total Transaksi Toko',
+        label: 'Jumlah Nota Belanja',
         value: `${periodTransactions.value.length} Nota`,
         icon: Receipt,
         iconBoxClass: 'bg-purple-50 text-purple-700',
@@ -456,56 +467,56 @@ async function exportComprehensiveReport() {
     ['Tanggal Cetak', new Date().toLocaleString('id-ID')],
     [],
     ['KOMPONEN', 'NOMINAL (RP)'],
-    ['Penjualan Bruto', grossSales.value],
-    ['Potongan & Diskon', totalDiscounts.value],
-    ['Penjualan Bersih (Omzet)', netSales.value],
-    ['Harga Pokok Penjualan (HPP)', totalCogs.value],
-    ['Laba Kotor Operasional', grossProfit.value],
-    ['Margin Keuntungan (%)', `${marginPercent.value.toFixed(1)}%`],
-    ['Estimasi PPh Final UMKM 0.5%', taxUmkmEstimated.value],
+    ['Total Penjualan Kasir (Sebelum Diskon)', grossSales.value],
+    ['Potongan Diskon & Kupon Belanja', totalDiscounts.value],
+    ['Total Penjualan Bersih (Omzet Riil)', netSales.value],
+    ['Modal Beli Barang Terjual (Kulakan)', totalCogs.value],
+    ['Keuntungan Penjualan (Laba Kotor)', grossProfit.value],
+    ['Persentase Keuntungan (%)', `${marginPercent.value.toFixed(1)}%`],
+    ['Perkiraan Pajak UMKM 0.5% (PP 55)', taxUmkmEstimated.value],
     [],
-    ['ARUS KAS OPERASIONAL'],
-    ['Kas Masuk Tunai', cashInflow.value],
-    ['Kas Masuk Non-Tunai / Bank', nonCashInflow.value],
-    ['Kas Keluar Pembelian Kulakan', totalPurchasesCost.value],
-    ['Arus Kas Bersih (Net Cash Flow)', netCashFlow.value]
+    ['ALIRAN UANG KAS (MASUK & KELUAR)'],
+    ['Penerimaan Uang Tunai di Kasir', cashInflow.value],
+    ['Penerimaan Transfer Bank & QRIS', nonCashInflow.value],
+    ['Belanja Kulakan Barang ke Supplier', totalPurchasesCost.value],
+    ['Sisa Uang Kas Bersih (Net Cash)', netCashFlow.value]
   ];
   const wsPnl = XLSX.utils.aoa_to_sheet(pnlData);
   XLSX.utils.book_append_sheet(wb, wsPnl, 'Laba Rugi & Kas');
 
-  // Sheet 2: Neraca Posisi Keuangan
+  // Sheet 2: Kekayaan & Modal Toko
   const bsData = [
-    ['NERACA POSISI KEUANGAN (BALANCE SHEET)'],
+    ['LAPORAN KEKAYAAN & MODAL TOKO - KASIR CITRA'],
     ['Tanggal Potret', new Date().toLocaleDateString('id-ID')],
     [],
-    ['AKTIVA (ASET TOKO)', 'NOMINAL (RP)'],
-    ['Kas & Bank (Estimasi)', estimatedCashBalance.value],
-    ['Piutang Dagang Pelanggan', totalReceivables.value],
-    ['Persediaan Barang Dagangan (HPP)', totalInventoryAssetValuation.value],
-    ['TOTAL AKTIVA LANCAR', totalCurrentAssets.value],
+    ['HARTA & KEKAYAAN TOKO (ASET)', 'NOMINAL (RP)'],
+    ['Uang Kas & Rekening Bank', estimatedCashBalance.value],
+    ['Tagihan Bon / Piutang Pelanggan', totalReceivables.value],
+    ['Nilai Modal Stok Barang di Toko', totalInventoryAssetValuation.value],
+    ['TOTAL SEMUA HARTA TOKO', totalCurrentAssets.value],
     [],
-    ['PASIVA (KEWAJIBAN & EKUITAS)'],
-    ['Hutang Supplier (Faktur Tempo)', totalSupplierPayables.value],
-    ['EKUITAS BERSIH TOKO (NET WORTH)', netWorthEquity.value]
+    ['KEWAJIBAN (HUTANG) & MODAL BERSIH'],
+    ['Hutang Kulakan Tempo ke Supplier', totalSupplierPayables.value],
+    ['TOTAL MODAL BERSIH TOKO (HARTA MINUS HUTANG)', netWorthEquity.value]
   ];
   const wsBs = XLSX.utils.aoa_to_sheet(bsData);
-  XLSX.utils.book_append_sheet(wb, wsBs, 'Neraca Keuangan');
+  XLSX.utils.book_append_sheet(wb, wsBs, 'Kekayaan & Modal Toko');
 
-  // Sheet 3: Umur Piutang
+  // Sheet 3: Catatan Bon Pelanggan
   const arData = [
-    ['AGING SCHEDULE PIUTANG PELANGGAN'],
-    ['No. Faktur', 'Pelanggan', 'Tanggal Nota', 'Umur (Hari)', 'Kategori Risiko', 'Sisa Tagihan (Rp)'],
+    ['CATATAN BON & PIUTANG PELANGGAN - KASIR CITRA'],
+    ['No. Faktur', 'Nama Pelanggan', 'Tanggal Nota', 'Lama Bon (Hari)', 'Status Kelancaran', 'Total Bon (Rp)'],
     ...agingReceivables.value.map(t => [
       t.invoiceNo,
       t.buyer,
       t.date,
       t.ageDays,
-      t.bucket === '>30' ? 'MACET (>30 HARI)' : (t.bucket === '15-30' ? 'PERINGATAN' : (t.bucket === '8-14' ? 'NORMAL' : 'LANCAR')),
+      t.bucket === '>30' ? 'MACET (>30 HARI)' : (t.bucket === '15-30' ? 'PERLU DITAGIH' : (t.bucket === '8-14' ? 'NORMAL' : 'LANCAR')),
       t.finalTotal || t.totalSell
     ])
   ];
   const wsAr = XLSX.utils.aoa_to_sheet(arData);
-  XLSX.utils.book_append_sheet(wb, wsAr, 'Buku Piutang');
+  XLSX.utils.book_append_sheet(wb, wsAr, 'Catatan Bon Pelanggan');
 
   const filename = `Laporan_Keuangan_Citra_${localTodayStr()}.xlsx`;
   try {
@@ -535,7 +546,7 @@ async function exportComprehensiveReport() {
             @click="activeSubTab = 'pnl'"
           >
             <FileSpreadsheet :size="13" />
-            <span>Laba Rugi (P&amp;L)</span>
+            <span>Laba Rugi (Keuntungan)</span>
           </button>
 
           <button
@@ -545,7 +556,7 @@ async function exportComprehensiveReport() {
             @click="activeSubTab = 'cashflow'"
           >
             <ArrowLeftRight :size="13" />
-            <span>Arus Kas (Buku Kas)</span>
+            <span>Arus Kas (Uang Masuk/Keluar)</span>
           </button>
 
           <button
@@ -555,7 +566,7 @@ async function exportComprehensiveReport() {
             @click="activeSubTab = 'balance_sheet'"
           >
             <Scale :size="13" />
-            <span>Neraca Keuangan</span>
+            <span>Kekayaan &amp; Modal Toko</span>
           </button>
 
           <button
@@ -565,7 +576,7 @@ async function exportComprehensiveReport() {
             @click="activeSubTab = 'receivables'"
           >
             <Clock :size="13" />
-            <span>Buku Piutang &amp; Aging</span>
+            <span>Catatan Bon / Piutang Pelanggan</span>
             <span v-if="agingReceivables.length > 0" class="px-1 py-0.2 rounded-full text-[9px] font-mono bg-amber-200 text-amber-900 font-bold">
               {{ agingReceivables.length }}
             </span>
@@ -578,7 +589,7 @@ async function exportComprehensiveReport() {
             @click="activeSubTab = 'analytics'"
           >
             <Zap :size="13" />
-            <span>9 Modul Analisis Bisnis</span>
+            <span>Ringkasan Analisis Toko</span>
           </button>
 
           <button
@@ -588,7 +599,7 @@ async function exportComprehensiveReport() {
             @click="activeSubTab = 'shifts'"
           >
             <UserCheck :size="13" />
-            <span>Audit Shift Kasir</span>
+            <span>Pergantian Kasir (Shift)</span>
             <span v-if="shiftStore.isShiftActive" class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
           </button>
         </div>
@@ -639,7 +650,6 @@ async function exportComprehensiveReport() {
         :operational-expenses="operationalExpenses"
         :net-cash-flow="netCashFlow"
         :purchase-count="purchaseStore.purchaseHistory.length"
-        :period-mutations="periodMutations"
       />
 
       <!-- SUB-TAB 3: NERACA POSISI KEUANGAN -->

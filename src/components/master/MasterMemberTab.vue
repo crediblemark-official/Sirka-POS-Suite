@@ -14,7 +14,9 @@ import {
   Users,
   Sparkles,
   Edit2,
-  Phone
+  Phone,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-vue-next';
 
 import MetricStatsStrip, { MetricStatItem } from '../common/MetricStatsStrip.vue';
@@ -22,6 +24,28 @@ import AppEmptyState from '../common/AppEmptyState.vue';
 import MemberPointAdjustModal from './member/MemberPointAdjustModal.vue';
 import MemberPrintModal from './member/MemberPrintModal.vue';
 import MemberDetailDrawer from './member/MemberDetailDrawer.vue';
+
+type MemberSortField = 'memberCardNo' | 'name' | 'address' | 'customerType' | 'phone' | 'tier' | 'points' | 'totalSpend';
+type SortDirection = 'asc' | 'desc';
+
+const sortField = ref<MemberSortField>('name');
+const sortDirection = ref<SortDirection>('asc');
+
+function toggleSort(field: MemberSortField) {
+  if (sortField.value === field) {
+    sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortField.value = field;
+    sortDirection.value = ['points', 'totalSpend'].includes(field) ? 'desc' : 'asc';
+  }
+}
+
+const tierOrder: Record<string, number> = {
+  'REGULAR': 1,
+  'SILVER': 2,
+  'GOLD': 3,
+  'PLATINUM': 4
+};
 
 const props = withDefaults(defineProps<{
   searchQuery?: string;
@@ -164,9 +188,43 @@ const filteredMembers = computed(() => {
   });
 });
 
+const sortedMembers = computed(() => {
+  const list = [...filteredMembers.value];
+  const field = sortField.value;
+  const dir = sortDirection.value === 'asc' ? 1 : -1;
+
+  list.sort((a, b) => {
+    switch (field) {
+      case 'memberCardNo':
+        return dir * (a.memberCardNo || '').localeCompare(b.memberCardNo || '');
+      case 'name':
+        return dir * (a.name || '').localeCompare(b.name || '');
+      case 'address':
+        return dir * (a.address || '').localeCompare(b.address || '');
+      case 'customerType':
+        return dir * (a.customerType || '').localeCompare(b.customerType || '');
+      case 'phone':
+        return dir * (a.phone || '').localeCompare(b.phone || '');
+      case 'tier': {
+        const orderA = tierOrder[a.tier || ''] || 0;
+        const orderB = tierOrder[b.tier || ''] || 0;
+        return dir * (orderA - orderB);
+      }
+      case 'points':
+        return dir * ((a.points || 0) - (b.points || 0));
+      case 'totalSpend':
+        return dir * ((a.totalSpend || 0) - (b.totalSpend || 0));
+      default:
+        return 0;
+    }
+  });
+
+  return list;
+});
+
 // Auto-select first member in preview
 watch(
-  filteredMembers,
+  sortedMembers,
   (list) => {
     if (list.length > 0) {
       if (!list.some(b => b.id === activeCardPreviewBuyer.value.id)) {
@@ -204,17 +262,17 @@ function printMemberCard(buyer?: Buyer) {
 
 // Keyboard Navigation (↑, ↓)
 function handleKeyDown(e: KeyboardEvent) {
-  if (filteredMembers.value.length === 0) return;
-  const currentIndex = filteredMembers.value.findIndex(b => b.id === activeCardPreviewBuyer.value.id);
+  if (sortedMembers.value.length === 0) return;
+  const currentIndex = sortedMembers.value.findIndex(b => b.id === activeCardPreviewBuyer.value.id);
 
   if (e.key === 'ArrowDown') {
     e.preventDefault();
-    const nextIdx = Math.min(currentIndex + 1, filteredMembers.value.length - 1);
-    activeCardPreviewBuyer.value = filteredMembers.value[nextIdx];
+    const nextIdx = Math.min(currentIndex + 1, sortedMembers.value.length - 1);
+    activeCardPreviewBuyer.value = sortedMembers.value[nextIdx];
   } else if (e.key === 'ArrowUp') {
     e.preventDefault();
     const prevIdx = Math.max(currentIndex - 1, 0);
-    activeCardPreviewBuyer.value = filteredMembers.value[prevIdx];
+    activeCardPreviewBuyer.value = sortedMembers.value[prevIdx];
   }
 }
 </script>
@@ -369,25 +427,113 @@ function handleKeyDown(e: KeyboardEvent) {
           </AppEmptyState>
 
           <!-- Tabel Data Member Rapi Sejajar Edge-to-Edge -->
-          <table v-else class="table-explorer" :class="showDetailDrawer ? 'min-w-[880px]' : ''">
+          <table v-else class="table-explorer whitespace-nowrap" :class="showDetailDrawer ? 'min-w-[880px]' : ''">
             <thead>
               <tr>
-                <th class="w-32">NO. KARTU MEMBER</th>
-                <th class="min-w-[160px]">NAMA PELANGGAN</th>
-                <th class="min-w-[150px]">ALAMAT</th>
-                <th class="w-24 text-center">TIPE</th>
-                <th class="w-32">NO. TELEPON</th>
-                <th class="w-24 text-center">TINGKATAN</th>
-                <th class="w-28 text-right">POIN BELANJA</th>
-                <th class="w-28 text-right">TOTAL BELANJA</th>
+                <th
+                  class="is-sortable w-32 whitespace-nowrap"
+                  :class="{ 'is-sorted': sortField === 'memberCardNo' }"
+                  title="Klik untuk mengurutkan no. kartu member"
+                  @click="toggleSort('memberCardNo')"
+                >
+                  <div class="flex items-center gap-1.5">
+                    <span>NO. KARTU MEMBER</span>
+                    <ArrowUp v-if="sortField === 'memberCardNo' && sortDirection === 'asc'" :size="12" class="text-amber-600 shrink-0" />
+                    <ArrowDown v-else-if="sortField === 'memberCardNo' && sortDirection === 'desc'" :size="12" class="text-amber-600 shrink-0" />
+                  </div>
+                </th>
+                <th
+                  class="is-sortable min-w-[160px] whitespace-nowrap"
+                  :class="{ 'is-sorted': sortField === 'name' }"
+                  title="Klik untuk mengurutkan nama pelanggan"
+                  @click="toggleSort('name')"
+                >
+                  <div class="flex items-center gap-1.5">
+                    <span>NAMA PELANGGAN</span>
+                    <ArrowUp v-if="sortField === 'name' && sortDirection === 'asc'" :size="12" class="text-amber-600 shrink-0" />
+                    <ArrowDown v-else-if="sortField === 'name' && sortDirection === 'desc'" :size="12" class="text-amber-600 shrink-0" />
+                  </div>
+                </th>
+                <th
+                  class="is-sortable min-w-[150px] whitespace-nowrap"
+                  :class="{ 'is-sorted': sortField === 'address' }"
+                  title="Klik untuk mengurutkan alamat"
+                  @click="toggleSort('address')"
+                >
+                  <div class="flex items-center gap-1.5">
+                    <span>ALAMAT</span>
+                    <ArrowUp v-if="sortField === 'address' && sortDirection === 'asc'" :size="12" class="text-amber-600 shrink-0" />
+                    <ArrowDown v-else-if="sortField === 'address' && sortDirection === 'desc'" :size="12" class="text-amber-600 shrink-0" />
+                  </div>
+                </th>
+                <th
+                  class="is-sortable w-24 text-center whitespace-nowrap"
+                  :class="{ 'is-sorted': sortField === 'customerType' }"
+                  title="Klik untuk mengurutkan tipe"
+                  @click="toggleSort('customerType')"
+                >
+                  <div class="flex items-center justify-center gap-1.5">
+                    <span>TIPE</span>
+                    <ArrowUp v-if="sortField === 'customerType' && sortDirection === 'asc'" :size="12" class="text-amber-600 shrink-0" />
+                    <ArrowDown v-else-if="sortField === 'customerType' && sortDirection === 'desc'" :size="12" class="text-amber-600 shrink-0" />
+                  </div>
+                </th>
+                <th
+                  class="is-sortable w-32 whitespace-nowrap"
+                  :class="{ 'is-sorted': sortField === 'phone' }"
+                  title="Klik untuk mengurutkan no. telepon"
+                  @click="toggleSort('phone')"
+                >
+                  <div class="flex items-center gap-1.5">
+                    <span>NO. TELEPON</span>
+                    <ArrowUp v-if="sortField === 'phone' && sortDirection === 'asc'" :size="12" class="text-amber-600 shrink-0" />
+                    <ArrowDown v-else-if="sortField === 'phone' && sortDirection === 'desc'" :size="12" class="text-amber-600 shrink-0" />
+                  </div>
+                </th>
+                <th
+                  class="is-sortable w-24 text-center whitespace-nowrap"
+                  :class="{ 'is-sorted': sortField === 'tier' }"
+                  title="Klik untuk mengurutkan tingkatan"
+                  @click="toggleSort('tier')"
+                >
+                  <div class="flex items-center justify-center gap-1.5">
+                    <span>TINGKATAN</span>
+                    <ArrowUp v-if="sortField === 'tier' && sortDirection === 'asc'" :size="12" class="text-amber-600 shrink-0" />
+                    <ArrowDown v-else-if="sortField === 'tier' && sortDirection === 'desc'" :size="12" class="text-amber-600 shrink-0" />
+                  </div>
+                </th>
+                <th
+                  class="is-sortable w-28 text-right whitespace-nowrap"
+                  :class="{ 'is-sorted': sortField === 'points' }"
+                  title="Klik untuk mengurutkan poin belanja"
+                  @click="toggleSort('points')"
+                >
+                  <div class="flex items-center justify-end gap-1.5">
+                    <span>POIN BELANJA</span>
+                    <ArrowUp v-if="sortField === 'points' && sortDirection === 'asc'" :size="12" class="text-amber-600 shrink-0" />
+                    <ArrowDown v-else-if="sortField === 'points' && sortDirection === 'desc'" :size="12" class="text-amber-600 shrink-0" />
+                  </div>
+                </th>
+                <th
+                  class="is-sortable w-28 text-right whitespace-nowrap"
+                  :class="{ 'is-sorted': sortField === 'totalSpend' }"
+                  title="Klik untuk mengurutkan total belanja"
+                  @click="toggleSort('totalSpend')"
+                >
+                  <div class="flex items-center justify-end gap-1.5">
+                    <span>TOTAL BELANJA</span>
+                    <ArrowUp v-if="sortField === 'totalSpend' && sortDirection === 'asc'" :size="12" class="text-amber-600 shrink-0" />
+                    <ArrowDown v-else-if="sortField === 'totalSpend' && sortDirection === 'desc'" :size="12" class="text-amber-600 shrink-0" />
+                  </div>
+                </th>
                 <th class="th-action-sticky w-28 text-center">AKSI</th>
               </tr>
             </thead>
             <tbody>
               <tr
-                v-for="b in filteredMembers"
+                v-for="b in sortedMembers"
                 :key="b.id"
-                class="hover:bg-amber-50/50 cursor-pointer transition-colors select-none"
+                class="hover:bg-amber-50/50 cursor-pointer transition-colors select-none whitespace-nowrap"
                 :class="activeCardPreviewBuyer.id === b.id ? 'bg-[#fef9ee] font-semibold ring-1 ring-inset ring-amber-400' : ''"
                 title="Klik untuk lihat kartu member, klik ganda untuk edit data"
                 @click="selectForPreview(b)"
@@ -408,7 +554,7 @@ function handleKeyDown(e: KeyboardEvent) {
                 </td>
 
                 <!-- Alamat -->
-                <td class="truncate" :title="b.address || '-'">
+                <td class="truncate whitespace-nowrap" :title="b.address || '-'">
                   <span class="text-[11px] text-gray-500 block truncate">{{ b.address || '-' }}</span>
                 </td>
 

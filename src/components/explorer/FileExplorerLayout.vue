@@ -1,40 +1,50 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, defineAsyncComponent } from 'vue';
 import { usePosStore } from '../../stores/posStore';
 import { SupplierCategory } from '../../types';
 import type { ModuleTab } from './AppLauncherTab.vue';
 
-// Modular Layout Components
+// Modular Layout Components (Core Shell)
 import AppTitleBar from '../common/AppTitleBar.vue';
 import ExplorerToolbar from './ExplorerToolbar.vue';
 import ExplorerTabBar from './ExplorerTabBar.vue';
 import ExplorerStatusBar from './ExplorerStatusBar.vue';
 import AppLauncherTab from './AppLauncherTab.vue';
 import HomeInsightView from '../home/HomeInsightView.vue';
+import AppConfirmModal from '../common/AppConfirmModal.vue';
 
-// View Modules
+// Primary POS View Modules (Loaded eagerly for rapid cashier responsiveness)
 import ProductCatalog from '../pos/ProductCatalog.vue';
 import PosCart from '../pos/PosCart.vue';
-import PreOrderMatrix from '../preorder/PreOrderMatrix.vue';
-import LedgerView from '../ledger/LedgerView.vue';
-import FinancialReportsView from '../reports/FinancialReportsView.vue';
-import MasterProducts from '../master/MasterProducts.vue';
-import MasterVendorTab from '../master/MasterVendorTab.vue';
-import MasterSupplierTab from '../master/MasterSupplierTab.vue';
-import MasterBuyerTab from '../master/MasterBuyerTab.vue';
-import MasterBrandingTab from '../master/MasterBrandingTab.vue';
-import MasterDiscountTab from '../master/MasterDiscountTab.vue';
-import MasterMemberTab from '../master/MasterMemberTab.vue';
-import ReceiptModal from '../pos/ReceiptModal.vue';
-import AppConfirmModal from '../common/AppConfirmModal.vue';
-import OpenShiftModal from '../pos/OpenShiftModal.vue';
-import CloseShiftModal from '../pos/CloseShiftModal.vue';
-import ShiftSummaryModal from '../pos/ShiftSummaryModal.vue';
-import WasteModal from '../returns/WasteModal.vue';
+
+// Secondary View Modules (Lazy-loaded on tab activation)
+const PreOrderMatrix = defineAsyncComponent(() => import('../preorder/PreOrderMatrix.vue'));
+const LedgerView = defineAsyncComponent(() => import('../ledger/LedgerView.vue'));
+const FinancialReportsView = defineAsyncComponent(() => import('../reports/FinancialReportsView.vue'));
+const MasterProducts = defineAsyncComponent(() => import('../master/MasterProducts.vue'));
+const MasterVendorTab = defineAsyncComponent(() => import('../master/MasterVendorTab.vue'));
+const MasterSupplierTab = defineAsyncComponent(() => import('../master/MasterSupplierTab.vue'));
+const MasterBuyerTab = defineAsyncComponent(() => import('../master/MasterBuyerTab.vue'));
+const MasterBrandingTab = defineAsyncComponent(() => import('../master/MasterBrandingTab.vue'));
+const MasterDiscountTab = defineAsyncComponent(() => import('../master/MasterDiscountTab.vue'));
+const MasterMemberTab = defineAsyncComponent(() => import('../master/MasterMemberTab.vue'));
+
+// On-Demand Modals (Lazy-loaded when triggered)
+const ReceiptModal = defineAsyncComponent(() => import('../pos/ReceiptModal.vue'));
+const OpenShiftModal = defineAsyncComponent(() => import('../pos/OpenShiftModal.vue'));
+const CloseShiftModal = defineAsyncComponent(() => import('../pos/CloseShiftModal.vue'));
+const ShiftSummaryModal = defineAsyncComponent(() => import('../pos/ShiftSummaryModal.vue'));
+const WasteModal = defineAsyncComponent(() => import('../returns/WasteModal.vue'));
+const LicenseModal = defineAsyncComponent(() => import('../common/LicenseModal.vue'));
+
 import { useShiftStore } from '../../stores/shiftStore';
+import { useLicenseStore } from '../../stores/licenseStore';
+import { syncService } from '../../services/syncService';
 
 const posStore = usePosStore();
 const shiftStore = useShiftStore();
+const licenseStore = useLicenseStore();
+
 
 // Setiap aplikasi baru dibuka: tidak ada tab aktif, dan default memunculkan Home
 const openTabIds = ref<ModuleTab[]>([]);
@@ -72,13 +82,22 @@ const tabTitles: Record<ModuleTab, string> = {
   branding: 'Profil',
   master: 'Inventaris',
   home: 'Home',
-  launcher: 'Menu'
+  launcher: 'Menu',
+  license: 'Lisensi'
 };
 
 function openTab(tabId: ModuleTab) {
+  if (tabId === 'license') {
+    licenseStore.openLicenseModal();
+    return;
+  }
   if (tabId === 'home') {
     activeTab.value = 'home';
     currentPath.value = 'Sistem Kasir / Home';
+    return;
+  }
+  if (!licenseStore.isLicensed) {
+    licenseStore.openLicenseModal('Fitur terkunci. Harap aktivasi lisensi.');
     return;
   }
   // Map old/merged tabs to their single homes
@@ -91,6 +110,10 @@ function openTab(tabId: ModuleTab) {
 }
 
 function openLauncherTab() {
+  if (!licenseStore.isLicensed) {
+    licenseStore.openLicenseModal('Fitur terkunci. Harap aktivasi lisensi.');
+    return;
+  }
   activeTab.value = 'launcher';
   currentPath.value = 'Sistem Kasir / Menu';
 }
@@ -244,6 +267,13 @@ function handleGlobalKeydown(e: KeyboardEvent) {
     return;
   }
 
+  // Shortcut Ctrl+T / Ctrl+N: Buka Menu Baru (New Tab / Launcher)
+  if (e.ctrlKey && (e.key === 't' || e.key === 'T' || e.key === 'n' || e.key === 'N')) {
+    e.preventDefault();
+    openLauncherTab();
+    return;
+  }
+
   // Shortcut F3, F2 or Ctrl+F: Focus search box instantly
   if (e.key === 'F3' || e.key === 'F2' || ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F'))) {
     e.preventDefault();
@@ -259,10 +289,12 @@ onMounted(() => {
   openTabIds.value = [];
   activeTab.value = 'home';
   window.addEventListener('keydown', handleGlobalKeydown);
+  licenseStore.init();
 });
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleGlobalKeydown);
+  syncService.stopPolling();
 });
 </script>
 
@@ -416,5 +448,9 @@ onUnmounted(() => {
 
     <!-- Modal Pencatatan Barang Rusak / Susut (Waste) -->
     <WasteModal />
+
+    <!-- Modal Manajemen Lisensi (Tertaut.com) -->
+    <LicenseModal />
   </div>
 </template>
+

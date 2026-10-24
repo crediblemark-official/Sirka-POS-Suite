@@ -249,3 +249,25 @@ Paket hasil build akan dihasilkan di folder `src-tauri/target/release/bundle/`.
 - Kredensial database tidak boleh dikomit ke repository. Gunakan Cloudflare Secret (`bun x wrangler secret put DATABASE_URL`) untuk lingkungan Worker.
 - Akses ke endpoint Worker `/api/*` dilindungi token `OWNER_SECRET_KEY` dengan constant-time comparison.
 - Kunci perangkat (*Device Key*) pada aplikasi mobile owner menggunakan private key ECDSA P-256 non-extractable di IndexedDB / Android Keystore.
+- Lisensi desktop kasir divalidasi dengan tanda tangan digital asimetris Ed25519 dan salted SHA-256 HWID melalui infrastruktur **tertaut.com**.
+
+---
+
+## 🔐 Sistem Lisensi Tertaut (tertaut.com)
+
+Aplikasi ini menggunakan infrastruktur lisensi dari **[tertaut.com](https://tertaut.com)** via official client SDK `@tertaut/sdk`:
+
+- **Kriptografi Asimetris Ed25519**: Verifikasi digital signature secara matematis di sisi klien tanpa memerlukan rahasia server (secret key) pada binary aplikasi.
+- **Hardware ID (HWID) Device Locking**: Lisensi terikat pada perangkat fisik menggunakan sidik jari mesin SHA-256 ter-salt untuk mencegah duplikasi atau pembajakan.
+- **Offline-First Grace Token**: Mendukung kasir beroperasi penuh saat offline tanpa koneksi internet hingga 30 hari menggunakan token grace Ed25519.
+- **Floating Seat Heartbeat**: Mendukung skenario lisensi multi-perangkat bergulir (floating lease) dengan keep-alive otomatis.
+- **Antarmuka Manajemen Terintegrasi**: Akses modal lisensi melalui TitleBar, StatusBar, maupun menu Launcher untuk aktivasi kunci `TT-XXXX-XXXX-XXXX`, cek status kuota kursi, unbind perangkat, hingga pembelian via checkout MoR.
+
+### Variabel Lingkungan (`.env`)
+```bash
+VITE_TERTAUT_API_KEY=tt_live_kasir_citra
+VITE_TERTAUT_APP_ID=app_kasir_citra
+VITE_TERTAUT_BASE_URL=https://tertaut.com
+```
+Pengaturan API juga dapat ditimpa atau dikonfigurasi langsung dari jendela **Lisensi Aplikasi -> Konfigurasi API Tertaut**.
+

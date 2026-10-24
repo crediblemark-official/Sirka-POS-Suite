@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref, computed } from 'vue';
 import {
   Printer,
   Trash2,
@@ -11,11 +12,16 @@ import {
   Banknote,
   Landmark,
   QrCode,
-  Package
+  Package,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-vue-next';
 import { Transaction } from '../../types';
 import { formatRupiah } from '../../utils/formatters';
 import { useReturnStore } from '../../stores/returnStore';
+
+type TxSortField = 'invoiceNo' | 'date' | 'customerType' | 'buyer' | 'itemsCount' | 'totalBuy' | 'finalTotal' | 'totalProfit' | 'paymentStatus' | 'paymentMethod';
+type SortDirection = 'asc' | 'desc';
 
 const returnStore = useReturnStore();
 
@@ -32,13 +38,67 @@ const emit = defineEmits<{
   (e: 'view-receipt', tx: Transaction): void;
   (e: 'delete-transaction', id: string): void;
 }>();
+
+const sortField = ref<TxSortField>('date');
+const sortDirection = ref<SortDirection>('desc');
+
+function toggleSort(field: TxSortField) {
+  if (sortField.value === field) {
+    sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortField.value = field;
+    sortDirection.value = (field === 'date' || field === 'finalTotal' || field === 'totalProfit' || field === 'totalBuy' || field === 'itemsCount') ? 'desc' : 'asc';
+  }
+}
+
+const sortedTransactions = computed(() => {
+  const list = [...props.transactions];
+  const dir = sortDirection.value === 'asc' ? 1 : -1;
+  const field = sortField.value;
+
+  return list.sort((a, b) => {
+    if (field === 'date') {
+      const dtA = a.createdAt || a.date;
+      const dtB = b.createdAt || b.date;
+      return dtA.localeCompare(dtB) * dir;
+    }
+    if (field === 'invoiceNo') {
+      return a.invoiceNo.localeCompare(b.invoiceNo) * dir;
+    }
+    if (field === 'customerType') {
+      return (a.customerType || 'B2B').localeCompare(b.customerType || 'B2B') * dir;
+    }
+    if (field === 'buyer') {
+      return a.buyer.localeCompare(b.buyer) * dir;
+    }
+    if (field === 'itemsCount') {
+      return (a.items.length - b.items.length) * dir;
+    }
+    if (field === 'totalBuy') {
+      return ((a.totalBuy || 0) - (b.totalBuy || 0)) * dir;
+    }
+    if (field === 'finalTotal') {
+      return ((a.finalTotal ?? a.totalSell) - (b.finalTotal ?? b.totalSell)) * dir;
+    }
+    if (field === 'totalProfit') {
+      return ((a.totalProfit || 0) - (b.totalProfit || 0)) * dir;
+    }
+    if (field === 'paymentStatus') {
+      return a.paymentStatus.localeCompare(b.paymentStatus) * dir;
+    }
+    if (field === 'paymentMethod') {
+      return (a.paymentMethod || '').localeCompare(b.paymentMethod || '') * dir;
+    }
+    return 0;
+  });
+});
 </script>
 
 <template>
-  <table class="table-explorer min-w-[1150px]">
+  <table class="table-explorer min-w-[1150px] whitespace-nowrap">
     <thead>
       <tr>
-        <th class="w-12 text-center">
+        <th class="w-12 text-center select-none">
           <button
             type="button"
             class="p-1 hover:bg-black/10 rounded cursor-pointer transition-colors"
@@ -49,22 +109,143 @@ const emit = defineEmits<{
             <ChevronsUpDown v-else :size="14" class="text-gray-600" />
           </button>
         </th>
-        <th class="w-48">NO. NOTA</th>
-        <th class="w-24 text-center">TANGGAL</th>
-        <th class="w-16 text-center">JENIS</th>
-        <th class="w-40">PELANGGAN</th>
-        <th class="w-24 text-center">TOTAL ITEM</th>
-        <th class="w-32 text-right">MODAL (HPP)</th>
-        <th class="w-32 text-right">TOTAL NOTA</th>
-        <th class="w-32 text-right">UNTUNG BERSIH</th>
-        <th class="w-28 text-center">STATUS BAYAR</th>
-        <th class="w-32 text-center">METODE BAYAR</th>
+
+        <th
+          class="is-sortable w-48 whitespace-nowrap"
+          :class="{ 'is-sorted': sortField === 'invoiceNo' }"
+          title="Klik untuk mengurutkan no. nota"
+          @click="toggleSort('invoiceNo')"
+        >
+          <div class="flex items-center gap-1">
+            <span>NO. NOTA</span>
+            <ArrowUp v-if="sortField === 'invoiceNo' && sortDirection === 'asc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
+            <ArrowDown v-else-if="sortField === 'invoiceNo' && sortDirection === 'desc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
+          </div>
+        </th>
+
+        <th
+          class="is-sortable w-24 text-center whitespace-nowrap"
+          :class="{ 'is-sorted': sortField === 'date' }"
+          title="Klik untuk mengurutkan tanggal"
+          @click="toggleSort('date')"
+        >
+          <div class="flex items-center justify-center gap-1">
+            <span>TANGGAL</span>
+            <ArrowUp v-if="sortField === 'date' && sortDirection === 'asc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
+            <ArrowDown v-else-if="sortField === 'date' && sortDirection === 'desc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
+          </div>
+        </th>
+
+        <th
+          class="is-sortable w-16 text-center whitespace-nowrap"
+          :class="{ 'is-sorted': sortField === 'customerType' }"
+          title="Klik untuk mengurutkan jenis pelanggan"
+          @click="toggleSort('customerType')"
+        >
+          <div class="flex items-center justify-center gap-1">
+            <span>JENIS</span>
+            <ArrowUp v-if="sortField === 'customerType' && sortDirection === 'asc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
+            <ArrowDown v-else-if="sortField === 'customerType' && sortDirection === 'desc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
+          </div>
+        </th>
+
+        <th
+          class="is-sortable w-40 whitespace-nowrap"
+          :class="{ 'is-sorted': sortField === 'buyer' }"
+          title="Klik untuk mengurutkan pelanggan"
+          @click="toggleSort('buyer')"
+        >
+          <div class="flex items-center gap-1">
+            <span>PELANGGAN</span>
+            <ArrowUp v-if="sortField === 'buyer' && sortDirection === 'asc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
+            <ArrowDown v-else-if="sortField === 'buyer' && sortDirection === 'desc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
+          </div>
+        </th>
+
+        <th
+          class="is-sortable w-24 text-center whitespace-nowrap"
+          :class="{ 'is-sorted': sortField === 'itemsCount' }"
+          title="Klik untuk mengurutkan jumlah item"
+          @click="toggleSort('itemsCount')"
+        >
+          <div class="flex items-center justify-center gap-1">
+            <span>TOTAL ITEM</span>
+            <ArrowUp v-if="sortField === 'itemsCount' && sortDirection === 'asc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
+            <ArrowDown v-else-if="sortField === 'itemsCount' && sortDirection === 'desc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
+          </div>
+        </th>
+
+        <th
+          class="is-sortable w-32 text-right whitespace-nowrap"
+          :class="{ 'is-sorted': sortField === 'totalBuy' }"
+          title="Klik untuk mengurutkan modal"
+          @click="toggleSort('totalBuy')"
+        >
+          <div class="flex items-center justify-end gap-1">
+            <span>MODAL (HPP)</span>
+            <ArrowUp v-if="sortField === 'totalBuy' && sortDirection === 'asc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
+            <ArrowDown v-else-if="sortField === 'totalBuy' && sortDirection === 'desc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
+          </div>
+        </th>
+
+        <th
+          class="is-sortable w-32 text-right whitespace-nowrap"
+          :class="{ 'is-sorted': sortField === 'finalTotal' }"
+          title="Klik untuk mengurutkan total nota"
+          @click="toggleSort('finalTotal')"
+        >
+          <div class="flex items-center justify-end gap-1">
+            <span>TOTAL NOTA</span>
+            <ArrowUp v-if="sortField === 'finalTotal' && sortDirection === 'asc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
+            <ArrowDown v-else-if="sortField === 'finalTotal' && sortDirection === 'desc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
+          </div>
+        </th>
+
+        <th
+          class="is-sortable w-32 text-right whitespace-nowrap"
+          :class="{ 'is-sorted': sortField === 'totalProfit' }"
+          title="Klik untuk mengurutkan untung bersih"
+          @click="toggleSort('totalProfit')"
+        >
+          <div class="flex items-center justify-end gap-1">
+            <span>UNTUNG BERSIH</span>
+            <ArrowUp v-if="sortField === 'totalProfit' && sortDirection === 'asc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
+            <ArrowDown v-else-if="sortField === 'totalProfit' && sortDirection === 'desc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
+          </div>
+        </th>
+
+        <th
+          class="is-sortable w-28 text-center whitespace-nowrap"
+          :class="{ 'is-sorted': sortField === 'paymentStatus' }"
+          title="Klik untuk mengurutkan status bayar"
+          @click="toggleSort('paymentStatus')"
+        >
+          <div class="flex items-center justify-center gap-1">
+            <span>STATUS BAYAR</span>
+            <ArrowUp v-if="sortField === 'paymentStatus' && sortDirection === 'asc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
+            <ArrowDown v-else-if="sortField === 'paymentStatus' && sortDirection === 'desc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
+          </div>
+        </th>
+
+        <th
+          class="is-sortable w-32 text-center whitespace-nowrap"
+          :class="{ 'is-sorted': sortField === 'paymentMethod' }"
+          title="Klik untuk mengurutkan metode bayar"
+          @click="toggleSort('paymentMethod')"
+        >
+          <div class="flex items-center justify-center gap-1">
+            <span>METODE BAYAR</span>
+            <ArrowUp v-if="sortField === 'paymentMethod' && sortDirection === 'asc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
+            <ArrowDown v-else-if="sortField === 'paymentMethod' && sortDirection === 'desc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
+          </div>
+        </th>
+
         <!-- Sticky Action Header -->
-        <th class="th-action-sticky w-20">AKSI</th>
+        <th class="th-action-sticky w-20 text-center select-none">AKSI</th>
       </tr>
     </thead>
     <tbody>
-      <template v-for="tx in transactions" :key="tx.id">
+      <template v-for="tx in sortedTransactions" :key="tx.id">
         <tr
           class="cursor-pointer"
           :class="{ 'bg-[#fefcf8]': expandedTxIds.has(tx.id) }"

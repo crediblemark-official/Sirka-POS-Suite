@@ -96,9 +96,7 @@ async function checkPin() {
       <!-- Desktop Dialog Titlebar -->
       <div class="h-8 px-3 flex items-center justify-between bg-[#dfddd9] border-b border-[#c8c5c0] text-xs">
         <div class="flex items-center gap-2">
-          <div class="w-4 h-4 rounded bg-[#2563eb] text-white flex items-center justify-center">
-            <Store :size="10" />
-          </div>
+          <img src="/logo.png" alt="Sirka" class="w-4 h-4 rounded object-contain shrink-0" />
           <span class="font-bold text-[#2e2b28]">Keamanan Owner</span>
         </div>
         <div class="flex items-center gap-1">
@@ -110,11 +108,8 @@ async function checkPin() {
 
       <!-- Dialog Body -->
       <div class="p-4 flex flex-col items-center">
-        <div class="w-10 h-10 rounded-full bg-[#dfddd9] border border-[#c8c5c0] text-[#2563eb] flex items-center justify-center mb-3 shadow-inner">
-          <Fingerprint v-if="useDeviceKey" class="w-5 h-5" />
-          <Lock v-else class="w-5 h-5" />
-        </div>
-        <h2 class="text-sm font-bold tracking-tight text-[#2e2b28]">Kunci Laporan Finansial</h2>
+        <img src="/logo.png" alt="Sirka" class="w-12 h-12 rounded-xl object-contain mb-2 shadow-sm" />
+        <h2 class="text-sm font-bold tracking-tight text-[#2e2b28]">Sirka Owner</h2>
 
         <!--
           BUG FIX (SEC-3): tidak ada lagi PIN plaintext di perangkat.

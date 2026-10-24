@@ -12,8 +12,25 @@ import {
   Scale,
   Search,
   Plus,
-  AlertTriangle
+  AlertTriangle,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-vue-next';
+
+type WasteSortField = 'createdAt' | 'productName' | 'category' | 'reason' | 'qty' | 'notes' | 'recordedBy' | 'estimatedLoss';
+type SortDirection = 'asc' | 'desc';
+
+const sortField = ref<WasteSortField>('createdAt');
+const sortDirection = ref<SortDirection>('desc');
+
+function toggleSort(field: WasteSortField) {
+  if (sortField.value === field) {
+    sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortField.value = field;
+    sortDirection.value = ['createdAt', 'qty', 'estimatedLoss'].includes(field) ? 'desc' : 'asc';
+  }
+}
 
 const props = withDefaults(defineProps<{
   searchQuery?: string;
@@ -45,6 +62,37 @@ const filteredRecords = computed(() => {
 
     return true;
   });
+});
+
+const sortedRecords = computed(() => {
+  const list = [...filteredRecords.value];
+  const field = sortField.value;
+  const dir = sortDirection.value === 'asc' ? 1 : -1;
+
+  list.sort((a, b) => {
+    switch (field) {
+      case 'createdAt':
+        return dir * (new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+      case 'productName':
+        return dir * (a.productName || '').localeCompare(b.productName || '');
+      case 'category':
+        return dir * (a.category || '').localeCompare(b.category || '');
+      case 'reason':
+        return dir * (a.reason || '').localeCompare(b.reason || '');
+      case 'qty':
+        return dir * ((a.qty || 0) - (b.qty || 0));
+      case 'notes':
+        return dir * (a.notes || '').localeCompare(b.notes || '');
+      case 'recordedBy':
+        return dir * (a.recordedBy || '').localeCompare(b.recordedBy || '');
+      case 'estimatedLoss':
+        return dir * ((a.estimatedLoss || 0) - (b.estimatedLoss || 0));
+      default:
+        return 0;
+    }
+  });
+
+  return list;
 });
 
 const totalItems = computed(() => returnStore.wasteRecords.length);
@@ -204,23 +252,111 @@ function formatDateTime(iso: string) {
         </button>
       </AppEmptyState>
 
-      <table v-else class="w-full text-left border-collapse text-xs">
+      <table v-else class="w-full text-left border-collapse text-xs whitespace-nowrap">
         <thead class="sticky top-0 z-20 bg-[#f4f2ee] border-b border-gray-300 text-gray-700 font-bold text-[11px] shadow-2xs uppercase tracking-wider">
           <tr>
-            <th class="py-2.5 px-3 text-center w-12">NO</th>
-            <th class="py-2.5 px-3 w-40">WAKTU & TANGGAL</th>
-            <th class="py-2.5 px-3 min-w-[200px]">NAMA BARANG</th>
-            <th class="py-2.5 px-3 text-center w-32">KATEGORI</th>
-            <th class="py-2.5 px-3 text-center w-36">ALASAN SUSUT</th>
-            <th class="py-2.5 px-3 text-center w-28">JUMLAH SUSUT</th>
-            <th class="py-2.5 px-3 min-w-[180px]">CATATAN KERUSAKAN</th>
-            <th class="py-2.5 px-3 w-32">DICATAT OLEH</th>
-            <th class="py-2.5 px-3 text-right w-36">ESTIMASI KERUGIAN</th>
+            <th class="py-2.5 px-3 text-center w-12 whitespace-nowrap">NO</th>
+            <th
+              class="py-2.5 px-3 w-40 cursor-pointer select-none transition-colors whitespace-nowrap"
+              :class="sortField === 'createdAt' ? 'bg-[#dfdbd4] text-gray-900' : 'hover:bg-[#eae7e1]'"
+              title="Klik untuk mengurutkan waktu & tanggal"
+              @click="toggleSort('createdAt')"
+            >
+              <div class="flex items-center gap-1.5">
+                <span>WAKTU & TANGGAL</span>
+                <ArrowUp v-if="sortField === 'createdAt' && sortDirection === 'asc'" :size="12" class="text-amber-600 shrink-0" />
+                <ArrowDown v-else-if="sortField === 'createdAt' && sortDirection === 'desc'" :size="12" class="text-amber-600 shrink-0" />
+              </div>
+            </th>
+            <th
+              class="py-2.5 px-3 min-w-[200px] cursor-pointer select-none transition-colors whitespace-nowrap"
+              :class="sortField === 'productName' ? 'bg-[#dfdbd4] text-gray-900' : 'hover:bg-[#eae7e1]'"
+              title="Klik untuk mengurutkan nama barang"
+              @click="toggleSort('productName')"
+            >
+              <div class="flex items-center gap-1.5">
+                <span>NAMA BARANG</span>
+                <ArrowUp v-if="sortField === 'productName' && sortDirection === 'asc'" :size="12" class="text-amber-600 shrink-0" />
+                <ArrowDown v-else-if="sortField === 'productName' && sortDirection === 'desc'" :size="12" class="text-amber-600 shrink-0" />
+              </div>
+            </th>
+            <th
+              class="py-2.5 px-3 text-center w-32 cursor-pointer select-none transition-colors whitespace-nowrap"
+              :class="sortField === 'category' ? 'bg-[#dfdbd4] text-gray-900' : 'hover:bg-[#eae7e1]'"
+              title="Klik untuk mengurutkan kategori"
+              @click="toggleSort('category')"
+            >
+              <div class="flex items-center justify-center gap-1.5">
+                <span>KATEGORI</span>
+                <ArrowUp v-if="sortField === 'category' && sortDirection === 'asc'" :size="12" class="text-amber-600 shrink-0" />
+                <ArrowDown v-else-if="sortField === 'category' && sortDirection === 'desc'" :size="12" class="text-amber-600 shrink-0" />
+              </div>
+            </th>
+            <th
+              class="py-2.5 px-3 text-center w-36 cursor-pointer select-none transition-colors whitespace-nowrap"
+              :class="sortField === 'reason' ? 'bg-[#dfdbd4] text-gray-900' : 'hover:bg-[#eae7e1]'"
+              title="Klik untuk mengurutkan alasan susut"
+              @click="toggleSort('reason')"
+            >
+              <div class="flex items-center justify-center gap-1.5">
+                <span>ALASAN SUSUT</span>
+                <ArrowUp v-if="sortField === 'reason' && sortDirection === 'asc'" :size="12" class="text-amber-600 shrink-0" />
+                <ArrowDown v-else-if="sortField === 'reason' && sortDirection === 'desc'" :size="12" class="text-amber-600 shrink-0" />
+              </div>
+            </th>
+            <th
+              class="py-2.5 px-3 text-center w-28 cursor-pointer select-none transition-colors whitespace-nowrap"
+              :class="sortField === 'qty' ? 'bg-[#dfdbd4] text-gray-900' : 'hover:bg-[#eae7e1]'"
+              title="Klik untuk mengurutkan jumlah susut"
+              @click="toggleSort('qty')"
+            >
+              <div class="flex items-center justify-center gap-1.5">
+                <span>JUMLAH SUSUT</span>
+                <ArrowUp v-if="sortField === 'qty' && sortDirection === 'asc'" :size="12" class="text-amber-600 shrink-0" />
+                <ArrowDown v-else-if="sortField === 'qty' && sortDirection === 'desc'" :size="12" class="text-amber-600 shrink-0" />
+              </div>
+            </th>
+            <th
+              class="py-2.5 px-3 min-w-[180px] cursor-pointer select-none transition-colors whitespace-nowrap"
+              :class="sortField === 'notes' ? 'bg-[#dfdbd4] text-gray-900' : 'hover:bg-[#eae7e1]'"
+              title="Klik untuk mengurutkan catatan kerusakan"
+              @click="toggleSort('notes')"
+            >
+              <div class="flex items-center gap-1.5">
+                <span>CATATAN KERUSAKAN</span>
+                <ArrowUp v-if="sortField === 'notes' && sortDirection === 'asc'" :size="12" class="text-amber-600 shrink-0" />
+                <ArrowDown v-else-if="sortField === 'notes' && sortDirection === 'desc'" :size="12" class="text-amber-600 shrink-0" />
+              </div>
+            </th>
+            <th
+              class="py-2.5 px-3 w-32 cursor-pointer select-none transition-colors whitespace-nowrap"
+              :class="sortField === 'recordedBy' ? 'bg-[#dfdbd4] text-gray-900' : 'hover:bg-[#eae7e1]'"
+              title="Klik untuk mengurutkan pencatat"
+              @click="toggleSort('recordedBy')"
+            >
+              <div class="flex items-center gap-1.5">
+                <span>DICATAT OLEH</span>
+                <ArrowUp v-if="sortField === 'recordedBy' && sortDirection === 'asc'" :size="12" class="text-amber-600 shrink-0" />
+                <ArrowDown v-else-if="sortField === 'recordedBy' && sortDirection === 'desc'" :size="12" class="text-amber-600 shrink-0" />
+              </div>
+            </th>
+            <th
+              class="py-2.5 px-3 text-right w-36 cursor-pointer select-none transition-colors whitespace-nowrap"
+              :class="sortField === 'estimatedLoss' ? 'bg-[#dfdbd4] text-gray-900' : 'hover:bg-[#eae7e1]'"
+              title="Klik untuk mengurutkan estimasi kerugian"
+              @click="toggleSort('estimatedLoss')"
+            >
+              <div class="flex items-center justify-end gap-1.5">
+                <span>ESTIMASI KERUGIAN</span>
+                <ArrowUp v-if="sortField === 'estimatedLoss' && sortDirection === 'asc'" :size="12" class="text-amber-600 shrink-0" />
+                <ArrowDown v-else-if="sortField === 'estimatedLoss' && sortDirection === 'desc'" :size="12" class="text-amber-600 shrink-0" />
+              </div>
+            </th>
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-200">
           <tr
-            v-for="(w, idx) in filteredRecords"
+            v-for="(w, idx) in sortedRecords"
             :key="w.id"
             class="hover:bg-amber-50/40 transition-colors"
           >

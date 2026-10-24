@@ -14,8 +14,25 @@ import {
   Banknote,
   Search,
   User,
-  Layers
+  Layers,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-vue-next';
+
+type RefundSortField = 'createdAt' | 'invoiceNo' | 'refundType' | 'cashierName' | 'reason' | 'refundPaymentMethod' | 'totalRefundAmount';
+type SortDirection = 'asc' | 'desc';
+
+const sortField = ref<RefundSortField>('createdAt');
+const sortDirection = ref<SortDirection>('desc');
+
+function toggleSort(field: RefundSortField) {
+  if (sortField.value === field) {
+    sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortField.value = field;
+    sortDirection.value = ['createdAt', 'totalRefundAmount'].includes(field) ? 'desc' : 'asc';
+  }
+}
 
 const props = withDefaults(defineProps<{
   searchQuery?: string;
@@ -62,6 +79,35 @@ const filteredRefunds = computed(() => {
 
     return true;
   });
+});
+
+const sortedRefunds = computed(() => {
+  const list = [...filteredRefunds.value];
+  const field = sortField.value;
+  const dir = sortDirection.value === 'asc' ? 1 : -1;
+
+  list.sort((a, b) => {
+    switch (field) {
+      case 'createdAt':
+        return dir * (new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+      case 'invoiceNo':
+        return dir * (a.invoiceNo || '').localeCompare(b.invoiceNo || '');
+      case 'refundType':
+        return dir * (a.refundType || '').localeCompare(b.refundType || '');
+      case 'cashierName':
+        return dir * (a.cashierName || '').localeCompare(b.cashierName || '');
+      case 'reason':
+        return dir * (a.reason || '').localeCompare(b.reason || '');
+      case 'refundPaymentMethod':
+        return dir * (a.refundPaymentMethod || '').localeCompare(b.refundPaymentMethod || '');
+      case 'totalRefundAmount':
+        return dir * ((a.totalRefundAmount || 0) - (b.totalRefundAmount || 0));
+      default:
+        return 0;
+    }
+  });
+
+  return list;
 });
 
 // Metric Stats Calculations
@@ -247,23 +293,100 @@ function formatDateTime(iso: string) {
         description="Belum ada transaksi refund yang dicatat atau tidak ada data yang cocok dengan filter yang dipilih."
       />
 
-      <table v-else class="w-full text-left border-collapse text-xs">
+      <table v-else class="w-full text-left border-collapse text-xs whitespace-nowrap">
         <thead class="sticky top-0 z-20 bg-[#f4f2ee] border-b border-gray-300 text-gray-700 font-bold text-[11px] shadow-2xs uppercase tracking-wider">
           <tr>
-            <th class="py-2.5 px-3 text-center w-12">NO</th>
-            <th class="py-2.5 px-3 w-40">WAKTU & TANGGAL</th>
-            <th class="py-2.5 px-3 w-44">NO. NOTA TRANSAKSI</th>
-            <th class="py-2.5 px-3 w-36">JENIS RETUR</th>
-            <th class="py-2.5 px-3 w-32">KASIR / PETUGAS</th>
-            <th class="py-2.5 px-3 min-w-[240px]">RINCIAN BARANG DIRETUR</th>
-            <th class="py-2.5 px-3 min-w-[160px]">ALASAN RETUR</th>
-            <th class="py-2.5 px-3 text-center w-28">METODE</th>
-            <th class="py-2.5 px-3 text-right w-36">TOTAL REFUND</th>
+            <th class="py-2.5 px-3 text-center w-12 whitespace-nowrap">NO</th>
+            <th
+              class="py-2.5 px-3 w-40 cursor-pointer select-none transition-colors whitespace-nowrap"
+              :class="sortField === 'createdAt' ? 'bg-[#dfdbd4] text-gray-900' : 'hover:bg-[#eae7e1]'"
+              title="Klik untuk mengurutkan waktu & tanggal"
+              @click="toggleSort('createdAt')"
+            >
+              <div class="flex items-center gap-1.5">
+                <span>WAKTU & TANGGAL</span>
+                <ArrowUp v-if="sortField === 'createdAt' && sortDirection === 'asc'" :size="12" class="text-rose-600 shrink-0" />
+                <ArrowDown v-else-if="sortField === 'createdAt' && sortDirection === 'desc'" :size="12" class="text-rose-600 shrink-0" />
+              </div>
+            </th>
+            <th
+              class="py-2.5 px-3 w-44 cursor-pointer select-none transition-colors whitespace-nowrap"
+              :class="sortField === 'invoiceNo' ? 'bg-[#dfdbd4] text-gray-900' : 'hover:bg-[#eae7e1]'"
+              title="Klik untuk mengurutkan no. nota"
+              @click="toggleSort('invoiceNo')"
+            >
+              <div class="flex items-center gap-1.5">
+                <span>NO. NOTA TRANSAKSI</span>
+                <ArrowUp v-if="sortField === 'invoiceNo' && sortDirection === 'asc'" :size="12" class="text-rose-600 shrink-0" />
+                <ArrowDown v-else-if="sortField === 'invoiceNo' && sortDirection === 'desc'" :size="12" class="text-rose-600 shrink-0" />
+              </div>
+            </th>
+            <th
+              class="py-2.5 px-3 w-36 cursor-pointer select-none transition-colors whitespace-nowrap"
+              :class="sortField === 'refundType' ? 'bg-[#dfdbd4] text-gray-900' : 'hover:bg-[#eae7e1]'"
+              title="Klik untuk mengurutkan jenis retur"
+              @click="toggleSort('refundType')"
+            >
+              <div class="flex items-center gap-1.5">
+                <span>JENIS RETUR</span>
+                <ArrowUp v-if="sortField === 'refundType' && sortDirection === 'asc'" :size="12" class="text-rose-600 shrink-0" />
+                <ArrowDown v-else-if="sortField === 'refundType' && sortDirection === 'desc'" :size="12" class="text-rose-600 shrink-0" />
+              </div>
+            </th>
+            <th
+              class="py-2.5 px-3 w-32 cursor-pointer select-none transition-colors whitespace-nowrap"
+              :class="sortField === 'cashierName' ? 'bg-[#dfdbd4] text-gray-900' : 'hover:bg-[#eae7e1]'"
+              title="Klik untuk mengurutkan kasir/petugas"
+              @click="toggleSort('cashierName')"
+            >
+              <div class="flex items-center gap-1.5">
+                <span>KASIR / PETUGAS</span>
+                <ArrowUp v-if="sortField === 'cashierName' && sortDirection === 'asc'" :size="12" class="text-rose-600 shrink-0" />
+                <ArrowDown v-else-if="sortField === 'cashierName' && sortDirection === 'desc'" :size="12" class="text-rose-600 shrink-0" />
+              </div>
+            </th>
+            <th class="py-2.5 px-3 min-w-[240px] whitespace-nowrap">RINCIAN BARANG DIRETUR</th>
+            <th
+              class="py-2.5 px-3 min-w-[160px] cursor-pointer select-none transition-colors whitespace-nowrap"
+              :class="sortField === 'reason' ? 'bg-[#dfdbd4] text-gray-900' : 'hover:bg-[#eae7e1]'"
+              title="Klik untuk mengurutkan alasan retur"
+              @click="toggleSort('reason')"
+            >
+              <div class="flex items-center gap-1.5">
+                <span>ALASAN RETUR</span>
+                <ArrowUp v-if="sortField === 'reason' && sortDirection === 'asc'" :size="12" class="text-rose-600 shrink-0" />
+                <ArrowDown v-else-if="sortField === 'reason' && sortDirection === 'desc'" :size="12" class="text-rose-600 shrink-0" />
+              </div>
+            </th>
+            <th
+              class="py-2.5 px-3 text-center w-28 cursor-pointer select-none transition-colors whitespace-nowrap"
+              :class="sortField === 'refundPaymentMethod' ? 'bg-[#dfdbd4] text-gray-900' : 'hover:bg-[#eae7e1]'"
+              title="Klik untuk mengurutkan metode bayar"
+              @click="toggleSort('refundPaymentMethod')"
+            >
+              <div class="flex items-center justify-center gap-1.5">
+                <span>METODE</span>
+                <ArrowUp v-if="sortField === 'refundPaymentMethod' && sortDirection === 'asc'" :size="12" class="text-rose-600 shrink-0" />
+                <ArrowDown v-else-if="sortField === 'refundPaymentMethod' && sortDirection === 'desc'" :size="12" class="text-rose-600 shrink-0" />
+              </div>
+            </th>
+            <th
+              class="py-2.5 px-3 text-right w-36 cursor-pointer select-none transition-colors whitespace-nowrap"
+              :class="sortField === 'totalRefundAmount' ? 'bg-[#dfdbd4] text-gray-900' : 'hover:bg-[#eae7e1]'"
+              title="Klik untuk mengurutkan total refund"
+              @click="toggleSort('totalRefundAmount')"
+            >
+              <div class="flex items-center justify-end gap-1.5">
+                <span>TOTAL REFUND</span>
+                <ArrowUp v-if="sortField === 'totalRefundAmount' && sortDirection === 'asc'" :size="12" class="text-rose-600 shrink-0" />
+                <ArrowDown v-else-if="sortField === 'totalRefundAmount' && sortDirection === 'desc'" :size="12" class="text-rose-600 shrink-0" />
+              </div>
+            </th>
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-200">
           <tr
-            v-for="(r, idx) in filteredRefunds"
+            v-for="(r, idx) in sortedRefunds"
             :key="r.id"
             class="hover:bg-rose-50/40 transition-colors"
           >

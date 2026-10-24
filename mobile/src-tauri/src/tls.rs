@@ -186,30 +186,55 @@ pub fn make_tls_connector() -> Result<RustlsConnect, String> {
 /// Mode SSL yang diminta oleh connection string.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SslMode {
-    ///Caller tidak menyebut `sslmode` → coba TLS, boleh fallback.
+    /// Caller tidak menyebut `sslmode` → coba TLS, boleh fallback.
     PreferTls,
     /// `sslmode=disable` → tanpa enkripsi (permintaan eksplisit).
     Disable,
-    /// `sslmode=require|prefer|verify-ca|verify-full` → wajib TLS.
+    /// `sslmode=require|verify-ca|verify-full` → wajib TLS.
     Require,
 }
 
-/// Parse `sslmode` dari connection string PostgreSQL.
+/// Parse `sslmode` dari connection string PostgreSQL (mendukung format URL dan format key-value).
 pub fn parse_ssl_mode(conn_str: &str) -> SslMode {
-    for part in conn_str.split_whitespace() {
-        if let Some(rest) = part.strip_prefix("sslmode=") {
-            return match rest.trim_matches('\'') {
-                "disable" => SslMode::Disable,
-                "require" | "prefer" | "verify-ca" | "verify-full" | "allow" => SslMode::Require,
-                _ => SslMode::PreferTls,
-            };
-        }
+    if let Some(idx) = conn_str.find("sslmode=") {
+        let after = &conn_str[idx + 8..];
+        let val = after.split(['&', ' ', '?'].as_ref()).next().unwrap_or("").trim_matches('\'');
+        return match val {
+            "disable" => SslMode::Disable,
+            "require" | "verify-ca" | "verify-full" => SslMode::Require,
+            "prefer" | "allow" => SslMode::PreferTls,
+            _ => SslMode::PreferTls,
+        };
     }
+
     SslMode::PreferTls
 }
 
 /// Hapus parameter `sslmode` dari connection string (dikendalikan manual di sini).
 pub fn strip_ssl_mode(conn_str: &str) -> String {
+    if conn_str.contains("://") {
+        if let Some(idx) = conn_str.find("sslmode=") {
+            let prefix = &conn_str[..idx];
+            let after = &conn_str[idx + 8..];
+            let rest = if let Some(amp_idx) = after.find('&') {
+                &after[amp_idx + 1..]
+            } else {
+                ""
+            };
+            let mut res = prefix.trim_end_matches(['?', '&'].as_ref()).to_string();
+            if !rest.is_empty() {
+                if res.contains('?') {
+                    res.push('&');
+                } else {
+                    res.push('?');
+                }
+                res.push_str(rest);
+            }
+            return res;
+        }
+        return conn_str.to_string();
+    }
+
     conn_str
         .split_whitespace()
         .filter(|p| !p.starts_with("sslmode="))

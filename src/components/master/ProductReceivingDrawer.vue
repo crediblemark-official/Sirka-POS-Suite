@@ -11,6 +11,12 @@ import { dbService } from '../../services/dbService';
 import { syncService } from '../../services/syncService';
 import FormSidebarDrawer from '../common/FormSidebarDrawer.vue';
 import SearchableSelect, { type SelectOption } from '../common/SearchableSelect.vue';
+import ProductMultiUnitsSection from './ProductMultiUnitsSection.vue';
+import {
+  type ProductUnitFormItem,
+  isUnitRowPartiallyFilled,
+  recalculateAllUnitFactors
+} from '../../utils/multiUnits';
 import { useConfirmDialog } from '../../composables/useConfirmDialog';
 import {
   Package,
@@ -20,11 +26,8 @@ import {
   Sparkles,
   Barcode,
   Tag,
-  Plus,
-  Trash2,
   ChevronDown,
-  ChevronUp,
-  HelpCircle
+  ChevronUp
 } from 'lucide-vue-next';
 
 const props = defineProps<{
@@ -80,12 +83,6 @@ const productOptions = computed<SelectOption[]>(() =>
   }))
 );
 
-// Interface item satuan untuk pecahan bertingkat (cascading) & kemasan
-interface ProductUnitFormItem extends ProductUnitConversion {
-  mode?: 'multiple' | 'fraction';
-  displayFactor?: number;
-  parentUnitName?: string;
-}
 
 // State Form Terpadu
 const selectedProductId = ref<string>('');
@@ -264,120 +261,12 @@ function loadProductData(prod: Product) {
     units: existingUnits,
     isPerishable: prod.isPerishable ?? false
   };
-  recalculateAllUnitFactors();
+  recalculateAllUnitFactors(productForm.value.units, productForm.value.unit);
   qtyReceived.value = 0;
   isStockInboundEnabled.value = false;
   selectedInboundUnit.value = prod.unit;
   inboundPackageBuyPrice.value = 0;
 }
-
-// Helper Multi-Satuan: Pilihan Satuan Induk untuk Pecahan Bertingkat (Cascading)
-function getParentUnitOptions(idx: number): string[] {
-  const base = productForm.value.unit?.trim() ? productForm.value.unit.trim().toUpperCase() : 'PCS';
-  const options = [base];
-  for (let i = 0; i < idx; i++) {
-    const prev = productForm.value.units[i];
-    if (prev && prev.unitName && prev.unitName.trim()) {
-      const name = prev.unitName.trim().toUpperCase();
-      if (!options.includes(name)) {
-        options.push(name);
-      }
-    }
-  }
-  return options;
-}
-
-// Rekalkulasi Seluruh Rantai Satuan Bertingkat (Cascading)
-function recalculateAllUnitFactors() {
-  const base = productForm.value.unit?.trim().toUpperCase() || 'PCS';
-  const factorMap = new Map<string, number>();
-  factorMap.set(base, 1);
-
-  for (let i = 0; i < productForm.value.units.length; i++) {
-    const u = productForm.value.units[i];
-    const availableParents = getParentUnitOptions(i);
-
-    if (!u.parentUnitName || !availableParents.includes(u.parentUnitName.toUpperCase())) {
-      u.parentUnitName = availableParents[availableParents.length - 1] || base;
-    }
-
-    const parentName = u.parentUnitName.trim().toUpperCase();
-    const parentFactor = factorMap.get(parentName) ?? 1;
-    const num = Number(u.displayFactor) || 0;
-
-    if (num <= 0) {
-      u.conversionFactor = 0;
-    } else if (u.mode === 'multiple') {
-      u.conversionFactor = Number((parentFactor * num).toFixed(6));
-    } else {
-      // Fraction (default): Per 1 Parent = num Unit Baru -> konversi = parentFactor / num
-      u.conversionFactor = Number((parentFactor / num).toFixed(6));
-    }
-
-    if (u.unitName && u.unitName.trim() && u.conversionFactor > 0) {
-      factorMap.set(u.unitName.trim().toUpperCase(), u.conversionFactor);
-    }
-  }
-}
-
-function onUnitFactorChange(_u?: ProductUnitFormItem) {
-  recalculateAllUnitFactors();
-}
-
-function onUnitParentChange(_u?: ProductUnitFormItem) {
-  recalculateAllUnitFactors();
-}
-
-function onUnitNameChange(_u?: ProductUnitFormItem) {
-  recalculateAllUnitFactors();
-}
-
-function getEquivalentTotalStock(u: ProductUnitFormItem): string {
-  const totalStock = Number(productForm.value.currentStock) || 0;
-  if (totalStock <= 0 || !u.conversionFactor || u.conversionFactor <= 0) return '0';
-  const eq = totalStock / u.conversionFactor;
-  // Hilangkan noise floating point IEEE 754 (mis. 3600.036 -> 3600)
-  const rounded = Math.abs(eq - Math.round(eq)) < 0.05 ? Math.round(eq) : Math.round(eq * 100) / 100;
-  return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(rounded);
-}
-
-function formatUnitQty(val: number | string | undefined): string {
-  const num = Number(val) || 0;
-  return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(num);
-}
-
-function getProportionalSellPrice(u: ProductUnitFormItem): number {
-  const baseSell = Number(productForm.value.lastSellPrice) || 0;
-  if (baseSell <= 0 || !u.conversionFactor || u.conversionFactor <= 0) return 0;
-  return Math.round(baseSell * u.conversionFactor);
-}
-
-// Validasi Form Multi-Satuan: Ketiga kolom wajib diisi jika salah satu terisi
-function isUnitFactorInvalid(u: ProductUnitFormItem): boolean {
-  const hasFactor = Boolean(u.displayFactor && Number(u.displayFactor) > 0);
-  const hasName = Boolean(u.unitName && u.unitName.trim().length > 0);
-  const hasPrice = Boolean(u.sellPrice && Number(u.sellPrice) > 0);
-  return (hasName || hasPrice) && !hasFactor;
-}
-
-function isUnitNameInvalid(u: ProductUnitFormItem): boolean {
-  const hasFactor = Boolean(u.displayFactor && Number(u.displayFactor) > 0);
-  const hasName = Boolean(u.unitName && u.unitName.trim().length > 0);
-  const hasPrice = Boolean(u.sellPrice && Number(u.sellPrice) > 0);
-  return (hasFactor || hasPrice) && !hasName;
-}
-
-function isUnitPriceInvalid(u: ProductUnitFormItem): boolean {
-  const hasFactor = Boolean(u.displayFactor && Number(u.displayFactor) > 0);
-  const hasName = Boolean(u.unitName && u.unitName.trim().length > 0);
-  const hasPrice = Boolean(u.sellPrice && Number(u.sellPrice) > 0);
-  return (hasFactor || hasName) && !hasPrice;
-}
-
-function isUnitRowPartiallyFilled(u: ProductUnitFormItem): boolean {
-  return isUnitFactorInvalid(u) || isUnitNameInvalid(u) || isUnitPriceInvalid(u);
-}
-
 
 // Update faktor konversi satuan kemasan langsung dari kotak penerimaan kulakan
 function updateActiveInboundFactor(newVal: string | number) {
@@ -388,34 +277,6 @@ function updateActiveInboundFactor(newVal: string | number) {
   );
   if (found) {
     found.conversionFactor = val;
-  }
-}
-
-function addCustomUnit() {
-  productForm.value.hasMultiUnits = true;
-  const idx = productForm.value.units.length;
-  const availableParents = getParentUnitOptions(idx);
-  const defaultParent = availableParents[availableParents.length - 1] || productForm.value.unit || 'PCS';
-
-  const item: ProductUnitFormItem = {
-    id: `u-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-    unitName: '',
-    parentUnitName: defaultParent,
-    conversionFactor: 0,
-    displayFactor: undefined,
-    mode: 'fraction',
-    sellPrice: 0
-  };
-  productForm.value.units.push(item);
-  recalculateAllUnitFactors();
-}
-
-function removeUnit(index: number) {
-  productForm.value.units.splice(index, 1);
-  if (productForm.value.units.length === 0) {
-    productForm.value.hasMultiUnits = false;
-  } else {
-    recalculateAllUnitFactors();
   }
 }
 
@@ -1218,203 +1079,14 @@ async function handleDelete() {
       </div>
     </div>
 
-    <!-- AREA MULTI-SATUAN: PENJUALAN ECERAN & GROSIR (MINIMALIS & TOOLTIP) -->
-    <div class="space-y-2.5 pb-4 border-b border-gray-200">
-      <!-- Toggle Header Minimalis dengan Tooltip -->
-      <div class="flex items-center justify-between">
-        <label class="flex items-center gap-2 cursor-pointer select-none">
-          <input
-            v-model="productForm.hasMultiUnits"
-            type="checkbox"
-            class="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500 cursor-pointer"
-          />
-          <div class="flex items-center gap-1.5">
-            <span class="text-xs font-bold text-gray-800">Jual Eceran / Multi-Satuan</span>
-            <div class="relative group flex items-center">
-              <span class="text-gray-400 group-hover:text-purple-600 cursor-help transition-colors">
-                <HelpCircle :size="13" />
-              </span>
-              <!-- Tooltip Instan -->
-              <div
-                class="absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 hidden group-hover:block z-50 w-56 p-2 bg-gray-900 text-white text-[10.5px] leading-tight rounded-md shadow-xl pointer-events-none animate-in fade-in duration-75"
-              >
-                Untuk barang kulakan Dus/Peti yang diecer (contoh: Mie Dus, Telur Peti, Rokok Slop), satuan perlu diatur ke satuan lebih kecil.
-                <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900" />
-              </div>
-            </div>
-          </div>
-        </label>
-        <span
-          class="text-[9.5px] font-bold px-2 py-0.5 rounded font-mono"
-          :class="productForm.hasMultiUnits ? 'bg-purple-100 text-purple-800 border border-purple-200' : 'text-gray-400 bg-gray-100'"
-        >
-          {{ productForm.hasMultiUnits ? 'Aktif' : 'Nonaktif' }}
-        </span>
-      </div>
-
-      <!-- Detail Konfigurasi Satuan Turunan (Tampil jika hasMultiUnits aktif) -->
-      <div v-if="productForm.hasMultiUnits" class="space-y-2 pt-1">
-        <!-- Daftar Kemasan / Eceran Turunan -->
-        <div class="space-y-1.5">
-          <div class="flex items-center justify-between">
-            <span class="text-[11px] font-bold text-gray-800">
-              Jumlah {{ formatUnitQty(productForm.currentStock) }} {{ productForm.unit || 'Satuan' }}:
-            </span>
-            <button
-              type="button"
-              class="text-purple-700 hover:text-purple-900 font-bold text-[10.5px] flex items-center gap-0.5 cursor-pointer"
-              @click="addCustomUnit"
-            >
-              <Plus :size="11" />
-              <span>Tambah Satuan</span>
-            </button>
-          </div>
-
-          <div v-if="productForm.units.length === 0" class="text-center py-2.5 text-gray-400 text-xs italic bg-gray-50/70 rounded border border-dashed border-gray-200">
-            Klik "+ Tambah Satuan" untuk menambahkan satuan eceran/pecahan.
-          </div>
-
-          <!-- Baris Item Satuan Pecahan Bertingkat -->
-          <div
-            v-for="(u, idx) in productForm.units"
-            :key="u.id || idx"
-            class="py-2.5 space-y-1.5 border-b border-gray-100 last:border-b-0"
-          >
-            <!-- Input Fields: [Per 1 Satuan Induk isi] -> [Satuan Baru] -> [Harga Jual] -> [Hapus] -->
-            <div class="grid grid-cols-12 gap-2 items-center">
-              <!-- Kolom 1: Jumlah Stock Pecahan dari Per 1 Satuan Induk -->
-              <div class="col-span-4">
-                <div class="flex items-center gap-1 mb-0.5 truncate">
-                  <span class="text-[9.5px] text-gray-500 font-medium">Per 1</span>
-                  <select
-                    v-if="getParentUnitOptions(idx).length > 1"
-                    v-model="u.parentUnitName"
-                    class="bg-purple-50 text-purple-900 font-bold text-[9.5px] border border-purple-200 rounded px-1 py-0.5 outline-none cursor-pointer hover:border-purple-400"
-                    title="Pilih satuan induk acuan pecahan bertingkat"
-                    @change="onUnitParentChange(u)"
-                  >
-                    <option v-for="pOpt in getParentUnitOptions(idx)" :key="pOpt" :value="pOpt">
-                      {{ pOpt }}
-                    </option>
-                  </select>
-                  <span v-else class="text-[9.5px] font-bold text-purple-800">
-                    {{ productForm.unit || 'Satuan' }}
-                  </span>
-                  <span class="text-[9.5px] text-gray-500 font-medium">isi:</span>
-                </div>
-                <input
-                  v-model.number="u.displayFactor"
-                  type="number"
-                  step="any"
-                  min="1"
-                  placeholder="0"
-                  class="w-full rounded px-2 py-1 text-xs font-mono font-bold outline-none text-center shadow-2xs transition-colors"
-                  :class="isUnitFactorInvalid(u)
-                    ? 'bg-rose-50 border border-rose-400 text-rose-900 focus:border-rose-600'
-                    : 'bg-[#fcfbfa] border border-gray-300 text-gray-900 focus:border-purple-600'"
-                  @input="onUnitFactorChange(u)"
-                />
-              </div>
-
-              <!-- Kolom 2: Satuan Baru -->
-              <div class="col-span-3">
-                <label class="text-[9.5px] text-gray-500 block mb-0.5 font-medium">Satuan Baru</label>
-                <input
-                  v-model="u.unitName"
-                  list="standard-units-list"
-                  type="text"
-                  placeholder="SATUAN"
-                  class="w-full rounded px-2 py-1 text-xs font-mono font-bold uppercase outline-none text-center shadow-2xs transition-colors"
-                  :class="isUnitNameInvalid(u)
-                    ? 'bg-rose-50 border border-rose-400 text-rose-900 focus:border-rose-600 placeholder:text-rose-300'
-                    : 'bg-[#fcfbfa] border border-gray-300 text-gray-900 focus:border-purple-600'"
-                  @input="onUnitNameChange(u)"
-                />
-              </div>
-
-              <!-- Kolom 3: Harga Jual Eceran (Opsional) -->
-              <div class="col-span-4">
-                <div class="flex items-center justify-between mb-0.5">
-                  <label class="text-[9.5px] text-gray-600 font-semibold shrink-0">
-                    Harga Eceran
-                  </label>
-                  <button
-                    v-if="u.displayFactor && u.displayFactor > 0 && getProportionalSellPrice(u) > 0"
-                    type="button"
-                    class="text-[9px] text-purple-700 hover:text-purple-900 underline font-mono cursor-pointer shrink-0 ml-1"
-                    title="Klik untuk pasang harga proporsional ini"
-                    @click="u.sellPrice = getProportionalSellPrice(u)"
-                  >
-                    Set: Rp {{ formatRupiah(getProportionalSellPrice(u)) }}
-                  </button>
-                </div>
-                <div class="relative">
-                  <span class="absolute left-1.5 top-1 text-[10px] text-gray-400 font-mono">Rp</span>
-                  <input
-                    v-model.number="u.sellPrice"
-                    type="number"
-                    min="0"
-                    step="100"
-                    :placeholder="getProportionalSellPrice(u) ? String(getProportionalSellPrice(u)) : '0'"
-                    class="w-full rounded pl-6 pr-1 py-1 text-xs font-mono font-bold outline-none shadow-2xs transition-colors"
-                    :class="isUnitPriceInvalid(u)
-                      ? 'bg-rose-50 border border-rose-400 text-rose-900 focus:border-rose-600'
-                      : 'bg-white border border-gray-300 text-gray-800 focus:border-purple-600'"
-                  />
-                </div>
-              </div>
-
-              <!-- Kolom 4: Tombol Hapus -->
-              <div class="col-span-1 flex justify-center pt-3.5">
-                <button
-                  type="button"
-                  class="p-1 text-gray-400 hover:text-rose-600 rounded cursor-pointer transition-colors"
-                  title="Hapus baris satuan ini"
-                  @click="removeUnit(idx)"
-                >
-                  <Trash2 :size="14" />
-                </button>
-              </div>
-            </div>
-
-            <!-- Rumus / Info Konversi Otomatis & Real-time (Tanpa Border) -->
-            <div class="flex items-center justify-between gap-2 text-[10px] font-mono px-2 py-1 rounded bg-purple-50/70">
-              <template v-if="u.displayFactor && u.displayFactor > 0 && u.unitName && u.unitName.trim()">
-                <div class="text-purple-900 font-medium flex items-center gap-1.5 flex-wrap">
-                  <span>✓ 1 {{ u.parentUnitName || productForm.unit || 'Satuan' }} = {{ u.displayFactor }} {{ u.unitName }}</span>
-                  <span v-if="(Number(productForm.currentStock) || 0) > 0" class="text-purple-600 font-normal">
-                    (Stok: <strong>{{ getEquivalentTotalStock(u) }}</strong> {{ u.unitName }})
-                  </span>
-                </div>
-
-                <div class="text-emerald-700 font-bold shrink-0 whitespace-nowrap">
-                  <span v-if="u.sellPrice && u.sellPrice > 0">
-                    Rp {{ formatRupiah(u.sellPrice) }} / {{ u.unitName }}
-                    <span v-if="u.sellPrice !== getProportionalSellPrice(u)" class="text-[9px] text-gray-500 font-normal ml-0.5">
-                      (Khusus)
-                    </span>
-                  </span>
-                  <span v-else-if="getProportionalSellPrice(u) > 0" class="text-purple-700 font-medium">
-                    Rp {{ formatRupiah(getProportionalSellPrice(u)) }} / {{ u.unitName }} <span class="text-[9px] font-normal">(Otomatis)</span>
-                  </span>
-                  <span v-else class="text-gray-400 font-normal italic">
-                    Belum ada harga
-                  </span>
-                </div>
-              </template>
-              <div v-else class="italic text-[9.5px]">
-                <span v-if="isUnitRowPartiallyFilled(u)" class="text-rose-600 font-medium">
-                  ⚠️ Ketiga kolom (isi pecahan, nama satuan, dan harga) wajib diisi lengkap
-                </span>
-                <span v-else class="text-gray-400">
-                  Masukkan angka isi pecahan & nama satuan di atas...
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- AREA MULTI-SATUAN: PENJUALAN ECERAN & GROSIR (Modular Component) -->
+    <ProductMultiUnitsSection
+      v-model:has-multi-units="productForm.hasMultiUnits"
+      :units="productForm.units"
+      :base-unit="productForm.unit"
+      :current-stock="productForm.currentStock"
+      :last-sell-price="productForm.lastSellPrice"
+    />
 
     <!-- AREA 5: CATATAN TAMBAHAN (OPSIONAL) -->
     <div class="pb-2">

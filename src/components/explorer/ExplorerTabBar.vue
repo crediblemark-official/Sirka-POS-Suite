@@ -8,6 +8,7 @@ import { usePurchaseStore } from '../../stores/purchaseStore';
 import { useSupplierStore } from '../../stores/supplierStore';
 import { usePreOrderStore } from '../../stores/preOrderStore';
 import { useDiscountStore } from '../../stores/discountStore';
+import { useLicenseStore } from '../../stores/licenseStore';
 import type { ModuleTab } from './AppLauncherTab.vue';
 import {
   X,
@@ -22,7 +23,9 @@ import {
   Store,
   LayoutGrid,
   FileSpreadsheet,
-  Palette
+  Palette,
+  Plus,
+  Lock
 } from 'lucide-vue-next';
 
 const props = defineProps<{
@@ -44,6 +47,15 @@ const purchaseStore = usePurchaseStore();
 const supplierStore = useSupplierStore();
 const preOrderStore = usePreOrderStore();
 const discountStore = useDiscountStore();
+const licenseStore = useLicenseStore();
+
+function handleOpenLauncher() {
+  if (!licenseStore.isLicensed) {
+    licenseStore.openLicenseModal('Fitur terkunci. Harap aktivasi lisensi.');
+    return;
+  }
+  emit('open-launcher');
+}
 
 const tabBarRef = ref<HTMLDivElement | null>(null);
 const measurerRef = ref<HTMLDivElement | null>(null);
@@ -324,5 +336,21 @@ function getTabDisplayTitle(tabId: ModuleTab): string {
         <X :size="11" />
       </button>
     </div>
+
+    <!-- New Tab (+) Button on TabBar -->
+    <button
+      type="button"
+      class="flex items-center justify-center px-2.5 h-full hover:bg-black/5 active:bg-black/10 cursor-pointer transition-colors shrink-0 border-r"
+      style="border-color: var(--surface-tab-border, #e5e7eb);"
+      :class="!licenseStore.isLicensed ? 'text-amber-600' : 'text-gray-500 hover:text-gray-900'"
+      :title="licenseStore.isLicensed ? 'Buka Menu Baru (+)' : 'Fitur Terkunci (+)'"
+      @click="handleOpenLauncher"
+    >
+      <div v-if="!licenseStore.isLicensed" class="relative flex items-center justify-center">
+        <Plus :size="13" class="opacity-40" />
+        <Lock :size="9" class="absolute -bottom-1 -right-1 text-amber-600" />
+      </div>
+      <Plus v-else :size="13" />
+    </button>
   </div>
 </template>

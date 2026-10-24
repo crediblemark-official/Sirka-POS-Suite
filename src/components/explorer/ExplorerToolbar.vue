@@ -8,6 +8,7 @@ import { useSupplierStore } from '../../stores/supplierStore';
 import { useLedgerStore } from '../../stores/ledgerStore';
 import { usePreOrderStore } from '../../stores/preOrderStore';
 import { useShiftStore } from '../../stores/shiftStore';
+import { useLicenseStore } from '../../stores/licenseStore';
 import type { ModuleTab } from './AppLauncherTab.vue';
 import {
   LayoutGrid,
@@ -28,7 +29,8 @@ import {
   Truck,
   Plus,
   Scale,
-  Home
+  Home,
+  Lock
 } from 'lucide-vue-next';
 
 const props = defineProps<{
@@ -58,6 +60,15 @@ const supplierStore = useSupplierStore();
 const ledgerStore = useLedgerStore();
 const preOrderStore = usePreOrderStore();
 const shiftStore = useShiftStore();
+const licenseStore = useLicenseStore();
+
+function handleOpenLauncher() {
+  if (!licenseStore.isLicensed) {
+    licenseStore.openLicenseModal('Fitur terkunci. Harap aktivasi lisensi.');
+    return;
+  }
+  emit('open-launcher');
+}
 
 function handleToggleProductSidebar() {
   if (!inventoryStore.showProductSidebar) {
@@ -240,12 +251,19 @@ defineExpose({
       <button
         type="button"
         class="h-full px-2.5 flex items-center justify-center hover:bg-black/5 active:bg-black/10 cursor-pointer transition-colors border-r"
-        :class="activeTab === 'launcher' ? 'text-blue-600 bg-black/5 font-bold' : ''"
+        :class="[
+          activeTab === 'launcher' ? 'text-blue-600 bg-black/5 font-bold' : '',
+          !licenseStore.isLicensed ? 'text-amber-600 hover:text-amber-700' : ''
+        ]"
         style="border-color: var(--surface-header-border, #c8c5c0);"
-        title="Buka Menu Baru / New Tab (+)"
-        @click="emit('open-launcher')"
+        :title="licenseStore.isLicensed ? 'Buka Menu Baru (+)' : 'Fitur Terkunci (+)'"
+        @click="handleOpenLauncher"
       >
-        <Plus :size="15" />
+        <div v-if="!licenseStore.isLicensed" class="relative flex items-center justify-center">
+          <Plus :size="15" class="opacity-40" />
+          <Lock :size="10" class="absolute -bottom-1 -right-1 text-amber-600" />
+        </div>
+        <Plus v-else :size="15" />
       </button>
     </div>
 

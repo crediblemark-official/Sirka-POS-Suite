@@ -1,85 +1,64 @@
 <script setup lang="ts">
-import { Wallet, Building, QrCode } from 'lucide-vue-next';
+import { computed } from 'vue';
+import { Wallet, Building, QrCode, Coins } from 'lucide-vue-next';
 import { CashAccountBalances } from '../../types';
 import { formatRupiah } from '../../utils/formatters';
+import MetricStatsStrip, { type MetricStatItem } from '../common/MetricStatsStrip.vue';
 
 const props = withDefaults(defineProps<{
   balances: CashAccountBalances;
   readOnly?: boolean;
-  size?: 'lg' | 'xl';
 }>(), {
-  readOnly: false,
-  size: 'xl'
+  readOnly: false
 });
 
 const emit = defineEmits<{
   (e: 'settle-qris'): void;
 }>();
+
+const metricStats = computed<MetricStatItem[]>(() => {
+  const totalLikuiditas = props.balances.netCashDrawer + props.balances.netBankBalance + props.balances.pendingQrisSettlement;
+
+  return [
+    {
+      label: '1. Kas Tunai (Laci Fisik)',
+      value: `Rp ${formatRupiah(props.balances.netCashDrawer)}`,
+      tooltip: `Kas Tunai di Laci Kasir | Omzet Tunai: Rp ${formatRupiah(props.balances.salesCash)} | Keluar: -Rp ${formatRupiah(props.balances.expenseCash + props.balances.transferOutCash)}`,
+      icon: Wallet,
+      iconBoxClass: 'bg-emerald-50 text-emerald-700',
+      valClass: 'text-emerald-700'
+    },
+    {
+      label: '2. Rekening Bank Toko',
+      value: `Rp ${formatRupiah(props.balances.netBankBalance)}`,
+      tooltip: `Rekening Bank Toko | Masuk: Rp ${formatRupiah(props.balances.salesBank + props.balances.transferInBank)} | Keluar/Kulakan: -Rp ${formatRupiah(props.balances.purchasesCostBank + props.balances.expenseBank)}`,
+      icon: Building,
+      iconBoxClass: 'bg-blue-50 text-blue-700',
+      valClass: 'text-blue-700'
+    },
+    {
+      label: '3. Saldo QRIS (Belum Cair)',
+      value: `Rp ${formatRupiah(props.balances.pendingQrisSettlement)}`,
+      tooltip: `Saldo QRIS Menunggu Pencairan ke Bank | Total QRIS: Rp ${formatRupiah(props.balances.salesQris)} | Sudah Cair: Rp ${formatRupiah(props.balances.settledQrisToBank)}`,
+      icon: QrCode,
+      iconBoxClass: 'bg-purple-50 text-purple-700',
+      valClass: 'text-purple-700',
+      actionLabel: (!props.readOnly && props.balances.pendingQrisSettlement > 0) ? '⚡ Cairkan' : undefined,
+      actionFn: (!props.readOnly && props.balances.pendingQrisSettlement > 0) ? () => emit('settle-qris') : undefined,
+      actionClass: 'bg-purple-600 hover:bg-purple-700 text-white'
+    },
+    {
+      label: 'Total Saldo Kas & Bank',
+      value: `Rp ${formatRupiah(totalLikuiditas)}`,
+      tooltip: 'Total seluruh saldo likuiditas toko yang tersedia di laci kasir, bank, dan QRIS',
+      icon: Coins,
+      iconBoxClass: 'bg-indigo-50 text-indigo-700',
+      valClass: 'text-indigo-900'
+    }
+  ];
+});
 </script>
 
 <template>
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-    <!-- 1. Kas Tunai Laci Kasir -->
-    <div class="p-3 rounded-lg border border-emerald-200 bg-emerald-50/50 flex flex-col justify-between">
-      <div class="flex items-center justify-between">
-        <span class="text-[11px] font-bold text-emerald-900 uppercase">1. Kas Tunai (Laci Fisik)</span>
-        <Wallet :size="15" class="text-emerald-700" />
-      </div>
-      <div
-        class="my-1.5 font-mono font-extrabold text-emerald-900"
-        :class="props.size === 'lg' ? 'text-lg' : 'text-xl'"
-      >
-        Rp {{ formatRupiah(balances.netCashDrawer) }}
-      </div>
-      <div class="text-[10px] text-emerald-800 flex items-center justify-between pt-1 border-t border-emerald-200/60 font-medium">
-        <span>Omzet Tunai: Rp {{ formatRupiah(balances.salesCash) }}</span>
-        <span class="text-rose-700">Keluar: -Rp {{ formatRupiah(balances.expenseCash + balances.transferOutCash) }}</span>
-      </div>
-    </div>
-
-    <!-- 2. Rekening Bank Toko -->
-    <div class="p-3 rounded-lg border border-blue-200 bg-blue-50/50 flex flex-col justify-between">
-      <div class="flex items-center justify-between">
-        <span class="text-[11px] font-bold text-blue-900 uppercase">2. Rekening Bank Toko</span>
-        <Building :size="15" class="text-blue-700" />
-      </div>
-      <div
-        class="my-1.5 font-mono font-extrabold text-blue-900"
-        :class="props.size === 'lg' ? 'text-lg' : 'text-xl'"
-      >
-        Rp {{ formatRupiah(balances.netBankBalance) }}
-      </div>
-      <div class="text-[10px] text-blue-800 flex items-center justify-between pt-1 border-t border-blue-200/60 font-medium">
-        <span>Masuk: Rp {{ formatRupiah(balances.salesBank + balances.transferInBank) }}</span>
-        <span class="text-rose-700">Keluar/Kulakan: -Rp {{ formatRupiah(balances.purchasesCostBank + balances.expenseBank) }}</span>
-      </div>
-    </div>
-
-    <!-- 3. Saldo QRIS Menunggu Pencairan -->
-    <div class="p-3 rounded-lg border border-purple-200 bg-purple-50/50 flex flex-col justify-between">
-      <div class="flex items-center justify-between">
-        <span class="text-[11px] font-bold text-purple-900 uppercase">3. Saldo QRIS (Belum Cair)</span>
-        <QrCode :size="15" class="text-purple-700" />
-      </div>
-      <div
-        class="my-1.5 font-mono font-extrabold text-purple-900 flex items-baseline justify-between"
-        :class="props.size === 'lg' ? 'text-lg' : 'text-xl'"
-      >
-        <span>Rp {{ formatRupiah(balances.pendingQrisSettlement) }}</span>
-        <button
-          v-if="!props.readOnly && balances.pendingQrisSettlement > 0"
-          type="button"
-          class="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white cursor-pointer shadow-2xs transition-colors"
-          title="Cairkan saldo QRIS masuk ke rekening bank"
-          @click="emit('settle-qris')"
-        >
-          ⚡ Cairkan ke Bank
-        </button>
-      </div>
-      <div class="text-[10px] text-purple-800 flex items-center justify-between pt-1 border-t border-purple-200/60 font-medium">
-        <span>Total QRIS: Rp {{ formatRupiah(balances.salesQris) }}</span>
-        <span class="text-emerald-700">Sudah Cair: Rp {{ formatRupiah(balances.settledQrisToBank) }}</span>
-      </div>
-    </div>
-  </div>
+  <MetricStatsStrip :items="metricStats" />
 </template>

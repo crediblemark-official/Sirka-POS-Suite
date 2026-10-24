@@ -720,12 +720,11 @@ export const usePosStore = defineStore('pos', () => {
         item.profit = item.subtotalSell - item.subtotalBuy;
         computedTotalBuy += item.subtotalBuy;
 
-        // Kurangi stok fisik master
-        const stockBefore = prod.stock;
-        prod.stock = Math.max(0, Number((prod.stock - qtyToDeduct).toFixed(4)));
-        if (item.sellPrice > 0 && (!item.conversionFactor || item.conversionFactor === 1)) {
-          prod.lastSellPrice = item.sellPrice;
-        }
+        // Kurangi stok fisik master lewat action resmi inventoryStore (Enkapsulasi)
+        const updatedSellPrice = (item.sellPrice > 0 && (!item.conversionFactor || item.conversionFactor === 1))
+          ? item.sellPrice
+          : undefined;
+        const deductResult = inventoryStore.deductStock(prod.id, qtyToDeduct, updatedSellPrice);
 
         const movementStore = useStockMovementStore();
         movementStore.recordMovement({
@@ -733,8 +732,8 @@ export const usePosStore = defineStore('pos', () => {
           type: 'PENJUALAN',
           refNo: tx.invoiceNo,
           qtyChange: -qtyToDeduct,
-          stockBefore,
-          stockAfter: prod.stock,
+          stockBefore: deductResult ? deductResult.stockBefore : prod.stock,
+          stockAfter: deductResult ? deductResult.stockAfter : prod.stock,
           costPrice: item.buyPrice,
           notes: `Terjual di Kasir (${tx.paymentMethod}${isSplit ? ' + ' + splitNonCashMethod.value : ''})`,
           operator: shiftStore.currentShift?.cashierName || 'Kasir'
@@ -776,15 +775,14 @@ export const usePosStore = defineStore('pos', () => {
 
       inventoryStore.saveLocal();
 
-      // Local-First: Update poin dan akumulasi belanja member lokal
+      // Local-First: Update poin dan akumulasi belanja member lokal via aksi resmi buyerStore (Enkapsulasi)
       if (isMember.value && selectedBuyerData.value) {
-        const b = buyerStore.buyers.find(x => x.id === selectedBuyerData.value?.id);
-        if (b) {
-          b.points = Math.max(0, (b.points || 0) - (tx.pointsUsed || 0) + (tx.pointsEarned || 0));
-          b.totalSpend = (b.totalSpend || 0) + (tx.finalTotal ?? tx.totalSell);
-          b.tier = buyerStore.computeTierFromSpend(b.totalSpend);
-          buyerStore.saveLocal();
-        }
+        buyerStore.recordPurchase(
+          selectedBuyerData.value.id,
+          tx.finalTotal ?? tx.totalSell,
+          tx.pointsEarned || 0,
+          tx.pointsUsed || 0
+        );
       }
     } catch (error) {
       isCheckingOut.value = false;

@@ -359,98 +359,72 @@ onUnmounted(() => {
 <template>
   <div ref="containerRef" class="relative inline-block text-xs select-none shrink-0">
     <!-- Trigger Button (Matches user screenshot: 28 Dec 22 – 10 Jan 23 ⌄) -->
-    <button
-      type="button"
+    <button type="button"
       class="h-7 px-2.5 rounded-lg bg-white hover:bg-gray-50 border border-gray-300 text-gray-800 font-semibold text-xs flex items-center gap-1.5 shadow-2xs cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/20"
       :class="{ 'border-blue-500 ring-2 ring-blue-500/20 text-blue-900 bg-blue-50/20': isOpen || (props.startDate || props.endDate) }"
-      @click.stop="toggleDropdown"
-    >
+      @click.stop="toggleDropdown">
       <CalendarIcon :size="13" class="text-blue-600 shrink-0" />
       <span class="max-w-[220px] truncate">{{ displayLabel }}</span>
-      <ChevronDown :size="12" class="text-gray-400 transition-transform duration-200" :class="{ 'rotate-180 text-blue-600': isOpen }" />
+      <ChevronDown :size="12" class="text-gray-400 transition-transform duration-200"
+        :class="{ 'rotate-180 text-blue-600': isOpen }" />
     </button>
 
     <!-- Popover Dropdown (Teleported to body to prevent overflow clipping by headers/ribbons) -->
     <Teleport to="body">
-      <transition
-        enter-active-class="transition duration-150 ease-out"
-        enter-from-class="transform scale-95 opacity-0"
-        enter-to-class="transform scale-100 opacity-100"
-        leave-active-class="transition duration-100 ease-in"
-        leave-from-class="transform scale-100 opacity-100"
-        leave-to-class="transform scale-95 opacity-0"
-      >
-        <div
-          v-if="isOpen"
-          ref="popoverRef"
-          :style="{
-            position: 'fixed',
-            top: popoverPosition.top,
-            left: popoverPosition.left,
-            zIndex: 99999
-          }"
-          class="bg-white rounded-2xl shadow-2xl border border-gray-200/90 p-4 flex gap-5 select-none"
-          style="min-width: 490px;"
-          @click.stop
-        >
+      <transition enter-active-class="transition duration-150 ease-out" enter-from-class="transform scale-95 opacity-0"
+        enter-to-class="transform scale-100 opacity-100" leave-active-class="transition duration-100 ease-in"
+        leave-from-class="transform scale-100 opacity-100" leave-to-class="transform scale-95 opacity-0">
+        <div v-if="isOpen" ref="popoverRef" :style="{
+          position: 'fixed',
+          top: popoverPosition.top,
+          left: popoverPosition.left,
+          zIndex: 99999
+        }" class="bg-white rounded-2xl shadow-2xl border border-gray-200/90 p-4 flex gap-5 select-none"
+          style="min-width: 490px;" @click.stop>
           <!-- Sisi Kiri: Preset Durasi Cepat -->
           <div class="w-32 flex flex-col justify-between border-r border-gray-100 pr-3 text-xs text-gray-600">
             <div class="flex flex-col gap-1">
-              <button
-                type="button"
+              <button type="button"
                 class="text-left px-2.5 py-1.5 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition-colors font-medium cursor-pointer"
                 :class="{ 'bg-blue-50 text-blue-700 font-bold': props.startDate === localTodayStr() && props.endDate === localTodayStr() }"
-                @click="selectPreset('today')"
-              >
+                @click="selectPreset('today')">
                 Hari Ini
               </button>
-              <button
-                type="button"
+              <button type="button"
                 class="text-left px-2.5 py-1.5 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition-colors font-medium cursor-pointer"
                 :class="{ 'bg-blue-50 text-blue-700 font-bold': props.startDate === localDateOffset(1) && props.endDate === localDateOffset(1) }"
-                @click="selectPreset('yesterday')"
-              >
+                @click="selectPreset('yesterday')">
                 Kemarin
               </button>
-              <button
-                type="button"
+              <button type="button"
                 class="text-left px-2.5 py-1.5 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition-colors font-medium cursor-pointer"
                 :class="{ 'bg-blue-50 text-blue-700 font-bold': props.startDate === localDateOffset(7) && props.endDate === localTodayStr() }"
-                @click="selectPreset('week')"
-              >
+                @click="selectPreset('week')">
                 7 Hari Terakhir
               </button>
-              <button
-                type="button"
+              <button type="button"
                 class="text-left px-2.5 py-1.5 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition-colors font-medium cursor-pointer"
                 :class="{ 'bg-blue-50 text-blue-700 font-bold': props.startDate === localMonthStartStr() && props.endDate === localTodayStr() }"
-                @click="selectPreset('month')"
-              >
+                @click="selectPreset('month')">
                 Bulan Ini
               </button>
-              <button
-                type="button"
+              <button type="button"
                 class="text-left px-2.5 py-1.5 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition-colors font-medium cursor-pointer"
-                @click="selectPreset('prevMonth')"
-              >
+                @click="selectPreset('prevMonth')">
                 Bulan Lalu
               </button>
-              <button
-                type="button"
+              <button type="button"
                 class="text-left px-2.5 py-1.5 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition-colors font-medium cursor-pointer"
                 :class="{ 'bg-blue-50 text-blue-700 font-bold': !props.startDate && !props.endDate }"
-                @click="selectPreset('all')"
-              >
+                @click="selectPreset('all')">
                 Semua Waktu
               </button>
             </div>
 
             <!-- Tombol Reset -->
-            <button
-              type="button"
+            <button type="button"
               class="text-left px-2.5 py-1.5 text-blue-600 hover:text-blue-800 font-bold hover:bg-blue-50/60 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer mt-4"
-              @click="handleReset"
-            >
+              @click="handleReset">
               <RotateCcw :size="12" />
               <span>Reset</span>
             </button>
@@ -462,20 +436,14 @@ onUnmounted(() => {
             <div class="flex items-center justify-between pb-2 mb-2 border-b border-gray-100">
               <span class="font-bold text-gray-800 text-sm tracking-tight">{{ currentMonthLabel }}</span>
               <div class="flex items-center gap-1">
-                <button
-                  type="button"
+                <button type="button"
                   class="p-1 rounded-md hover:bg-gray-100 text-gray-500 hover:text-gray-800 cursor-pointer transition-colors"
-                  title="Bulan sebelumnya"
-                  @click="prevMonth"
-                >
+                  title="Bulan sebelumnya" @click="prevMonth">
                   <ChevronLeft :size="15" />
                 </button>
-                <button
-                  type="button"
+                <button type="button"
                   class="p-1 rounded-md hover:bg-gray-100 text-gray-500 hover:text-gray-800 cursor-pointer transition-colors"
-                  title="Bulan berikutnya"
-                  @click="nextMonth"
-                >
+                  title="Bulan berikutnya" @click="nextMonth">
                   <ChevronRight :size="15" />
                 </button>
               </div>
@@ -494,36 +462,26 @@ onUnmounted(() => {
 
             <!-- Days Grid -->
             <div class="grid grid-cols-7 gap-y-1 text-center text-xs">
-              <div
-                v-for="(day, idx) in calendarDays"
-                :key="idx"
-                class="relative flex items-center justify-center h-8 cursor-pointer group"
-                :class="{
+              <div v-for="(day, idx) in calendarDays" :key="idx"
+                class="relative flex items-center justify-center h-8 cursor-pointer group" :class="{
                   'bg-blue-50 text-blue-900': isInRange(day.dateStr),
                   'rounded-l-full': isSelectedStart(day.dateStr) && (isSelectedEnd(day.dateStr) || isInRange(day.dateStr)),
                   'rounded-r-full': isSelectedEnd(day.dateStr) && (isSelectedStart(day.dateStr) || isInRange(day.dateStr))
-                }"
-                @click="handleDateClick(day)"
-                @mouseenter="handleDateHover(day)"
-              >
+                }" @click="handleDateClick(day)" @mouseenter="handleDateHover(day)">
                 <!-- Highlight Bubble for Start / End Date -->
-                <span
-                  v-if="isSelectedStart(day.dateStr) || isSelectedEnd(day.dateStr)"
-                  class="absolute inset-0 m-auto w-7 h-7 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center shadow-xs z-10 scale-100 animate-in zoom-in-75 duration-100"
-                >
+                <span v-if="isSelectedStart(day.dateStr) || isSelectedEnd(day.dateStr)"
+                  class="absolute inset-0 m-auto w-7 h-7 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center shadow-xs z-10 scale-100 animate-in zoom-in-75 duration-100">
                   {{ day.dayNum }}
                 </span>
 
                 <!-- Normal Day Number -->
-                <span
-                  v-else
+                <span v-else
                   class="w-7 h-7 rounded-full flex items-center justify-center transition-all group-hover:bg-gray-100"
                   :class="{
                     'text-gray-300 font-normal': !day.isCurrentMonth,
                     'text-gray-800 font-medium': day.isCurrentMonth,
                     'border border-blue-400 font-bold text-blue-600': day.isToday && !isInRange(day.dateStr)
-                  }"
-                >
+                  }">
                   {{ day.dayNum }}
                 </span>
               </div>
@@ -535,7 +493,7 @@ onUnmounted(() => {
                 Pilih tanggal akhir rentang...
               </span>
               <span v-else>
-                Klik tanggal untuk memilih rentang
+                Klik tanggal untuk pilih
               </span>
               <span v-if="props.startDate && props.endDate" class="font-mono text-gray-700 font-bold">
                 {{ props.startDate }} &rarr; {{ props.endDate }}
