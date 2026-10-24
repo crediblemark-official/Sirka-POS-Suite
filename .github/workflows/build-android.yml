@@ -10,6 +10,8 @@ jobs:
   build-apk:
     name: Build Android APK
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -60,3 +62,16 @@ jobs:
           name: sirka-owner-mobile-apk
           path: mobile/src-tauri/gen/android/app/build/outputs/apk/**/*.apk
           if-no-files-found: warn
+
+      - name: Upload APK to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          APK_FILE=$(find mobile/src-tauri/gen/android/app/build/outputs/apk -name "*.apk" | head -n 1)
+          if [ -n "$APK_FILE" ]; then
+            CLEAN_NAME="Sirka_Owner_${TAG_NAME#v}.apk"
+            cp "$APK_FILE" "$CLEAN_NAME"
+            gh release upload "$TAG_NAME" "$CLEAN_NAME" --clobber
+          fi

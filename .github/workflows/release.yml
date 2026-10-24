@@ -96,6 +96,7 @@ jobs:
             - 🪟 **Windows**: Installer `.msi` dan `.exe` (NSIS)
             - 🍎 **macOS**: `.dmg` (Apple Silicon `aarch64` & Intel `x86_64`)
             - 🐧 **Linux**: `.deb` dan `.AppImage`
+            - 📱 **Android**: `.apk` (Sirka Owner Mobile)
 
             Silakan unduh file instalasi di bawah sesuai dengan sistem operasi perangkat Anda.
           releaseDraft: ${{ github.event.inputs.release_draft || false }}
