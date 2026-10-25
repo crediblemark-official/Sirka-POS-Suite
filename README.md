@@ -160,7 +160,7 @@ sirka/
 
 ### 1. Kloning & Instal Dependensi Root
 ```bash
-git clone https://github.com/crediblemark-official/Kasir-POS.git sirka
+git clone https://github.com/crediblemark-official/Sirka.git sirka
 cd sirka
 bun install
 ```
