@@ -271,3 +271,11 @@ VITE_TERTAUT_BASE_URL=https://tertaut.com
 ```
 Pengaturan API juga dapat ditimpa atau dikonfigurasi langsung dari jendela **Lisensi Aplikasi -> Konfigurasi API Tertaut**.
 
+---
+
+## 📄 Lisensi & Hak Cipta
+
+Perangkat lunak ini dilindungi oleh hak cipta dan lisensi komersial kepemilikan. Seluruh hak cipta kode sumber dan kekayaan intelektual dimiliki sepenuhnya oleh **Crediblemark** (Developer: **Rasyiqi**). 
+
+Informasi lengkap mengenai hak pakai, pembatasan penjualan kembali, dan lisensi penggunaan internal untuk SMK Taruna Bhakti dapat dilihat pada berkas [LICENSE](file:///media/rasyiqi/7653717A1C07B131/Kasir-Citra/LICENSE).
+

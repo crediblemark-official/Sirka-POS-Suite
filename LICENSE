@@ -1,0 +1,61 @@
+PERJANJIAN LISENSI PERANGKAT LUNAK SIRKA (EULA)
+================================================
+Hak Cipta (c) 2026 Crediblemark (Pengembang: Rasyiqi). Seluruh Hak Cipta Dilindungi Undang-Undang.
+Dibuat khusus untuk: SMK Taruna Bhakti.
+
+PENTING: HARAP BACA PERJANJIAN LISENSI INI DENGAN SEKSAMA SEBELUM MENGGUNAKAN PERANGKAT LUNAK SIRKA ("PERANGKAT LUNAK"). DENGAN MENGINSTAL, MENJALANKAN, ATAU MENGGUNAKAN PERANGKAT LUNAK INI, PENGGUNA ("KLIEN" ATAU "PENGGUNA AKHIR") MENYATAKAN TUNDUK DAN MENYETUJUI SYARAT DAN KETENTUAN BERIKUT:
+
+--------------------------------------------------------------------------------
+PASAL 1: HAK CIPTA DAN KEPEMILIKAN KEKAYAAN INTELEKTUAL
+--------------------------------------------------------------------------------
+1.1 Seluruh hak cipta, rahasia dagang, paten, desain antarmuka, arsitektur kode sumber (source code), dan hak kekayaan intelektual lainnya yang melekat pada Perangkat Lunak Sirka adalah dan akan selalu menjadi hak milik tunggal serta eksklusif dari Pengembang (Crediblemark / Rasyiqi).
+1.2 Pembayaran biaya lisensi oleh Klien HANYA memberikan hak pakai (license to use) sesuai batas ketentuan Pasal 2, dan BUKAN merupakan pengalihan hak milik atas kekayaan intelektual atau kode sumber Perangkat Lunak.
+
+--------------------------------------------------------------------------------
+PASAL 2: PEMBERIAN HAK LISENSI KEPADA KLIEN (GRANT OF LICENSE)
+--------------------------------------------------------------------------------
+2.1 Pengembang memberikan kepada Klien hak lisensi yang bersifat:
+    a. Non-eksklusif (non-exclusive),
+    b. Berlaku seumur hidup / permanen (perpetual license),
+    c. Terbatas pada penggunaan operasional internal instansi/toko Klien,
+    d. Terikat pada kuota kursi/perangkat (Hardware ID / Device Seats) yang telah didaftarkan dan diaktifkan.
+2.2 Lisensi ini memperbolehkan Klien untuk mengoperasikan fitur-fitur kasir, manajemen stok, laporan keuangan, dan modul operasional yang disediakan dalam Perangkat Lunak untuk kepentingan internal usaha Klien.
+
+--------------------------------------------------------------------------------
+PASAL 3: HAK PENGEMBANG UNTUK MENJUAL & MENDISTRIBUSIKAN KEMBALI
+--------------------------------------------------------------------------------
+3.1 Pengembang memiliki hak penuh, mutlak, dan tidak terbatas untuk:
+    a. Menjual, melisensikan, menyewakan, atau menawarkan Perangkat Lunak (baik versi yang sama, turunan, maupun versi yang disesuaikan) kepada klien, toko, instansi, atau pihak ketiga mana pun di masa depan.
+    b. Melakukan pembaruan, perubahan fitur, atau penerbitan versi baru Perangkat Lunak secara bebas tanpa memerlukan izin atau persetujuan dari Klien.
+3.2 Tidak ada ketentuan dalam perjanjian ini yang membatasi Pengembang untuk melakukan komersialisasi lanjutan atas produk ciptaannya sendiri.
+
+--------------------------------------------------------------------------------
+PASAL 4: LARANGAN PENJUALAN KEMBALI DAN PEMINDAHTANGANAN OLEH KLIEN
+--------------------------------------------------------------------------------
+4.1 Klien DILARANG KERAS untuk:
+    a. Menjual kembali (resell), menyewakan (lease/rent), meminjamkan, atau mendistribusikan salinan Perangkat Lunak kepada pihak ketiga.
+    b. Menjual atau mengalihkan kunci lisensi (License Key) yang telah diterbitkan kepada pihak ketiga, baik secara terpisah maupun digabungkan dengan penjualan aset usaha, tanpa persetujuan tertulis resmi dari Pengembang.
+    c. Menggandakan, mengekstrak, merekayasa balik (reverse engineer), membongkar (decompile), atau mendekonstruksi kode biner maupun sistem enkripsi/lisensi Perangkat Lunak.
+    d. Menggunakan satu lisensi melampaui batas kuota perangkat aktif yang disepakati.
+4.2 Pelanggaran terhadap ketentuan Pasal ini membatalkan hak lisensi Klien secara otomatis (revocation) dan Pengembang berhak menonaktifkan lisensi secara jarak jauh serta menempuh jalur hukum sesuai perundang-undangan Hak Cipta yang berlaku.
+
+--------------------------------------------------------------------------------
+PASAL 5: VERIFIKASI PERANGKAT & VALIDASI LISENSI
+--------------------------------------------------------------------------------
+5.1 Perangkat Lunak menggunakan sistem verifikasi digital (Hardware Identification / HWID) untuk memverifikasi keabsahan lisensi.
+5.2 Klien wajib menjaga kerahasiaan Kode Lisensi yang diberikan. Segala bentuk kebocoran atau penyalahgunaan kode lisensi oleh pihak yang tidak berhak menjadi tanggung jawab Klien sepenuhnya.
+
+--------------------------------------------------------------------------------
+PASAL 6: BATASAN TANGGUNG JAWAB & GARANSI (DISCLAIMER)
+--------------------------------------------------------------------------------
+6.1 Perangkat Lunak disediakan "SEBAGAIMANA ADANYA" ("AS IS") tanpa jaminan dalam bentuk apa pun di luar kesepakatan pemeliharaan resmi.
+6.2 Pengembang tidak bertanggung jawab atas segala kerugian finansial, kehilangan data, atau gangguan usaha yang diakibatkan oleh kelalaian operasional pengguna, kerusakan perangkat keras, atau bencana di luar kendali wajar (force majeure). Klien disarankan untuk melakukan pencadangan data lokal secara berkala.
+
+--------------------------------------------------------------------------------
+PASAL 7: KONTAK PENGEMBANG & DUKUNGAN RESMI
+--------------------------------------------------------------------------------
+Segala pertanyaan, permohonan penambahan kuota perangkat, atau perpanjangan dukungan dapat menghubungi:
+- Brand/Studio: Crediblemark
+- Pengembang Utama: Rasyiqi
+- WhatsApp Resmi: https://wa.me/6285183131249 (+62 851-8313-1249)
+- Dedikasi: SMK Taruna Bhakti
