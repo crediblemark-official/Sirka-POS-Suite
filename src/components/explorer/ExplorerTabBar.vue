@@ -271,31 +271,32 @@ function getTabDisplayTitle(tabId: ModuleTab): string {
       <!-- Dynamic Badge per tab -->
       <span
         v-if="tabId === 'pos' && posStore.cartItems.length > 0"
-        class="bg-blue-600 text-white rounded-full px-1 text-[9px] font-bold shrink-0 font-mono"
+        class="rounded-full px-1 text-[9px] font-bold shrink-0 font-mono shadow-2xs"
+        :style="{ backgroundColor: 'var(--brand-primary)', color: 'var(--brand-primary-contrast, #ffffff)' }"
       >
         {{ posStore.cartItems.length }}
       </span>
       <span
         v-else-if="!isCrowded && (tabId === 'products' || tabId === 'master')"
-        class="bg-purple-100 text-purple-800 rounded-full px-1 text-[9px] font-bold shrink-0 font-mono hidden sm:inline-block"
+        class="tab-badge-purple bg-purple-100 text-purple-800 rounded-full px-1 text-[9px] font-bold shrink-0 font-mono hidden sm:inline-block"
       >
         {{ inventoryStore.products.length }}
       </span>
       <span
         v-else-if="!isCrowded && tabId === 'vendors'"
-        class="bg-purple-100 text-purple-800 rounded-full px-1 text-[9px] font-bold shrink-0 font-mono hidden sm:inline-block"
+        class="tab-badge-purple bg-purple-100 text-purple-800 rounded-full px-1 text-[9px] font-bold shrink-0 font-mono hidden sm:inline-block"
       >
         {{ inventoryStore.categoryMarkups.length }}
       </span>
       <span
         v-else-if="!isCrowded && tabId === 'suppliers'"
-        class="bg-rose-100 text-rose-800 rounded-full px-1 text-[9px] font-bold shrink-0 font-mono hidden sm:inline-block"
+        class="tab-badge-rose bg-rose-100 text-rose-800 rounded-full px-1 text-[9px] font-bold shrink-0 font-mono hidden sm:inline-block"
       >
         {{ supplierStore.suppliers.length }}
       </span>
       <span
         v-else-if="!isCrowded && tabId === 'buyers'"
-        class="bg-indigo-100 text-indigo-800 rounded-full px-1 text-[9px] font-bold shrink-0 font-mono hidden sm:inline-block"
+        class="tab-badge-indigo bg-indigo-100 text-indigo-800 rounded-full px-1 text-[9px] font-bold shrink-0 font-mono hidden sm:inline-block"
       >
         {{ buyerStore.buyers.length }}
       </span>

@@ -5,6 +5,7 @@ import { useInventoryStore } from '../../stores/inventoryStore';
 import { usePurchaseStore } from '../../stores/purchaseStore';
 import { useShiftStore } from '../../stores/shiftStore';
 import { useCashStore } from '../../stores/cashStore';
+import { useSettingsStore } from '../../stores/settingsStore';
 import { formatRupiah, localTodayStr, localPreviousMonthStr, parseLocalDate } from '../../utils/formatters';
 import { dbService } from '../../services/dbService';
 import MetricStatsStrip, { type MetricStatItem } from '../common/MetricStatsStrip.vue';
@@ -52,6 +53,7 @@ const inventoryStore = useInventoryStore();
 const purchaseStore = usePurchaseStore();
 const shiftStore = useShiftStore();
 const cashStore = useCashStore();
+const settingsStore = useSettingsStore();
 
 type ReportSubTab = 'pnl' | 'cashflow' | 'balance_sheet' | 'receivables' | 'analytics' | 'shifts';
 const activeSubTab = ref<ReportSubTab>('pnl');
@@ -462,7 +464,7 @@ async function exportComprehensiveReport() {
 
   // Sheet 1: Laba Rugi & Arus Kas
   const pnlData = [
-    ['LAPORAN KEUANGAN & LABA RUGI - KASIR CITRA'],
+    [`LAPORAN KEUANGAN & LABA RUGI - ${settingsStore.storeName.toUpperCase()}`],
     ['Periode', selectedPeriod.value === 'custom' ? `${customStartDate.value || '...'} s/d ${customEndDate.value || '...'}` : selectedPeriod.value.toUpperCase()],
     ['Tanggal Cetak', new Date().toLocaleString('id-ID')],
     [],
@@ -486,7 +488,7 @@ async function exportComprehensiveReport() {
 
   // Sheet 2: Kekayaan & Modal Toko
   const bsData = [
-    ['LAPORAN KEKAYAAN & MODAL TOKO - KASIR CITRA'],
+    [`LAPORAN KEKAYAAN & MODAL TOKO - ${settingsStore.storeName.toUpperCase()}`],
     ['Tanggal Potret', new Date().toLocaleDateString('id-ID')],
     [],
     ['HARTA & KEKAYAAN TOKO (ASET)', 'NOMINAL (RP)'],
@@ -504,7 +506,7 @@ async function exportComprehensiveReport() {
 
   // Sheet 3: Catatan Bon Pelanggan
   const arData = [
-    ['CATATAN BON & PIUTANG PELANGGAN - KASIR CITRA'],
+    [`CATATAN BON & PIUTANG PELANGGAN - ${settingsStore.storeName.toUpperCase()}`],
     ['No. Faktur', 'Nama Pelanggan', 'Tanggal Nota', 'Lama Bon (Hari)', 'Status Kelancaran', 'Total Bon (Rp)'],
     ...agingReceivables.value.map(t => [
       t.invoiceNo,

@@ -71,7 +71,7 @@ const showPrintCardModal = ref(false);
 const activeCardPreviewBuyer = ref<Buyer>(buyerStore.buyers[0] || {
   id: 'preview',
   name: 'Budi Santoso',
-  memberCardNo: 'CITRA-8899',
+  memberCardNo: 'SIRKA-8899',
   tier: 'GOLD',
   points: 250,
   totalSpend: 6500000,

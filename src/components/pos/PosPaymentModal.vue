@@ -2,6 +2,7 @@
 import { computed, watch, onUnmounted } from 'vue';
 import { usePosStore } from '../../stores/posStore';
 import { useBuyerStore } from '../../stores/buyerStore';
+import { useSettingsStore } from '../../stores/settingsStore';
 import { PaymentMethod } from '../../types';
 import { formatRupiah } from '../../utils/formatters';
 import { useModalLock } from '../../composables/useModalLock';
@@ -35,6 +36,7 @@ const emit = defineEmits<{
 
 const posStore = usePosStore();
 const buyerStore = useBuyerStore();
+const settingsStore = useSettingsStore();
 
 interface PaymentMethodOption {
   id: PaymentMethod;
@@ -500,7 +502,8 @@ bindModalLock(() => props.isOpen);
           </button>
           <button
             type="button"
-            class="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors disabled:opacity-50"
+            class="px-4 py-1.5 text-white rounded text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors disabled:opacity-50 hover:brightness-110 active:brightness-95"
+            :style="{ backgroundColor: settingsStore.primaryColor }"
             :disabled="posStore.isCheckingOut || (posStore.isSplitPayment && !isSplitValid)"
             @click="handleConfirm"
           >

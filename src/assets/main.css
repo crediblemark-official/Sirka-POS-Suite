@@ -136,67 +136,191 @@ html[data-theme-mode="dark"] #app {
   color: var(--surface-text, #f8fafc) !important;
 }
 
-/* Header & Toolbars */
+/* Header & Toolbars Base Theme Text */
 html[data-theme-mode="dark"] header.explorer-header,
 html[data-theme-mode="dark"] .explorer-tab-bar,
 html[data-theme-mode="dark"] .explorer-statusbar,
 html[data-theme-mode="dark"] .explorer-ribbon {
-  color: var(--surface-text, #f8fafc) !important;
+  color: var(--surface-text, #f8fafc);
 }
 
-html[data-theme-mode="dark"] header.explorer-header button,
-html[data-theme-mode="dark"] .explorer-tab-bar button,
-html[data-theme-mode="dark"] .explorer-statusbar button {
-  color: var(--surface-text, #f8fafc) !important;
+/* Default buttons inside dark header */
+html[data-theme-mode="dark"] header.explorer-header button:not(.btn-shift-open):not(.btn-shift-active):not(.active) {
+  color: var(--surface-text-muted, #cbd5e1);
 }
 
-/* Force light font on hardcoded gray utility text in dark mode */
-html[data-theme-mode="dark"] .explorer-header *,
-html[data-theme-mode="dark"] .explorer-tab-bar *,
-html[data-theme-mode="dark"] .explorer-statusbar *,
-html[data-theme-mode="dark"] .explorer-ribbon * {
-  color: inherit;
+html[data-theme-mode="dark"] header.explorer-header button:not(.btn-shift-open):not(.btn-shift-active):hover {
+  color: var(--surface-text, #f8fafc);
 }
 
-html[data-theme-mode="dark"] .explorer-header .text-gray-800,
-html[data-theme-mode="dark"] .explorer-header .text-gray-700,
-html[data-theme-mode="dark"] .explorer-tab-bar .text-gray-700,
-html[data-theme-mode="dark"] .explorer-tab-bar .text-gray-600,
-html[data-theme-mode="dark"] .explorer-tab-bar .text-black,
-html[data-theme-mode="dark"] .explorer-statusbar .text-gray-800,
-html[data-theme-mode="dark"] .explorer-ribbon .text-gray-600,
-html[data-theme-mode="dark"] .explorer-ribbon .text-gray-700,
-html[data-theme-mode="dark"] .explorer-ribbon .text-gray-800 {
-  color: var(--surface-text, #f8fafc) !important;
+/* Buka Shift Button on Dark Theme: Golden Amber Glow */
+html[data-theme-mode="dark"] .btn-shift-open {
+  background-color: rgba(245, 158, 11, 0.18) !important;
+  color: #fcd34d !important;
+  border-color: rgba(245, 158, 11, 0.35) !important;
+}
+html[data-theme-mode="dark"] .btn-shift-open:hover {
+  background-color: rgba(245, 158, 11, 0.28) !important;
+}
+html[data-theme-mode="dark"] .btn-shift-open * {
+  color: #fcd34d !important;
 }
 
-html[data-theme-mode="dark"] .explorer-header .text-gray-500,
-html[data-theme-mode="dark"] .explorer-header .text-gray-400,
-html[data-theme-mode="dark"] .explorer-tab-bar .text-gray-400,
-html[data-theme-mode="dark"] .explorer-statusbar .text-gray-500,
-html[data-theme-mode="dark"] .explorer-ribbon .text-gray-500,
-html[data-theme-mode="dark"] .explorer-ribbon .text-gray-400 {
-  color: var(--surface-text-muted, #cbd5e1) !important;
+/* Shift Active Button on Dark Theme: Emerald Glow */
+html[data-theme-mode="dark"] .btn-shift-active {
+  background-color: rgba(16, 185, 129, 0.18) !important;
+  color: #6ee7b7 !important;
+  border-color: rgba(16, 185, 129, 0.35) !important;
+}
+html[data-theme-mode="dark"] .btn-shift-active:hover {
+  background-color: rgba(16, 185, 129, 0.28) !important;
+}
+html[data-theme-mode="dark"] .btn-shift-active * {
+  color: #6ee7b7 !important;
+}
+
+/* View Mode Toggle Buttons (Grid / List) in Dark Mode */
+html[data-theme-mode="dark"] .toolbar-toggle-btn.active {
+  background-color: rgba(255, 255, 255, 0.18) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+}
+html[data-theme-mode="dark"] .toolbar-toggle-btn.inactive {
+  background-color: transparent !important;
+  color: #94a3b8 !important;
+}
+html[data-theme-mode="dark"] .toolbar-toggle-btn.inactive:hover {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  color: #f8fafc !important;
+}
+
+/* Inactive Drawer Toggle Buttons in Dark Mode (Cart, PO, Diskon, Member, dll) */
+html[data-theme-mode="dark"] .toolbar-drawer-btn.inactive,
+html[data-theme-mode="dark"] .toolbar-drawer-btn:not(.active) {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  color: #cbd5e1 !important;
+}
+html[data-theme-mode="dark"] .toolbar-drawer-btn.inactive:hover,
+html[data-theme-mode="dark"] .toolbar-drawer-btn:not(.active):hover {
+  background-color: rgba(255, 255, 255, 0.16) !important;
+  color: #ffffff !important;
+}
+
+/* Address & Search KBD in Dark Mode */
+html[data-theme-mode="dark"] .address-kbd {
+  background-color: rgba(255, 255, 255, 0.12) !important;
+  color: #cbd5e1 !important;
+  border-color: rgba(255, 255, 255, 0.22) !important;
 }
 
 /* Address bar & search input on dark mode */
 html[data-theme-mode="dark"] .explorer-header input {
   color: #f8fafc !important;
 }
-
 html[data-theme-mode="dark"] .explorer-header input::placeholder {
   color: #94a3b8 !important;
 }
 
-/* Category & Multiplier unselected buttons on dark ribbon */
-html[data-theme-mode="dark"] .explorer-ribbon button:not(.bg-blue-600):not(.bg-rose-600):not(.bg-emerald-600) {
-  background-color: rgba(255, 255, 255, 0.08) !important;
-  border-color: rgba(255, 255, 255, 0.15) !important;
+/* Category & Multiplier Ribbon on Dark Theme */
+html[data-theme-mode="dark"] .catalog-ribbon {
+  color: var(--surface-text, #f8fafc) !important;
+}
+html[data-theme-mode="dark"] .catalog-ribbon-label {
+  color: #94a3b8 !important;
+}
+html[data-theme-mode="dark"] .catalog-nav-arrow {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
   color: #f8fafc !important;
 }
-
-html[data-theme-mode="dark"] .explorer-ribbon button:not(.bg-blue-600):not(.bg-rose-600):not(.bg-emerald-600):hover {
+html[data-theme-mode="dark"] .catalog-nav-arrow:hover {
+  background-color: rgba(255, 255, 255, 0.18) !important;
+}
+html[data-theme-mode="dark"] .catalog-category-btn:not(.active) {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+  color: #f8fafc !important;
+}
+html[data-theme-mode="dark"] .catalog-category-btn:not(.active):hover {
   background-color: rgba(255, 255, 255, 0.16) !important;
+}
+html[data-theme-mode="dark"] .catalog-multiplier-btn:not(.active) {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  color: #f8fafc !important;
+}
+html[data-theme-mode="dark"] .catalog-multiplier-btn:not(.active):hover {
+  background-color: rgba(255, 255, 255, 0.18) !important;
+}
+html[data-theme-mode="dark"] .catalog-inflow-btn {
+  background-color: rgba(16, 185, 129, 0.18) !important;
+  color: #6ee7b7 !important;
+  border-color: rgba(16, 185, 129, 0.35) !important;
+}
+html[data-theme-mode="dark"] .catalog-inflow-btn:hover {
+  background-color: rgba(16, 185, 129, 0.28) !important;
+}
+
+/* Tab Bar Badges in Dark Mode */
+html[data-theme-mode="dark"] .tab-badge-purple {
+  background-color: rgba(168, 85, 247, 0.25) !important;
+  color: #d8b4fe !important;
+}
+html[data-theme-mode="dark"] .tab-badge-rose {
+  background-color: rgba(244, 63, 94, 0.25) !important;
+  color: #fda4af !important;
+}
+html[data-theme-mode="dark"] .tab-badge-indigo {
+  background-color: rgba(99, 102, 241, 0.25) !important;
+  color: #a5b4fc !important;
+}
+
+/* PosCart Mode Switch Buttons (B2B / B2C) in Dark Mode */
+html[data-theme-mode="dark"] .pos-mode-switch-btn:not(.active) {
+  color: #cbd5e1 !important;
+}
+html[data-theme-mode="dark"] .pos-mode-switch-btn:not(.active):hover {
+  color: #ffffff !important;
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+html[data-theme-mode="dark"] .pos-mode-switch-btn:not(.active) kbd {
+  background-color: rgba(255, 255, 255, 0.12) !important;
+  color: #94a3b8 !important;
+}
+
+/* Parkir (Hold Cart) Button in Dark Mode */
+html[data-theme-mode="dark"] .btn-parkir {
+  background-color: rgba(245, 158, 11, 0.18) !important;
+  color: #fcd34d !important;
+  border-color: rgba(245, 158, 11, 0.35) !important;
+}
+html[data-theme-mode="dark"] .btn-parkir:hover {
+  background-color: rgba(245, 158, 11, 0.28) !important;
+}
+html[data-theme-mode="dark"] .btn-parkir * {
+  color: #fcd34d !important;
+}
+
+/* Light cards and dropdowns must retain dark text in dark mode */
+html[data-theme-mode="dark"] .bg-white {
+  color: #0f172a;
+}
+
+/* Ensure inputs, selects, and textareas on light backgrounds always have dark text */
+input.bg-white,
+input.bg-gray-50,
+input.bg-slate-50,
+input.bg-gray-100,
+textarea.bg-white,
+textarea.bg-gray-50,
+textarea.bg-slate-50,
+textarea.bg-gray-100,
+select.bg-white,
+select.bg-gray-50,
+select.bg-slate-50,
+select.bg-gray-100,
+.bg-white input:not([type="checkbox"]):not([type="radio"]),
+.bg-gray-50 input:not([type="checkbox"]):not([type="radio"]) {
+  color: #0f172a !important;
 }
 
 /* Scrollbar on dark mode */

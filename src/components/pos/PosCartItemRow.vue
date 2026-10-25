@@ -143,7 +143,7 @@ function handleQtyInputChange(e: Event) {
             type="text"
             inputmode="decimal"
             :value="item.qty"
-            class="w-12 h-5.5 text-center font-mono font-bold text-xs bg-gray-50 hover:bg-white focus:bg-white border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-400 rounded outline-none transition-all"
+            class="w-12 h-5.5 text-center font-mono font-bold text-xs bg-gray-50 hover:bg-white focus:bg-white text-slate-900 border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-400 rounded outline-none transition-all"
             title="Jumlah beli (bisa ketik desimal, misal 0.5 atau 0.25)"
             @change="handleQtyInputChange"
             @keydown.up.prevent="emit('update-qty', Number((item.qty + qtyIncrement()).toFixed(3)))"

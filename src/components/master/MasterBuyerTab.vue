@@ -280,7 +280,7 @@ function generateCardNumber() {
   // yang memindai akan menempelkan member yang SALAH (poin & tier ikut salah).
   // Sekarang memakai generator aman dari store.
   buyerForm.value.memberCardNo = buyerStore.generateMemberCardNo(
-    settingsStore.storeCode || 'CITRA',
+    settingsStore.storeCode || 'SIRKA',
     buyerForm.value.customerType
   );
   buyerForm.value.hasMemberCard = true;

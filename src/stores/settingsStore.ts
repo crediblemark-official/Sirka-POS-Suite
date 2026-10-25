@@ -23,7 +23,8 @@ const DEFAULT_SETTINGS: Record<string, string> = {
   surface_theme: 'bone-white',
   custom_surface_color: '#fcfbfa',
   printer_network_address: '127.0.0.1:9100',
-  receipt_paper_width: '58mm'
+  receipt_paper_width: '58mm',
+  receipt_footer: 'Terima kasih banyak, semoga makin sukses'
 };
 
 export const useSettingsStore = defineStore('settings', () => {
@@ -43,7 +44,17 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   function saveLocal() {
-    localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settings.value));
+    try {
+      localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settings.value));
+    } catch (err) {
+      console.warn('[SettingsStore] localStorage setItem failed (e.g. QuotaExceededError), retrying without logo:', err);
+      try {
+        const withoutLogo = { ...settings.value, store_logo: '' };
+        localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(withoutLogo));
+      } catch (innerErr) {
+        console.error('[SettingsStore] localStorage save failed completely:', innerErr);
+      }
+    }
   }
 
   function applyCurrentTheme() {
@@ -151,21 +162,23 @@ export const useSettingsStore = defineStore('settings', () => {
     if (words.length === 1) {
       return words[0].toUpperCase();
     }
-    return words.map(w => w[0]).join('').toUpperCase() || 'CITRA';
+    return words.map(w => w[0]).join('').toUpperCase() || 'SIRKA';
   });
   const storeAbbreviation = computed(() => storeCode.value);
   const storeTagline = computed(() => settings.value.store_tagline || 'Distribusi B2B & Hub Pengadaan');
   const storeAddress = computed(() => settings.value.store_address || '');
   const storePhone = computed(() => settings.value.store_phone || '');
   const invoicePrefix = computed(() => settings.value.invoice_prefix || 'INV-B2B');
-  const storeLogo = computed(() => settings.value.store_logo || '');
+  const storeLogo = computed(() => settings.value.store_logo || '/logo.png');
+  const hasCustomLogo = computed(() => !!settings.value.store_logo);
   const primaryColor = computed(() => settings.value.primary_color || '#2563eb');
   const themePreset = computed(() => settings.value.theme_preset || 'blue');
   const headerAccentStyle = computed(() => settings.value.header_accent_style || 'accent-line');
-  const surfaceTheme = computed(() => settings.value.surface_theme || 'classic-gray');
+  const surfaceTheme = computed(() => settings.value.surface_theme || 'bone-white');
   const customSurfaceColor = computed(() => settings.value.custom_surface_color || '#ecebe9');
   const printerNetworkAddress = computed(() => settings.value.printer_network_address || '127.0.0.1:9100');
   const receiptPaperWidth = computed(() => settings.value.receipt_paper_width || '58mm');
+  const receiptFooter = computed(() => settings.value.receipt_footer || 'Terima kasih atas kunjungan Anda');
 
   return {
     settings,
@@ -179,6 +192,7 @@ export const useSettingsStore = defineStore('settings', () => {
     storePhone,
     invoicePrefix,
     storeLogo,
+    hasCustomLogo,
     primaryColor,
     themePreset,
     headerAccentStyle,
@@ -186,6 +200,7 @@ export const useSettingsStore = defineStore('settings', () => {
     customSurfaceColor,
     printerNetworkAddress,
     receiptPaperWidth,
+    receiptFooter,
     fetchSettings,
     updateSetting,
     setTheme,

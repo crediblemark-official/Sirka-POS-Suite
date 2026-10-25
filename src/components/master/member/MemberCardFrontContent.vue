@@ -34,14 +34,10 @@ const settingsStore = useSettingsStore();
       <div class="flex items-center gap-2">
         <div class="w-8 h-8 rounded-lg bg-amber-400/20 border border-amber-400/40 flex items-center justify-center font-black text-amber-300 text-xs shadow-inner overflow-hidden shrink-0">
           <img
-            v-if="settingsStore.storeLogo"
-            :src="settingsStore.storeLogo"
+            :src="settingsStore.storeLogo || '/logo.png'"
             alt="Logo Toko"
             class="w-full h-full object-contain p-0.5"
           />
-          <span v-else>
-            {{ (settingsStore.storeAbbreviation || 'SR').slice(0, 2) }}
-          </span>
         </div>
         <div>
           <p class="font-black text-xs tracking-wider uppercase leading-none drop-shadow-sm">

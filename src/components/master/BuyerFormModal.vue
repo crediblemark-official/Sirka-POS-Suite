@@ -106,7 +106,7 @@ onUnmounted(() => {
 });
 
 function generateCardNumber() {
-  const storeAbbr = settingsStore.storeCode || 'CITRA';
+  const storeAbbr = settingsStore.storeCode || 'SIRKA';
   const rand = Math.floor(1000 + Math.random() * 9000);
   const prefix = form.value.customerType === 'B2B' ? `${storeAbbr}-B2B` : storeAbbr;
   form.value.memberCardNo = `${prefix}-${rand}`;

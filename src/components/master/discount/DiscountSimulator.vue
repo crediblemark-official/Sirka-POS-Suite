@@ -33,7 +33,7 @@ const simResult = computed(() => {
     id: 'sim-buyer',
     name: 'Pelanggan Simulasi',
     customerType: simCustomerType.value,
-    memberCardNo: simIsMember.value ? 'CITRA-SIM' : undefined,
+    memberCardNo: simIsMember.value ? 'SIRKA-SIM' : undefined,
     tier: 'REGULAR' as const
   };
 

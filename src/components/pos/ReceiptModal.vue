@@ -181,6 +181,12 @@ const waText = computed(() => {
   let text = isB2C
     ? `*STRUK NOTA TRANSAKSI - ${settingsStore.storeName.toUpperCase()}*\n`
     : `*FAKTUR TAGIHAN - ${settingsStore.storeName.toUpperCase()}*\n`;
+  if (settingsStore.storeAddress || settingsStore.storePhone) {
+    const contactParts: string[] = [];
+    if (settingsStore.storeAddress) contactParts.push(settingsStore.storeAddress);
+    if (settingsStore.storePhone) contactParts.push(`Telp/WA: ${settingsStore.storePhone}`);
+    text += `_${contactParts.join(' • ')}_\n`;
+  }
   text += `No. Nota: *${tx.invoiceNo}*\n`;
   text += `Tanggal: ${tx.date}\n`;
   text += `${isB2C ? 'Pelanggan' : 'Pembeli'}: *${tx.buyer}*\n`;
@@ -233,6 +239,9 @@ const waText = computed(() => {
     text += isB2C
       ? `_Terima kasih telah berbelanja di toko kami (LUNAS)_\n`
       : `_Terima kasih atas kerja samanya (LUNAS)_\n`;
+  }
+  if (settingsStore.receiptFooter) {
+    text += `_${settingsStore.receiptFooter}_\n`;
   }
   return text;
 });
@@ -296,6 +305,9 @@ bindModalLock(() => !!props.transaction);
       >
         <!-- Receipt Top Header -->
         <div class="text-center border-b border-gray-300 pb-3 mb-3">
+          <div v-if="settingsStore.storeLogo" class="flex justify-center mb-1.5">
+            <img :src="settingsStore.storeLogo" alt="Store Logo" class="h-10 max-w-[120px] object-contain" />
+          </div>
           <div class="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase mb-1 tracking-wider" :class="transaction.customerType === 'B2C' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-blue-100 text-blue-800 border border-blue-300'">
             {{ transaction.customerType === 'B2C' ? '🛒 Struk Belanja Kasir (Eceran / Ritel)' : '🏢 Faktur Pengiriman & Penagihan (B2B / Grosir)' }}
           </div>
@@ -425,7 +437,7 @@ bindModalLock(() => !!props.transaction);
         <!-- Receipt Footer Note -->
         <div class="mt-4 pt-3 border-t border-gray-200 text-center text-[10.5px] text-gray-500 space-y-0.5">
           <p class="font-semibold text-gray-700">
-            {{ transaction.customerType === 'B2C' ? 'Terima kasih atas kunjungan Anda' : 'Terima kasih atas kerja samanya' }}
+            {{ settingsStore.receiptFooter || (transaction.customerType === 'B2C' ? 'Terima kasih atas kunjungan Anda' : 'Terima kasih atas kerja samanya') }}
           </p>
           <p>
             {{ isPreOrderTx(transaction)

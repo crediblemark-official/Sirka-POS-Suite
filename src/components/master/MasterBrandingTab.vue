@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import { useSettingsStore } from '../../stores/settingsStore';
+import PrinterConfigModal from '../settings/PrinterConfigModal.vue';
 import {
   THEME_PRESETS,
   SURFACE_PRESETS,
@@ -34,14 +35,51 @@ import {
 const settingsStore = useSettingsStore();
 
 const tempStore = ref({
-  name: settingsStore.storeName,
-  code: settingsStore.storeCode,
-  tagline: settingsStore.storeTagline,
-  address: settingsStore.storeAddress,
-  phone: settingsStore.storePhone,
-  invoicePrefix: settingsStore.invoicePrefix,
-  logo: settingsStore.storeLogo
+  name: settingsStore.storeName || 'Sirka',
+  code: settingsStore.storeCode || 'SIRKA',
+  tagline: settingsStore.storeTagline || '',
+  address: settingsStore.storeAddress || '',
+  phone: settingsStore.storePhone || '',
+  invoicePrefix: settingsStore.invoicePrefix || 'INV-B2B',
+  logo: settingsStore.settings.store_logo || '',
+  footer: settingsStore.receiptFooter || 'Terima kasih atas kunjungan Anda',
+  paperWidth: settingsStore.receiptPaperWidth || '58mm'
 });
+
+const isUserDirty = ref(false);
+const showPrinterModal = ref(false);
+
+watch(
+  () => settingsStore.settings,
+  () => {
+    if (!isUserDirty.value) {
+      tempStore.value.name = settingsStore.storeName || 'Sirka';
+      tempStore.value.code = settingsStore.storeCode || 'SIRKA';
+      tempStore.value.tagline = settingsStore.storeTagline || '';
+      tempStore.value.address = settingsStore.storeAddress || '';
+      tempStore.value.phone = settingsStore.storePhone || '';
+      tempStore.value.invoicePrefix = settingsStore.invoicePrefix || 'INV-B2B';
+      tempStore.value.logo = settingsStore.settings.store_logo || '';
+      tempStore.value.footer = settingsStore.receiptFooter || 'Terima kasih atas kunjungan Anda';
+      tempStore.value.paperWidth = settingsStore.receiptPaperWidth || '58mm';
+      activeColor.value = settingsStore.primaryColor || '#2563eb';
+      activePreset.value = settingsStore.themePreset || 'blue';
+      activeHeaderStyle.value = settingsStore.headerAccentStyle || 'accent-line';
+      activeSurface.value = settingsStore.surfaceTheme || 'bone-white';
+      customSurfaceColor.value = settingsStore.customSurfaceColor || '#fcfbfa';
+    }
+  },
+  { deep: true }
+);
+
+// Watch changes to mark dirty
+watch(
+  tempStore,
+  () => {
+    isUserDirty.value = true;
+  },
+  { deep: true }
+);
 
 // BUG FIX (keamanan): token akses Worker (OWNER_SECRET_KEY) diperlukan agar
 // rekap shift kasir bisa dikirim ke dashboard owner. Tanpa token, Worker
@@ -136,13 +174,22 @@ function onHexTextInput(value: string) {
 }
 
 function resetToDefault() {
+  tempStore.value.name = 'Sirka';
   tempStore.value.code = 'SIRKA';
+  tempStore.value.tagline = 'Distribusi B2B & Hub Pengadaan';
+  tempStore.value.address = 'Jl. Sentral Distribusi No. 8';
+  tempStore.value.phone = '0812-3456-7890';
+  tempStore.value.invoicePrefix = 'INV-B2B';
+  tempStore.value.logo = '';
+  tempStore.value.footer = 'Terima kasih atas kunjungan Anda';
+  tempStore.value.paperWidth = '58mm';
   activeColor.value = '#2563eb';
   activePreset.value = 'blue';
   activeHeaderStyle.value = 'accent-line';
   activeSurface.value = 'bone-white';
   customSurfaceColor.value = '#fcfbfa';
   applyTheme('#2563eb', 'accent-line', 'bone-white', '#fcfbfa');
+  isUserDirty.value = true;
 }
 
 async function handleSaveAll() {
@@ -150,14 +197,26 @@ async function handleSaveAll() {
   // seluruh promise menolak sehingga `brandingSaved` tidak pernah true dan
   // user tidak mendapat pesan error sama sekali.
   try {
+    const nameVal = (tempStore.value.name || '').trim() || 'Sirka';
+    const codeVal = (tempStore.value.code || '').trim().toUpperCase() || 'SIRKA';
+    const taglineVal = (tempStore.value.tagline || '').trim();
+    const addressVal = (tempStore.value.address || '').trim();
+    const phoneVal = (tempStore.value.phone || '').trim();
+    const prefixVal = (tempStore.value.invoicePrefix || '').trim() || 'INV-B2B';
+    const logoVal = tempStore.value.logo && tempStore.value.logo !== '/logo.png' ? tempStore.value.logo : '';
+    const footerVal = (tempStore.value.footer || '').trim() || 'Terima kasih atas kunjungan Anda';
+    const paperVal = tempStore.value.paperWidth || '58mm';
+
     await Promise.all([
-      settingsStore.updateSetting('store_name', tempStore.value.name.trim()),
-      settingsStore.updateSetting('store_code', tempStore.value.code.trim().toUpperCase() || 'SIRKA'),
-      settingsStore.updateSetting('store_tagline', tempStore.value.tagline.trim()),
-      settingsStore.updateSetting('store_address', tempStore.value.address.trim()),
-      settingsStore.updateSetting('store_phone', tempStore.value.phone.trim()),
-      settingsStore.updateSetting('invoice_prefix', tempStore.value.invoicePrefix.trim() || 'INV-B2B'),
-      settingsStore.updateSetting('store_logo', tempStore.value.logo || ''),
+      settingsStore.updateSetting('store_name', nameVal),
+      settingsStore.updateSetting('store_code', codeVal),
+      settingsStore.updateSetting('store_tagline', taglineVal),
+      settingsStore.updateSetting('store_address', addressVal),
+      settingsStore.updateSetting('store_phone', phoneVal),
+      settingsStore.updateSetting('invoice_prefix', prefixVal),
+      settingsStore.updateSetting('store_logo', logoVal),
+      settingsStore.updateSetting('receipt_footer', footerVal),
+      settingsStore.updateSetting('receipt_paper_width', paperVal),
       // BUG FIX (keamanan): token disimpan di localStorage saja, tidak di
       // store_settings (yang ikut ter-sync ke cloud).
       settingsStore.setOwnerApiToken(ownerApiToken.value),
@@ -165,6 +224,7 @@ async function handleSaveAll() {
       settingsStore.setSurfaceTheme(activeSurface.value, customSurfaceColor.value)
     ]);
 
+    isUserDirty.value = false;
     brandingSaved.value = true;
     setTimeout(() => {
       brandingSaved.value = false;
@@ -179,25 +239,23 @@ async function handleSaveAll() {
 <template>
   <div class="flex-1 flex flex-col h-full bg-white select-none text-xs overflow-hidden">
     <!-- Layer 1: Ribbon Header (Standar Kulakan) -->
-    <div class="relative flex items-center justify-between bg-[#f6f5f2] border-b border-gray-200 px-3 py-1.5 select-none shrink-0 gap-1.5 overflow-x-auto no-scrollbar">
+    <div
+      class="relative flex items-center justify-between bg-[#f6f5f2] border-b border-gray-200 px-3 py-1.5 select-none shrink-0 gap-1.5 overflow-x-auto no-scrollbar">
       <div class="flex items-center gap-2 shrink-0">
         <Store :size="15" class="text-purple-700" />
         <span class="font-bold text-xs text-gray-800">Profil Usaha & Format Struk</span>
-        <span class="text-[10px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-semibold">{{ tempStore.name || 'Sirka' }} ({{ (tempStore.code || 'SIRKA').toUpperCase() }})</span>
+        <span class="text-[10px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-semibold">{{ tempStore.name
+          || 'Sirka' }} ({{ (tempStore.code || 'SIRKA').toUpperCase() }})</span>
       </div>
 
       <div class="flex items-center gap-2 shrink-0 ml-auto">
-        <button
-          @click="resetToDefault"
-          class="flex items-center gap-1.5 px-2.5 py-1 bg-white hover:bg-gray-100 border border-gray-300 text-gray-700 rounded text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
-        >
+        <button @click="resetToDefault"
+          class="flex items-center gap-1.5 px-2.5 py-1 bg-white hover:bg-gray-100 border border-gray-300 text-gray-700 rounded text-xs font-semibold shadow-2xs transition-colors cursor-pointer">
           <RotateCcw :size="13" />
           <span>Reset Default</span>
         </button>
-        <button
-          @click="handleSaveAll"
-          class="flex items-center gap-1.5 px-2.5 py-1 bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white rounded text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
-        >
+        <button @click="handleSaveAll"
+          class="flex items-center gap-1.5 px-2.5 py-1 bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white rounded text-xs font-semibold shadow-2xs transition-colors cursor-pointer">
           <Save :size="13" />
           <span>Simpan Profil Toko</span>
         </button>
@@ -205,10 +263,8 @@ async function handleSaveAll() {
     </div>
 
     <!-- Notification Banner jika tersimpan -->
-    <div
-      v-if="brandingSaved"
-      class="bg-emerald-600 text-white px-4 py-1.5 flex items-center justify-between text-xs font-semibold shrink-0 shadow-xs animate-in fade-in"
-    >
+    <div v-if="brandingSaved"
+      class="bg-emerald-600 text-white px-4 py-1.5 flex items-center justify-between text-xs font-semibold shrink-0 shadow-xs animate-in fade-in">
       <div class="flex items-center gap-2">
         <CheckCircle2 :size="15" />
         <span>Profil Usaha dan Kustomisasi Warna UI Berhasil Disimpan & Diterapkan ke Seluruh Sistem!</span>
@@ -220,9 +276,9 @@ async function handleSaveAll() {
     <div class="flex items-center divide-x divide-gray-200 px-2 py-2 border-b border-gray-200 bg-white shrink-0">
       <!-- 1. Nama Usaha Terdaftar -->
       <div class="flex items-center gap-2 px-2.5 first:pl-1 flex-1 min-w-0">
-        <div class="w-7 h-7 rounded bg-blue-50 text-blue-700 flex items-center justify-center shrink-0 overflow-hidden border border-blue-100">
-          <img v-if="tempStore.logo" :src="tempStore.logo" alt="Logo" class="w-full h-full object-contain p-0.5" />
-          <Store v-else :size="15" />
+        <div
+          class="w-7 h-7 rounded bg-blue-50 text-blue-700 flex items-center justify-center shrink-0 overflow-hidden border border-blue-100">
+          <img :src="tempStore.logo || '/logo.png'" alt="Logo" class="w-full h-full object-contain p-0.5" />
         </div>
         <div class="min-w-0">
           <div class="text-[10px] text-gray-500 font-medium leading-none truncate">Nama Usaha / Toko</div>
@@ -237,7 +293,8 @@ async function handleSaveAll() {
         </div>
         <div class="min-w-0">
           <div class="text-[10px] text-gray-500 font-medium leading-none truncate">Prefix Faktur</div>
-          <div class="text-xs font-bold text-purple-800 font-mono mt-0.5 truncate">{{ tempStore.invoicePrefix || 'INV' }}</div>
+          <div class="text-xs font-bold text-purple-800 font-mono mt-0.5 truncate">{{ tempStore.invoicePrefix || 'INV'
+            }}</div>
         </div>
       </div>
 
@@ -254,10 +311,8 @@ async function handleSaveAll() {
 
       <!-- 4. Warna Brand UI -->
       <div class="flex items-center gap-2 px-2.5 flex-1 min-w-0">
-        <div
-          class="w-7 h-7 rounded flex items-center justify-center text-white shrink-0 shadow-2xs"
-          :style="{ backgroundColor: activeColor }"
-        >
+        <div class="w-7 h-7 rounded flex items-center justify-center text-white shrink-0 shadow-2xs"
+          :style="{ backgroundColor: activeColor }">
           <Palette :size="14" />
         </div>
         <div class="min-w-0">
@@ -278,13 +333,15 @@ async function handleSaveAll() {
       </div>
 
       <!-- 6. Format Struk Kasir -->
-      <div class="flex items-center gap-2 px-2.5 flex-1 min-w-0">
+      <div class="flex items-center gap-2 px-2.5 flex-1 min-w-0 cursor-pointer hover:bg-gray-50 transition-colors"
+        @click="showPrinterModal = true" title="Klik untuk konfigurasi printer & ukuran kertas nota">
         <div class="w-7 h-7 rounded bg-teal-50 text-teal-700 flex items-center justify-center shrink-0">
           <Printer :size="15" />
         </div>
         <div class="min-w-0">
           <div class="text-[10px] text-gray-500 font-medium leading-none truncate">Format Nota Struk</div>
-          <div class="text-xs font-bold text-teal-800 font-mono mt-0.5 truncate">58mm / 80mm ESC/POS</div>
+          <div class="text-xs font-bold text-teal-800 font-mono mt-0.5 truncate">{{ tempStore.paperWidth ||
+            settingsStore.receiptPaperWidth }} ESC/POS</div>
         </div>
       </div>
     </div>
@@ -292,7 +349,8 @@ async function handleSaveAll() {
     <!-- 2. Workspace: Edge-to-Edge Split Layout (Kiri: Profil Usaha, Kanan: Kustomisasi Tema) -->
     <div class="flex-1 flex overflow-hidden">
       <!-- SISI KIRI: PROFIL IDENTITAS USAHA & STRUK -->
-      <div class="w-full lg:w-[460px] xl:w-[480px] flex flex-col border-r border-gray-200 overflow-hidden bg-white shrink-0">
+      <div
+        class="w-full lg:w-[460px] xl:w-[480px] flex flex-col border-r border-gray-200 overflow-hidden bg-white shrink-0">
         <!-- Sub-Header Baris Profil -->
         <div class="px-4 py-2.5 bg-[#f6f5f2] border-b border-gray-200 flex items-center justify-between shrink-0">
           <div class="flex items-center gap-2">
@@ -313,56 +371,42 @@ async function handleSaveAll() {
                   <span>Logo Toko & Kartu Member</span>
                 </label>
                 <span class="text-[10px] text-purple-700 bg-purple-100 px-1.5 py-0.5 rounded font-medium">
-                  Icon Kartu Member
+                  {{ tempStore.logo ? 'Logo Kustom' : 'Logo Default Sirka' }}
                 </span>
               </div>
 
               <div class="flex items-center gap-3">
                 <!-- Preview Box Logo -->
-                <div class="w-14 h-14 rounded-lg bg-white border border-gray-300 shadow-inner flex items-center justify-center overflow-hidden shrink-0">
-                  <img
-                    v-if="tempStore.logo"
-                    :src="tempStore.logo"
-                    alt="Logo Toko"
-                    class="w-full h-full object-contain p-1"
-                  />
-                  <div v-else class="flex flex-col items-center justify-center text-gray-400">
-                    <ImageIcon :size="18" />
-                    <span class="text-[9px] font-bold uppercase mt-0.5">{{ (tempStore.code || 'KC').slice(0, 2) }}</span>
-                  </div>
+                <div
+                  class="w-14 h-14 rounded-lg bg-white border border-gray-300 shadow-inner flex items-center justify-center overflow-hidden shrink-0 relative group">
+                  <img :src="tempStore.logo || '/logo.png'" alt="Logo Toko" class="w-full h-full object-contain p-1" />
+                  <span v-if="!tempStore.logo"
+                    class="absolute bottom-0 inset-x-0 bg-purple-900/80 text-[8px] text-white font-mono text-center py-0.5 tracking-tight font-bold">
+                    DEFAULT
+                  </span>
                 </div>
 
                 <!-- Action Buttons & Details -->
                 <div class="flex-1 min-w-0">
-                  <input
-                    ref="logoFileInput"
-                    type="file"
-                    accept="image/png, image/jpeg, image/webp, image/svg+xml"
-                    class="hidden"
-                    @change="handleLogoFileChange"
-                  />
+                  <input ref="logoFileInput" type="file" accept="image/png, image/jpeg, image/webp, image/svg+xml"
+                    class="hidden" @change="handleLogoFileChange" />
                   <div class="flex items-center gap-2">
-                    <button
-                      type="button"
+                    <button type="button"
                       class="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-gray-50 active:bg-gray-100 text-gray-700 border border-gray-300 rounded font-semibold text-xs cursor-pointer shadow-2xs transition-colors"
-                      @click="triggerLogoUpload"
-                    >
+                      @click="triggerLogoUpload">
                       <Upload :size="13" class="text-purple-700" />
-                      <span>{{ tempStore.logo ? 'Ganti Logo' : 'Upload Logo' }}</span>
+                      <span>{{ tempStore.logo ? 'Ganti Logo' : 'Upload Logo Baru' }}</span>
                     </button>
-                    <button
-                      v-if="tempStore.logo"
-                      type="button"
+                    <button v-if="tempStore.logo" type="button"
                       class="flex items-center gap-1 px-2 py-1.5 text-red-600 hover:bg-red-50 rounded font-semibold text-xs cursor-pointer transition-colors border border-transparent hover:border-red-200"
-                      title="Hapus Logo"
-                      @click="handleRemoveLogo"
-                    >
+                      title="Kembalikan ke Logo Default Sirka" @click="handleRemoveLogo">
                       <Trash2 :size="13" />
-                      <span>Hapus</span>
+                      <span>Pakai Default</span>
                     </button>
                   </div>
                   <p class="text-[10px] text-gray-500 mt-1 leading-snug">
-                    Format PNG, JPG, WebP, SVG. Otomatis tampil di pojok kiri atas Kartu Member menggantikan icon KC.
+                    Format PNG, JPG, WebP, SVG. Tampil di titlebar atas, kartu member, dan nota pembayaran (default:
+                    logo resmi Sirka).
                   </p>
                 </div>
               </div>
@@ -370,53 +414,36 @@ async function handleSaveAll() {
 
             <div>
               <label class="text-[11px] font-semibold text-gray-700 block mb-1">Nama Usaha / Toko / Hub *</label>
-              <input
-                v-model="tempStore.name"
-                type="text"
-                required
+              <input v-model="tempStore.name" type="text" required
                 class="w-full bg-white border border-gray-300 rounded px-3 py-1.5 text-xs outline-none focus:border-purple-600 font-bold text-gray-900"
-                placeholder="Misal: Sirka / Toko Berkah"
-              />
+                placeholder="Misal: Sirka / Toko Berkah" />
             </div>
 
             <div>
               <label class="text-[11px] font-semibold text-gray-700 block mb-1">Tagline / Deskripsi Usaha</label>
-              <input
-                v-model="tempStore.tagline"
-                type="text"
+              <input v-model="tempStore.tagline" type="text"
                 class="w-full bg-white border border-gray-300 rounded px-3 py-1.5 text-xs outline-none focus:border-purple-600 text-gray-800"
-                placeholder="Misal: Distribusi Bahan Pokok & Sembako Murah"
-              />
+                placeholder="Misal: Distribusi Bahan Pokok & Sembako Murah" />
             </div>
 
             <div class="grid grid-cols-3 gap-2.5">
               <div>
                 <label class="text-[11px] font-semibold text-gray-700 block mb-1">No. WhatsApp Toko</label>
-                <input
-                  v-model="tempStore.phone"
-                  type="text"
+                <input v-model="tempStore.phone" type="text"
                   class="w-full bg-white border border-gray-300 rounded px-2.5 py-1.5 text-xs outline-none focus:border-purple-600 font-mono text-gray-800"
-                  placeholder="0812-3456-7890"
-                />
+                  placeholder="0812-3456-7890" />
               </div>
               <div>
                 <label class="text-[11px] font-semibold text-gray-700 block mb-1">Prefix Faktur</label>
-                <input
-                  v-model="tempStore.invoicePrefix"
-                  type="text"
+                <input v-model="tempStore.invoicePrefix" type="text"
                   class="w-full bg-white border border-gray-300 rounded px-2.5 py-1.5 text-xs outline-none focus:border-purple-600 font-mono uppercase font-bold text-purple-900"
-                  placeholder="INV-B2B"
-                />
+                  placeholder="INV-B2B" />
               </div>
               <div>
                 <label class="text-[11px] font-semibold text-gray-700 block mb-1">Singkatan Toko *</label>
-                <input
-                  v-model="tempStore.code"
-                  type="text"
-                  maxlength="10"
+                <input v-model="tempStore.code" type="text" maxlength="10"
                   class="w-full bg-white border border-gray-300 rounded px-2.5 py-1.5 text-xs outline-none focus:border-purple-600 font-mono uppercase font-bold text-blue-900"
-                  placeholder="SIRKA"
-                />
+                  placeholder="SIRKA" />
               </div>
               <!--
                 BUG FIX (keamanan): token akses Worker (OWNER_SECRET_KEY).
@@ -428,13 +455,9 @@ async function handleSaveAll() {
                 <label class="text-[11px] font-semibold text-gray-700 block mb-1">
                   Token Akses Worker (Dashboard Owner)
                 </label>
-                <input
-                  v-model="ownerApiToken"
-                  type="password"
-                  autocomplete="off"
+                <input v-model="ownerApiToken" type="password" autocomplete="off"
                   class="w-full bg-white border border-gray-300 rounded px-2.5 py-1.5 text-xs outline-none focus:border-purple-600 font-mono text-gray-800"
-                  placeholder="OWNER_SECRET_KEY (kosongkan bila Worker tanpa proteksi token)"
-                />
+                  placeholder="OWNER_SECRET_KEY (kosongkan bila Worker tanpa proteksi token)" />
                 <p class="text-[10px] text-gray-500 mt-1">
                   Token dibuat di server dengan perintah
                   <code class="font-mono">wrangler secret put OWNER_SECRET_KEY</code>.
@@ -450,31 +473,67 @@ async function handleSaveAll() {
                 <CreditCard :size="13" class="text-blue-700" />
                 <span>Format Kartu Member:</span>
               </div>
-              <span class="font-mono font-bold text-blue-700 bg-white px-2 py-0.5 rounded border border-blue-300 shadow-2xs">
+              <span
+                class="font-mono font-bold text-blue-700 bg-white px-2 py-0.5 rounded border border-blue-300 shadow-2xs">
                 {{ (tempStore.code || 'SIRKA').toUpperCase() }}-XXXX
               </span>
             </div>
 
             <div>
               <label class="text-[11px] font-semibold text-gray-700 block mb-1">Alamat Fisik Gudang / Toko</label>
-              <textarea
-                v-model="tempStore.address"
-                rows="3"
+              <textarea v-model="tempStore.address" rows="3"
                 class="w-full bg-white border border-gray-300 rounded px-3 py-1.5 text-xs outline-none focus:border-purple-600 resize-none text-gray-800"
-                placeholder="Alamat fisik yang dicetak pada faktur nota & struk pembelian"
-              ></textarea>
+                placeholder="Alamat fisik yang dicetak pada faktur nota & struk pembelian"></textarea>
+            </div>
+
+            <div>
+              <label class="text-[11px] font-semibold text-gray-700 block mb-1">Catatan Kaki Struk (Receipt
+                Footer)</label>
+              <input v-model="tempStore.footer" type="text"
+                class="w-full bg-white border border-gray-300 rounded px-3 py-1.5 text-xs outline-none focus:border-purple-600 text-gray-800"
+                placeholder="Misal: Terima kasih atas kunjungan Anda" />
+            </div>
+
+            <!-- Pengaturan Format Kertas & Hardware Printer Struk -->
+            <div class="p-3 bg-teal-50/70 border border-teal-200/90 rounded-lg space-y-2.5">
+              <div class="flex items-center justify-between">
+                <label class="text-[11px] font-bold text-teal-950 flex items-center gap-1.5">
+                  <Printer :size="14" class="text-teal-700" />
+                  <span>Ukuran Kertas & Printer Thermal Nota</span>
+                </label>
+                <button type="button" @click="showPrinterModal = true"
+                  class="text-[10px] text-teal-800 hover:text-teal-950 bg-white hover:bg-teal-100/60 border border-teal-300 font-bold px-2 py-0.5 rounded cursor-pointer transition-colors shadow-2xs">
+                  ⚙️ Detail Hardware
+                </button>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <div class="inline-flex rounded border border-teal-300 bg-white p-0.5 shadow-2xs">
+                  <button type="button" class="px-2.5 py-1 rounded text-[11px] font-bold transition-all cursor-pointer"
+                    :class="tempStore.paperWidth === '58mm' ? 'bg-teal-600 text-white shadow-2xs' : 'text-gray-600 hover:text-gray-900'"
+                    @click="tempStore.paperWidth = '58mm'">
+                    58mm (Mini)
+                  </button>
+                  <button type="button" class="px-2.5 py-1 rounded text-[11px] font-bold transition-all cursor-pointer"
+                    :class="tempStore.paperWidth === '80mm' ? 'bg-teal-600 text-white shadow-2xs' : 'text-gray-600 hover:text-gray-900'"
+                    @click="tempStore.paperWidth = '80mm'">
+                    80mm (Lebar)
+                  </button>
+                </div>
+                <span class="text-[10px] text-teal-800 leading-tight">
+                  Mendukung printer Thermal USB, Bluetooth, & ESC/POS LAN.
+                </span>
+              </div>
             </div>
 
             <!-- Mini Live Preview Struk Nota -->
             <div class="pt-3 border-t border-gray-200">
-              <span class="text-[11px] font-bold text-gray-700 block mb-1.5">Simulasi Header Struk Kasir:</span>
-              <div class="bg-[#faf9f7] border border-gray-300 rounded p-3 font-mono text-center space-y-0.5 text-gray-800 text-[11px] select-text">
-                <img
-                  v-if="tempStore.logo"
-                  :src="tempStore.logo"
-                  alt="Logo Toko"
-                  class="w-8 h-8 object-contain mx-auto mb-1 rounded"
-                />
+              <span class="text-[11px] font-bold text-gray-700 block mb-1.5">Simulasi Header & Footer Struk
+                Kasir:</span>
+              <div
+                class="bg-[#faf9f7] border border-gray-300 rounded p-3 font-mono text-center space-y-0.5 text-gray-800 text-[11px] select-text">
+                <img v-if="tempStore.logo" :src="tempStore.logo" alt="Logo Toko"
+                  class="w-8 h-8 object-contain mx-auto mb-1 rounded" />
                 <div class="font-bold text-xs uppercase tracking-wider">{{ tempStore.name || 'SIRKA' }}</div>
                 <div class="text-[10px] text-gray-500">{{ tempStore.tagline || 'Pusat Kulakan & Eceran' }}</div>
                 <div class="text-[10px] text-gray-500">{{ tempStore.address || 'Jl. Raya Perdagangan No. 12' }}</div>
@@ -484,9 +543,14 @@ async function handleSaveAll() {
                   <span>{{ tempStore.invoicePrefix || 'INV' }}-202610-001</span>
                   <span>19/10/2026 14:30</span>
                 </div>
-                <div class="text-[9.5px] text-blue-700 font-mono text-left pt-1 border-t border-dashed border-gray-300 mt-1 flex justify-between">
+                <div
+                  class="text-[9.5px] text-blue-700 font-mono text-left pt-1 border-t border-dashed border-gray-300 mt-1 flex justify-between">
                   <span>Member: {{ (tempStore.code || 'SIRKA').toUpperCase() }}-1024</span>
                   <span>Poin: +10</span>
+                </div>
+                <div
+                  class="text-[9.5px] text-gray-500 font-mono text-center pt-1.5 border-t border-dashed border-gray-300 mt-1.5">
+                  {{ tempStore.footer || 'Terima kasih atas kunjungan Anda' }}
                 </div>
               </div>
             </div>
@@ -495,10 +559,8 @@ async function handleSaveAll() {
           <!-- Sticky Bottom Save Bar -->
           <div class="p-3 bg-[#f6f5f2] border-t border-gray-200 flex items-center justify-between shrink-0">
             <span class="text-[10px] text-gray-500">Tersimpan otomatis ke database lokal</span>
-            <button
-              type="submit"
-              class="flex items-center gap-1.5 px-4 py-1.5 bg-purple-700 hover:bg-purple-800 active:bg-purple-900 text-white rounded font-bold text-xs cursor-pointer shadow-xs transition-all"
-            >
+            <button type="submit"
+              class="flex items-center gap-1.5 px-4 py-1.5 bg-purple-700 hover:bg-purple-800 active:bg-purple-900 text-white rounded font-bold text-xs cursor-pointer shadow-xs transition-all">
               <Save :size="13" />
               <span>Simpan Profil Toko</span>
             </button>
@@ -515,12 +577,9 @@ async function handleSaveAll() {
             <span class="font-bold text-xs text-gray-800">Kustomisasi Tema, Palet Warna & Permukaan UI</span>
           </div>
 
-          <button
-            type="button"
+          <button type="button"
             class="flex items-center gap-1 text-[11px] text-gray-600 hover:text-gray-900 bg-white hover:bg-gray-100 border border-gray-300 px-2 py-1 rounded cursor-pointer transition-colors shadow-2xs"
-            title="Kembalikan ke warna biru default"
-            @click="resetToDefault"
-          >
+            title="Kembalikan ke warna biru default" @click="resetToDefault">
             <RotateCcw :size="11" />
             <span>Reset Default</span>
           </button>
@@ -539,20 +598,13 @@ async function handleSaveAll() {
             </div>
 
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <button
-                v-for="preset in THEME_PRESETS"
-                :key="preset.id"
-                type="button"
+              <button v-for="preset in THEME_PRESETS" :key="preset.id" type="button"
                 class="flex items-center gap-2 p-2 rounded border text-left cursor-pointer transition-all relative overflow-hidden"
                 :class="activePreset === preset.id
                   ? 'border-gray-900 bg-gray-50 shadow-xs ring-1 ring-gray-900/10'
-                  : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50/60'"
-                @click="selectPreset(preset)"
-              >
-                <div
-                  class="w-4 h-4 rounded-full shrink-0 shadow-xs flex items-center justify-center text-white"
-                  :style="{ backgroundColor: preset.primary }"
-                >
+                  : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50/60'" @click="selectPreset(preset)">
+                <div class="w-4 h-4 rounded-full shrink-0 shadow-xs flex items-center justify-center text-white"
+                  :style="{ backgroundColor: preset.primary }">
                   <Check v-if="activePreset === preset.id" :size="10" stroke-width="3" />
                 </div>
                 <div class="min-w-0 flex-1">
@@ -582,60 +634,34 @@ async function handleSaveAll() {
             <div class="flex items-center gap-3">
               <label
                 class="relative w-8 h-8 rounded-full border border-gray-300 shadow-xs cursor-pointer overflow-hidden shrink-0 transition-transform hover:scale-105"
-                :style="{ backgroundColor: activeColor }"
-                title="Klik untuk memilih warna bebas"
-              >
-                <input
-                  type="color"
-                  :value="activeColor"
-                  class="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                  @input="onCustomColorInput"
-                />
+                :style="{ backgroundColor: activeColor }" title="Klik untuk memilih warna bebas">
+                <input type="color" :value="activeColor" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                  @input="onCustomColorInput" />
               </label>
 
               <div class="flex-1 max-w-[160px]">
-                <input
-                  type="text"
-                  :value="activeColor"
-                  maxlength="7"
+                <input type="text" :value="activeColor" maxlength="7"
                   class="w-full bg-gray-50 border border-gray-300 rounded px-2.5 py-1.5 text-xs font-mono font-bold text-gray-800 outline-none focus:border-purple-600 uppercase"
-                  placeholder="#2563EB"
-                  @input="(e) => onHexTextInput((e.target as HTMLInputElement).value)"
-                />
+                  placeholder="#2563EB" @input="(e) => onHexTextInput((e.target as HTMLInputElement).value)" />
               </div>
 
               <!-- Quick Swatches -->
               <div class="flex items-center gap-1.5 ml-auto">
-                <button
-                  type="button"
+                <button type="button"
                   class="w-5 h-5 rounded-full bg-[#2563eb] border border-white shadow-xs cursor-pointer hover:scale-110 transition-transform"
-                  title="Citra Blue"
-                  @click="onHexTextInput('#2563eb')"
-                ></button>
-                <button
-                  type="button"
+                  title="Citra Blue" @click="onHexTextInput('#2563eb')"></button>
+                <button type="button"
                   class="w-5 h-5 rounded-full bg-[#059669] border border-white shadow-xs cursor-pointer hover:scale-110 transition-transform"
-                  title="Emerald Green"
-                  @click="onHexTextInput('#059669')"
-                ></button>
-                <button
-                  type="button"
+                  title="Emerald Green" @click="onHexTextInput('#059669')"></button>
+                <button type="button"
                   class="w-5 h-5 rounded-full bg-[#7c3aed] border border-white shadow-xs cursor-pointer hover:scale-110 transition-transform"
-                  title="Royal Violet"
-                  @click="onHexTextInput('#7c3aed')"
-                ></button>
-                <button
-                  type="button"
+                  title="Royal Violet" @click="onHexTextInput('#7c3aed')"></button>
+                <button type="button"
                   class="w-5 h-5 rounded-full bg-[#d97706] border border-white shadow-xs cursor-pointer hover:scale-110 transition-transform"
-                  title="Warm Amber"
-                  @click="onHexTextInput('#d97706')"
-                ></button>
-                <button
-                  type="button"
+                  title="Warm Amber" @click="onHexTextInput('#d97706')"></button>
+                <button type="button"
                   class="w-5 h-5 rounded-full bg-[#e11d48] border border-white shadow-xs cursor-pointer hover:scale-110 transition-transform"
-                  title="Ruby Red"
-                  @click="onHexTextInput('#e11d48')"
-                ></button>
+                  title="Ruby Red" @click="onHexTextInput('#e11d48')"></button>
               </div>
             </div>
           </div>
@@ -651,16 +677,11 @@ async function handleSaveAll() {
             </div>
 
             <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-              <button
-                v-for="surface in SURFACE_PRESETS"
-                :key="surface.id"
-                type="button"
+              <button v-for="surface in SURFACE_PRESETS" :key="surface.id" type="button"
                 class="flex flex-col p-2 rounded border text-left cursor-pointer transition-all relative overflow-hidden group"
                 :class="activeSurface === surface.id
                   ? 'border-gray-900 bg-gray-50 shadow-xs ring-1 ring-gray-900/15'
-                  : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'"
-                @click="selectSurface(surface)"
-              >
+                  : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'" @click="selectSurface(surface)">
                 <div class="w-full h-6 rounded border border-gray-300 flex overflow-hidden mb-1.5 shadow-2xs">
                   <div class="w-1/3 h-full" :style="{ backgroundColor: surface.headerHex }"></div>
                   <div class="w-1/3 h-full" :style="{ backgroundColor: surface.tabBarHex }"></div>
@@ -671,7 +692,8 @@ async function handleSaveAll() {
                   <span class="font-bold text-[11px] truncate text-gray-800">
                     {{ surface.name }}
                   </span>
-                  <Check v-if="activeSurface === surface.id" :size="12" class="text-emerald-600 shrink-0" stroke-width="3" />
+                  <Check v-if="activeSurface === surface.id" :size="12" class="text-emerald-600 shrink-0"
+                    stroke-width="3" />
                 </div>
               </button>
             </div>
@@ -688,34 +710,26 @@ async function handleSaveAll() {
             </div>
 
             <div class="flex flex-wrap items-center gap-2.5 pt-1">
-              <button
-                type="button"
-                class="px-3 py-1.5 rounded font-bold text-xs shadow-xs transition-all flex items-center gap-1.5"
-                :style="{
+              <button type="button"
+                class="px-3 py-1.5 rounded font-bold text-xs shadow-xs transition-all flex items-center gap-1.5" :style="{
                   backgroundColor: activeColor,
                   color: getContrastTextColor(activeColor)
-                }"
-              >
+                }">
                 <ShoppingBag :size="13" />
                 <span>Tombol Utama POS</span>
               </button>
 
-              <span
-                class="px-2.5 py-1 rounded border font-semibold text-[11px] flex items-center gap-1"
-                :style="{
-                  borderColor: activeColor,
-                  color: activeColor,
-                  backgroundColor: `color-mix(in srgb, ${activeColor} 10%, transparent)`
-                }"
-              >
+              <span class="px-2.5 py-1 rounded border font-semibold text-[11px] flex items-center gap-1" :style="{
+                borderColor: activeColor,
+                color: activeColor,
+                backgroundColor: `color-mix(in srgb, ${activeColor} 10%, transparent)`
+              }">
                 <Check :size="11" />
                 <span>Status Aktif</span>
               </span>
 
-              <span
-                class="px-2.5 py-1 rounded-full font-bold text-[10px] text-white flex items-center gap-1 shadow-xs"
-                :style="{ backgroundColor: activeColor }"
-              >
+              <span class="px-2.5 py-1 rounded-full font-bold text-[10px] text-white flex items-center gap-1 shadow-xs"
+                :style="{ backgroundColor: activeColor }">
                 <CreditCard :size="11" />
                 <span>Tier Member</span>
               </span>
@@ -726,17 +740,18 @@ async function handleSaveAll() {
         <!-- Bottom Action Bar untuk Tema -->
         <div class="p-3 bg-[#f6f5f2] border-t border-gray-200 flex items-center justify-between shrink-0">
           <span class="text-[10px] text-gray-500">Tema tersimpan otomatis ke Cloud & penyimpanan lokal</span>
-          <button
-            type="button"
+          <button type="button"
             class="flex items-center gap-1.5 px-4 py-1.5 rounded font-bold text-xs text-white cursor-pointer shadow-xs transition-all hover:brightness-110 active:brightness-95"
-            :style="{ backgroundColor: activeColor }"
-            @click="handleSaveAll"
-          >
+            :style="{ backgroundColor: activeColor }" @click="handleSaveAll">
             <Save :size="13" />
             <span>Simpan & Terapkan Tema</span>
           </button>
         </div>
       </div>
     </div>
+
+    <!-- Modal Konfigurasi Hardware Printer (Modular Component) -->
+    <PrinterConfigModal :is-open="showPrinterModal"
+      @close="showPrinterModal = false; tempStore.paperWidth = settingsStore.receiptPaperWidth;" />
   </div>
 </template>

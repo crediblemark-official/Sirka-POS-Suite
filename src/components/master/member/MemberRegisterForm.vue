@@ -75,7 +75,7 @@ function generateNewCardNumber(type: CustomerType = 'B2B') {
   // (~1/9000 bentrok) -> dua anggota bisa punya kartu sama dan kasir yang
   // memindai akan menempelkan member yang SALAH (poin & tier ikut salah).
   // Sekarang memakai generator aman dari store (50 percobaan + fallback).
-  return buyerStore.generateMemberCardNo(settingsStore.storeCode || 'CITRA', type);
+  return buyerStore.generateMemberCardNo(settingsStore.storeCode || 'SIRKA', type);
 }
 
 function randomizeCardNumber() {

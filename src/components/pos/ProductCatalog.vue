@@ -411,20 +411,20 @@ defineExpose({
   <div class="flex-1 flex flex-col overflow-hidden bg-white select-none text-xs">
     <!-- Horizontal Category Filter Pills with Drag, Wheel, and Arrow Navigation -->
     <div
-      class="relative flex items-center border-b px-2 py-1 select-none shrink-0 group"
+      class="catalog-ribbon relative flex items-center border-b px-2 py-1 select-none shrink-0 group"
       style="background-color: var(--surface-ribbon); border-color: var(--surface-ribbon-border);"
     >
       <!-- Left Arrow Button -->
       <button
         type="button"
-        class="p-1 bg-white hover:bg-gray-100 active:bg-gray-200 text-gray-600 rounded border border-gray-300 shadow-2xs mr-1.5 shrink-0 cursor-pointer transition-colors"
+        class="catalog-nav-arrow p-1 bg-white hover:bg-gray-100 active:bg-gray-200 text-gray-600 rounded border border-gray-300 shadow-2xs mr-1.5 shrink-0 cursor-pointer transition-colors"
         title="Geser ke kiri"
         @click="scrollCategory('left')"
       >
         <ChevronLeft :size="13" />
       </button>
 
-      <span class="text-gray-500 font-bold text-[11px] uppercase tracking-wider shrink-0 flex items-center gap-1 mr-2">
+      <span class="catalog-ribbon-label text-gray-500 font-bold text-[11px] uppercase tracking-wider shrink-0 flex items-center gap-1 mr-2">
         <Folder :size="13" class="text-amber-600" />
         <span>Kategori:</span>
       </span>
@@ -441,8 +441,8 @@ defineExpose({
       >
         <button
           type="button"
-          class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 select-none"
-          :class="selectedCategory === 'Semua' ? 'text-white font-bold shadow-xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+          class="catalog-category-btn px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 select-none"
+          :class="selectedCategory === 'Semua' ? 'active text-white font-bold shadow-xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
           :style="selectedCategory === 'Semua' ? 'background-color: var(--brand-primary);' : ''"
           @click="selectCategory('Semua')"
         >
@@ -452,8 +452,8 @@ defineExpose({
           v-for="cat in categories"
           :key="cat"
           type="button"
-          class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 flex items-center gap-1.5 select-none"
-          :class="selectedCategory === cat ? 'text-white font-bold shadow-xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+          class="catalog-category-btn px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 flex items-center gap-1.5 select-none"
+          :class="selectedCategory === cat ? 'active text-white font-bold shadow-xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
           :style="selectedCategory === cat ? 'background-color: var(--brand-primary);' : ''"
           @click="selectCategory(cat)"
         >
@@ -469,7 +469,7 @@ defineExpose({
       <!-- Right Arrow Button -->
       <button
         type="button"
-        class="p-1 bg-white hover:bg-gray-100 active:bg-gray-200 text-gray-600 rounded border border-gray-300 shadow-2xs ml-1.5 shrink-0 cursor-pointer transition-colors"
+        class="catalog-nav-arrow p-1 bg-white hover:bg-gray-100 active:bg-gray-200 text-gray-600 rounded border border-gray-300 shadow-2xs ml-1.5 shrink-0 cursor-pointer transition-colors"
         title="Geser ke kanan"
         @click="scrollCategory('right')"
       >
@@ -479,18 +479,18 @@ defineExpose({
 
     <!-- Multiplier & Sub-Toolbar with Keyboard Controls Guide -->
     <div
-      class="flex items-center justify-between px-3 py-1.5 border-b text-xs select-none"
+      class="catalog-ribbon flex items-center justify-between px-3 py-1.5 border-b text-xs select-none"
       style="background-color: var(--surface-ribbon); border-color: var(--surface-ribbon-border);"
     >
       <div class="flex items-center gap-3">
         <div class="flex items-center gap-1.5">
-          <span class="text-gray-500 font-medium">Beli Qty:</span>
+          <span class="catalog-ribbon-label text-gray-500 font-medium">Beli Qty:</span>
           <div class="flex gap-1">
             <button
               v-for="(opt, i) in dynamicMultipliers"
               :key="opt.value"
-              class="px-2 py-0.5 rounded text-xs font-semibold cursor-pointer transition-colors flex items-center gap-0.5"
-              :class="activeMultiplier === opt.value ? 'text-white shadow-2xs' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'"
+              class="catalog-multiplier-btn px-2 py-0.5 rounded text-xs font-semibold cursor-pointer transition-colors flex items-center gap-0.5"
+              :class="activeMultiplier === opt.value ? 'active text-white shadow-2xs' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'"
               :style="activeMultiplier === opt.value ? 'background-color: var(--brand-primary);' : ''"
               :title="`Pilih Qty ${opt.label} (Alt+${i+1})`"
               @click="activeMultiplier = opt.value"
@@ -514,7 +514,7 @@ defineExpose({
         </span>
         <button
           type="button"
-          class="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+          class="catalog-inflow-btn px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
           title="Catat Infaq, Tip Kasir, atau Penerimaan Kas Non-Jual (Poin 9)"
           @click="showCashInflowModal = true"
         >

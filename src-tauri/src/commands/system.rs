@@ -411,19 +411,36 @@ pub fn generate_receipt_text(
         return Err("Data transaksi tidak valid".into());
     }
 
+    let (paper_setting, store_address_setting, store_phone_setting, store_tagline_setting) = {
+        let conn = crate::local_db::get_conn().lock().unwrap();
+        let paper = conn.query_row(
+            "SELECT value FROM store_settings WHERE key = 'receipt_paper_width'",
+            [],
+            |r| r.get::<_, String>(0),
+        ).ok();
+        let addr = conn.query_row(
+            "SELECT value FROM store_settings WHERE key = 'store_address'",
+            [],
+            |r| r.get::<_, String>(0),
+        ).ok();
+        let phone = conn.query_row(
+            "SELECT value FROM store_settings WHERE key = 'store_phone'",
+            [],
+            |r| r.get::<_, String>(0),
+        ).ok();
+        let tagline = conn.query_row(
+            "SELECT value FROM store_settings WHERE key = 'store_tagline'",
+            [],
+            |r| r.get::<_, String>(0),
+        ).ok();
+        (paper, addr, phone, tagline)
+    };
+
     let width = match paper_width.as_deref() {
         Some("80mm") => 42usize,
         Some("58mm") => 32usize,
         _ => {
-            let setting = {
-                let conn = crate::local_db::get_conn().lock().unwrap();
-                conn.query_row(
-                    "SELECT value FROM store_settings WHERE key = 'receipt_paper_width'",
-                    [],
-                    |r| r.get::<_, String>(0),
-                ).ok()
-            };
-            if setting.as_deref() == Some("80mm") { 42usize } else { 32usize }
+            if paper_setting.as_deref() == Some("80mm") { 42usize } else { 32usize }
         }
     };
     let dashes = "-".repeat(width);
@@ -492,16 +509,37 @@ pub fn generate_receipt_text(
     };
 
     let mut out = String::new();
-    // Header (diposisikan di tengah 32 kolom)
+    // Header (diposisikan di tengah kolom)
     let title = if is_b2c {
         "STRUK NOTA PENJUALAN"
     } else {
         "FAKTUR PENJUALAN B2B"
     };
-    for text in [&store, title] {
-        out.push_str(&center(text));
+
+    out.push_str(&center(&store));
+    out.push('\n');
+
+    if let Some(tagline) = store_tagline_setting.filter(|s| !s.trim().is_empty()) {
+        out.push_str(&center(&tagline));
         out.push('\n');
     }
+    if let Some(addr) = store_address_setting.filter(|s| !s.trim().is_empty()) {
+        for line in addr.lines() {
+            let line = line.trim();
+            if !line.is_empty() {
+                out.push_str(&center(line));
+                out.push('\n');
+            }
+        }
+    }
+    if let Some(phone) = store_phone_setting.filter(|s| !s.trim().is_empty()) {
+        let phone_str = format!("WA / Telp: {}", phone.trim());
+        out.push_str(&center(&phone_str));
+        out.push('\n');
+    }
+
+    out.push_str(&center(title));
+    out.push('\n');
     out.push_str(&equals);
     out.push('\n');
     out.push_str(&row("No", get_str("invoiceNo").as_str(), width));

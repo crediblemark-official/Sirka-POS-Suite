@@ -8,8 +8,7 @@ import {
   Minus,
   Square,
   Copy,
-  X,
-  Store
+  X
 } from 'lucide-vue-next';
 
 const settingsStore = useSettingsStore();
@@ -130,10 +129,14 @@ onUnmounted(() => {
     <!-- Sisi Kiri: Logo, Nama Toko & Status Sistem (Drag Area) -->
     <div data-tauri-drag-region class="flex items-center gap-2 pl-3 min-w-0 flex-1 h-full">
       <div
-        class="flex items-center justify-center w-5 h-5 rounded shadow-2xs text-white"
+        class="flex items-center justify-center w-5 h-5 rounded shadow-2xs text-white overflow-hidden"
         :style="{ backgroundColor: settingsStore.primaryColor }"
       >
-        <Store :size="12" />
+        <img
+          :src="settingsStore.storeLogo || '/logo.png'"
+          alt="Logo"
+          class="w-full h-full object-contain p-0.5"
+        />
       </div>
 
       <div data-tauri-drag-region class="flex items-center gap-2 min-w-0">

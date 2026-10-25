@@ -308,7 +308,7 @@ defineExpose({
           ref="searchInputRef"
           :value="searchQuery"
           type="text"
-          class="w-full bg-transparent text-xs text-gray-800 placeholder-gray-400 focus:outline-none"
+          class="w-full bg-transparent text-xs text-gray-900 placeholder-gray-400 focus:outline-none"
           :placeholder="selectedOption ? selectedOption.label : searchPlaceholder"
           @input="handleInputChange"
           @focus="handleInputFocus"
@@ -316,7 +316,7 @@ defineExpose({
         />
 
         <div v-else class="truncate flex items-center gap-1.5 flex-1 cursor-pointer">
-          <span v-if="selectedOption" class="font-semibold text-gray-800 truncate">
+          <span v-if="selectedOption" class="font-semibold text-gray-900 truncate">
             {{ selectedOption.label }}
           </span>
           <span v-else class="text-gray-400 font-normal truncate">

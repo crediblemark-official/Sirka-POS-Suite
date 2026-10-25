@@ -275,8 +275,8 @@ defineExpose({
     >
       <button
         type="button"
-        class="h-full px-2.5 flex items-center justify-center cursor-pointer transition-colors"
-        :class="viewMode === 'icons' ? 'bg-white text-gray-900 font-semibold' : 'text-gray-500 hover:bg-black/5'"
+        class="toolbar-toggle-btn h-full px-2.5 flex items-center justify-center cursor-pointer transition-colors"
+        :class="viewMode === 'icons' ? 'active bg-white text-gray-900 font-semibold shadow-2xs' : 'inactive text-gray-500 hover:bg-black/5'"
         title="Icon Grid View"
         @click="emit('update:viewMode', 'icons')"
       >
@@ -284,8 +284,8 @@ defineExpose({
       </button>
       <button
         type="button"
-        class="h-full px-2.5 flex items-center justify-center cursor-pointer transition-colors"
-        :class="viewMode === 'list' ? 'bg-white text-gray-900 font-semibold' : 'text-gray-500 hover:bg-black/5'"
+        class="toolbar-toggle-btn h-full px-2.5 flex items-center justify-center cursor-pointer transition-colors"
+        :class="viewMode === 'list' ? 'active bg-white text-gray-900 font-semibold shadow-2xs' : 'inactive text-gray-500 hover:bg-black/5'"
         title="Compact List View"
         @click="emit('update:viewMode', 'list')"
       >
@@ -321,7 +321,7 @@ defineExpose({
             class="outline-none text-xs w-full bg-transparent placeholder-gray-400 focus:placeholder-gray-300 font-sans"
             style="color: var(--surface-text);"
           />
-          <kbd class="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded font-mono text-[9px] border border-gray-200 shrink-0 select-none" title="Tekan F3 untuk cari langsung">
+          <kbd class="address-kbd px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded font-mono text-[9px] border border-gray-200 shrink-0 select-none" title="Tekan F3 untuk cari langsung">
             F3
           </kbd>
           <button
@@ -349,7 +349,7 @@ defineExpose({
           </div>
           <div class="flex items-center gap-1.5 text-gray-400 shrink-0 opacity-60 group-hover/address:opacity-100 transition-opacity">
             <Search :size="12" />
-            <kbd class="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded font-mono text-[9px] border border-gray-200" title="Arahkan kursor atau tekan F3 untuk mencari">
+            <kbd class="address-kbd px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded font-mono text-[9px] border border-gray-200" title="Arahkan kursor atau tekan F3 untuk mencari">
               F3
             </kbd>
           </div>
@@ -373,7 +373,7 @@ defineExpose({
       <button
         v-if="shiftStore.isShiftActive"
         type="button"
-        class="h-full flex items-center gap-1.5 px-3 text-xs font-semibold cursor-pointer transition-colors border-r bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+        class="btn-shift-active h-full flex items-center gap-1.5 px-3 text-xs font-semibold cursor-pointer transition-colors border-r bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
         style="border-color: var(--surface-header-border, #c8c5c0);"
         title="Shift Kasir Sedang Aktif • Klik untuk Tutup Shift & Rekonsiliasi Kas"
         @click="shiftStore.showCloseShiftModal = true"
@@ -386,7 +386,7 @@ defineExpose({
       <button
         v-else-if="activeTab === 'pos'"
         type="button"
-        class="h-full flex items-center gap-1.5 px-3 text-xs font-semibold cursor-pointer transition-colors border-r bg-amber-50 text-amber-900 hover:bg-amber-100"
+        class="btn-shift-open h-full flex items-center gap-1.5 px-3 text-xs font-semibold cursor-pointer transition-colors border-r bg-amber-50 text-amber-900 hover:bg-amber-100"
         style="border-color: var(--surface-header-border, #c8c5c0);"
         title="Shift Kasir Belum Dibuka • Klik untuk Buka Shift Baru"
         @click="shiftStore.showOpenShiftModal = true"
@@ -398,9 +398,9 @@ defineExpose({
       <!-- 1. Menu Kasir (POS): Buka/Tutup Keranjang Struk Kasir (F3) -->
       <button
         v-if="activeTab === 'pos'"
-        class="h-full flex items-center gap-1.5 px-3 text-xs font-semibold cursor-pointer transition-colors border-r"
+        class="toolbar-drawer-btn h-full flex items-center gap-1.5 px-3 text-xs font-semibold cursor-pointer transition-colors border-r"
         style="border-color: var(--surface-header-border, #c8c5c0);"
-        :class="showCartDrawer ? 'text-white' : 'bg-white/70 text-gray-700 hover:bg-white'"
+        :class="showCartDrawer ? 'active text-white' : 'inactive bg-white/70 text-gray-700 hover:bg-white'"
         :style="showCartDrawer ? { backgroundColor: 'var(--brand-primary)', color: 'var(--brand-primary-contrast, #ffffff)' } : {}"
         title="Buka / Tutup Keranjang Belanja Kasir"
         @click="emit('update:showCartDrawer', !showCartDrawer)"
@@ -412,9 +412,9 @@ defineExpose({
       <!-- 2.5 Menu Pesanan (Pre-Order): Tambah Pesanan -->
       <button
         v-else-if="activeTab === 'preorder'"
-        class="h-full flex items-center gap-1.5 px-3 text-xs font-semibold cursor-pointer transition-colors border-r"
+        class="toolbar-drawer-btn h-full flex items-center gap-1.5 px-3 text-xs font-semibold cursor-pointer transition-colors border-r"
         style="border-color: var(--surface-header-border, #c8c5c0);"
-        :class="preOrderStore.showPreOrderSidebar ? 'text-white' : 'bg-white/70 text-gray-700 hover:bg-white'"
+        :class="preOrderStore.showPreOrderSidebar ? 'active text-white' : 'inactive bg-white/70 text-gray-700 hover:bg-white'"
         :style="preOrderStore.showPreOrderSidebar ? { backgroundColor: 'var(--brand-primary)', color: 'var(--brand-primary-contrast, #ffffff)' } : {}"
         title="Buka / Tutup Form Input Pesanan PO (Sidebar)"
         @click="handleTogglePreOrderSidebar"
@@ -426,9 +426,9 @@ defineExpose({
       <!-- 3. Menu Diskon: Buka/Tutup Form Input Diskon -->
       <button
         v-else-if="activeTab === 'discounts'"
-        class="h-full flex items-center gap-1.5 px-3 text-xs font-semibold cursor-pointer transition-colors border-r"
+        class="toolbar-drawer-btn h-full flex items-center gap-1.5 px-3 text-xs font-semibold cursor-pointer transition-colors border-r"
         style="border-color: var(--surface-header-border, #c8c5c0);"
-        :class="discountStore.showFormSidebar ? 'text-white' : 'bg-white/70 text-gray-700 hover:bg-white'"
+        :class="discountStore.showFormSidebar ? 'active text-white' : 'inactive bg-white/70 text-gray-700 hover:bg-white'"
         :style="discountStore.showFormSidebar ? { backgroundColor: 'var(--brand-primary)', color: 'var(--brand-primary-contrast, #ffffff)' } : {}"
         title="Buka / Tutup Form Input Diskon (Sidebar)"
         @click="discountStore.showFormSidebar = !discountStore.showFormSidebar"
@@ -440,9 +440,9 @@ defineExpose({
       <!-- 4. Menu Member & Poin: Buka/Tutup Drawer Kartu Member & Poin -->
       <button
         v-else-if="activeTab === 'loyalty'"
-        class="h-full flex items-center gap-1.5 px-3 text-xs font-semibold cursor-pointer transition-colors border-r"
+        class="toolbar-drawer-btn h-full flex items-center gap-1.5 px-3 text-xs font-semibold cursor-pointer transition-colors border-r"
         style="border-color: var(--surface-header-border, #c8c5c0);"
-        :class="buyerStore.showMemberDrawer ? 'text-white' : 'bg-white/70 text-gray-700 hover:bg-white'"
+        :class="buyerStore.showMemberDrawer ? 'active text-white' : 'inactive bg-white/70 text-gray-700 hover:bg-white'"
         :style="buyerStore.showMemberDrawer ? { backgroundColor: 'var(--brand-primary)', color: 'var(--brand-primary-contrast, #ffffff)' } : {}"
         title="Buka / Tutup Panel Member & Poin"
         @click="buyerStore.showMemberDrawer = !buyerStore.showMemberDrawer"
@@ -455,9 +455,9 @@ defineExpose({
       <button
         v-else-if="activeTab === 'products' || activeTab === 'master'"
         type="button"
-        class="h-full flex items-center gap-1.5 px-3 text-xs font-bold cursor-pointer transition-colors border-r"
+        class="toolbar-drawer-btn h-full flex items-center gap-1.5 px-3 text-xs font-bold cursor-pointer transition-colors border-r"
         style="border-color: var(--surface-header-border, #c8c5c0);"
-        :class="inventoryStore.showProductSidebar ? 'text-white' : 'bg-white/70 text-gray-700 hover:bg-white'"
+        :class="inventoryStore.showProductSidebar ? 'active text-white' : 'inactive bg-white/70 text-gray-700 hover:bg-white'"
         :style="inventoryStore.showProductSidebar ? { backgroundColor: 'var(--brand-primary)', color: 'var(--brand-primary-contrast, #ffffff)' } : {}"
         title="Buka / Tutup Form Kulakan & Tambah Barang (Sidebar Kanan)"
         @click="handleToggleProductSidebar"
@@ -469,9 +469,9 @@ defineExpose({
       <!-- 6. Menu Kategori -->
       <button
         v-else-if="activeTab === 'vendors'"
-        class="h-full flex items-center gap-1.5 px-3 text-xs font-semibold cursor-pointer transition-colors border-r"
+        class="toolbar-drawer-btn h-full flex items-center gap-1.5 px-3 text-xs font-semibold cursor-pointer transition-colors border-r"
         style="border-color: var(--surface-header-border, #c8c5c0);"
-        :class="inventoryStore.showVendorSidebar ? 'text-white' : 'bg-white/70 text-gray-700 hover:bg-white'"
+        :class="inventoryStore.showVendorSidebar ? 'active text-white' : 'inactive bg-white/70 text-gray-700 hover:bg-white'"
         :style="inventoryStore.showVendorSidebar ? { backgroundColor: 'var(--brand-primary)', color: 'var(--brand-primary-contrast, #ffffff)' } : {}"
         title="Buka / Tutup Form Tambah Satuan & Kategori (Sidebar)"
         @click="inventoryStore.showVendorSidebar = !inventoryStore.showVendorSidebar"
@@ -483,9 +483,9 @@ defineExpose({
       <!-- Menu Supplier: Tambah Supplier -->
       <button
         v-else-if="activeTab === 'suppliers'"
-        class="h-full flex items-center gap-1.5 px-3 text-xs font-semibold cursor-pointer transition-colors border-r"
+        class="toolbar-drawer-btn h-full flex items-center gap-1.5 px-3 text-xs font-semibold cursor-pointer transition-colors border-r"
         style="border-color: var(--surface-header-border, #c8c5c0);"
-        :class="supplierStore.showSupplierDrawer ? 'text-white' : 'bg-white/70 text-gray-700 hover:bg-white'"
+        :class="supplierStore.showSupplierDrawer ? 'active text-white' : 'inactive bg-white/70 text-gray-700 hover:bg-white'"
         :style="supplierStore.showSupplierDrawer ? { backgroundColor: 'var(--brand-primary)', color: 'var(--brand-primary-contrast, #ffffff)' } : {}"
         title="Buka / Tutup Form Tambah Supplier (Sidebar)"
         @click="supplierStore.showSupplierDrawer = !supplierStore.showSupplierDrawer"
@@ -497,9 +497,9 @@ defineExpose({
       <!-- 7. Menu Pelanggan: Tambah Pelanggan -->
       <button
         v-else-if="activeTab === 'buyers'"
-        class="h-full flex items-center gap-1.5 px-3 text-xs font-semibold cursor-pointer transition-colors border-r"
+        class="toolbar-drawer-btn h-full flex items-center gap-1.5 px-3 text-xs font-semibold cursor-pointer transition-colors border-r"
         style="border-color: var(--surface-header-border, #c8c5c0);"
-        :class="buyerStore.showBuyerSidebar ? 'text-white' : 'bg-white/70 text-gray-700 hover:bg-white'"
+        :class="buyerStore.showBuyerSidebar ? 'active text-white' : 'inactive bg-white/70 text-gray-700 hover:bg-white'"
         :style="buyerStore.showBuyerSidebar ? { backgroundColor: 'var(--brand-primary)', color: 'var(--brand-primary-contrast, #ffffff)' } : {}"
         title="Buka / Tutup Form Tambah Pelanggan (Sidebar)"
         @click="buyerStore.showBuyerSidebar = !buyerStore.showBuyerSidebar"

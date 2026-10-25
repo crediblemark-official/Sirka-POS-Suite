@@ -24,6 +24,7 @@ import {
 import { useBuyerStore } from '../../stores/buyerStore';
 import { useInventoryStore } from '../../stores/inventoryStore';
 import { useShiftStore } from '../../stores/shiftStore';
+import { useSettingsStore } from '../../stores/settingsStore';
 import { formatRupiah } from '../../utils/formatters';
 import SearchableSelect, { type SelectOption } from '../common/SearchableSelect.vue';
 
@@ -44,6 +45,7 @@ const emit = defineEmits<{
 }>();
 
 const posStore = usePosStore();
+const settingsStore = useSettingsStore();
 const { isAnyModalOpen } = useModalLock();
 const buyerStore = useBuyerStore();
 const inventoryStore = useInventoryStore();
@@ -272,7 +274,7 @@ onUnmounted(() => {
         </div>
         <button
           type="button"
-          class="p-1 text-gray-400 hover:text-gray-700 hover:bg-black/10 rounded cursor-pointer transition-colors"
+          class="p-1 text-gray-400 hover:text-gray-100 hover:bg-black/10 dark:hover:bg-white/10 rounded cursor-pointer transition-colors"
           title="Tutup Keranjang Kasir"
           @click="emit('close')"
         >
@@ -284,32 +286,32 @@ onUnmounted(() => {
       <div class="flex items-center p-0.5 rounded border shadow-inner" style="background-color: var(--surface-tab-bar); border-color: var(--surface-tab-border);">
         <button
           type="button"
-          class="flex-1 flex items-center justify-center gap-1.5 py-1 px-2 rounded text-[11px] font-bold cursor-pointer transition-all"
-          :class="posStore.saleMode === 'B2B' ? 'bg-white text-indigo-700 shadow-xs' : 'text-gray-600 hover:text-gray-900'"
+          class="pos-mode-switch-btn flex-1 flex items-center justify-center gap-1.5 py-1 px-2 rounded text-[11px] font-bold cursor-pointer transition-all"
+          :class="posStore.saleMode === 'B2B' ? 'active bg-white text-indigo-700 shadow-xs' : 'text-gray-600 hover:text-gray-900'"
           title="Mode Grosir / B2B (Tekan Alt+G)"
           @click="posStore.setSaleMode('B2B')"
         >
           <Building :size="13" />
           <span>🏢 Grosir (B2B)</span>
-          <kbd class="px-1 py-0.2 bg-black/5 rounded text-[9px] font-mono opacity-60">Alt+G</kbd>
+          <kbd class="px-1 py-0.2 bg-black/10 rounded text-[9px] font-mono opacity-70">Alt+G</kbd>
         </button>
         <button
           type="button"
-          class="flex-1 flex items-center justify-center gap-1.5 py-1 px-2 rounded text-[11px] font-bold cursor-pointer transition-all"
-          :class="posStore.saleMode === 'B2C' ? 'bg-white text-teal-700 shadow-xs' : 'text-gray-600 hover:text-gray-900'"
+          class="pos-mode-switch-btn flex-1 flex items-center justify-center gap-1.5 py-1 px-2 rounded text-[11px] font-bold cursor-pointer transition-all"
+          :class="posStore.saleMode === 'B2C' ? 'active bg-white text-teal-700 shadow-xs' : 'text-gray-600 hover:text-gray-900'"
           title="Mode Eceran / Retail (Tekan Alt+E)"
           @click="posStore.setSaleMode('B2C')"
         >
           <ShoppingBag :size="13" />
           <span>🛒 Eceran (B2C)</span>
-          <kbd class="px-1 py-0.2 bg-black/5 rounded text-[9px] font-mono opacity-60">Alt+E</kbd>
+          <kbd class="px-1 py-0.2 bg-black/10 rounded text-[9px] font-mono opacity-70">Alt+E</kbd>
         </button>
       </div>
 
       <!-- Buyer Selection Bar (Search and Select + Fast Keyboard Shortcuts) -->
       <div class="flex flex-col gap-2 bg-white p-2.5 rounded border border-[#dedbd6] shadow-2xs">
         <div class="flex items-center justify-between gap-1">
-          <div class="flex items-center gap-1.5 font-bold text-[10.5px] text-gray-700 uppercase tracking-wider">
+          <div class="flex items-center gap-1.5 font-bold text-[10.5px] text-slate-800 uppercase tracking-wider">
             <Building v-if="posStore.saleMode === 'B2B'" :size="12" class="text-indigo-600" />
             <ShoppingBag v-else :size="12" class="text-teal-600" />
             <span>{{ posStore.saleMode === 'B2B' ? 'Pembeli Grosir / B2B' : 'Pembeli / Pelanggan Eceran' }}</span>
@@ -409,8 +411,8 @@ onUnmounted(() => {
 
       <div class="flex items-center justify-between gap-1.5 pt-0.5">
         <!-- Judul Ringkas & Rapi (Satu baris, no-wrap) -->
-        <div class="flex items-center gap-1.5 text-gray-800 font-bold text-xs shrink-0 whitespace-nowrap">
-          <Receipt :size="14" class="text-amber-700" />
+        <div class="flex items-center gap-1.5 font-bold text-xs shrink-0 whitespace-nowrap" style="color: var(--surface-text, #1e293b);">
+          <Receipt :size="14" class="text-amber-500 shrink-0" />
           <span>Struk Kasir</span>
         </div>
 
@@ -420,7 +422,7 @@ onUnmounted(() => {
           <button
             v-if="posStore.cartItems.length > 0"
             type="button"
-            class="px-2 py-0.5 rounded text-[10.5px] font-bold flex items-center gap-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs active:scale-95 cursor-pointer whitespace-nowrap transition-all"
+            class="btn-parkir px-2 py-0.5 rounded text-[10.5px] font-bold flex items-center gap-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs active:scale-95 cursor-pointer whitespace-nowrap transition-all"
             title="Tahan keranjang belanja saat ini untuk melayani pembeli lain (F6)"
             @click="handleHoldCart"
           >
@@ -446,7 +448,7 @@ onUnmounted(() => {
           <input
             v-model="posStore.transactionDate"
             type="date"
-            class="w-[115px] bg-white border border-gray-300 rounded px-1.5 py-0.5 text-[11px] font-mono text-gray-700 outline-none focus:border-blue-500 shadow-2xs"
+            class="w-[115px] bg-white border border-gray-300 rounded px-1.5 py-0.5 text-[11px] font-mono text-slate-900 outline-none focus:border-blue-500 shadow-2xs"
             title="Tanggal Transaksi"
           />
         </div>
@@ -656,7 +658,8 @@ onUnmounted(() => {
 
         <button
           v-else
-          class="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded font-bold text-xs cursor-pointer shadow-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+          class="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 text-white rounded font-bold text-xs cursor-pointer shadow-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-110 active:brightness-95"
+          :style="{ backgroundColor: settingsStore.primaryColor }"
           :disabled="posStore.cartItems.length === 0"
           @click="handleOpenPaymentModal"
         >

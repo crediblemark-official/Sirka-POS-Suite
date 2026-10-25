@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useShiftStore } from '../../stores/shiftStore';
+import { useSettingsStore } from '../../stores/settingsStore';
 import { formatRupiah } from '../../utils/formatters';
 import { useModalLock } from '../../composables/useModalLock';
 
@@ -22,6 +23,7 @@ const emit = defineEmits<{
 }>();
 
 const shiftStore = useShiftStore();
+const settingsStore = useSettingsStore();
 
 const shift = computed(() => shiftStore.lastClosedShift);
 
@@ -96,7 +98,7 @@ bindModalLock(() => props.isOpen);
         >
           <!-- Store Header -->
           <div class="text-center pb-2 border-b border-dashed border-gray-300">
-            <h3 class="font-bold text-sm tracking-wide">TOKO KASIR CITRA</h3>
+            <h3 class="font-bold text-sm tracking-wide">{{ settingsStore.storeName.toUpperCase() }}</h3>
             <p class="text-[10px] text-gray-500">LAPORAN PENUTUPAN SHIFT KASIR</p>
             <p class="text-[9px] text-gray-400 font-mono mt-0.5">ID: {{ shift.id }}</p>
           </div>
