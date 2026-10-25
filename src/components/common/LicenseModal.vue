@@ -27,6 +27,7 @@ const inputDeviceName = ref(licenseStore.deviceName || '');
 const showRawKey = ref(false);
 const copiedKey = ref(false);
 const copiedHwid = ref(false);
+const isDev = import.meta.env.DEV;
 const showAdvancedConfig = ref(false);
 
 // Advanced API config state
@@ -427,8 +428,8 @@ onUnmounted(() => {
           </div>
         </template>
 
-        <!-- ADVANCED / PENGATURAN SERVER LISENSI -->
-        <div class="border-t border-gray-200 pt-3">
+        <!-- ADVANCED / PENGATURAN SERVER LISENSI (Hanya untuk Developer di Mode Development) -->
+        <div v-if="isDev" class="border-t border-gray-200 pt-3">
           <button
             type="button"
             class="w-full flex items-center justify-between text-xs font-semibold text-gray-500 hover:text-gray-800 transition-colors py-1 cursor-pointer"
@@ -436,7 +437,7 @@ onUnmounted(() => {
           >
             <span class="flex items-center gap-1.5">
               <Settings :size="13" class="text-gray-400" />
-              <span>Pengaturan Server</span>
+              <span>Pengaturan Server (Dev Only)</span>
             </span>
             <ChevronUp v-if="showAdvancedConfig" :size="14" />
             <ChevronDown v-else :size="14" />
@@ -477,7 +478,7 @@ onUnmounted(() => {
               <span v-if="configSavedMsg" class="text-emerald-600 font-bold flex items-center gap-1">
                 <Check :size="13" /> Tersimpan!
               </span>
-              <span v-else class="text-[11px] text-gray-400">Mode: {{ licenseStore.apiConfig.apiKey.startsWith('tt_test_') ? 'Sandbox' : 'Production' }}</span>
+              <span v-else class="text-[11px] text-gray-400">Mode: {{ (licenseStore.apiConfig.apiKey || '').startsWith('tt_test_') ? 'Sandbox' : 'Production' }}</span>
 
               <button
                 type="button"

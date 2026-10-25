@@ -33,21 +33,30 @@ function normalizeBaseUrl(rawUrl?: string): string {
 
 /**
  * Mendapatkan konfigurasi API Tertaut aktif.
- * Prioritas: LocalStorage (kustom/pengaturan UI) -> import.meta.env -> Default.
+ * Di mode produksi (build CI/CD): murni menggunakan nilai dari env variables.
+ * Di mode dev: localStorage dapat digunakan untuk pengujian kustom.
  */
 export function getTertautConfig(): TertautApiConfig {
   const envApiKey = (typeof import.meta !== 'undefined' && (import.meta.env?.VITE_TERTAUT_PUBLISHABLE_KEY || import.meta.env?.VITE_TERTAUT_API_KEY)) || '';
   const envAppId = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_TERTAUT_APP_ID) || '';
   const envBaseUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_TERTAUT_BASE_URL) || 'https://tertaut.com';
 
+  // Di mode produksi, selalu gunakan konfigurasi murni dari env (disuntikkan saat build CI/CD)
+  if (typeof import.meta !== 'undefined' && import.meta.env?.PROD) {
+    return {
+      apiKey: envApiKey,
+      appId: envAppId,
+      baseUrl: normalizeBaseUrl(envBaseUrl)
+    };
+  }
 
   const saved = typeof localStorage !== 'undefined' ? localStorage.getItem(CONFIG_STORAGE_KEY) : null;
   const parsed = safeParse<Partial<TertautApiConfig>>(saved, {}, 'TertautConfig');
 
   return {
-    apiKey: parsed.apiKey || envApiKey || 'tt_live_936e7a6eb89a49ec1ba767b05bece657',
-    appId: parsed.appId || envAppId || 'app_d3213dcb32c5',
-    baseUrl: normalizeBaseUrl(parsed.baseUrl || envBaseUrl || 'https://tertaut.com')
+    apiKey: parsed.apiKey || envApiKey,
+    appId: parsed.appId || envAppId,
+    baseUrl: normalizeBaseUrl(parsed.baseUrl || envBaseUrl)
   };
 }
 
@@ -74,6 +83,11 @@ export function saveTertautConfig(config: Partial<TertautApiConfig>): TertautApi
  */
 export function createTertautClient(customConfig?: Partial<TertautApiConfig>): Tertaut {
   const config = { ...getTertautConfig(), ...customConfig };
+
+  if ((!config.apiKey || !config.appId) && typeof import.meta !== 'undefined' && import.meta.env?.DEV) {
+    console.warn('[Tertaut Licensing] Peringatan: VITE_TERTAUT_PUBLISHABLE_KEY atau VITE_TERTAUT_APP_ID belum diisi di file .env');
+  }
+
   return new Tertaut({
     apiKey: config.apiKey,
     appId: config.appId,
