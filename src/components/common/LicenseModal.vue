@@ -20,7 +20,10 @@ import {
   ChevronUp
 } from 'lucide-vue-next';
 
+import { useConfirmDialog } from '../../composables/useConfirmDialog';
+
 const licenseStore = useLicenseStore();
+const confirmDialog = useConfirmDialog();
 
 const inputKey = ref('');
 const inputDeviceName = ref(licenseStore.deviceName || '');
@@ -71,7 +74,15 @@ async function handleCheckNow() {
 }
 
 async function handleDeactivate() {
-  if (confirm('Lepas lisensi dari perangkat ini?')) {
+  const confirmed = await confirmDialog.confirm({
+    title: 'Lepas Lisensi Perangkat',
+    message: 'Lepas lisensi dari perangkat ini?',
+    details: 'Setelah lisensi dilepas, perangkat ini tidak dapat menggunakan fitur kasir hingga diaktivasi kembali.',
+    confirmText: 'Lepas Lisensi',
+    cancelText: 'Batal',
+    type: 'danger'
+  });
+  if (confirmed) {
     const res = await licenseStore.deactivate();
     if (res.success) {
       activeTab.value = 'activate';
@@ -105,6 +116,7 @@ const formattedExpiry = computed(() => {
 
 function handleKeydown(e: KeyboardEvent) {
   if (!licenseStore.showModal) return;
+  if (confirmDialog.isOpen.value) return;
   if (e.key === 'Escape') {
     e.preventDefault();
     e.stopPropagation();
