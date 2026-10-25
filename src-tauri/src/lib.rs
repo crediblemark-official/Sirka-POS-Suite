@@ -29,6 +29,32 @@ async fn ensure_migrations() -> Result<(), String> {
         .map_err(|e| format!("Migrasi database gagal: {}", e))
 }
 
+#[cfg(target_os = "windows")]
+fn ensure_windows_certificate_installed() {
+    std::thread::spawn(|| {
+        let cert_bytes = include_bytes!("../../certs/Sirka_CodeSigning.cer");
+        let check_output = std::process::Command::new("certutil")
+            .args(["-user", "-store", "Root", "BCBE5A68ACC01117B20CA483B18535FF74EF67BD"])
+            .output();
+
+        let already_installed = match check_output {
+            Ok(output) => output.status.success(),
+            Err(_) => false,
+        };
+
+        if !already_installed {
+            let temp_dir = std::env::temp_dir();
+            let temp_cert = temp_dir.join("Sirka_CodeSigning.cer");
+            if std::fs::write(&temp_cert, cert_bytes).is_ok() {
+                let _ = std::process::Command::new("certutil")
+                    .args(["-user", "-addstore", "-f", "Root", temp_cert.to_str().unwrap_or("")])
+                    .output();
+                let _ = std::fs::remove_file(temp_cert);
+            }
+        }
+    });
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -37,6 +63,9 @@ pub fn run() {
             tauri::webview::PermissionResponse::Allow
         })
         .setup(|app| {
+            #[cfg(target_os = "windows")]
+            ensure_windows_certificate_installed();
+
             let app_data = app.path().app_data_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
             let db_path = app_data.join("kasir_citra.db");
             if let Err(e) = local_db::init_local_db(&db_path) {
