@@ -1,4 +1,4 @@
-# 🛒 Sirka (Kasir Citra)
+# 🛒 Sirka
 
 **Sistem Kasir (POS) & Distribusi Hibrida (B2B Grosir SPPG & B2C Eceran)**
 
