@@ -78,7 +78,7 @@ async function handleClearCacheAndResync() {
       preOrderStore.fetchPreOrdersFromDb(),
       settingsStore.fetchSettings()
     ]);
-    cacheSuccessMsg.value = 'Database lokal berhasil dikosongkan dan ditarik ulang dari PostgreSQL Cloud!';
+    cacheSuccessMsg.value = 'Database lokal berhasil dikosongkan dan ditarik ulang dari Server Cloud!';
     confirmClearOpen.value = false;
   } catch (err: any) {
     cacheErrorMsg.value = String(err?.message || err);
@@ -173,7 +173,7 @@ bindModalLock(() => props.isOpen);
             </div>
             <div>
               <h3 class="font-bold text-sm text-slate-900 leading-tight">Status Database & Cache</h3>
-              <p class="text-[11px] text-slate-500 mt-0.5">Sinkronisasi PostgreSQL Cloud & SQLite Lokal</p>
+              <p class="text-[11px] text-slate-500 mt-0.5">Sinkronisasi Server Cloud & Database Lokal</p>
             </div>
           </div>
           <button
@@ -192,7 +192,7 @@ bindModalLock(() => props.isOpen);
             <!-- Cloud Status -->
             <div class="p-3.5 rounded-xl border border-slate-200 bg-slate-50 flex flex-col gap-1.5">
               <div class="flex items-center justify-between">
-                <span class="text-[10.5px] uppercase font-bold tracking-wider text-slate-600">PostgreSQL Cloud</span>
+                <span class="text-[10.5px] uppercase font-bold tracking-wider text-slate-600">Database Cloud</span>
                 <Cloud :size="14" class="text-slate-500" />
               </div>
               <div class="flex items-center gap-2 mt-0.5">
@@ -218,7 +218,7 @@ bindModalLock(() => props.isOpen);
               <div class="flex items-center gap-2 mt-0.5">
                 <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0 shadow-xs"></span>
                 <span class="font-bold text-xs text-slate-800">
-                  SQLite WAL Aktif
+                  Penyimpanan Aktif
                 </span>
               </div>
             </div>
@@ -270,7 +270,7 @@ bindModalLock(() => props.isOpen);
           <div class="border-t border-slate-200 pt-3.5 space-y-2.5">
             <div>
               <h4 class="font-bold text-slate-900 text-xs">Pembersihan Cache Lokal</h4>
-              <p class="text-[11px] text-slate-500 mt-0.5">Kosongkan SQLite lokal & unduh ulang master data dari Cloud</p>
+              <p class="text-[11px] text-slate-500 mt-0.5">Kosongkan database lokal & unduh ulang master data dari Cloud</p>
             </div>
 
             <!-- Box Konfirmasi jika tombol ditekan -->
@@ -280,7 +280,7 @@ bindModalLock(() => props.isOpen);
                 <div>
                   <span class="font-bold block text-rose-900">Konfirmasi Hapus Cache:</span>
                   <span class="text-[11px] leading-relaxed block text-rose-800 mt-0.5">
-                    Seluruh data SQLite lokal di komputer ini akan dikosongkan, lalu ditarik ulang secara segar dari PostgreSQL Cloud.
+                    Seluruh data lokal di komputer ini akan dikosongkan, lalu ditarik ulang secara segar dari Server Cloud.
                   </span>
                   <span v-if="syncService.pendingCount.value > 0" class="block font-bold text-rose-700 text-[11px] mt-1.5 p-2 rounded bg-rose-100 border border-rose-200">
                     ⚠️ PERINGATAN: Ada {{ syncService.pendingCount.value }} data kasir offline yang belum terkirim ke Cloud! Sinkronkan dulu sebelum menghapus cache.
@@ -357,7 +357,7 @@ bindModalLock(() => props.isOpen);
                       class="rounded border-amber-400 text-amber-600 focus:ring-amber-500 cursor-pointer"
                     />
                     <span class="text-[11px] font-semibold text-amber-900">
-                      Kosongkan juga data di PostgreSQL Cloud
+                      Kosongkan juga data di Server Cloud
                     </span>
                   </label>
                 </div>

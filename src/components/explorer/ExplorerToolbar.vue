@@ -363,7 +363,7 @@ defineExpose({
       <button
         class="h-full px-2.5 flex items-center justify-center hover:bg-black/5 active:bg-black/10 cursor-pointer transition-colors border-r"
         style="border-color: var(--surface-header-border, #c8c5c0);"
-        title="Reload Data dari PostgreSQL"
+        title="Muat Ulang Data dari Cloud"
         @click="inventoryStore.fetchFromDb"
       >
         <RotateCw :size="15" />

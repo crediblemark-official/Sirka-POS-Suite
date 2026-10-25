@@ -17,10 +17,21 @@ import {
   Settings,
   Sparkles,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  MessageCircle,
+  Lock,
+  Unlock
 } from 'lucide-vue-next';
 
 import { useConfirmDialog } from '../../composables/useConfirmDialog';
+import {
+  APP_VERSION,
+  APP_CREDIT,
+  APP_DEVELOPER,
+  APP_ORGANIZATION,
+  APP_WHATSAPP,
+  APP_WHATSAPP_LINK
+} from '../../config/version';
 
 const licenseStore = useLicenseStore();
 const confirmDialog = useConfirmDialog();
@@ -32,6 +43,13 @@ const copiedKey = ref(false);
 const copiedHwid = ref(false);
 const isDev = import.meta.env.DEV;
 const showAdvancedConfig = ref(false);
+const isDeactivateUnlocked = ref(false);
+
+watch(() => licenseStore.showModal, (isOpen) => {
+  if (!isOpen) {
+    isDeactivateUnlocked.value = false;
+  }
+});
 
 // Advanced API config state
 const configAppId = ref(licenseStore.apiConfig.appId);
@@ -98,6 +116,15 @@ function handleSaveConfig() {
   });
   configSavedMsg.value = true;
   setTimeout(() => { configSavedMsg.value = false; }, 3000);
+}
+
+async function openWhatsApp() {
+  try {
+    const { openUrl } = await import('@tauri-apps/plugin-opener');
+    await openUrl(APP_WHATSAPP_LINK);
+  } catch {
+    window.open(APP_WHATSAPP_LINK, '_blank');
+  }
 }
 
 const formattedExpiry = computed(() => {
@@ -375,16 +402,37 @@ onUnmounted(() => {
                 <span>{{ licenseStore.isChecking ? 'Memeriksa...' : 'Periksa' }}</span>
               </button>
 
-              <button
-                v-if="licenseStore.isLicensed"
-                type="button"
-                class="px-3 py-1.5 rounded-md text-xs font-semibold text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                :disabled="licenseStore.isActivating"
-                @click="handleDeactivate"
-              >
-                <LogOut :size="13" />
-                <span>Lepas Lisensi</span>
-              </button>
+              <!-- Tombol Lepas Lisensi dengan Proteksi Lock/Unlock -->
+              <template v-if="licenseStore.isLicensed">
+                <button
+                  v-if="!isDeactivateUnlocked"
+                  type="button"
+                  class="px-2.5 py-1.5 rounded-md text-xs font-medium text-gray-500 bg-gray-50 hover:bg-gray-100 hover:text-gray-700 border border-gray-200 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs select-none"
+                  @click="isDeactivateUnlocked = true"
+                >
+                  <Lock :size="12" class="text-gray-400" />
+                  <span>Lepas Lisensi (Terkunci)</span>
+                </button>
+
+                <div v-else class="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    class="px-3 py-1.5 rounded-md text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-300 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-2xs"
+                    :disabled="licenseStore.isActivating"
+                    @click="handleDeactivate"
+                  >
+                    <LogOut :size="13" />
+                    <span>Lepas Lisensi</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="p-1.5 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 border border-gray-200 transition-colors cursor-pointer"
+                    @click="isDeactivateUnlocked = false"
+                  >
+                    <Unlock :size="13" class="text-amber-600" />
+                  </button>
+                </div>
+              </template>
             </div>
           </div>
         </template>
@@ -433,10 +481,20 @@ onUnmounted(() => {
               <span>{{ licenseStore.isActivating ? 'Mengaktivasi...' : 'Aktivasi' }}</span>
             </button>
 
-            <!-- Bantuan -->
-            <p class="text-center text-[11px] text-gray-400 pt-1">
-              Hubungi admin untuk lisensi.
-            </p>
+            <!-- Bantuan WhatsApp -->
+            <div class="text-center text-[11px] text-gray-500 pt-1 flex items-center justify-center gap-1.5">
+              <span>Butuh lisensi / bantuan?</span>
+              <a
+                :href="APP_WHATSAPP_LINK"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="text-emerald-600 hover:text-emerald-700 font-semibold inline-flex items-center gap-1 hover:underline cursor-pointer"
+                @click.prevent="openWhatsApp"
+              >
+                <MessageCircle :size="12" />
+                <span>WhatsApp Admin ({{ APP_WHATSAPP }})</span>
+              </a>
+            </div>
           </div>
         </template>
 
@@ -506,9 +564,16 @@ onUnmounted(() => {
 
       <!-- Footer -->
       <div class="px-5 py-3 border-t border-gray-200 bg-gray-50 flex items-center justify-between text-xs text-gray-500 shrink-0">
-        <div class="flex items-center gap-1 font-mono text-[11px]">
-          <span>Status:</span>
-          <span class="font-bold text-gray-800">{{ licenseStore.status }}</span>
+        <div class="flex flex-col gap-0.5">
+          <div class="flex items-center gap-1 font-mono text-[11px]">
+            <span>Status:</span>
+            <span class="font-bold text-gray-800">{{ licenseStore.status }}</span>
+            <span class="text-gray-300 mx-1">|</span>
+            <span class="font-medium text-gray-600">v{{ APP_VERSION }}</span>
+          </div>
+          <div class="text-[10px] text-gray-400">
+            Credit by <span class="text-gray-600 font-semibold">{{ APP_CREDIT }}</span> • Dev: <span class="text-gray-600 font-medium">{{ APP_DEVELOPER }}</span> • WA: <a :href="APP_WHATSAPP_LINK" target="_blank" class="text-emerald-600 hover:underline font-mono" @click.prevent="openWhatsApp">{{ APP_WHATSAPP }}</a> • Untuk <span class="text-indigo-600 font-medium">{{ APP_ORGANIZATION }}</span>
+          </div>
         </div>
 
         <button

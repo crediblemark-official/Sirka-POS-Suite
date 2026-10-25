@@ -725,7 +725,7 @@ async function handleSaveAll() {
 
         <!-- Bottom Action Bar untuk Tema -->
         <div class="p-3 bg-[#f6f5f2] border-t border-gray-200 flex items-center justify-between shrink-0">
-          <span class="text-[10px] text-gray-500">Tema tersimpan langsung ke PostgreSQL & localStorage</span>
+          <span class="text-[10px] text-gray-500">Tema tersimpan otomatis ke Cloud & penyimpanan lokal</span>
           <button
             type="button"
             class="flex items-center gap-1.5 px-4 py-1.5 rounded font-bold text-xs text-white cursor-pointer shadow-xs transition-all hover:brightness-110 active:brightness-95"

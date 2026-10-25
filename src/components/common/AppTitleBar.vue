@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { useSettingsStore } from '../../stores/settingsStore';
+import { useShiftStore } from '../../stores/shiftStore';
+import { useConfirmDialog } from '../../composables/useConfirmDialog';
 import { invoke } from '@tauri-apps/api/core';
 import {
   Minus,
@@ -10,10 +12,27 @@ import {
   Store
 } from 'lucide-vue-next';
 
-
 const settingsStore = useSettingsStore();
+const shiftStore = useShiftStore();
+const confirmDialog = useConfirmDialog();
 
 const isMaximized = ref(false);
+let unlistenClose: (() => void) | null = null;
+
+async function notifyShiftActiveAndPromptClose() {
+  const shouldCloseShift = await confirmDialog.confirm({
+    title: 'Shift Kasir Masih Aktif',
+    message: 'Aplikasi tidak dapat ditutup karena sesi shift kasir masih berjalan.',
+    details: 'Wajib melakukan tutup shift dan rekapitulasi uang kas kasir terlebih dahulu sebelum keluar dari aplikasi demi keamanan pencatatan keuangan.',
+    confirmText: 'Tutup Shift Sekarang',
+    cancelText: 'Kembali ke Kasir',
+    type: 'warning'
+  });
+
+  if (shouldCloseShift) {
+    shiftStore.showCloseShiftModal = true;
+  }
+}
 
 // Window control functions with safe fallbacks (works in Tauri desktop and safe in browser)
 async function handleMinimize() {
@@ -46,6 +65,11 @@ async function handleToggleMaximize() {
 }
 
 async function handleClose() {
+  if (shiftStore.isShiftActive) {
+    await notifyShiftActiveAndPromptClose();
+    return;
+  }
+
   try {
     const { getCurrentWindow } = await import('@tauri-apps/api/window');
     await getCurrentWindow().close();
@@ -58,6 +82,13 @@ async function handleClose() {
   }
 }
 
+function handleBeforeUnload(e: BeforeUnloadEvent) {
+  if (shiftStore.isShiftActive) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+}
+
 onMounted(async () => {
   try {
     const { getCurrentWindow } = await import('@tauri-apps/api/window');
@@ -66,9 +97,26 @@ onMounted(async () => {
     win.onResized(async () => {
       isMaximized.value = await win.isMaximized();
     });
+
+    // Cegah penutupan jendela desktop (Alt+F4 atau tombol close) jika shift belum ditutup
+    unlistenClose = await win.onCloseRequested(async (event) => {
+      if (shiftStore.isShiftActive) {
+        event.preventDefault();
+        await notifyShiftActiveAndPromptClose();
+      }
+    });
   } catch {
     // Not running inside native Tauri window
   }
+
+  window.addEventListener('beforeunload', handleBeforeUnload);
+});
+
+onUnmounted(() => {
+  if (unlistenClose) {
+    unlistenClose();
+  }
+  window.removeEventListener('beforeunload', handleBeforeUnload);
 });
 </script>
 
@@ -132,7 +180,7 @@ onMounted(async () => {
         type="button"
         class="titlebar-btn flex items-center justify-center w-11 h-full hover:bg-red-600 hover:text-white active:bg-red-700 cursor-pointer transition-colors"
         style="color: var(--surface-text);"
-        title="Tutup Aplikasi"
+        :title="shiftStore.isShiftActive ? 'Tutup Aplikasi (Shift kasir masih aktif: tutup shift terlebih dahulu)' : 'Tutup Aplikasi'"
         @click="handleClose"
       >
         <X :size="14" />
