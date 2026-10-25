@@ -1,0 +1,21 @@
+[ req ]
+default_bits        = 4096
+default_md          = sha256
+distinguished_name  = req_distinguished_name
+x509_extensions     = v3_codesign
+prompt              = no
+
+[ req_distinguished_name ]
+C                   = ID
+ST                  = Jawa Barat
+L                   = Depok
+O                   = Crediblemark
+OU                  = Sirka Development Team
+CN                  = Sirka by Crediblemark
+
+[ v3_codesign ]
+basicConstraints    = critical, CA:true
+keyUsage            = critical, digitalSignature, keyCertSign, cRLSign
+extendedKeyUsage    = critical, codeSigning
+subjectKeyIdentifier= hash
+authorityKeyIdentifier= keyid:always,issuer

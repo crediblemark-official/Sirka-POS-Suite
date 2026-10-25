@@ -56,6 +56,16 @@ jobs:
           VITE_WORKER_URL: ${{ secrets.VITE_WORKER_URL }}
         run: bun run tauri android build --apk --target aarch64
 
+      - name: Sign APK with Release Keystore
+        working-directory: mobile
+        run: |
+          APK_FILE=$(find src-tauri/gen/android/app/build/outputs/apk -name "*.apk" | head -n 1)
+          if [ -n "$APK_FILE" ]; then
+            echo "Signing $APK_FILE with sirka-release.keystore..."
+            jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 -keystore ../certs/sirka-release.keystore -storepass Sirka2026! -keypass Sirka2026! "$APK_FILE" sirka
+            echo "APK signed successfully."
+          fi
+
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v7
         with:

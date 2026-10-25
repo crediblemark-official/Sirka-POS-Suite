@@ -80,6 +80,20 @@ jobs:
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile
 
+      # 5.1 Import Windows Code Signing Certificate (on windows-latest)
+      - name: Import Windows Code Signing Certificate
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          $pfxPath = "${{ github.workspace }}/certs/Sirka_CodeSigning.pfx"
+          $certPass = "Sirka2026!"
+          if (Test-Path $pfxPath) {
+            Write-Host "Importing Sirka Code Signing Certificate..."
+            Import-PfxCertificate -FilePath $pfxPath -CertStoreLocation Cert:\CurrentUser\My -Password (ConvertTo-SecureString -String $certPass -AsPlainText -Force)
+            Import-PfxCertificate -FilePath $pfxPath -CertStoreLocation Cert:\LocalMachine\Root -Password (ConvertTo-SecureString -String $certPass -AsPlainText -Force)
+            Write-Host "Certificate imported successfully."
+          }
+
       # 6. Build Tauri application & publish to GitHub Releases
       - name: Build and Upload Release Assets
         uses: tauri-apps/tauri-action@v0
