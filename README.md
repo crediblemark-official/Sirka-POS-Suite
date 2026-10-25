@@ -17,7 +17,7 @@ Aplikasi ini menggunakan pendekatan **Local-First (Offline-First)** untuk memast
          │ (Tauri IPC Invoke)
          ▼
 [ Desktop Runtime: Tauri v2 (Rust) ]
-   ├── SQLite Lokal (kasir_citra.db, WAL Mode) ──► Transaksi & Operasi Instan
+   ├── SQLite Lokal (sirka.db, WAL Mode) ──► Transaksi & Operasi Instan
    └── Outbox Queue Sync Engine
          │ (tokio-postgres + rustls TLS)
          ▼
@@ -91,7 +91,7 @@ Antarmuka desktop dirancang modular menyerupai File Explorer desktop terintegras
 ## 📁 Struktur Direktori Repository
 
 ```text
-Kasir-Citra/
+sirka/
 ├── src/                          # Frontend Utama Desktop (Vue 3 + TypeScript)
 │   ├── assets/                   # main.css (Tailwind CSS v4 entry)
 │   ├── components/               # Komponen UI modular
@@ -160,8 +160,8 @@ Kasir-Citra/
 
 ### 1. Kloning & Instal Dependensi Root
 ```bash
-git clone https://github.com/crediblemark-official/Kasir-POS.git Kasir-Citra
-cd Kasir-Citra
+git clone https://github.com/crediblemark-official/Kasir-POS.git sirka
+cd sirka
 bun install
 ```
 
@@ -173,7 +173,7 @@ cp .env.example .env
 Isi variabel `DATABASE_URL` pada file `.env`:
 ```env
 # Contoh PostgreSQL lokal Docker:
-DATABASE_URL=postgresql://kasir_citra_user:kasir_citra_password@localhost:5434/kasir_citra_db
+DATABASE_URL=postgresql://sirka_user:sirka_password@localhost:5434/sirka_db
 ```
 
 ### 3. Menjalankan Database PostgreSQL Lokal (Docker)
@@ -265,8 +265,8 @@ Aplikasi ini menggunakan infrastruktur lisensi dari **[tertaut.com](https://tert
 
 ### Variabel Lingkungan (`.env`)
 ```bash
-VITE_TERTAUT_API_KEY=tt_live_kasir_citra
-VITE_TERTAUT_APP_ID=app_kasir_citra
+VITE_TERTAUT_API_KEY=tt_live_sirka
+VITE_TERTAUT_APP_ID=app_sirka
 VITE_TERTAUT_BASE_URL=https://tertaut.com
 ```
 Pengaturan API juga dapat ditimpa atau dikonfigurasi langsung dari jendela **Lisensi Aplikasi -> Konfigurasi API Tertaut**.
