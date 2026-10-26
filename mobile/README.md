@@ -113,5 +113,12 @@ bun run tauri android dev
 cd mobile
 bun run tauri android build --apk
 ```
-File APK yang dihasilkan akan berada di:
+
+### Menandatangani & Zipalign APK (Wajib untuk Android 11+):
+```bash
+# Otomatis menjalankan 4-byte zipalign dan signing dengan apksigner (v1, v2, v3)
+node scripts/sign-apk.mjs
+```
+File APK yang dihasilkan dan ditandatangani akan berada di:
 `mobile/src-tauri/gen/android/app/build/outputs/apk/release/`
+
