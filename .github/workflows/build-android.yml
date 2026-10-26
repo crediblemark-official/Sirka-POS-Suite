@@ -42,12 +42,17 @@ jobs:
         working-directory: mobile
         run: bun install
 
-      - name: Inisialisasi Android Tauri Project (if not generated)
+      - name: Inisialisasi Android Tauri Project & Pasang Aset Resmi
         working-directory: mobile
         run: |
           if [ ! -d "src-tauri/gen/android" ]; then
             bun run tauri android init --ci
           fi
+          # Salin ikon resmi Sirka ke folder Android res agar tidak memakai logo bawaan Tauri
+          echo "Menyalin ikon resmi Sirka ke Android res..."
+          cp -r src-tauri/icons/android/* src-tauri/gen/android/app/src/main/res/
+          # Pasang plugin Android Keystore untuk keamanan biometrik
+          node scripts/install-android-keystore.mjs || true
 
       - name: Build APK Release
         working-directory: mobile

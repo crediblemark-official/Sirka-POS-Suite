@@ -45,9 +45,9 @@ function handleRefresh() {
 </script>
 
 <template>
-  <header class="sticky top-0 z-30 select-none shadow-xs">
-    <!-- Desktop Window Titlebar (Lega, Bersih, Tidak Menumpuk) -->
-    <div class="h-10 px-3 flex items-center justify-between bg-[#dfddd9] border-b border-[#c8c5c0] text-xs">
+  <header class="sticky top-0 z-30 select-none shadow-xs bg-[#dfddd9] border-b border-[#c8c5c0] pt-safe">
+    <!-- Desktop Window Titlebar (Lega, Bersih, Tepat di Bawah Status Bar HP) -->
+    <div class="h-10 px-3 flex items-center justify-between text-xs">
       <!-- Sisi Kiri: Ikon Toko + Nama Toko Riil dari PostgreSQL + Badge Owner -->
       <div class="flex items-center gap-2 min-w-0">
         <!-- App / Store Icon dengan Warna Brand Dinamis -->
