@@ -82,6 +82,15 @@ async function handleClose() {
 }
 
 function handleBeforeUnload(e: BeforeUnloadEvent) {
+  // 1. Jangan cegat saat development (Vite HMR) agar tidak memicu popup browser "Are you sure you want to leave this page?"
+  if (import.meta.env.DEV) return;
+
+  // 2. Di lingkungan desktop Tauri, penutupan sudah di-guard oleh win.onCloseRequested dengan dialog resmi Sirka
+  if (typeof window !== 'undefined' && ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)) {
+    return;
+  }
+
+  // 3. Fallback jika aplikasi dibuka di browser biasa saat shift aktif
   if (shiftStore.isShiftActive) {
     e.preventDefault();
     e.returnValue = '';
