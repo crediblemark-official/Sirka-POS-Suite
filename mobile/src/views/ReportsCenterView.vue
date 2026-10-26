@@ -170,8 +170,11 @@ async function loadData() {
     productsReport.value = prod.status === 'fulfilled' ? prod.value : null;
     agingReport.value = age.status === 'fulfilled' ? age.value : null;
     shifts.value = shiftData.status === 'fulfilled' ? (shiftData.value || []) : [];
-    if ([fin, prod, age, shiftData].some(r => r.status === 'rejected')) {
-      errorMessage.value = 'Sebagian data gagal dimuat dari server. Periksa koneksi & token akses.';
+    const rejections = [fin, prod, age, shiftData]
+      .filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+    if (rejections.length > 0) {
+      const errDetail = rejections[0].reason?.message || String(rejections[0].reason || '');
+      errorMessage.value = `Sebagian data gagal dimuat (${errDetail}). Periksa koneksi internet / URL API.`;
     }
   } finally {
     loading.value = false;
