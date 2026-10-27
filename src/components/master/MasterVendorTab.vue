@@ -527,12 +527,15 @@ defineExpose({
       <!-- Sisi Kiri: Ribbon + Switcher + MetricStatsStrip + Tabel Edge-to-Edge -->
       <div class="flex-1 flex flex-col overflow-hidden bg-white">
         <!-- 1. Top Ribbon: Segmented Switcher (Satuan vs Kategori) & Action Button -->
-        <div class="h-10.5 relative flex items-center justify-between bg-[#f6f5f2] border-b border-gray-200 px-3 select-none shrink-0 gap-2 overflow-x-auto no-scrollbar">
+        <div
+          v-horizontal-scroll
+          class="h-10.5 relative flex items-center justify-between bg-[#f6f5f2] border-b border-gray-200 px-3 select-none shrink-0 gap-2 overflow-x-auto no-scrollbar"
+        >
           <!-- Segmented Tab Switcher -->
-          <div class="flex items-center bg-gray-200/80 p-0.5 rounded-lg border border-gray-300 shadow-2xs">
+          <div class="flex items-center bg-gray-200/80 p-0.5 rounded-lg border border-gray-300 shadow-2xs shrink-0">
             <button
               type="button"
-              class="flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer"
+              class="flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap"
               :class="activeSubTab === 'units'
                 ? 'bg-white text-purple-900 shadow-xs ring-1 ring-black/5'
                 : 'text-gray-600 hover:text-gray-900'"
@@ -549,7 +552,7 @@ defineExpose({
 
             <button
               type="button"
-              class="flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer"
+              class="flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap"
               :class="activeSubTab === 'categories'
                 ? 'bg-white text-purple-900 shadow-xs ring-1 ring-black/5'
                 : 'text-gray-600 hover:text-gray-900'"

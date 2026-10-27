@@ -330,7 +330,10 @@ function selectProductFromTable(productId: string) {
       </div>
 
       <!-- 2. Bilah Filter & Pencarian Lengkap (Compact Ribbon) -->
-      <div class="px-5 py-2 bg-[#fcfbfa] border-b border-gray-200 shrink-0 flex items-center gap-2.5 text-xs select-none">
+      <div
+        v-horizontal-scroll
+        class="px-5 py-2 bg-[#fcfbfa] border-b border-gray-200 shrink-0 flex items-center gap-2.5 text-xs select-none overflow-x-auto no-scrollbar"
+      >
         <!-- Selector Produk Cepat (SearchableSelect) -->
         <div class="flex items-center gap-1.5 shrink-0">
           <span class="text-[11px] font-semibold text-gray-500 whitespace-nowrap">Produk:</span>
@@ -379,7 +382,7 @@ function selectProductFromTable(productId: string) {
         <!-- Toggle Urutan -->
         <button
           type="button"
-          class="px-2.5 py-1.5 bg-white border border-gray-300 rounded text-xs font-semibold text-gray-700 hover:bg-gray-100 flex items-center gap-1.5 cursor-pointer shadow-2xs shrink-0 transition-colors"
+          class="px-2.5 py-1.5 bg-white border border-gray-300 rounded text-xs font-semibold text-gray-700 hover:bg-gray-100 flex items-center gap-1.5 cursor-pointer shadow-2xs shrink-0 transition-colors whitespace-nowrap"
           :title="sortOrder === 'desc' ? 'Urutan: Terbaru di Atas' : 'Urutan: Lama ke Baru (Kronologis)'"
           @click="sortOrder = sortOrder === 'desc' ? 'asc' : 'desc'"
         >
@@ -392,30 +395,31 @@ function selectProductFromTable(productId: string) {
       <!-- MODE PRODUK SPESIFIK -->
       <div
         v-if="activeProduct"
-        class="flex items-stretch divide-x divide-gray-200 border-b border-gray-200 bg-white shrink-0 select-none text-xs"
+        v-horizontal-scroll
+        class="flex items-stretch divide-x divide-gray-200 border-b border-gray-200 bg-white shrink-0 select-none text-xs overflow-x-auto no-scrollbar snap-x scroll-smooth cursor-grab active:cursor-grabbing"
       >
-        <div class="flex-1 px-5 py-2 min-w-0">
+        <div class="flex-1 min-w-[150px] sm:min-w-0 shrink-0 sm:shrink snap-start px-4 sm:px-5 py-2">
           <span class="text-[10px] text-gray-500 font-semibold uppercase tracking-wider block">Sisa Stok Fisik</span>
           <div class="font-mono text-sm font-bold text-gray-900 truncate mt-0.5">
             {{ activeProduct.stock }} <span class="text-xs font-normal text-gray-500">{{ activeProduct.unit }}</span>
           </div>
         </div>
 
-        <div class="flex-1 px-5 py-2 min-w-0">
+        <div class="flex-1 min-w-[170px] sm:min-w-0 shrink-0 sm:shrink snap-start px-4 sm:px-5 py-2">
           <span class="text-[10px] text-gray-500 font-semibold uppercase tracking-wider block">Total Masuk (Kulakan/Retur)</span>
           <div class="font-mono text-sm font-bold text-emerald-600 truncate mt-0.5">
             +{{ singleProductTotalInQty }} <span class="text-xs font-normal text-gray-500">{{ activeProduct.unit }}</span>
           </div>
         </div>
 
-        <div class="flex-1 px-5 py-2 min-w-0">
+        <div class="flex-1 min-w-[170px] sm:min-w-0 shrink-0 sm:shrink snap-start px-4 sm:px-5 py-2">
           <span class="text-[10px] text-gray-500 font-semibold uppercase tracking-wider block">Total Keluar (Kasir/Waste)</span>
           <div class="font-mono text-sm font-bold text-rose-600 truncate mt-0.5">
             -{{ singleProductTotalOutQty }} <span class="text-xs font-normal text-gray-500">{{ activeProduct.unit }}</span>
           </div>
         </div>
 
-        <div class="flex-1 px-5 py-2 min-w-0">
+        <div class="flex-1 min-w-[160px] sm:min-w-0 shrink-0 sm:shrink snap-start px-4 sm:px-5 py-2">
           <span class="text-[10px] text-gray-500 font-semibold uppercase tracking-wider block">Modal HPP / Jual</span>
           <div class="font-mono text-xs font-bold text-gray-800 truncate mt-0.5">
             Rp {{ formatRupiah(activeProduct.lastBuyPrice || 0) }}
@@ -428,30 +432,31 @@ function selectProductFromTable(productId: string) {
       <!-- MODE SEMUA PRODUK (GLOBAL) -->
       <div
         v-else
-        class="flex items-stretch divide-x divide-gray-200 border-b border-gray-200 bg-white shrink-0 select-none text-xs"
+        v-horizontal-scroll
+        class="flex items-stretch divide-x divide-gray-200 border-b border-gray-200 bg-white shrink-0 select-none text-xs overflow-x-auto no-scrollbar snap-x scroll-smooth cursor-grab active:cursor-grabbing"
       >
-        <div class="flex-1 px-5 py-2 min-w-0">
+        <div class="flex-1 min-w-[150px] sm:min-w-0 shrink-0 sm:shrink snap-start px-4 sm:px-5 py-2">
           <span class="text-[10px] text-gray-500 font-semibold uppercase tracking-wider block">Total Aktivitas Mutasi</span>
           <div class="font-mono text-sm font-bold text-gray-900 truncate mt-0.5">
             {{ filteredMovements.length }} <span class="text-xs font-normal text-gray-500">Catatan</span>
           </div>
         </div>
 
-        <div class="flex-1 px-5 py-2 min-w-0">
+        <div class="flex-1 min-w-[170px] sm:min-w-0 shrink-0 sm:shrink snap-start px-4 sm:px-5 py-2">
           <span class="text-[10px] text-gray-500 font-semibold uppercase tracking-wider block">Arus Masuk (Kulakan / Retur)</span>
           <div class="font-mono text-sm font-bold text-emerald-600 truncate mt-0.5">
             {{ totalInCount }} <span class="text-xs font-normal text-gray-500">Aktivitas</span>
           </div>
         </div>
 
-        <div class="flex-1 px-5 py-2 min-w-0">
+        <div class="flex-1 min-w-[170px] sm:min-w-0 shrink-0 sm:shrink snap-start px-4 sm:px-5 py-2">
           <span class="text-[10px] text-gray-500 font-semibold uppercase tracking-wider block">Arus Keluar (Penjualan / Waste)</span>
           <div class="font-mono text-sm font-bold text-rose-600 truncate mt-0.5">
             {{ totalOutCount }} <span class="text-xs font-normal text-gray-500">Aktivitas</span>
           </div>
         </div>
 
-        <div class="flex-1 px-5 py-2 min-w-0">
+        <div class="flex-1 min-w-[150px] sm:min-w-0 shrink-0 sm:shrink snap-start px-4 sm:px-5 py-2">
           <span class="text-[10px] text-gray-500 font-semibold uppercase tracking-wider block">Cakupan SKU Terdaftar</span>
           <div class="font-mono text-sm font-bold text-purple-700 truncate mt-0.5">
             {{ inventoryStore.products.length }} <span class="text-xs font-normal text-gray-500">Produk Aktif</span>

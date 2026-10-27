@@ -400,11 +400,11 @@ defineExpose({
             <Users :size="15" class="text-indigo-700" />
             <span class="font-bold text-xs text-gray-800">Data Pelanggan & Mitra</span>
             <!-- Filter Pills Horizontal -->
-            <div class="flex items-center gap-1 ml-2">
+            <div class="flex items-center gap-1 ml-2 shrink-0">
               <button
                 @click="localFilter = 'ALL'"
                 :class="[
-                  'px-2 py-0.5 rounded text-[11px] font-medium transition-colors flex items-center gap-1 cursor-pointer',
+                  'px-2 py-0.5 rounded text-[11px] font-medium transition-colors flex items-center gap-1 cursor-pointer shrink-0 whitespace-nowrap',
                   localFilter === 'ALL'
                     ? 'bg-white shadow-2xs border border-gray-300 text-gray-900 font-bold'
                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50'
@@ -416,7 +416,7 @@ defineExpose({
               <button
                 @click="localFilter = 'B2B'"
                 :class="[
-                  'px-2 py-0.5 rounded text-[11px] font-medium transition-colors flex items-center gap-1 cursor-pointer',
+                  'px-2 py-0.5 rounded text-[11px] font-medium transition-colors flex items-center gap-1 cursor-pointer shrink-0 whitespace-nowrap',
                   localFilter === 'B2B'
                     ? 'bg-white shadow-2xs border border-gray-300 text-indigo-900 font-bold'
                     : 'text-gray-600 hover:text-indigo-900 hover:bg-gray-200/50'
@@ -428,7 +428,7 @@ defineExpose({
               <button
                 @click="localFilter = 'B2C'"
                 :class="[
-                  'px-2 py-0.5 rounded text-[11px] font-medium transition-colors flex items-center gap-1 cursor-pointer',
+                  'px-2 py-0.5 rounded text-[11px] font-medium transition-colors flex items-center gap-1 cursor-pointer shrink-0 whitespace-nowrap',
                   localFilter === 'B2C'
                     ? 'bg-white shadow-2xs border border-gray-300 text-teal-900 font-bold'
                     : 'text-gray-600 hover:text-teal-900 hover:bg-gray-200/50'

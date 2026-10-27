@@ -296,19 +296,19 @@ function onBuyerChange(val: string | number) {
       </span>
 
       <!-- View Mode Switcher -->
-      <div class="flex bg-gray-200/80 p-0.5 rounded border border-gray-300">
-        <button type="button" class="px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all"
+      <div class="flex bg-gray-200/80 p-0.5 rounded border border-gray-300 shrink-0">
+        <button type="button" class="px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all shrink-0 whitespace-nowrap"
           :class="viewMode === 'transactions' ? 'bg-white text-gray-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
           @click="emit('update:viewMode', 'transactions')">
           Nota
         </button>
-        <button type="button" class="px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all"
+        <button type="button" class="px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all shrink-0 whitespace-nowrap"
           :class="viewMode === 'items' ? 'bg-white text-gray-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
           @click="emit('update:viewMode', 'items')">
           Rincian Barang
         </button>
         <button type="button"
-          class="px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all flex items-center gap-1"
+          class="px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all flex items-center gap-1 shrink-0 whitespace-nowrap"
           :class="viewMode === 'refunds' ? 'bg-white text-rose-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
           @click="emit('update:viewMode', 'refunds')">
           <span>Retur &amp; Refund</span>
@@ -319,7 +319,7 @@ function onBuyerChange(val: string | number) {
         </button>
 
         <button type="button"
-          class="px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all flex items-center gap-1"
+          class="px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all flex items-center gap-1 shrink-0 whitespace-nowrap"
           :class="viewMode === 'mutations' ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
           @click="emit('update:viewMode', 'mutations')">
           <span>Mutasi Kas</span>

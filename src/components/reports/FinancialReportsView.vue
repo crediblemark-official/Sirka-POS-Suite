@@ -537,13 +537,16 @@ async function exportComprehensiveReport() {
 <template>
   <div class="flex flex-col h-full bg-[#f8f7f5] text-[#2e2b28] select-none text-xs overflow-hidden font-sans">
     <!-- 1. Top Ribbon Bar (Desktop Native File Explorer Style) -->
-    <div class="h-10 relative z-30 flex items-center justify-between bg-[#f6f5f2] border-b border-gray-200 px-3 select-none shrink-0 gap-2 overflow-x-auto no-scrollbar">
+    <div
+      v-horizontal-scroll
+      class="h-10 relative z-30 flex items-center justify-between bg-[#f6f5f2] border-b border-gray-200 px-3 select-none shrink-0 gap-2 overflow-x-auto no-scrollbar"
+    >
       <!-- Sisi Kiri: Switcher Tab Jenis Laporan (Pill Style Standard) -->
       <div class="flex items-center gap-2 shrink-0">
         <div class="flex bg-gray-200/90 p-0.5 rounded border border-gray-300 shrink-0">
           <button
             type="button"
-            class="px-2.5 py-1 rounded text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5"
+            class="px-2.5 py-1 rounded text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap"
             :class="activeSubTab === 'pnl' ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
             @click="activeSubTab = 'pnl'"
           >
@@ -553,7 +556,7 @@ async function exportComprehensiveReport() {
 
           <button
             type="button"
-            class="px-2.5 py-1 rounded text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5"
+            class="px-2.5 py-1 rounded text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap"
             :class="activeSubTab === 'cashflow' ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
             @click="activeSubTab = 'cashflow'"
           >
@@ -563,7 +566,7 @@ async function exportComprehensiveReport() {
 
           <button
             type="button"
-            class="px-2.5 py-1 rounded text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5"
+            class="px-2.5 py-1 rounded text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap"
             :class="activeSubTab === 'balance_sheet' ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
             @click="activeSubTab = 'balance_sheet'"
           >
@@ -573,7 +576,7 @@ async function exportComprehensiveReport() {
 
           <button
             type="button"
-            class="px-2.5 py-1 rounded text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5"
+            class="px-2.5 py-1 rounded text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap"
             :class="activeSubTab === 'receivables' ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
             @click="activeSubTab = 'receivables'"
           >
@@ -586,7 +589,7 @@ async function exportComprehensiveReport() {
 
           <button
             type="button"
-            class="px-2.5 py-1 rounded text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5"
+            class="px-2.5 py-1 rounded text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap"
             :class="activeSubTab === 'analytics' ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
             @click="activeSubTab = 'analytics'"
           >
@@ -596,7 +599,7 @@ async function exportComprehensiveReport() {
 
           <button
             type="button"
-            class="px-2.5 py-1 rounded text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5"
+            class="px-2.5 py-1 rounded text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap"
             :class="activeSubTab === 'shifts' ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
             @click="activeSubTab = 'shifts'"
           >

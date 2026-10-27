@@ -195,14 +195,17 @@ function formatDateTime(iso: string) {
     <MetricStatsStrip :items="metricStats" />
 
     <!-- Action & Filter Bar -->
-    <div class="h-10 px-3 bg-[#f6f5f2] border-b border-gray-200 flex items-center justify-between gap-3 shrink-0">
+    <div
+      v-horizontal-scroll
+      class="h-10 px-3 bg-[#f6f5f2] border-b border-gray-200 flex items-center justify-between gap-3 shrink-0 overflow-x-auto no-scrollbar"
+    >
       <!-- Sisi Kiri: Filter Jenis Retur & Metode -->
-      <div class="flex items-center gap-2 overflow-x-auto no-scrollbar">
+      <div class="flex items-center gap-2 shrink-0">
         <!-- Jenis Retur Buttons -->
         <div class="flex bg-gray-200/90 p-0.5 rounded border border-gray-300 shrink-0">
           <button
             type="button"
-            class="px-2.5 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all"
+            class="px-2.5 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all shrink-0 whitespace-nowrap"
             :class="selectedType === 'ALL' ? 'bg-white text-gray-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
             @click="selectedType = 'ALL'"
           >
@@ -210,7 +213,7 @@ function formatDateTime(iso: string) {
           </button>
           <button
             type="button"
-            class="px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all flex items-center gap-1"
+            class="px-2.5 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all flex items-center gap-1 shrink-0 whitespace-nowrap"
             :class="selectedType === 'DAMAGED_GOODS' ? 'bg-rose-600 text-white shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
             @click="selectedType = 'DAMAGED_GOODS'"
           >
@@ -219,7 +222,7 @@ function formatDateTime(iso: string) {
           </button>
           <button
             type="button"
-            class="px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all flex items-center gap-1"
+            class="px-2.5 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all flex items-center gap-1 shrink-0 whitespace-nowrap"
             :class="selectedType === 'RESTOCK' ? 'bg-emerald-600 text-white shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
             @click="selectedType = 'RESTOCK'"
           >
@@ -228,7 +231,7 @@ function formatDateTime(iso: string) {
           </button>
           <button
             type="button"
-            class="px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all flex items-center gap-1"
+            class="px-2.5 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all flex items-center gap-1 shrink-0 whitespace-nowrap"
             :class="selectedType === 'CORRECTION' ? 'bg-blue-600 text-white shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
             @click="selectedType = 'CORRECTION'"
           >
@@ -243,7 +246,7 @@ function formatDateTime(iso: string) {
         <div class="flex items-center gap-1 shrink-0">
           <button
             type="button"
-            class="px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all"
+            class="px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all shrink-0 whitespace-nowrap"
             :class="selectedMethod === 'ALL' ? 'bg-gray-300 text-gray-900 font-bold' : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-100'"
             @click="selectedMethod = 'ALL'"
           >
@@ -251,7 +254,7 @@ function formatDateTime(iso: string) {
           </button>
           <button
             type="button"
-            class="px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all flex items-center gap-1"
+            class="px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all flex items-center gap-1 shrink-0 whitespace-nowrap"
             :class="selectedMethod === 'TUNAI' ? 'bg-amber-600 text-white font-bold' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
             @click="selectedMethod = 'TUNAI'"
           >
@@ -260,7 +263,7 @@ function formatDateTime(iso: string) {
           </button>
           <button
             type="button"
-            class="px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all flex items-center gap-1"
+            class="px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all flex items-center gap-1 shrink-0 whitespace-nowrap"
             :class="selectedMethod === 'TRANSFER' ? 'bg-blue-600 text-white font-bold' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
             @click="selectedMethod = 'TRANSFER'"
           >

@@ -160,13 +160,16 @@ function formatDateTime(iso: string) {
     <MetricStatsStrip :items="metricStats" />
 
     <!-- Action & Filter Bar -->
-    <div class="h-10 px-3 bg-[#f6f5f2] border-b border-gray-200 flex items-center justify-between gap-3 shrink-0">
+    <div
+      v-horizontal-scroll
+      class="h-10 px-3 bg-[#f6f5f2] border-b border-gray-200 flex items-center justify-between gap-3 shrink-0 overflow-x-auto no-scrollbar"
+    >
       <!-- Sisi Kiri: Filter Alasan Susut -->
-      <div class="flex items-center gap-2 overflow-x-auto no-scrollbar">
+      <div class="flex items-center gap-2 shrink-0">
         <div class="flex bg-gray-200/90 p-0.5 rounded border border-gray-300 shrink-0">
           <button
             type="button"
-            class="px-2.5 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all"
+            class="px-2.5 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all shrink-0 whitespace-nowrap"
             :class="selectedReason === 'ALL' ? 'bg-white text-gray-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
             @click="selectedReason = 'ALL'"
           >
@@ -174,7 +177,7 @@ function formatDateTime(iso: string) {
           </button>
           <button
             type="button"
-            class="px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all flex items-center gap-1"
+            class="px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all flex items-center gap-1 shrink-0 whitespace-nowrap"
             :class="selectedReason === 'BUSUK' ? 'bg-orange-600 text-white shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
             @click="selectedReason = 'BUSUK'"
           >
@@ -183,7 +186,7 @@ function formatDateTime(iso: string) {
           </button>
           <button
             type="button"
-            class="px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all flex items-center gap-1"
+            class="px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all flex items-center gap-1 shrink-0 whitespace-nowrap"
             :class="selectedReason === 'EXPIRED' ? 'bg-purple-600 text-white shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
             @click="selectedReason = 'EXPIRED'"
           >
@@ -192,7 +195,7 @@ function formatDateTime(iso: string) {
           </button>
           <button
             type="button"
-            class="px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all flex items-center gap-1"
+            class="px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all flex items-center gap-1 shrink-0 whitespace-nowrap"
             :class="selectedReason === 'RUSAK_FISIK' ? 'bg-rose-600 text-white shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
             @click="selectedReason = 'RUSAK_FISIK'"
           >
@@ -201,7 +204,7 @@ function formatDateTime(iso: string) {
           </button>
           <button
             type="button"
-            class="px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all flex items-center gap-1"
+            class="px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all flex items-center gap-1 shrink-0 whitespace-nowrap"
             :class="selectedReason === 'SUSUT_TIMBANGAN' ? 'bg-teal-600 text-white shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
             @click="selectedReason = 'SUSUT_TIMBANGAN'"
           >

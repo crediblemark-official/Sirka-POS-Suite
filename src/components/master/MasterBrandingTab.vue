@@ -252,6 +252,7 @@ async function handleSaveAll() {
   <div class="flex-1 flex flex-col h-full bg-white select-none text-xs overflow-hidden">
     <!-- Layer 1: Ribbon Header (Standar Kulakan) -->
     <div
+      v-horizontal-scroll
       class="relative flex items-center justify-between bg-[#f6f5f2] border-b border-gray-200 px-3 py-1.5 select-none shrink-0 gap-1.5 overflow-x-auto no-scrollbar">
       <div class="flex items-center gap-2 shrink-0">
         <Store :size="15" class="text-purple-700" />
@@ -262,12 +263,12 @@ async function handleSaveAll() {
 
       <div class="flex items-center gap-2 shrink-0 ml-auto">
         <button @click="resetToDefault"
-          class="flex items-center gap-1.5 px-2.5 py-1 bg-white hover:bg-gray-100 border border-gray-300 text-gray-700 rounded text-xs font-semibold shadow-2xs transition-colors cursor-pointer">
+          class="flex items-center gap-1.5 px-2.5 py-1 bg-white hover:bg-gray-100 border border-gray-300 text-gray-700 rounded text-xs font-semibold shadow-2xs transition-colors cursor-pointer shrink-0">
           <RotateCcw :size="13" />
           <span>Reset Default</span>
         </button>
         <button @click="handleSaveAll"
-          class="flex items-center gap-1.5 px-2.5 py-1 bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white rounded text-xs font-semibold shadow-2xs transition-colors cursor-pointer">
+          class="flex items-center gap-1.5 px-2.5 py-1 bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white rounded text-xs font-semibold shadow-2xs transition-colors cursor-pointer shrink-0">
           <Save :size="13" />
           <span>Simpan Profil Toko</span>
         </button>
@@ -285,9 +286,12 @@ async function handleSaveAll() {
     </div>
 
     <!-- 1. Ringkasan Metrik Cepat Profil & Branding (Seimbang Terbagi Rata 6 Kolom, Identik Kulakan) -->
-    <div class="flex items-center divide-x divide-gray-200 px-2 py-2 border-b border-gray-200 bg-white shrink-0">
+    <div
+      v-horizontal-scroll
+      class="flex items-center divide-x divide-gray-200 px-2 py-2 border-b border-gray-200 bg-white shrink-0 overflow-x-auto no-scrollbar snap-x scroll-smooth cursor-grab active:cursor-grabbing"
+    >
       <!-- 1. Nama Usaha Terdaftar -->
-      <div class="flex items-center gap-2 px-2.5 first:pl-1 flex-1 min-w-0">
+      <div class="flex items-center gap-2 px-2.5 first:pl-1 flex-1 min-w-[160px] sm:min-w-0 shrink-0 sm:shrink snap-start">
         <div
           class="w-7 h-7 rounded bg-blue-50 text-blue-700 flex items-center justify-center shrink-0 overflow-hidden border border-blue-100">
           <img :src="tempStore.logo || '/logo.png'" alt="Logo" class="w-full h-full object-contain p-0.5" />
@@ -299,7 +303,7 @@ async function handleSaveAll() {
       </div>
 
       <!-- 2. Prefix Faktur -->
-      <div class="flex items-center gap-2 px-2.5 flex-1 min-w-0">
+      <div class="flex items-center gap-2 px-2.5 flex-1 min-w-[160px] sm:min-w-0 shrink-0 sm:shrink snap-start">
         <div class="w-7 h-7 rounded bg-purple-50 text-purple-700 flex items-center justify-center shrink-0">
           <FileText :size="15" />
         </div>
@@ -311,7 +315,7 @@ async function handleSaveAll() {
       </div>
 
       <!-- 3. WhatsApp Kontak -->
-      <div class="flex items-center gap-2 px-2.5 flex-1 min-w-0">
+      <div class="flex items-center gap-2 px-2.5 flex-1 min-w-[160px] sm:min-w-0 shrink-0 sm:shrink snap-start">
         <div class="w-7 h-7 rounded bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
           <Phone :size="15" />
         </div>
@@ -322,7 +326,7 @@ async function handleSaveAll() {
       </div>
 
       <!-- 4. Warna Brand UI -->
-      <div class="flex items-center gap-2 px-2.5 flex-1 min-w-0">
+      <div class="flex items-center gap-2 px-2.5 flex-1 min-w-[160px] sm:min-w-0 shrink-0 sm:shrink snap-start">
         <div class="w-7 h-7 rounded flex items-center justify-center text-white shrink-0 shadow-2xs"
           :style="{ backgroundColor: activeColor }">
           <Palette :size="14" />
@@ -334,7 +338,7 @@ async function handleSaveAll() {
       </div>
 
       <!-- 5. Tema Surface Latar -->
-      <div class="flex items-center gap-2 px-2.5 flex-1 min-w-0">
+      <div class="flex items-center gap-2 px-2.5 flex-1 min-w-[160px] sm:min-w-0 shrink-0 sm:shrink snap-start">
         <div class="w-7 h-7 rounded bg-amber-50 text-amber-700 flex items-center justify-center shrink-0">
           <Monitor :size="15" />
         </div>
@@ -345,7 +349,7 @@ async function handleSaveAll() {
       </div>
 
       <!-- 6. Format Struk Kasir -->
-      <div class="flex items-center gap-2 px-2.5 flex-1 min-w-0 cursor-pointer hover:bg-gray-50 transition-colors"
+      <div class="flex items-center gap-2 px-2.5 flex-1 min-w-[160px] sm:min-w-0 shrink-0 sm:shrink snap-start cursor-pointer hover:bg-gray-50 transition-colors"
         @click="showPrinterModal = true" title="Klik untuk konfigurasi printer & ukuran kertas nota">
         <div class="w-7 h-7 rounded bg-teal-50 text-teal-700 flex items-center justify-center shrink-0">
           <Printer :size="15" />
