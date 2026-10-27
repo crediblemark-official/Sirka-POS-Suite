@@ -8,33 +8,53 @@ Sirka adalah sistem kasir point-of-sale dan manajemen distribusi terintegrasi ya
 
 ---
 
-## 🏗️ Arsitektur Sistem
+## 🏗️ Arsitektur Monorepo Modular (Bun Workspaces)
 
-Aplikasi ini menggunakan pendekatan **Local-First (Offline-First)** untuk memastikan kasir di toko fisik tetap beroperasi 100% lancar walau jaringan internet mati:
+Mengikuti arsitektur teruji di **PubDesk Suite**, proyek ini disusun dalam **Monorepo Modular** menggunakan **Bun Workspaces** yang memisahkan pustaka logika inti (*Shared Packages*) dari aplikasi pengguna (*Apps*):
 
 ```
-[ Frontend: Vue 3 + Tailwind v4 ]
-         │ (Tauri IPC Invoke)
-         ▼
-[ Desktop Runtime: Tauri v2 (Rust) ]
-   ├── SQLite Lokal (sirka.db, WAL Mode) ──► Transaksi & Operasi Instan
-   └── Outbox Queue Sync Engine
-         │ (tokio-postgres + rustls TLS)
-         ▼
-[ Cloud: PostgreSQL 16 / PgBouncer ]
-         ▲
-         │ (Stateless HTTPS REST API)
-[ Cloudflare Worker (worker/) — Hono ]
-         ▲
-         │ (Bearer Token Auth)
-[ Mobile App (mobile/) — Android Owner Monitoring ]
+Sirka-POS-Suite/
+├── packages/                      # 📦 Shared Libraries (Reusable across Apps)
+│   ├── shared-types/              # @sirka/shared-types (TypeScript Models & Enums)
+│   ├── shared-utils/              # @sirka/shared-utils (Formatters, Crypto HWID, Category Color)
+│   ├── shared-core/               # @sirka/shared-core (Pinia Stores, SQLite DB Service, Tertaut SDK)
+│   └── shared-ui/                 # @sirka/shared-ui (AppTableContainer, MetricStatsStrip, Modals)
+│
+├── apps/                          # 🚀 Multi-Platform Applications
+│   ├── sirka-desktop/             # 🖥️ PC/Laptop POS (Tauri v2 Desktop + Windows Explorer Shell)
+│   │   ├── src-tauri/             # Rust desktop config (USB ESC/POS Printer, RJ11 Drawer)
+│   │   └── src/                   # UI Desktop & Tablet Landscape (Split-screen POS)
+│   │
+│   └── sirka-mobile/              # 📱 Android Handheld POS & Owner Monitoring (Tauri v2 Android)
+│       ├── src-tauri/             # Rust Android config (Camera Barcode Scanner, Bluetooth Thermal)
+│       └── src/                   # UI Mobile-First (Full Catalog + Bottom Sheet Cart)
+│
+├── db/                            # Schema SQLite Lokal & Seeder
+└── worker/                        # Cloudflare Workers + Hono REST API Sync Engine
 ```
 
-- **SQLite Lokal (`src-tauri/src/local_db.rs`):** Seluruh aksi kasir, stok, dan pencatatan berjalan langsung ke database SQLite lokal dengan mode WAL (*Write-Ahead Logging*) dan jaminan integritas *Foreign Keys*.
-- **Outbox Sync Engine (`src-tauri/src/sync.rs`):** Mutasi data saat offline diantrekan dalam tabel `outbox`. Saat koneksi cloud tersedia, worker Rust secara otomatis menyinkronkan data ke PostgreSQL tanpa memblokir antarmuka pengguna (*non-blocking*). Dilengkapi isolasi kegagalan (*parking outbox*) agar tidak terjadi *Head-of-Line Blocking*.
-- **TLS Terisolasi (`src-tauri/src/tls.rs`):** Koneksi PostgreSQL menggunakan `rustls` murni Rust (tanpa ketergantungan library C OpenSSL eksternal).
-- **Backend Serverless (`worker/`):** REST API Cloudflare Workers + Hono untuk melayani pembacaan data eksekutif oleh aplikasi mobile owner secara aman tanpa mengekspos kredensial database langsung ke perangkat HP.
-- **Mobile Companion (`mobile/`):** Aplikasi Android khusus owner toko berbasis Tauri Mobile v2 untuk pemantauan omzet, laporan kasir, stok kritis, dan buku kas.
+### ⚡ Perintah Cepat (Development & Build)
+
+```bash
+# 1. Jalankan Desktop POS (Vite Web dev)
+bun run dev:desktop
+
+# 2. Jalankan Desktop POS (Tauri Desktop Native)
+bun run tauri:desktop
+
+# 3. Jalankan Android Mobile (Vite Web dev)
+bun run dev:mobile
+
+# 4. Jalankan Android Mobile (Tauri Android Native)
+bun run tauri:android
+
+# 5. Build Produksi
+bun run build:desktop    # Output di apps/sirka-desktop/dist
+bun run build:mobile     # Output di apps/sirka-mobile/dist
+
+# 6. Jalankan Unit Test
+bun test
+```
 
 ---
 

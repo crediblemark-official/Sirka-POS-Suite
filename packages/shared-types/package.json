@@ -1,0 +1,8 @@
+{
+  "name": "@sirka/shared-types",
+  "version": "0.2.3",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts"
+}
