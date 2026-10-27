@@ -14,13 +14,5 @@
   },
   "include": [
     "tests/**/*.ts"
-  ],
-  "references": [
-    { "path": "./packages/shared-types/tsconfig.json" },
-    { "path": "./packages/shared-utils/tsconfig.json" },
-    { "path": "./packages/shared-core/tsconfig.json" },
-    { "path": "./packages/shared-ui/tsconfig.json" },
-    { "path": "./apps/sirka-desktop/tsconfig.json" },
-    { "path": "./apps/sirka-mobile/tsconfig.json" }
   ]
 }

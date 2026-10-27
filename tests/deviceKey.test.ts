@@ -124,8 +124,7 @@ describe('Kunci Perangkat (device key)', () => {
     const plaintext = await subtle.decrypt(
       { name: 'AES-GCM', iv },
       aesKey2,
-      ciphertext,
-      ciphertext as BufferSource
+      ciphertext
     );
     expect(new TextDecoder().decode(plaintext)).toBe(secret);
 
@@ -141,8 +140,7 @@ describe('Kunci Perangkat (device key)', () => {
       await subtle.decrypt(
         { name: 'AES-GCM', iv },
         wrongKey,
-        ciphertext,
-        ciphertext as BufferSource
+        ciphertext
       );
     } catch {
       decryptFailed = true;
