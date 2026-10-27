@@ -15,7 +15,7 @@ defineProps<{
 <template>
   <div class="flex-1 overflow-auto flex flex-col bg-white">
     <!-- Tabel Standar Arus Kas Operasional -->
-    <table class="table-explorer w-full">
+    <table class="table-explorer w-full min-w-[780px] whitespace-nowrap">
       <thead>
         <tr>
           <th class="w-12 text-center">NO</th>

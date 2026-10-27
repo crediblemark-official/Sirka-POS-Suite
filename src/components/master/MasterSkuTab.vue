@@ -19,7 +19,7 @@ import {
   ArrowUp,
   ArrowDown
 } from 'lucide-vue-next';
-import AppEmptyState from '../common/AppEmptyState.vue';
+import AppTableContainer from '../common/AppTableContainer.vue';
 import MetricStatsStrip, { MetricStatItem } from '../common/MetricStatsStrip.vue';
 import SearchableSelect, { type SelectOption } from '../common/SearchableSelect.vue';
 import { useConfirmDialog } from '../../composables/useConfirmDialog';
@@ -379,15 +379,13 @@ function handleDblClick(prod: Product) {
     <MetricStatsStrip :items="metricStats" />
 
     <!-- Table of SKUs (Edge-to-Edge) -->
-    <div class="flex-1 overflow-auto">
-      <AppEmptyState
-        v-if="filteredProducts.length === 0"
-        :icon="Package"
-        title="Belum Ada Barang Dagangan"
-        description="Tidak ada barang atau SKU yang cocok dengan pencarian."
-      />
-
-      <table v-else class="table-explorer whitespace-nowrap" :class="inventoryStore.showProductSidebar ? 'min-w-[720px]' : ''">
+    <AppTableContainer
+      :is-empty="filteredProducts.length === 0"
+      :empty-icon="Package"
+      empty-title="Belum Ada Barang Dagangan"
+      empty-description="Tidak ada barang atau SKU yang cocok dengan pencarian."
+    >
+      <table class="table-explorer whitespace-nowrap min-w-[850px]">
         <thead>
           <tr>
             <th
@@ -586,6 +584,6 @@ function handleDblClick(prod: Product) {
           </tr>
         </tbody>
       </table>
-    </div>
+    </AppTableContainer>
   </div>
 </template>

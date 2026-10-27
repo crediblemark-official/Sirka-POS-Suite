@@ -4,7 +4,7 @@ import { useCashStore } from '../../stores/cashStore';
 import { CashAccountType, CashMutation } from '../../types';
 import { formatRupiah } from '../../utils/formatters';
 import { useConfirmDialog } from '../../composables/useConfirmDialog';
-import AppEmptyState from '../common/AppEmptyState.vue';
+import AppTableContainer from '../common/AppTableContainer.vue';
 import CashPocketCards from '../cash/CashPocketCards.vue';
 import {
   Plus,
@@ -145,14 +145,13 @@ async function handleDelete(mut: CashMutation) {
 
 
     <!-- 2. Main Table Area -->
-    <div class="flex-1 overflow-auto flex flex-col bg-white">
-      <!-- Empty State Standard -->
-      <AppEmptyState
-        v-if="sortedMutations.length === 0"
-        :icon="Coins"
-        title="Belum Ada Riwayat Mutasi Kas"
-        description="Catat pengeluaran operasional (listrik, gaji, transport, konsumsi) atau pemindahan kas (setor tunai ke bank, cairkan QRIS ke bank)."
-      >
+    <AppTableContainer
+      :is-empty="sortedMutations.length === 0"
+      :empty-icon="Coins"
+      empty-title="Belum Ada Riwayat Mutasi Kas"
+      empty-description="Catat pengeluaran operasional (listrik, gaji, transport, konsumsi) atau pemindahan kas (setor tunai ke bank, cairkan QRIS ke bank)."
+    >
+      <template #empty-action>
         <button
           type="button"
           class="px-3.5 py-1.5 rounded bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors mx-auto"
@@ -161,10 +160,10 @@ async function handleDelete(mut: CashMutation) {
           <Plus :size="13" />
           <span>Catat Mutasi Kas</span>
         </button>
-      </AppEmptyState>
+      </template>
 
       <!-- Tabel Data Mutasi Kas -->
-      <table v-else class="table-explorer w-full min-w-[960px] whitespace-nowrap">
+      <table class="table-explorer w-full min-w-[960px] whitespace-nowrap">
         <thead>
           <tr>
             <th class="w-12 text-center select-none">NO</th>
@@ -330,6 +329,6 @@ async function handleDelete(mut: CashMutation) {
           </tr>
         </tbody>
       </table>
-    </div>
+    </AppTableContainer>
   </div>
 </template>

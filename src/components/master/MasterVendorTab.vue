@@ -18,7 +18,7 @@ import {
   Layers
 } from 'lucide-vue-next';
 import FormSidebarDrawer from '../common/FormSidebarDrawer.vue';
-import AppEmptyState from '../common/AppEmptyState.vue';
+import AppTableContainer from '../common/AppTableContainer.vue';
 import MetricStatsStrip, { MetricStatItem } from '../common/MetricStatsStrip.vue';
 import { useConfirmDialog } from '../../composables/useConfirmDialog';
 import { formatRupiah } from '../../utils/formatters';
@@ -604,14 +604,13 @@ defineExpose({
           <MetricStatsStrip :items="unitMetrics" />
 
           <!-- Tabel Master Satuan -->
-          <div class="flex-1" :class="showUnitDrawer ? 'overflow-auto' : 'overflow-y-auto overflow-x-hidden'">
-            <AppEmptyState
-              v-if="filteredUnits.length === 0"
-              :icon="Scale"
-              title="Tidak Ada Satuan Ditemukan"
-              description="Klik tombol Tambah Satuan untuk mendaftarkan nama satuan baru."
-            />
-            <table v-else class="table-explorer" :class="showUnitDrawer ? 'min-w-[750px]' : ''">
+          <AppTableContainer
+            :is-empty="filteredUnits.length === 0"
+            :empty-icon="Scale"
+            empty-title="Tidak Ada Satuan Ditemukan"
+            empty-description="Klik tombol Tambah Satuan untuk mendaftarkan nama satuan baru."
+          >
+            <table class="table-explorer whitespace-nowrap min-w-[750px]">
               <thead>
                 <tr>
                   <th class="w-12 text-center">NO</th>
@@ -713,7 +712,7 @@ defineExpose({
                 </tr>
               </tbody>
             </table>
-          </div>
+          </AppTableContainer>
         </template>
 
         <!-- ============================================== -->
@@ -724,14 +723,13 @@ defineExpose({
           <MetricStatsStrip :items="vendorMetrics" />
 
           <!-- Tabel Kategori Barang -->
-          <div class="flex-1" :class="showVendorDrawer ? 'overflow-auto' : 'overflow-y-auto overflow-x-hidden'">
-            <AppEmptyState
-              v-if="filteredMarkups.length === 0"
-              :icon="Palette"
-              title="Tidak Ada Kategori Ditemukan"
-              description="Klik tombol Kategori Baru untuk menambahkan kelompok barang baru."
-            />
-            <table v-else class="table-explorer" :class="showVendorDrawer ? 'min-w-[750px]' : ''">
+          <AppTableContainer
+            :is-empty="filteredMarkups.length === 0"
+            :empty-icon="Palette"
+            empty-title="Tidak Ada Kategori Ditemukan"
+            empty-description="Klik tombol Kategori Baru untuk menambahkan kelompok barang baru."
+          >
+            <table class="table-explorer whitespace-nowrap min-w-[780px]">
               <thead>
                 <tr>
                   <th class="w-12 text-center">NO</th>
@@ -817,7 +815,7 @@ defineExpose({
                 </tr>
               </tbody>
             </table>
-          </div>
+          </AppTableContainer>
         </template>
       </div>
 

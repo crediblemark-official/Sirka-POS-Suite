@@ -20,7 +20,7 @@ import {
 } from 'lucide-vue-next';
 
 import MetricStatsStrip, { MetricStatItem } from '../common/MetricStatsStrip.vue';
-import AppEmptyState from '../common/AppEmptyState.vue';
+import AppTableContainer from '../common/AppTableContainer.vue';
 import MemberPointAdjustModal from './member/MemberPointAdjustModal.vue';
 import MemberPrintModal from './member/MemberPrintModal.vue';
 import MemberDetailDrawer from './member/MemberDetailDrawer.vue';
@@ -404,19 +404,15 @@ function handleKeyDown(e: KeyboardEvent) {
     <!-- Reusable MetricStatsStrip (DRY) di sisi kiri -->
     <MetricStatsStrip :items="metricStats" />
 
-        <div
-          class="flex-1 outline-none"
-          :class="showDetailDrawer ? 'overflow-auto' : 'overflow-y-auto overflow-x-hidden'"
+        <AppTableContainer
+          :is-empty="filteredMembers.length === 0"
+          :empty-icon="CreditCard"
+          empty-title="Tidak ada data pelanggan yang cocok"
+          empty-description="Coba ubah tier filter atau periksa kata kunci pencarian Anda."
           tabindex="0"
           @keydown="handleKeyDown"
         >
-          <!-- Empty State -->
-          <AppEmptyState
-            v-if="filteredMembers.length === 0"
-            :icon="CreditCard"
-            title="Tidak ada data pelanggan yang cocok"
-            description="Coba ubah tier filter atau periksa kata kunci pencarian Anda."
-          >
+          <template #empty-action>
             <button
               type="button"
               class="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs font-semibold cursor-pointer border border-gray-300 transition-colors"
@@ -424,10 +420,10 @@ function handleKeyDown(e: KeyboardEvent) {
             >
               Reset Filter & Pencarian
             </button>
-          </AppEmptyState>
+          </template>
 
           <!-- Tabel Data Member Rapi Sejajar Edge-to-Edge -->
-          <table v-else class="table-explorer whitespace-nowrap" :class="showDetailDrawer ? 'min-w-[880px]' : ''">
+          <table class="table-explorer whitespace-nowrap min-w-[900px]">
             <thead>
               <tr>
                 <th
@@ -658,7 +654,7 @@ function handleKeyDown(e: KeyboardEvent) {
               </tr>
             </tbody>
           </table>
-        </div>
+        </AppTableContainer>
       </div>
 
       <!-- Sisi Kanan: Panel Drawer Kartu Member & Form Pendaftaran Baru -->

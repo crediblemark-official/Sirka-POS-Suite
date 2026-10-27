@@ -44,7 +44,8 @@ const emit = defineEmits<{
     </div>
 
     <!-- 9 Modules Table -->
-    <table class="table-explorer w-full">
+    <div class="overflow-x-auto border border-gray-200 rounded">
+      <table class="table-explorer w-full min-w-[850px] whitespace-nowrap">
       <thead>
         <tr>
           <th class="w-12 text-center">NO</th>
@@ -127,5 +128,6 @@ const emit = defineEmits<{
         </tr>
       </tbody>
     </table>
+    </div>
   </div>
 </template>

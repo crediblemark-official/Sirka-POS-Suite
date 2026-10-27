@@ -30,7 +30,7 @@ function isNoteExpanded(key: string): boolean {
 
 <template>
   <div class="flex-1 overflow-auto">
-    <table class="table-explorer w-full">
+    <table class="table-explorer w-full min-w-[780px] whitespace-nowrap">
       <thead>
         <tr>
           <th class="w-12 text-center">NO</th>

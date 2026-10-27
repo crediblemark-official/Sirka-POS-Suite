@@ -259,8 +259,8 @@ bindModalLock(() => returnStore.showRefundModal);
             <span class="text-gray-400 text-[11px]">Masukkan jumlah barang yang diretur/dikoreksi</span>
           </div>
 
-          <div class="border border-gray-200 rounded-xl overflow-hidden shadow-2xs">
-            <table class="w-full text-left border-collapse text-xs">
+          <div class="border border-gray-200 rounded-xl overflow-x-auto shadow-2xs">
+            <table class="w-full text-left border-collapse text-xs min-w-[500px]">
               <thead class="bg-gray-50/80 border-b border-gray-200 text-gray-600 font-semibold text-[11px]">
                 <tr>
                   <th class="py-2.5 px-3">Nama Barang</th>

@@ -3,7 +3,7 @@ import { ref, computed } from 'vue';
 import { useReturnStore } from '../../stores/returnStore';
 import { formatRupiah } from '../../utils/formatters';
 import type { WasteReason } from '../../types';
-import AppEmptyState from '../common/AppEmptyState.vue';
+import AppTableContainer from '../common/AppTableContainer.vue';
 import MetricStatsStrip, { type MetricStatItem } from '../common/MetricStatsStrip.vue';
 import {
   Trash2,
@@ -238,13 +238,13 @@ function formatDateTime(iso: string) {
     </div>
 
     <!-- Main Table Area -->
-    <div class="flex-1 overflow-auto bg-white">
-      <AppEmptyState
-        v-if="filteredRecords.length === 0"
-        :icon="Trash2"
-        title="Belum Ada Catatan Barang Rusak / Susut"
-        description="Barang afkir, telur pecah, atau buah busuk yang dicatat akan muncul di tabel audit ini."
-      >
+    <AppTableContainer
+      :is-empty="filteredRecords.length === 0"
+      :empty-icon="Trash2"
+      empty-title="Belum Ada Catatan Barang Rusak / Susut"
+      empty-description="Barang afkir, telur pecah, atau buah busuk yang dicatat akan muncul di tabel audit ini."
+    >
+      <template #empty-action>
         <button
           type="button"
           class="mt-2 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded text-xs inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
@@ -253,9 +253,9 @@ function formatDateTime(iso: string) {
           <Plus :size="14" />
           <span>Catat Barang Rusak Pertama</span>
         </button>
-      </AppEmptyState>
+      </template>
 
-      <table v-else class="w-full text-left border-collapse text-xs whitespace-nowrap">
+      <table class="table-explorer whitespace-nowrap min-w-[880px]">
         <thead class="sticky top-0 z-20 bg-[#f4f2ee] border-b border-gray-300 text-gray-700 font-bold text-[11px] shadow-2xs uppercase tracking-wider">
           <tr>
             <th class="py-2.5 px-3 text-center w-12 whitespace-nowrap">NO</th>
@@ -414,6 +414,6 @@ function formatDateTime(iso: string) {
           </tr>
         </tbody>
       </table>
-    </div>
+    </AppTableContainer>
   </div>
 </template>

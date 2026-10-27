@@ -21,6 +21,7 @@ import {
   Check
 } from 'lucide-vue-next';
 import SearchableSelect, { type SelectOption } from '../common/SearchableSelect.vue';
+import AppTableContainer from '../common/AppTableContainer.vue';
 
 const movementStore = useStockMovementStore();
 const inventoryStore = useInventoryStore();
@@ -474,18 +475,13 @@ function selectProductFromTable(productId: string) {
           <span class="text-gray-500 font-normal font-mono text-[11px]">{{ filteredMovements.length }} baris mutasi</span>
         </div>
 
-        <div class="flex-1 overflow-auto">
-          <!-- Empty State -->
-          <div v-if="filteredMovements.length === 0" class="flex flex-col items-center justify-center p-12 text-center text-gray-400 space-y-3">
-            <Package :size="36" class="text-gray-300" />
-            <p class="font-semibold text-sm text-gray-700">Belum Ada Riwayat Mutasi Yang Cocok</p>
-            <p class="text-xs max-w-md text-gray-400">
-              Mutasi otomatis tercatat secara real-time saat terjadi transaksi Kulakan Masuk, Penjualan di POS Kasir, Pencatatan Barang Rusak, atau Stock Opname.
-            </p>
-          </div>
-
-          <!-- Tabel Mutasi Fullwidth -->
-          <table v-else class="w-full text-left border-collapse min-w-[900px]">
+        <AppTableContainer
+          :is-empty="filteredMovements.length === 0"
+          :empty-icon="Package"
+          empty-title="Belum Ada Riwayat Mutasi Yang Cocok"
+          empty-description="Mutasi otomatis tercatat secara real-time saat terjadi transaksi Kulakan Masuk, Penjualan di POS Kasir, Pencatatan Barang Rusak, atau Stock Opname."
+        >
+          <table class="table-explorer whitespace-nowrap min-w-[900px]">
             <thead class="bg-gray-50 border-b border-gray-200 text-[10px] text-gray-500 uppercase tracking-wider font-semibold sticky top-0 z-10 shadow-2xs select-none">
               <tr>
                 <th class="py-2.5 px-4 w-36">WAKTU</th>
@@ -572,7 +568,7 @@ function selectProductFromTable(productId: string) {
               </tr>
             </tbody>
           </table>
-        </div>
+        </AppTableContainer>
       </div>
 
       <!-- 5. Footer Drawer -->

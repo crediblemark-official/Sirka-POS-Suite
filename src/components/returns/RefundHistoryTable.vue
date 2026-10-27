@@ -3,7 +3,7 @@ import { ref, computed } from 'vue';
 import { useReturnStore } from '../../stores/returnStore';
 import { formatRupiah } from '../../utils/formatters';
 import type { RefundType } from '../../types';
-import AppEmptyState from '../common/AppEmptyState.vue';
+import AppTableContainer from '../common/AppTableContainer.vue';
 import MetricStatsStrip, { type MetricStatItem } from '../common/MetricStatsStrip.vue';
 import {
   RotateCcw,
@@ -288,15 +288,13 @@ function formatDateTime(iso: string) {
     </div>
 
     <!-- Main Table Area -->
-    <div class="flex-1 overflow-auto bg-white">
-      <AppEmptyState
-        v-if="filteredRefunds.length === 0"
-        :icon="RotateCcw"
-        title="Belum Ada Riwayat Retur & Refund"
-        description="Belum ada transaksi refund yang dicatat atau tidak ada data yang cocok dengan filter yang dipilih."
-      />
-
-      <table v-else class="w-full text-left border-collapse text-xs whitespace-nowrap">
+    <AppTableContainer
+      :is-empty="filteredRefunds.length === 0"
+      :empty-icon="RotateCcw"
+      empty-title="Belum Ada Riwayat Retur & Refund"
+      empty-description="Belum ada transaksi refund yang dicatat atau tidak ada data yang cocok dengan filter yang dipilih."
+    >
+      <table class="table-explorer whitespace-nowrap min-w-[1050px]">
         <thead class="sticky top-0 z-20 bg-[#f4f2ee] border-b border-gray-300 text-gray-700 font-bold text-[11px] shadow-2xs uppercase tracking-wider">
           <tr>
             <th class="py-2.5 px-3 text-center w-12 whitespace-nowrap">NO</th>
@@ -517,6 +515,6 @@ function formatDateTime(iso: string) {
           </tr>
         </tbody>
       </table>
-    </div>
+    </AppTableContainer>
   </div>
 </template>

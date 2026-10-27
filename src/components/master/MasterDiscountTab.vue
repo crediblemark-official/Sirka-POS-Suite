@@ -4,7 +4,7 @@ import { Discount } from '../../types';
 import { useDiscountStore } from '../../stores/discountStore';
 import { formatRupiah } from '../../utils/formatters';
 import MetricStatsStrip, { MetricStatItem } from '../common/MetricStatsStrip.vue';
-import AppEmptyState from '../common/AppEmptyState.vue';
+import AppTableContainer from '../common/AppTableContainer.vue';
 import DiscountSimulator from './discount/DiscountSimulator.vue';
 import DiscountFormDrawer from './discount/DiscountFormDrawer.vue';
 import { useConfirmDialog } from '../../composables/useConfirmDialog';
@@ -439,19 +439,16 @@ function handleKeyDown(e: KeyboardEvent) {
     <!-- Reusable MetricStatsStrip (DRY) di sisi kiri -->
     <MetricStatsStrip :items="discountMetrics" />
 
-        <div
-          class="flex-1 outline-none"
-          :class="discountStore.showFormSidebar ? 'overflow-auto' : 'overflow-y-auto overflow-x-hidden'"
+        <AppTableContainer
+          class="outline-none"
           tabindex="0"
+          :is-empty="filteredDiscounts.length === 0"
+          :empty-icon="Tag"
+          empty-title="Tidak ada kupon promo yang cocok"
+          empty-description="Coba ubah kategori filter atau periksa kata kunci pencarian Anda."
           @keydown="handleKeyDown"
         >
-          <!-- Empty State -->
-          <AppEmptyState
-            v-if="filteredDiscounts.length === 0"
-            :icon="Tag"
-            title="Tidak ada kupon promo yang cocok"
-            description="Coba ubah kategori filter atau periksa kata kunci pencarian Anda."
-          >
+          <template #empty-action>
             <button
               type="button"
               class="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs font-semibold cursor-pointer border border-gray-300 transition-colors"
@@ -459,10 +456,10 @@ function handleKeyDown(e: KeyboardEvent) {
             >
               Reset Filter & Pencarian
             </button>
-          </AppEmptyState>
+          </template>
 
           <!-- Tabel Diskon Rapi Sejajar Edge-to-Edge -->
-          <table v-else class="table-explorer" :class="discountStore.showFormSidebar ? 'min-w-[720px]' : ''">
+          <table class="table-explorer whitespace-nowrap min-w-[800px]">
             <thead>
               <tr>
                 <th class="w-10 text-center">NO</th>
@@ -718,7 +715,7 @@ function handleKeyDown(e: KeyboardEvent) {
               </template>
             </tbody>
           </table>
-        </div>
+        </AppTableContainer>
       </div>
 
       <!-- Sisi Kanan: Form Input & Edit Diskon (Modular Component) -->

@@ -18,7 +18,7 @@ import {
   ArrowDown
 } from 'lucide-vue-next';
 import FormSidebarDrawer from '../common/FormSidebarDrawer.vue';
-import AppEmptyState from '../common/AppEmptyState.vue';
+import AppTableContainer from '../common/AppTableContainer.vue';
 import MetricStatsStrip, { MetricStatItem } from '../common/MetricStatsStrip.vue';
 import { useConfirmDialog } from '../../composables/useConfirmDialog';
 
@@ -309,14 +309,13 @@ defineExpose({
         <MetricStatsStrip :items="supplierMetrics" />
 
         <!-- 3. Tabel Supplier -->
-        <div class="flex-1" :class="showDrawer ? 'overflow-auto' : 'overflow-y-auto overflow-x-hidden'">
-          <AppEmptyState
-            v-if="filteredSuppliers.length === 0"
-            :icon="Truck"
-            title="Tidak Ada Supplier Ditemukan"
-            description="Klik tombol 'Supplier Baru' untuk mendaftarkan mitra pemasok atau distributor kulakan."
-          />
-          <table v-else class="table-explorer" :class="showDrawer ? 'min-w-[850px]' : ''">
+        <AppTableContainer
+          :is-empty="filteredSuppliers.length === 0"
+          :empty-icon="Truck"
+          empty-title="Tidak Ada Supplier Ditemukan"
+          empty-description="Klik tombol 'Supplier Baru' untuk mendaftarkan mitra pemasok atau distributor kulakan."
+        >
+          <table class="table-explorer whitespace-nowrap min-w-[850px]">
             <thead>
               <tr>
                 <th class="w-12 text-center">NO</th>
@@ -491,7 +490,7 @@ defineExpose({
               </tr>
             </tbody>
           </table>
-        </div>
+        </AppTableContainer>
       </div>
 
       <!-- Sisi Kanan: FormSidebarDrawer untuk Tambah/Edit Supplier -->

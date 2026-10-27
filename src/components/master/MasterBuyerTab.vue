@@ -19,7 +19,7 @@ import {
   ArrowDown
 } from 'lucide-vue-next';
 import FormSidebarDrawer from '../common/FormSidebarDrawer.vue';
-import AppEmptyState from '../common/AppEmptyState.vue';
+import AppTableContainer from '../common/AppTableContainer.vue';
 import MetricStatsStrip, { MetricStatItem } from '../common/MetricStatsStrip.vue';
 import SearchableSelect, { type SelectOption } from '../common/SearchableSelect.vue';
 import { useConfirmDialog } from '../../composables/useConfirmDialog';
@@ -450,15 +450,13 @@ defineExpose({
         <!-- Reusable MetricStatsStrip (DRY) di sisi kiri -->
         <MetricStatsStrip :items="buyerMetrics" />
 
-        <div class="flex-1" :class="showBuyerDrawer ? 'overflow-auto' : 'overflow-y-auto overflow-x-hidden'">
-          <AppEmptyState
-            v-if="filteredBuyers.length === 0"
-            :icon="Users"
-            title="Tidak Ada Pelanggan Ditemukan"
-            description="Klik tombol Tambah Pelanggan untuk mendaftarkan kontak baru."
-          />
-
-          <table v-else class="table-explorer whitespace-nowrap" :class="showBuyerDrawer ? 'min-w-[700px]' : ''">
+        <AppTableContainer
+          :is-empty="filteredBuyers.length === 0"
+          :empty-icon="Users"
+          empty-title="Tidak Ada Pelanggan Ditemukan"
+          empty-description="Klik tombol Tambah Pelanggan untuk mendaftarkan kontak baru."
+        >
+          <table class="table-explorer whitespace-nowrap min-w-[820px]">
             <thead>
               <tr>
                 <th
@@ -658,7 +656,7 @@ defineExpose({
               </tr>
             </tbody>
           </table>
-        </div>
+        </AppTableContainer>
       </div>
 
       <!-- Sisi Kanan: FormSidebarDrawer untuk Input/Edit Pelanggan -->
