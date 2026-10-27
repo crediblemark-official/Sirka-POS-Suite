@@ -59,10 +59,20 @@ const configSavedMsg = ref(false);
 
 const activeTab = ref<'status' | 'activate'>('status');
 
-// Jika belum berlisensi, buka tab aktivasi secara default
-if (!licenseStore.isLicensed) {
+// Jika belum berlisensi dan belum ada key, buka tab aktivasi
+if (!licenseStore.isLicensed && !licenseStore.licenseKey) {
   activeTab.value = 'activate';
 }
+
+if (licenseStore.licenseKey && !inputKey.value) {
+  inputKey.value = licenseStore.licenseKey;
+}
+
+watch(() => licenseStore.licenseKey, (newVal) => {
+  if (newVal && !inputKey.value) {
+    inputKey.value = newVal;
+  }
+});
 
 function handleCopyKey() {
   if (!licenseStore.licenseKey) return;
@@ -83,7 +93,18 @@ async function handleActivate() {
   const res = await licenseStore.activate(inputKey.value, inputDeviceName.value);
   if (res.success) {
     activeTab.value = 'status';
-    inputKey.value = '';
+  }
+}
+
+async function handleQuickActivate() {
+  const key = licenseStore.licenseKey || inputKey.value;
+  if (!key.trim()) {
+    activeTab.value = 'activate';
+    return;
+  }
+  const res = await licenseStore.activate(key, inputDeviceName.value);
+  if (res.success) {
+    activeTab.value = 'status';
   }
 }
 
@@ -400,6 +421,18 @@ onUnmounted(() => {
               >
                 <RefreshCw :size="13" :class="{ 'animate-spin': licenseStore.isChecking }" />
                 <span>{{ licenseStore.isChecking ? 'Memeriksa...' : 'Periksa' }}</span>
+              </button>
+
+              <!-- Tombol Aktivasi Perangkat jika lisensi ada namun belum aktif di perangkat ini -->
+              <button
+                v-if="licenseStore.licenseKey && !licenseStore.isLicensed"
+                type="button"
+                class="px-3 py-1.5 rounded-md text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-2xs"
+                :disabled="licenseStore.isActivating"
+                @click="handleQuickActivate"
+              >
+                <KeyRound :size="13" />
+                <span>{{ licenseStore.isActivating ? 'Mengaktivasi...' : 'Aktivasi Perangkat Ini' }}</span>
               </button>
 
               <!-- Tombol Lepas Lisensi dengan Proteksi Lock/Unlock -->

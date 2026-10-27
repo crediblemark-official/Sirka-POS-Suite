@@ -68,6 +68,9 @@ export const useLicenseStore = defineStore('license', () => {
     lastCheckedAt.value = initial.lastCheckedAt || null;
     customerEmail.value = initial.customerEmail || '';
     customerName.value = initial.customerName || '';
+    if (initial.hwid) {
+      hwid.value = initial.hwid;
+    }
   }
 
   function saveToLocal() {
@@ -265,6 +268,7 @@ export const useLicenseStore = defineStore('license', () => {
 
     isChecking.value = true;
     errorMessage.value = null;
+    successMessage.value = null;
 
     try {
       if (!hwid.value) {
@@ -289,6 +293,7 @@ export const useLicenseStore = defineStore('license', () => {
         if (res.expiresAt) expiresAt.value = res.expiresAt;
         if (res.entitlements) entitlements.value = res.entitlements;
         if (res.licenseVersion) licenseVersion.value = res.licenseVersion;
+        successMessage.value = 'Lisensi valid dan terverifikasi online.';
       } else {
         if (res.status === 'EXPIRED') status.value = 'EXPIRED';
         else if (res.status === 'REVOKED') status.value = 'REVOKED';
@@ -296,11 +301,13 @@ export const useLicenseStore = defineStore('license', () => {
         else status.value = 'ERROR';
 
         errorMessage.value = res.message || 'Lisensi tidak valid.';
+        successMessage.value = null;
       }
 
       saveToLocal();
     } catch (err) {
       console.warn('[LicenseStore] Pengecekan lisensi gagal:', err);
+      successMessage.value = null;
       // Jika offline dan ada token grace, jangan langsung mematikan aplikasi
       if (offlineToken.value && source.value === 'offline') {
         status.value = 'OFFLINE_GRACE';
