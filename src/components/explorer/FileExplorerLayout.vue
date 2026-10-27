@@ -486,7 +486,13 @@ onUnmounted(() => {
 
     <!-- Bottom Status Bar on Desktop, MobileBottomNav on Mobile -->
     <ExplorerStatusBar v-if="!isMobile" :active-tab="activeTab" />
-    <MobileBottomNav v-else :active-tab="activeTab" @navigate="openTab" />
+    <MobileBottomNav
+      v-else
+      :active-tab="activeTab"
+      :open-tab-ids="openTabIds"
+      @navigate="openTab"
+      @close-tab="closeTab"
+    />
 
     <!-- Invoice Receipt Modal -->
     <ReceiptModal
