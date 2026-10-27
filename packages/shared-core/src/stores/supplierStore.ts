@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import { Supplier } from '../types';
-import { safeParse } from '../utils/storage';
+import { Supplier } from '@sirka/shared-types';
+import { safeParse } from '@sirka/shared-utils';
 
 const STORAGE_KEY_SUPPLIERS = 'kasir_citra_suppliers_v1';
 

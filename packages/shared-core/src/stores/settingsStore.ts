@@ -1,9 +1,9 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { StoreSetting, BusinessType, BUSINESS_MODES } from '../types';
+import { StoreSetting, BusinessType, BUSINESS_MODES } from '@sirka/shared-types';
 import { dbService } from '../services/dbService';
-import { applyTheme } from '../utils/theme';
-import { safeParse } from '../utils/storage';
+import { applyTheme } from '@sirka/shared-utils';
+import { safeParse } from '@sirka/shared-utils';
 
 const STORAGE_KEY_SETTINGS = 'kasir_citra_settings_v1';
 // BUG FIX (keamanan): token akses Worker TIDAK boleh ikut ter-sync ke cloud.

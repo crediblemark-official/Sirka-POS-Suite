@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { MasterUnit, UnitCategory } from '../types';
+import { MasterUnit, UnitCategory } from '@sirka/shared-types';
 import { useInventoryStore } from './inventoryStore';
-import { safeParse } from '../utils/storage';
+import { safeParse } from '@sirka/shared-utils';
 
 const STORAGE_KEY_UNITS = 'kasir_citra_units_v1';
 

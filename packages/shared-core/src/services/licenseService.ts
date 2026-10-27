@@ -18,8 +18,8 @@ import {
   type LicenseValidateResult,
   type HeartbeatSession
 } from '@tertaut/sdk';
-import type { TertautApiConfig } from '../types/license';
-import { safeParse } from '../utils/storage';
+import type { TertautApiConfig } from '@sirka/shared-types';
+import { safeParse } from '@sirka/shared-utils';
 
 const CONFIG_STORAGE_KEY = 'kasir_citra_tertaut_config_v1';
 

@@ -1,9 +1,9 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import { PreOrderSchedule, BuyerName, SupplierCategory } from '../types';
+import { PreOrderSchedule, BuyerName, SupplierCategory } from '@sirka/shared-types';
 import { dbService } from '../services/dbService';
 import { syncService } from '../services/syncService';
-import { safeParse } from '../utils/storage';
+import { safeParse } from '@sirka/shared-utils';
 
 const STORAGE_KEY_PREORDERS = 'kasir_citra_preorders_v2';
 

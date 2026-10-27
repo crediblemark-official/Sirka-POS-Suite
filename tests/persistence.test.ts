@@ -56,19 +56,21 @@ const db = {
   })),
 };
 
-mock.module('../src/services/dbService', () => ({ dbService: db }));
+mock.module('../packages/shared-core/src/services/dbService', () => ({ dbService: db }));
 
-const { usePosStore } = await import('../src/stores/posStore');
-const { useLedgerStore } = await import('../src/stores/ledgerStore');
-const { usePreOrderStore } = await import('../src/stores/preOrderStore');
-const { usePurchaseStore } = await import('../src/stores/purchaseStore');
-const { useInventoryStore } = await import('../src/stores/inventoryStore');
-const { useShiftStore } = await import('../src/stores/shiftStore');
-const { useDiscountStore } = await import('../src/stores/discountStore');
-const { useBuyerStore } = await import('../src/stores/buyerStore');
-const { useBatchStore } = await import('../src/stores/batchStore');
-const { useStockMovementStore } = await import('../src/stores/stockMovementStore');
-const { localTodayStr, localDateOffset, localPreviousMonthStr } = await import('../src/utils/formatters');
+const {
+  usePosStore,
+  useLedgerStore,
+  usePreOrderStore,
+  usePurchaseStore,
+  useInventoryStore,
+  useShiftStore,
+  useDiscountStore,
+  useBuyerStore,
+  useBatchStore,
+  useStockMovementStore,
+} = await import('@sirka/shared-core');
+const { localTodayStr, localDateOffset, localPreviousMonthStr } = await import('@sirka/shared-utils');
 
 const product = {
   id: 'p',

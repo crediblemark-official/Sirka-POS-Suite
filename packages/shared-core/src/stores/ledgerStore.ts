@@ -1,9 +1,9 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { Transaction, PaymentStatus } from '../types';
+import { Transaction, PaymentStatus } from '@sirka/shared-types';
 import { dbService } from '../services/dbService';
 import * as XLSX from 'xlsx';
-import { localTodayStr } from '../utils/formatters';
+import { localTodayStr } from '@sirka/shared-utils';
 
 import { syncService } from '../services/syncService';
 

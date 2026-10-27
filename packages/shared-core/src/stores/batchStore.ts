@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import { ProductBatch, BatchDeduction, Product } from '../types';
+import { ProductBatch, BatchDeduction, Product } from '@sirka/shared-types';
 import { useInventoryStore } from './inventoryStore';
-import { localTodayStr } from '../utils/formatters';
+import { localTodayStr } from '@sirka/shared-utils';
 
 const STORAGE_KEY_BATCHES = 'kasir_citra_batches_v1';
 

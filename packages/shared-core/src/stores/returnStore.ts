@@ -7,13 +7,13 @@ import type {
   WasteRecord,
   WasteReason,
   Transaction
-} from '../types';
+} from '@sirka/shared-types';
 import { useBatchStore } from './batchStore';
 import { useInventoryStore } from './inventoryStore';
 import { useLedgerStore } from './ledgerStore';
 import { useShiftStore } from './shiftStore';
 import { useStockMovementStore } from './stockMovementStore';
-import { safeParse } from '../utils/storage';
+import { safeParse } from '@sirka/shared-utils';
 
 const STORAGE_KEY_REFUNDS = 'kasir_citra_refunds_v1';
 const STORAGE_KEY_WASTE = 'kasir_citra_waste_v1';

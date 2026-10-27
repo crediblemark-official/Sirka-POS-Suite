@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { Calendar as CalendarIcon, ChevronDown, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-vue-next';
-import { localTodayStr, localDateOffset, localPreviousMonthStr, localMonthStartStr, formatDateIndo } from '../../utils/formatters';
+import { localTodayStr, localDateOffset, localPreviousMonthStr, localMonthStartStr, formatDateIndo } from '@sirka/shared-utils';
 
 const props = withDefaults(defineProps<{
   startDate?: string;

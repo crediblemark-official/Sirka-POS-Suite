@@ -1,12 +1,14 @@
 import { describe, expect, test, beforeEach } from 'bun:test';
 import { setActivePinia, createPinia } from 'pinia';
-import { getOrCreateHwid, getDeviceName, setDeviceName } from '../src/services/hwidService';
 import {
+  getOrCreateHwid,
+  getDeviceName,
+  setDeviceName,
   getTertautConfig,
   saveTertautConfig,
-  formatLicensingError
-} from '../src/services/licenseService';
-import { useLicenseStore } from '../src/stores/licenseStore';
+  formatLicensingError,
+  useLicenseStore
+} from '@sirka/shared-core';
 import {
   SeatLimitExceededError,
   LicenseExpiredError,
@@ -14,7 +16,7 @@ import {
   TertautRateLimitError,
   TertautError
 } from '@tertaut/sdk';
-import type { LicenseStatus } from '../src/types/license';
+import type { LicenseStatus } from '@sirka/shared-types';
 
 
 const licenseStorageKeys = [

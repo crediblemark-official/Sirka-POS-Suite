@@ -1,9 +1,9 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import type { LicenseStatus, LicenseInfo, TertautApiConfig } from '../types/license';
+import type { LicenseStatus, LicenseInfo, TertautApiConfig } from '@sirka/shared-types';
 import { licenseService, getTertautConfig, saveTertautConfig, formatLicensingError } from '../services/licenseService';
 import { getOrCreateHwid, getDeviceName, setDeviceName } from '../services/hwidService';
-import { safeParse } from '../utils/storage';
+import { safeParse } from '@sirka/shared-utils';
 import type { HeartbeatSession } from '@tertaut/sdk';
 
 const STORAGE_KEY_LICENSE = 'kasir_citra_license_data_v1';

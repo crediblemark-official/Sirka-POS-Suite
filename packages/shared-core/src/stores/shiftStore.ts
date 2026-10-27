@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import type { CashierShift } from '../types';
+import type { CashierShift } from '@sirka/shared-types';
 import { syncService } from '../services/syncService';
 
 const STORAGE_KEY_CURRENT_SHIFT = 'kasir_citra_current_shift_v1';

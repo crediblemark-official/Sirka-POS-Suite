@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { Discount, Buyer, CartItem, CustomerType } from '../types';
+import { Discount, Buyer, CartItem, CustomerType } from '@sirka/shared-types';
 import { dbService } from '../services/dbService';
 
 const STORAGE_KEY_DISCOUNTS = 'kasir_citra_discounts_v1';

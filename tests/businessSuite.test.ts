@@ -59,14 +59,10 @@ const db = {
   })),
 };
 
-mock.module('../src/services/dbService', () => ({ dbService: db }));
+mock.module('../packages/shared-core/src/services/dbService', () => ({ dbService: db }));
 
-import { useSettingsStore } from '../src/stores/settingsStore';
-import { usePosStore } from '../src/stores/posStore';
-import { useInventoryStore } from '../src/stores/inventoryStore';
-import { useShiftStore } from '../src/stores/shiftStore';
-import { useBuyerStore } from '../src/stores/buyerStore';
-import { Product } from '../src/types';
+import { useSettingsStore, usePosStore, useInventoryStore, useShiftStore, useBuyerStore } from '@sirka/shared-core';
+import type { Product } from '@sirka/shared-types';
 
 beforeEach(() => {
   mockStorage.clear();

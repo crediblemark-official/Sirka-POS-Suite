@@ -8,9 +8,9 @@
     "apps/*"
   ],
   "scripts": {
-    "dev": "vite",
-    "build": "vue-tsc --noEmit && vite build",
-    "preview": "vite preview",
+    "dev": "bun --filter sirka-desktop dev",
+    "build": "bun --filter sirka-desktop build && bun --filter sirka-mobile build",
+    "preview": "bun --filter sirka-desktop preview",
     "dev:desktop": "bun --filter sirka-desktop dev",
     "dev:mobile": "bun --filter sirka-mobile dev",
     "build:desktop": "bun --filter sirka-desktop build",
@@ -20,12 +20,16 @@
     "tauri:android": "bun --filter sirka-mobile tauri android dev",
     "db:seed": "bun db/seed.ts",
     "test": "bun test",
-    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
-    "test:all": "bun test && cargo test --manifest-path src-tauri/Cargo.toml",
+    "test:rust": "cargo test --manifest-path apps/sirka-desktop/src-tauri/Cargo.toml",
+    "test:all": "bun test && cargo test --manifest-path apps/sirka-desktop/src-tauri/Cargo.toml",
     "worker:dev": "cd worker && bun run dev",
     "worker:deploy": "cd worker && bun run deploy"
   },
   "dependencies": {
+    "@sirka/shared-types": "workspace:*",
+    "@sirka/shared-utils": "workspace:*",
+    "@sirka/shared-core": "workspace:*",
+    "@sirka/shared-ui": "workspace:*",
     "@tailwindcss/vite": "^4.3.3",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-opener": "^2",

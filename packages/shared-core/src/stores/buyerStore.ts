@@ -1,10 +1,10 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { Buyer, CustomerType, MembershipTier, LoyaltyProgramSetting } from '../types';
+import { Buyer, CustomerType, MembershipTier, LoyaltyProgramSetting } from '@sirka/shared-types';
 import { dbService } from '../services/dbService';
 import { syncService } from '../services/syncService';
 import { useSettingsStore } from './settingsStore';
-import { localTodayStr } from '../utils/formatters';
+import { localTodayStr } from '@sirka/shared-utils';
 
 const STORAGE_KEY_BUYERS = 'kasir_citra_buyers_v3';
 const STORAGE_KEY_LOYALTY = 'kasir_citra_loyalty_settings_v1';

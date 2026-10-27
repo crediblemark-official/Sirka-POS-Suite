@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { StockMovement, StockAdjustmentRecord, StockMovementType, StockAdjustReason, Product } from '../types';
+import { StockMovement, StockAdjustmentRecord, StockMovementType, StockAdjustReason, Product } from '@sirka/shared-types';
 import { useInventoryStore } from './inventoryStore';
 import { useBatchStore } from './batchStore';
 import { dbService } from '../services/dbService';

@@ -13,7 +13,7 @@ import {
   HeldCart,
   OrderType,
   ServiceStatus
-} from '../types';
+} from '@sirka/shared-types';
 import { useInventoryStore } from './inventoryStore';
 import { useLedgerStore } from './ledgerStore';
 import { useSettingsStore } from './settingsStore';
@@ -22,8 +22,8 @@ import { useDiscountStore } from './discountStore';
 import { useShiftStore } from './shiftStore';
 import { useBatchStore } from './batchStore';
 import { useStockMovementStore } from './stockMovementStore';
-import { safeParse, safeClone } from '../utils/storage';
-import { localTodayStr } from '../utils/formatters';
+import { safeParse, safeClone } from '@sirka/shared-utils';
+import { localTodayStr } from '@sirka/shared-utils';
 
 export const usePosStore = defineStore('pos', () => {
   const inventoryStore = useInventoryStore();

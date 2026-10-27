@@ -7,8 +7,8 @@ import { useLedgerStore } from '../../stores/ledgerStore';
 import { useDiscountStore } from '../../stores/discountStore';
 import { usePreOrderStore } from '../../stores/preOrderStore';
 import { usePurchaseStore } from '../../stores/purchaseStore';
-import { syncService } from '../../services/syncService';
-import { demoDataService } from '../../services/demoDataService';
+import { syncService } from '@sirka/shared-core';
+import { demoDataService } from '@sirka/shared-core';
 import { useModalLock } from '../../composables/useModalLock';
 
 // BUG FIX: register modal-lock agar shortcut global (mis. Enter pada

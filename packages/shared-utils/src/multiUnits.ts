@@ -1,4 +1,4 @@
-import { ProductUnitConversion } from '../types';
+import { ProductUnitConversion } from '@sirka/shared-types';
 
 export interface ProductUnitFormItem extends ProductUnitConversion {
   mode?: 'multiple' | 'fraction';

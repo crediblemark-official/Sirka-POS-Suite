@@ -8,7 +8,7 @@ import {
   Buyer,
   StoreSetting,
   Discount
-} from '../types';
+} from '@sirka/shared-types';
 
 /**
  * Native Tauri Database Service

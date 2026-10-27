@@ -1,6 +1,6 @@
 import { dbService } from './dbService';
 import { syncService } from './syncService';
-import { CategoryMarkupSetting, Product, Buyer, Discount, PreOrderSchedule, Supplier } from '../types';
+import { CategoryMarkupSetting, Product, Buyer, Discount, PreOrderSchedule, Supplier } from '@sirka/shared-types';
 import { useInventoryStore } from '../stores/inventoryStore';
 import { useBuyerStore } from '../stores/buyerStore';
 import { useLedgerStore } from '../stores/ledgerStore';
