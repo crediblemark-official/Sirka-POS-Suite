@@ -155,38 +155,38 @@ const paymentBreakdown = computed(() => {
 </script>
 
 <template>
-  <div class="flex-1 w-full h-full flex flex-col bg-white overflow-hidden select-none text-xs">
+  <div class="flex-1 w-full h-full flex flex-col bg-white overflow-y-auto lg:overflow-hidden select-none text-xs">
     <!-- 1. TOP HEADER STRIP (Flat, Full Width, Dipisah Garis Border-B) -->
-    <div class="h-10 px-4 flex items-center justify-between border-b border-gray-200 bg-gray-50/80 shrink-0">
+    <div class="min-h-10 py-1.5 px-3 sm:px-4 flex items-center justify-between gap-2 border-b border-gray-200 bg-gray-50/80 shrink-0">
       <!-- Kiri: Judul Halaman & Tanggal -->
-      <div class="flex items-center gap-2.5 min-w-0">
-        <span class="font-bold text-gray-800 text-xs sm:text-sm tracking-tight">
-          Selamat Datang, {{ shiftStore.currentShift?.cashierName }} 
+      <div class="flex items-center gap-2 min-w-0">
+        <span class="font-bold text-gray-800 text-xs sm:text-sm tracking-tight truncate">
+          Selamat Datang{{ shiftStore.currentShift?.cashierName ? `, ${shiftStore.currentShift.cashierName}` : '' }}
         </span>
-        <span class="text-gray-300 font-light">•</span>
-        <span class="text-[11px] font-mono text-gray-600 shrink-0">
+        <span class="text-gray-300 font-light hidden sm:inline">•</span>
+        <span class="text-[11px] font-mono text-gray-600 shrink-0 hidden sm:inline">
           {{ todayFormatted }}
         </span>
       </div>
 
       <!-- Kanan: Status Shift Kasir -->
-      <div class="flex items-center gap-2.5 shrink-0">
-        <div class="flex items-center gap-2 text-xs">
+      <div class="flex items-center gap-2 shrink-0">
+        <div class="flex items-center gap-1.5 text-xs">
           <span
-            class="w-2 h-2 rounded-full"
+            class="w-2 h-2 rounded-full shrink-0"
             :class="shiftStore.isShiftActive ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'"
           ></span>
-          <span class="font-medium text-gray-700">
+          <span class="font-medium text-gray-700 whitespace-nowrap text-[11px] sm:text-xs">
             {{ shiftStore.isShiftActive ? `Shift: ${shiftStore.currentShift?.cashierName}` : 'Shift Belum Aktif' }}
           </span>
-          <span v-if="shiftStore.isShiftActive" class="font-mono text-emerald-700 font-bold pl-1">
+          <span v-if="shiftStore.isShiftActive" class="font-mono text-emerald-700 font-bold pl-1 hidden md:inline">
             • Laci: Rp {{ formatRupiah(shiftStore.currentShift?.expectedCash || 0) }}
           </span>
         </div>
         <button
           v-if="!shiftStore.isShiftActive"
           type="button"
-          class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] cursor-pointer transition-colors"
+          class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-[11px] cursor-pointer transition-colors shrink-0 rounded-xs"
           @click="shiftStore.showOpenShiftModal = true"
         >
           Buka Shift
@@ -194,16 +194,16 @@ const paymentBreakdown = computed(() => {
       </div>
     </div>
 
-    <!-- 2. METRIC KPI STRIP (5 Kolom Penuh, Divide-X, Border-B, Zero Round) -->
-    <div class="grid grid-cols-2 md:grid-cols-5 divide-x divide-gray-200 border-b border-gray-200 bg-white shrink-0">
+    <!-- 2. METRIC KPI STRIP (5 Kolom Penuh, Rapi di Desktop & Mobile) -->
+    <div class="grid grid-cols-2 md:grid-cols-5 border-b border-gray-200 bg-white shrink-0">
       <!-- Omset Hari Ini -->
-      <div class="px-4 py-2.5 flex items-center gap-3 min-w-0">
-        <div class="p-2 bg-emerald-50 text-emerald-600 shrink-0 border border-emerald-100">
+      <div class="px-3 py-2 sm:px-4 sm:py-2.5 flex items-center gap-2.5 sm:gap-3 min-w-0 border-r border-b md:border-b-0 border-gray-200">
+        <div class="p-2 bg-emerald-50 text-emerald-600 shrink-0 border border-emerald-100 rounded-xs">
           <Coins :size="16" />
         </div>
         <div class="min-w-0 flex-1">
-          <div class="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Omset Hari Ini</div>
-          <div class="text-sm sm:text-base font-black font-mono text-emerald-700 truncate leading-tight mt-0.5">
+          <div class="text-[10px] text-gray-500 font-bold uppercase tracking-wider truncate">Omset Hari Ini</div>
+          <div class="text-xs sm:text-base font-black font-mono text-emerald-700 truncate leading-tight mt-0.5">
             Rp {{ formatRupiah(todayRevenue) }}
           </div>
           <div class="text-[10px] text-gray-500 truncate">
@@ -213,13 +213,13 @@ const paymentBreakdown = computed(() => {
       </div>
 
       <!-- Laba Bersih Hari Ini -->
-      <div class="px-4 py-2.5 flex items-center gap-3 min-w-0">
-        <div class="p-2 bg-blue-50 text-blue-600 shrink-0 border border-blue-100">
+      <div class="px-3 py-2 sm:px-4 sm:py-2.5 flex items-center gap-2.5 sm:gap-3 min-w-0 border-b md:border-b-0 md:border-r border-gray-200">
+        <div class="p-2 bg-blue-50 text-blue-600 shrink-0 border border-blue-100 rounded-xs">
           <TrendingUp :size="16" />
         </div>
         <div class="min-w-0 flex-1">
-          <div class="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Laba Bersih Hari Ini</div>
-          <div class="text-sm sm:text-base font-black font-mono text-blue-700 truncate leading-tight mt-0.5">
+          <div class="text-[10px] text-gray-500 font-bold uppercase tracking-wider truncate">Laba Bersih Hari Ini</div>
+          <div class="text-xs sm:text-base font-black font-mono text-blue-700 truncate leading-tight mt-0.5">
             Rp {{ formatRupiah(todayProfit) }}
           </div>
           <div class="text-[10px] text-gray-500 truncate">
@@ -229,13 +229,13 @@ const paymentBreakdown = computed(() => {
       </div>
 
       <!-- Piutang / Tempo -->
-      <div class="px-4 py-2.5 flex items-center gap-3 min-w-0">
-        <div class="p-2 bg-amber-50 text-amber-600 shrink-0 border border-amber-100">
+      <div class="px-3 py-2 sm:px-4 sm:py-2.5 flex items-center gap-2.5 sm:gap-3 min-w-0 border-r border-b md:border-b-0 border-gray-200">
+        <div class="p-2 bg-amber-50 text-amber-600 shrink-0 border border-amber-100 rounded-xs">
           <Clock :size="16" />
         </div>
         <div class="min-w-0 flex-1">
-          <div class="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Total Piutang Tempo</div>
-          <div class="text-sm sm:text-base font-black font-mono text-amber-700 truncate leading-tight mt-0.5">
+          <div class="text-[10px] text-gray-500 font-bold uppercase tracking-wider truncate">Total Piutang Tempo</div>
+          <div class="text-xs sm:text-base font-black font-mono text-amber-700 truncate leading-tight mt-0.5">
             Rp {{ formatRupiah(totalReceivables) }}
           </div>
           <div class="text-[10px] text-gray-500 truncate">
@@ -245,13 +245,13 @@ const paymentBreakdown = computed(() => {
       </div>
 
       <!-- Nilai Stok Fisik -->
-      <div class="px-4 py-2.5 flex items-center gap-3 min-w-0">
-        <div class="p-2 bg-purple-50 text-purple-600 shrink-0 border border-purple-100">
+      <div class="px-3 py-2 sm:px-4 sm:py-2.5 flex items-center gap-2.5 sm:gap-3 min-w-0 border-b md:border-b-0 md:border-r border-gray-200">
+        <div class="p-2 bg-purple-50 text-purple-600 shrink-0 border border-purple-100 rounded-xs">
           <Package :size="16" />
         </div>
         <div class="min-w-0 flex-1">
-          <div class="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Aset Stok Fisik</div>
-          <div class="text-sm sm:text-base font-black font-mono text-purple-700 truncate leading-tight mt-0.5">
+          <div class="text-[10px] text-gray-500 font-bold uppercase tracking-wider truncate">Aset Stok Fisik</div>
+          <div class="text-xs sm:text-base font-black font-mono text-purple-700 truncate leading-tight mt-0.5">
             Rp {{ formatRupiah(totalInventoryValuation) }}
           </div>
           <div class="text-[10px] text-gray-500 truncate">
@@ -261,13 +261,13 @@ const paymentBreakdown = computed(() => {
       </div>
 
       <!-- Pelanggan & Member -->
-      <div class="px-4 py-2.5 flex items-center gap-3 min-w-0 col-span-2 md:col-span-1">
-        <div class="p-2 bg-indigo-50 text-indigo-600 shrink-0 border border-indigo-100">
+      <div class="px-3 py-2 sm:px-4 sm:py-2.5 flex items-center gap-2.5 sm:gap-3 min-w-0 col-span-2 md:col-span-1 border-b md:border-b-0 border-gray-200">
+        <div class="p-2 bg-indigo-50 text-indigo-600 shrink-0 border border-indigo-100 rounded-xs">
           <Users :size="16" />
         </div>
         <div class="min-w-0 flex-1">
-          <div class="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Pelanggan &amp; Member</div>
-          <div class="text-sm sm:text-base font-black font-mono text-indigo-700 truncate leading-tight mt-0.5">
+          <div class="text-[10px] text-gray-500 font-bold uppercase tracking-wider truncate">Pelanggan &amp; Member</div>
+          <div class="text-xs sm:text-base font-black font-mono text-indigo-700 truncate leading-tight mt-0.5">
             {{ buyerStore.buyers.length }} Pelanggan
           </div>
           <div class="text-[10px] text-gray-500 truncate">
@@ -278,9 +278,9 @@ const paymentBreakdown = computed(() => {
     </div>
 
     <!-- 3. MAIN WORKSPACE (Split 2 Kolom Penuh: Kiri Grafik & Metode, Kanan Produk & Stok) -->
-    <div class="flex-1 flex flex-col lg:flex-row overflow-hidden divide-y lg:divide-y-0 lg:divide-x divide-gray-200">
+    <div class="flex-1 flex flex-col lg:flex-row overflow-visible lg:overflow-hidden divide-y lg:divide-y-0 lg:divide-x divide-gray-200">
       <!-- Kolom Kiri: Tren Penjualan 7 Hari & Komposisi Metode Pembayaran -->
-      <div class="flex-1 lg:w-7/12 flex flex-col overflow-hidden">
+      <div class="flex-1 lg:w-7/12 flex flex-col overflow-visible lg:overflow-hidden shrink-0 lg:shrink">
         <!-- Sub-Header: Tren Penjualan -->
         <div class="h-8 px-4 flex items-center justify-between border-b border-gray-200 bg-gray-50 shrink-0 font-bold text-gray-700">
           <div class="flex items-center gap-2">
@@ -404,7 +404,7 @@ const paymentBreakdown = computed(() => {
       </div>
 
       <!-- Kolom Kanan: Produk Terlaris & Stok Kritis -->
-      <div class="flex-1 lg:w-5/12 flex flex-col overflow-hidden bg-white">
+      <div class="flex-1 lg:w-5/12 flex flex-col overflow-visible lg:overflow-hidden bg-white shrink-0 lg:shrink pb-6 lg:pb-0">
         <!-- Sub-Header: Produk Terlaris -->
         <div class="h-8 px-4 flex items-center justify-between border-b border-gray-200 bg-gray-50 shrink-0 font-bold text-gray-700">
           <div class="flex items-center gap-2">
@@ -421,7 +421,7 @@ const paymentBreakdown = computed(() => {
         </div>
 
         <!-- Tabel Produk Terlaris -->
-        <div class="flex-1 overflow-y-auto divide-y divide-gray-200 min-h-[140px]">
+        <div class="flex-1 overflow-y-auto divide-y divide-gray-200 min-h-[140px] max-h-[260px] lg:max-h-none">
           <div v-if="topProducts.length === 0" class="p-6 text-center text-gray-400">
             Belum ada data penjualan tercatat.
           </div>
@@ -469,7 +469,7 @@ const paymentBreakdown = computed(() => {
         </div>
 
         <!-- Tabel Stok Kritis -->
-        <div class="flex-1 overflow-y-auto divide-y divide-gray-200 min-h-[140px]">
+        <div class="flex-1 overflow-y-auto divide-y divide-gray-200 min-h-[140px] max-h-[260px] lg:max-h-none">
           <div v-if="lowStockProducts.length === 0" class="p-6 flex items-center justify-center gap-2 text-emerald-700 font-medium text-xs">
             <CheckCircle2 :size="16" class="text-emerald-500" />
             <span>Seluruh stok barang dalam batas aman.</span>
