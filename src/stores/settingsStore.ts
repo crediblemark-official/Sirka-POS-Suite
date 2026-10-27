@@ -18,6 +18,7 @@ const DEFAULT_SETTINGS: Record<string, string> = {
   invoice_prefix: 'INV',
   store_logo: '',
   business_type: 'universal',
+  ui_shell_mode: 'auto',
   primary_color: '#2563eb',
   theme_preset: 'blue',
   header_accent_style: 'accent-line',
@@ -198,9 +199,17 @@ export const useSettingsStore = defineStore('settings', () => {
   const printerNetworkAddress = computed(() => settings.value.printer_network_address || '127.0.0.1:9100');
   const receiptPaperWidth = computed(() => settings.value.receipt_paper_width || '58mm');
   const receiptFooter = computed(() => settings.value.receipt_footer || 'Terima kasih atas kunjungan Anda');
+  const uiShellMode = computed<'auto' | 'desktop' | 'tablet' | 'mobile'>(() => (settings.value.ui_shell_mode as any) || 'auto');
+
+  function setUiShellMode(mode: 'auto' | 'desktop' | 'tablet' | 'mobile') {
+    settings.value.ui_shell_mode = mode;
+    saveLocal();
+  }
 
   return {
     settings,
+    uiShellMode,
+    setUiShellMode,
     ownerApiToken,
     setOwnerApiToken,
     // Business Mode
