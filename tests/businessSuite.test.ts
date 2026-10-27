@@ -59,7 +59,10 @@ const db = {
   })),
 };
 
-mock.module('../packages/shared-core/src/services/dbService', () => ({ dbService: db }));
+mock.module('../packages/shared-core/src/services/dbService', () => ({
+  dbService: db,
+  isTauri: () => false
+}));
 
 import { useSettingsStore, usePosStore, useInventoryStore, useShiftStore, useBuyerStore } from '@sirka/shared-core';
 import type { Product } from '@sirka/shared-types';

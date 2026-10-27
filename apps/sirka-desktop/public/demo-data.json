@@ -1,0 +1,1231 @@
+{
+  "version": "1.0",
+  "categoryMarkups": [
+    {
+      "category": "Saus, Kecap & Tepung",
+      "defaultMarkupPercent": 20,
+      "description": "Saos, Kecap, dan Aneka Tepung Olahan",
+      "color": "teal"
+    },
+    {
+      "category": "Sayuran Segar",
+      "defaultMarkupPercent": 15,
+      "description": "Sayuran Segar & Bumbu Basah Harian",
+      "color": "emerald"
+    },
+    {
+      "category": "Tahu, Tempe & Bawang",
+      "defaultMarkupPercent": 18,
+      "description": "Tahu, Tempe, Bawang Merah & Putih Kupas",
+      "color": "orange"
+    },
+    {
+      "category": "Buah Segar",
+      "defaultMarkupPercent": 20,
+      "description": "Buah-buahan Segar Harian",
+      "color": "lime"
+    },
+    {
+      "category": "Beras & Minyak",
+      "defaultMarkupPercent": 12,
+      "description": "Beras Pokok & Minyak Goreng Komoditas",
+      "color": "amber"
+    },
+    {
+      "category": "Daging & Telur",
+      "defaultMarkupPercent": 15,
+      "description": "Ayam Potong, Daging Sapi, Telur & Protein",
+      "color": "rose"
+    },
+    {
+      "category": "Bumbu Kering & Rempah",
+      "defaultMarkupPercent": 25,
+      "description": "Bumbu Kering & Rempah Tradisional",
+      "color": "cyan"
+    },
+    {
+      "category": "APD & Sabun",
+      "defaultMarkupPercent": 25,
+      "description": "Perlengkapan APD, Sabun Cuci & Sanitasi",
+      "color": "stone"
+    },
+    {
+      "category": "ATK & Kertas",
+      "defaultMarkupPercent": 25,
+      "description": "Kertas HVS, Tinta & Administrasi Operasional",
+      "color": "purple"
+    }
+  ],
+  "suppliers": [
+    {
+      "id": "supp-001",
+      "name": "Pak Agus",
+      "contactPerson": "Pak Agus",
+      "phone": "0812-3456-7890",
+      "address": "Pasar Induk Kramat Jati No. 12",
+      "notes": "Pemasok bumbu kering & rempah olahan"
+    },
+    {
+      "id": "supp-002",
+      "name": "Sayur Tufel",
+      "contactPerson": "Mas Tufel",
+      "phone": "0813-9876-5432",
+      "address": "Sentra Sayuran Lembang",
+      "notes": "Sayuran segar & bumbu basah harian"
+    },
+    {
+      "id": "supp-003",
+      "name": "Hari Barokah",
+      "contactPerson": "Haji Hari",
+      "phone": "0857-1122-3344",
+      "address": "Gudang Hasil Bumi Cibinong",
+      "notes": "Saos, kecap, dan aneka tepung"
+    },
+    {
+      "id": "supp-004",
+      "name": "Fadhil Food",
+      "contactPerson": "Fadhil",
+      "phone": "0878-5566-7788",
+      "address": "Kawasan Industri Pangan C2",
+      "notes": "Ayam potong, daging sapi, telur & protein"
+    },
+    {
+      "id": "supp-005",
+      "name": "Haff Pro Jaya",
+      "contactPerson": "Pak Haff",
+      "phone": "0821-4433-2211",
+      "address": "Kavling Industri Tahu Tempe",
+      "notes": "Tahu, tempe, bawang merah & putih kupas"
+    },
+    {
+      "id": "supp-006",
+      "name": "Pantry Co",
+      "contactPerson": "Ko Anton",
+      "phone": "0819-0011-2233",
+      "address": "Pasar Buah Segar Blok B",
+      "notes": "Buah-buahan segar lokal dan impor"
+    },
+    {
+      "id": "supp-007",
+      "name": "Koko Didid",
+      "contactPerson": "Koh Didid",
+      "phone": "0818-7788-9900",
+      "address": "Grosir Beras & Minyak Goreng",
+      "notes": "Beras & minyak goreng komoditas"
+    },
+    {
+      "id": "supp-008",
+      "name": "Mitra APD & Sanitasi",
+      "contactPerson": "Ibu Ratna",
+      "phone": "0811-2233-4455",
+      "address": "Kawasan Pergudangan Higienis Blok E",
+      "notes": "Pemasok sarung tangan, masker, cairan pembersih & sanitasi"
+    },
+    {
+      "id": "supp-009",
+      "name": "CV Surya Gemilang ATK",
+      "contactPerson": "Pak Budi",
+      "phone": "0815-6677-8899",
+      "address": "Ruko Niaga Sentra ATK No. 8",
+      "notes": "Pemasok kertas struk, HVS, tinta printer & perlengkapan kasir"
+    }
+  ],
+  "products": [
+    {
+      "id": "prod-apd-01",
+      "code": "APD-001",
+      "name": "SARUNG TANGAN LATEX",
+      "category": "APD & Sabun",
+      "unit": "BOX",
+      "defaultMarkupPercent": 25,
+      "lastBuyPrice": 42000,
+      "lastSellPrice": 52500,
+      "stock": 150,
+      "notes": "Isi 100 pcs per box",
+      "supplier": "Mitra APD & Sanitasi"
+    },
+    {
+      "id": "prod-apd-02",
+      "code": "APD-002",
+      "name": "MASKER MEDIS 3 PLY",
+      "category": "APD & Sabun",
+      "unit": "BOX",
+      "defaultMarkupPercent": 25,
+      "lastBuyPrice": 18500,
+      "lastSellPrice": 23125,
+      "stock": 200,
+      "notes": "Kemenkes certified",
+      "supplier": "Mitra APD & Sanitasi"
+    },
+    {
+      "id": "prod-apd-03",
+      "code": "APD-003",
+      "name": "HAIR CAP / PENUTUP RAMBUT",
+      "category": "APD & Sabun",
+      "unit": "PACK",
+      "defaultMarkupPercent": 25,
+      "lastBuyPrice": 24000,
+      "lastSellPrice": 30000,
+      "stock": 120,
+      "notes": "Isi 100 pcs per pack",
+      "supplier": "Mitra APD & Sanitasi"
+    },
+    {
+      "id": "prod-apd-04",
+      "code": "APD-004",
+      "name": "SOKLIN LANTAI 780 ML",
+      "category": "APD & Sabun",
+      "unit": "POUCH",
+      "defaultMarkupPercent": 25,
+      "lastBuyPrice": 13500,
+      "lastSellPrice": 16875,
+      "stock": 80,
+      "supplier": "Mitra APD & Sanitasi"
+    },
+    {
+      "id": "prod-apd-05",
+      "code": "APD-005",
+      "name": "SUNLIGHT 5 LITER JERIGEN",
+      "category": "APD & Sabun",
+      "unit": "JERIGEN",
+      "defaultMarkupPercent": 25,
+      "lastBuyPrice": 72000,
+      "lastSellPrice": 90000,
+      "stock": 45,
+      "notes": "Jerigen sabun cuci higienis",
+      "supplier": "Mitra APD & Sanitasi"
+    },
+    {
+      "id": "prod-apd-06",
+      "code": "APD-006",
+      "name": "SPONS CUCI KAWAT & BUSA",
+      "category": "APD & Sabun",
+      "unit": "LUSIN",
+      "defaultMarkupPercent": 25,
+      "lastBuyPrice": 36000,
+      "lastSellPrice": 45000,
+      "stock": 90,
+      "supplier": "Mitra APD & Sanitasi"
+    },
+    {
+      "id": "prod-apd-07",
+      "code": "APD-007",
+      "name": "PLASTIK KRESEK HITAM TEBAL 40",
+      "category": "APD & Sabun",
+      "unit": "PACK",
+      "defaultMarkupPercent": 25,
+      "lastBuyPrice": 18000,
+      "lastSellPrice": 22500,
+      "stock": 140,
+      "supplier": "Mitra APD & Sanitasi"
+    },
+    {
+      "id": "prod-apd-08",
+      "code": "APD-008",
+      "name": "ISOLASI BENING BESAR 2 INCH",
+      "category": "APD & Sabun",
+      "unit": "PCS",
+      "defaultMarkupPercent": 25,
+      "lastBuyPrice": 7500,
+      "lastSellPrice": 9375,
+      "stock": 110,
+      "supplier": "Mitra APD & Sanitasi"
+    },
+    {
+      "id": "prod-atk-01",
+      "code": "ATK-001",
+      "name": "KERTAS HVS A4 75 GR SIDU",
+      "category": "ATK & Kertas",
+      "unit": "RIM",
+      "defaultMarkupPercent": 25,
+      "lastBuyPrice": 48000,
+      "lastSellPrice": 60000,
+      "stock": 60,
+      "supplier": "CV Surya Gemilang ATK"
+    },
+    {
+      "id": "prod-atk-02",
+      "code": "ATK-002",
+      "name": "TINTA EPSON 664 BLACK",
+      "category": "ATK & Kertas",
+      "unit": "BOTOL",
+      "defaultMarkupPercent": 25,
+      "lastBuyPrice": 72000,
+      "lastSellPrice": 85000,
+      "stock": 35,
+      "notes": "Harga patokan khusus Rp 85.000",
+      "supplier": "CV Surya Gemilang ATK"
+    },
+    {
+      "id": "prod-atk-03",
+      "code": "ATK-003",
+      "name": "SPIDOL PERMANEN SNOWMAN HITAM",
+      "category": "ATK & Kertas",
+      "unit": "LUSIN",
+      "defaultMarkupPercent": 25,
+      "lastBuyPrice": 78000,
+      "lastSellPrice": 97500,
+      "stock": 25,
+      "supplier": "CV Surya Gemilang ATK"
+    },
+    {
+      "id": "prod-hb-01",
+      "code": "HB-001",
+      "name": "TEPUNG JEMPOL SPESIAL",
+      "category": "Saus, Kecap & Tepung",
+      "unit": "KG",
+      "defaultMarkupPercent": 20,
+      "lastBuyPrice": 12500,
+      "lastSellPrice": 15000,
+      "stock": 250,
+      "supplier": "Hari Barokah"
+    },
+    {
+      "id": "prod-hb-02",
+      "code": "HB-002",
+      "name": "SAORI SAOS PANDA 1 KG",
+      "category": "Saus, Kecap & Tepung",
+      "unit": "POUCH",
+      "defaultMarkupPercent": 20,
+      "lastBuyPrice": 38000,
+      "lastSellPrice": 45600,
+      "stock": 80,
+      "supplier": "Hari Barokah"
+    },
+    {
+      "id": "prod-hb-03",
+      "code": "HB-003",
+      "name": "KECAP MANIS BANGO 1 KG",
+      "category": "Saus, Kecap & Tepung",
+      "unit": "POUCH",
+      "defaultMarkupPercent": 20,
+      "lastBuyPrice": 28500,
+      "lastSellPrice": 34200,
+      "stock": 100,
+      "supplier": "Hari Barokah"
+    },
+    {
+      "id": "prod-hb-04",
+      "code": "HB-004",
+      "name": "TEPUNG MAIZENA BOLA DELI 1 KG",
+      "category": "Saus, Kecap & Tepung",
+      "unit": "KG",
+      "defaultMarkupPercent": 20,
+      "lastBuyPrice": 17000,
+      "lastSellPrice": 20400,
+      "stock": 90,
+      "supplier": "Hari Barokah"
+    },
+    {
+      "id": "prod-st-01",
+      "code": "ST-001",
+      "name": "KANGKUNG SEGAR",
+      "category": "Sayuran Segar",
+      "unit": "IKAT",
+      "defaultMarkupPercent": 15,
+      "lastBuyPrice": 3000,
+      "lastSellPrice": 3450,
+      "stock": 180,
+      "supplier": "Sayur Tufel"
+    },
+    {
+      "id": "prod-st-02",
+      "code": "ST-002",
+      "name": "BAYAM HIJAU SEGAR",
+      "category": "Sayuran Segar",
+      "unit": "IKAT",
+      "defaultMarkupPercent": 15,
+      "lastBuyPrice": 3500,
+      "lastSellPrice": 4025,
+      "stock": 150,
+      "supplier": "Sayur Tufel"
+    },
+    {
+      "id": "prod-st-03",
+      "code": "ST-003",
+      "name": "WORTEL LOKAL MANIS",
+      "category": "Sayuran Segar",
+      "unit": "KG",
+      "defaultMarkupPercent": 15,
+      "lastBuyPrice": 14000,
+      "lastSellPrice": 16100,
+      "stock": 120,
+      "supplier": "Sayur Tufel"
+    },
+    {
+      "id": "prod-st-04",
+      "code": "ST-004",
+      "name": "BUNCIS SUPER",
+      "category": "Sayuran Segar",
+      "unit": "KG",
+      "defaultMarkupPercent": 15,
+      "lastBuyPrice": 16000,
+      "lastSellPrice": 18400,
+      "stock": 90,
+      "supplier": "Sayur Tufel"
+    },
+    {
+      "id": "prod-st-05",
+      "code": "ST-005",
+      "name": "CABAI MERAH KERITING",
+      "category": "Sayuran Segar",
+      "unit": "KG",
+      "defaultMarkupPercent": 15,
+      "lastBuyPrice": 38000,
+      "lastSellPrice": 43700,
+      "stock": 75,
+      "supplier": "Sayur Tufel"
+    },
+    {
+      "id": "prod-st-06",
+      "code": "ST-006",
+      "name": "TOMAT BUAH MERAH",
+      "category": "Sayuran Segar",
+      "unit": "KG",
+      "defaultMarkupPercent": 15,
+      "lastBuyPrice": 12000,
+      "lastSellPrice": 13800,
+      "stock": 100,
+      "supplier": "Sayur Tufel"
+    },
+    {
+      "id": "prod-hp-01",
+      "code": "HP-001",
+      "name": "TAHU PUTIH SUPER BESAR",
+      "category": "Tahu, Tempe & Bawang",
+      "unit": "PAPAN",
+      "defaultMarkupPercent": 18,
+      "lastBuyPrice": 35000,
+      "lastSellPrice": 41300,
+      "stock": 80,
+      "supplier": "Haff Pro Jaya"
+    },
+    {
+      "id": "prod-hp-02",
+      "code": "HP-002",
+      "name": "TEMPE BALOK DAUN SPESIAL",
+      "category": "Tahu, Tempe & Bawang",
+      "unit": "BATANG",
+      "defaultMarkupPercent": 18,
+      "lastBuyPrice": 8000,
+      "lastSellPrice": 9440,
+      "stock": 120,
+      "supplier": "Haff Pro Jaya"
+    },
+    {
+      "id": "prod-hp-03",
+      "code": "HP-003",
+      "name": "BAWANG MERAH KUPAS BERSIH",
+      "category": "Tahu, Tempe & Bawang",
+      "unit": "KG",
+      "defaultMarkupPercent": 18,
+      "lastBuyPrice": 32000,
+      "lastSellPrice": 37760,
+      "stock": 110,
+      "supplier": "Haff Pro Jaya"
+    },
+    {
+      "id": "prod-hp-04",
+      "code": "HP-004",
+      "name": "BAWANG PUTIH KUPAS BERSIH",
+      "category": "Tahu, Tempe & Bawang",
+      "unit": "KG",
+      "defaultMarkupPercent": 18,
+      "lastBuyPrice": 36000,
+      "lastSellPrice": 42480,
+      "stock": 95,
+      "supplier": "Haff Pro Jaya"
+    },
+    {
+      "id": "prod-pc-01",
+      "code": "PC-001",
+      "name": "APEL FUJI 2500",
+      "category": "Buah Segar",
+      "unit": "KARTON",
+      "defaultMarkupPercent": 20,
+      "lastBuyPrice": 280000,
+      "lastSellPrice": 336000,
+      "stock": 40,
+      "notes": "Kemasan karton 13-15 kg",
+      "supplier": "Pantry Co"
+    },
+    {
+      "id": "prod-pc-02",
+      "code": "PC-002",
+      "name": "PISANG AMBON SUPER",
+      "category": "Buah Segar",
+      "unit": "SISIR",
+      "defaultMarkupPercent": 20,
+      "lastBuyPrice": 18000,
+      "lastSellPrice": 21600,
+      "stock": 90,
+      "supplier": "Pantry Co"
+    },
+    {
+      "id": "prod-pc-03",
+      "code": "PC-003",
+      "name": "SEMANGKA MERAH NON BIJI",
+      "category": "Buah Segar",
+      "unit": "KG",
+      "defaultMarkupPercent": 20,
+      "lastBuyPrice": 8500,
+      "lastSellPrice": 10200,
+      "stock": 200,
+      "supplier": "Pantry Co"
+    },
+    {
+      "id": "prod-pc-04",
+      "code": "PC-004",
+      "name": "MELON HIJAU MANIS",
+      "category": "Buah Segar",
+      "unit": "KG",
+      "defaultMarkupPercent": 20,
+      "lastBuyPrice": 13000,
+      "lastSellPrice": 15600,
+      "stock": 130,
+      "supplier": "Pantry Co"
+    },
+    {
+      "id": "prod-kd-01",
+      "code": "KD-001",
+      "name": "BERAS RAMOS PREMIUM 25 KG",
+      "category": "Beras & Minyak",
+      "unit": "SAK",
+      "defaultMarkupPercent": 12,
+      "lastBuyPrice": 345000,
+      "lastSellPrice": 386400,
+      "stock": 80,
+      "supplier": "Koko Didid"
+    },
+    {
+      "id": "prod-kd-02",
+      "code": "KD-002",
+      "name": "BERAS MEDIUM 50 KG",
+      "category": "Beras & Minyak",
+      "unit": "SAK",
+      "defaultMarkupPercent": 12,
+      "lastBuyPrice": 650000,
+      "lastSellPrice": 728000,
+      "stock": 50,
+      "supplier": "Koko Didid"
+    },
+    {
+      "id": "prod-kd-03",
+      "code": "KD-003",
+      "name": "MINYAK GORENG BIMOLI 2 LITER",
+      "category": "Beras & Minyak",
+      "unit": "POUCH",
+      "defaultMarkupPercent": 12,
+      "lastBuyPrice": 36000,
+      "lastSellPrice": 40320,
+      "stock": 160,
+      "supplier": "Koko Didid"
+    },
+    {
+      "id": "prod-kd-04",
+      "code": "KD-004",
+      "name": "MINYAK GORENG CURAH JERIGEN 18 LITER",
+      "category": "Beras & Minyak",
+      "unit": "JERIGEN",
+      "defaultMarkupPercent": 12,
+      "lastBuyPrice": 275000,
+      "lastSellPrice": 308000,
+      "stock": 35,
+      "supplier": "Koko Didid"
+    },
+    {
+      "id": "prod-ff-01",
+      "code": "FF-001",
+      "name": "AYAM POTONG AP (10)",
+      "category": "Daging & Telur",
+      "unit": "KG",
+      "defaultMarkupPercent": 15,
+      "lastBuyPrice": 34000,
+      "lastSellPrice": 39100,
+      "stock": 300,
+      "notes": "Ukuran potong 10 bagian",
+      "supplier": "Fadhil Food"
+    },
+    {
+      "id": "prod-ff-02",
+      "code": "FF-002",
+      "name": "DAGING SAPI SEGAR GILING",
+      "category": "Daging & Telur",
+      "unit": "KG",
+      "defaultMarkupPercent": 15,
+      "lastBuyPrice": 115000,
+      "lastSellPrice": 132250,
+      "stock": 90,
+      "supplier": "Fadhil Food"
+    },
+    {
+      "id": "prod-ff-03",
+      "code": "FF-003",
+      "name": "TELUR AYAM NEGERI 1 TRAY (30 BUTIR)",
+      "category": "Daging & Telur",
+      "unit": "TRAY",
+      "defaultMarkupPercent": 15,
+      "lastBuyPrice": 48000,
+      "lastSellPrice": 55200,
+      "stock": 120,
+      "supplier": "Fadhil Food"
+    },
+    {
+      "id": "prod-ff-04",
+      "code": "FF-004",
+      "name": "IKAN FILLET DORI",
+      "category": "Daging & Telur",
+      "unit": "KG",
+      "defaultMarkupPercent": 15,
+      "lastBuyPrice": 45000,
+      "lastSellPrice": 51750,
+      "stock": 80,
+      "supplier": "Fadhil Food"
+    },
+    {
+      "id": "prod-pa-01",
+      "code": "PA-001",
+      "name": "LADA BUBUK SUPER 1 KG",
+      "category": "Bumbu Kering & Rempah",
+      "unit": "KG",
+      "defaultMarkupPercent": 25,
+      "lastBuyPrice": 85000,
+      "lastSellPrice": 106250,
+      "stock": 40,
+      "supplier": "Pak Agus"
+    },
+    {
+      "id": "prod-pa-02",
+      "code": "PA-002",
+      "name": "KETUMBAR BUBUK 1 KG",
+      "category": "Bumbu Kering & Rempah",
+      "unit": "KG",
+      "defaultMarkupPercent": 25,
+      "lastBuyPrice": 42000,
+      "lastSellPrice": 52500,
+      "stock": 50,
+      "supplier": "Pak Agus"
+    },
+    {
+      "id": "prod-pa-03",
+      "code": "PA-003",
+      "name": "KEMIRI BULAT SUPER",
+      "category": "Bumbu Kering & Rempah",
+      "unit": "KG",
+      "defaultMarkupPercent": 25,
+      "lastBuyPrice": 48000,
+      "lastSellPrice": 60000,
+      "stock": 45,
+      "supplier": "Pak Agus"
+    },
+    {
+      "id": "prod-pa-04",
+      "code": "PA-004",
+      "name": "KAYU MANIS BATANG 500 GR",
+      "category": "Bumbu Kering & Rempah",
+      "unit": "PACK",
+      "defaultMarkupPercent": 25,
+      "lastBuyPrice": 35000,
+      "lastSellPrice": 43750,
+      "stock": 30,
+      "supplier": "Pak Agus"
+    }
+  ],
+  "buyers": [
+    {
+      "id": "buyer-1",
+      "name": "Pembeli Banjarsari",
+      "code": "BUYER-BJS",
+      "customerType": "B2B",
+      "memberCardNo": "CITRA-BJS-88",
+      "tier": "GOLD",
+      "points": 150,
+      "totalSpend": 7500000,
+      "memberSince": "2026-01-15"
+    },
+    {
+      "id": "buyer-2",
+      "name": "Pembeli Pahlawan",
+      "code": "BUYER-PHL",
+      "customerType": "B2B",
+      "memberCardNo": "CITRA-PHL-21",
+      "tier": "SILVER",
+      "points": 80,
+      "totalSpend": 3200000,
+      "memberSince": "2026-03-10"
+    },
+    {
+      "id": "buyer-3",
+      "name": "Pembeli Mangunharjo",
+      "code": "BUYER-MGH",
+      "customerType": "B2B",
+      "memberCardNo": "CITRA-MGH-07",
+      "tier": "REGULAR",
+      "points": 25,
+      "totalSpend": 850000,
+      "memberSince": "2026-06-01"
+    },
+    {
+      "id": "buyer-b2c-umum",
+      "name": "Pelanggan Umum (Eceran)",
+      "code": "ECERAN",
+      "customerType": "B2C",
+      "address": "Walk-in Customer / Eceran Toko",
+      "memberCardNo": "CITRA-UMUM-01",
+      "tier": "REGULAR",
+      "points": 10,
+      "totalSpend": 250000,
+      "memberSince": "2026-08-01"
+    }
+  ],
+  "discounts": [
+    {
+      "id": "disc-1",
+      "code": "HEMAT5K",
+      "name": "Voucher Belanja Hemat 5rb",
+      "type": "FIXED",
+      "value": 5000,
+      "minPurchase": 50000,
+      "scope": "ALL",
+      "isActive": true,
+      "description": "Potongan langsung Rp 5.000 minimal belanja Rp 50.000",
+      "usageCount": 0
+    },
+    {
+      "id": "disc-2",
+      "code": "PROMO10",
+      "name": "Diskon Spesial 10%",
+      "type": "PERCENT",
+      "value": 10,
+      "minPurchase": 100000,
+      "maxDiscount": 50000,
+      "scope": "ALL",
+      "isActive": true,
+      "description": "Diskon 10% maksimal potongan Rp 50.000 minimal belanja Rp 100.000",
+      "usageCount": 0
+    },
+    {
+      "id": "disc-3",
+      "code": "MEMBER5",
+      "name": "Diskon Eksklusif Member 5%",
+      "type": "PERCENT",
+      "value": 5,
+      "minPurchase": 0,
+      "scope": "MEMBER_ONLY",
+      "isActive": true,
+      "description": "Diskon khusus pemegang kartu member Citra tanpa minimal belanja",
+      "usageCount": 0
+    },
+    {
+      "id": "disc-4",
+      "code": "GROSIR50K",
+      "name": "Potongan Grosir 50rb",
+      "type": "FIXED",
+      "value": 50000,
+      "minPurchase": 500000,
+      "scope": "CUSTOMER_TYPE",
+      "targetCustomerType": "B2B",
+      "isActive": true,
+      "description": "Potongan spesial pelanggan B2B minimal belanja Rp 500.000",
+      "usageCount": 0
+    }
+  ],
+  "preOrders": [
+    {
+      "id": "po-20261012-banjarsari",
+      "date": "2026-10-12",
+      "dayName": "Senin",
+      "buyer": "Pembeli Banjarsari",
+      "items": [
+        {
+          "id": "poi-1",
+          "productName": "AYAM POTONG AP (10)",
+          "category": "Daging & Telur",
+          "qty": 150,
+          "unit": "KG",
+          "packagingNote": "150 KG"
+        },
+        {
+          "id": "poi-2",
+          "productName": "BERAS RAMOS PREMIUM 25 KG",
+          "category": "Beras & Minyak",
+          "qty": 4,
+          "unit": "SAK",
+          "packagingNote": "4 Sak (100 KG)"
+        },
+        {
+          "id": "poi-3",
+          "productName": "WORTEL LOKAL MANIS",
+          "category": "Sayuran Segar",
+          "qty": 25,
+          "unit": "KG",
+          "packagingNote": "25 KG"
+        },
+        {
+          "id": "poi-4",
+          "productName": "BAWANG MERAH KUPAS BERSIH",
+          "category": "Tahu, Tempe & Bawang",
+          "qty": 15,
+          "unit": "KG",
+          "packagingNote": "15 KG"
+        },
+        {
+          "id": "poi-5",
+          "productName": "SARUNG TANGAN LATEX",
+          "category": "APD & Sabun",
+          "qty": 33,
+          "unit": "BOX",
+          "packagingNote": "33 Box"
+        }
+      ]
+    },
+    {
+      "id": "po-20261012-pahlawan",
+      "date": "2026-10-12",
+      "dayName": "Senin",
+      "buyer": "Pembeli Pahlawan",
+      "items": [
+        {
+          "id": "poi-6",
+          "productName": "AYAM POTONG AP (10)",
+          "category": "Daging & Telur",
+          "qty": 120,
+          "unit": "KG",
+          "packagingNote": "120 KG"
+        },
+        {
+          "id": "poi-7",
+          "productName": "BERAS RAMOS PREMIUM 25 KG",
+          "category": "Beras & Minyak",
+          "qty": 3,
+          "unit": "SAK",
+          "packagingNote": "3 Sak (75 KG)"
+        },
+        {
+          "id": "poi-8",
+          "productName": "BUNCIS SUPER",
+          "category": "Sayuran Segar",
+          "qty": 20,
+          "unit": "KG",
+          "packagingNote": "20 KG"
+        },
+        {
+          "id": "poi-9",
+          "productName": "SARUNG TANGAN LATEX",
+          "category": "APD & Sabun",
+          "qty": 35,
+          "unit": "BOX",
+          "packagingNote": "35 Box"
+        }
+      ]
+    },
+    {
+      "id": "po-20261012-mangunharjo",
+      "date": "2026-10-12",
+      "dayName": "Senin",
+      "buyer": "Pembeli Mangunharjo",
+      "items": [
+        {
+          "id": "poi-10",
+          "productName": "AYAM POTONG AP (10)",
+          "category": "Daging & Telur",
+          "qty": 110,
+          "unit": "KG",
+          "packagingNote": "110 KG"
+        },
+        {
+          "id": "poi-11",
+          "productName": "BERAS RAMOS PREMIUM 25 KG",
+          "category": "Beras & Minyak",
+          "qty": 3,
+          "unit": "SAK",
+          "packagingNote": "3 Sak (75 KG)"
+        },
+        {
+          "id": "poi-12",
+          "productName": "KANGKUNG SEGAR",
+          "category": "Sayuran Segar",
+          "qty": 80,
+          "unit": "IKAT",
+          "packagingNote": "80 Ikat"
+        },
+        {
+          "id": "poi-13",
+          "productName": "SUNLIGHT 5 LITER JERIGEN",
+          "category": "APD & Sabun",
+          "qty": 2,
+          "unit": "JERIGEN",
+          "packagingNote": "2 Jerigen"
+        }
+      ]
+    },
+    {
+      "id": "po-20261013-banjarsari",
+      "date": "2026-10-13",
+      "dayName": "Selasa",
+      "buyer": "Pembeli Banjarsari",
+      "items": [
+        {
+          "id": "poi-14",
+          "productName": "DAGING SAPI SEGAR GILING",
+          "category": "Daging & Telur",
+          "qty": 45,
+          "unit": "KG",
+          "packagingNote": "45 KG"
+        },
+        {
+          "id": "poi-15",
+          "productName": "TAHU PUTIH SUPER BESAR",
+          "category": "Tahu, Tempe & Bawang",
+          "qty": 12,
+          "unit": "PAPAN",
+          "packagingNote": "12 Papan"
+        },
+        {
+          "id": "poi-16",
+          "productName": "APEL FUJI 2500",
+          "category": "Buah Segar",
+          "qty": 6,
+          "unit": "KARTON",
+          "packagingNote": "6 Karton"
+        },
+        {
+          "id": "poi-17",
+          "productName": "KECAP MANIS BANGO 1 KG",
+          "category": "Saus, Kecap & Tepung",
+          "qty": 10,
+          "unit": "POUCH",
+          "packagingNote": "10 Pouch"
+        }
+      ]
+    },
+    {
+      "id": "po-20261013-pahlawan",
+      "date": "2026-10-13",
+      "dayName": "Selasa",
+      "buyer": "Pembeli Pahlawan",
+      "items": [
+        {
+          "id": "poi-18",
+          "productName": "DAGING SAPI SEGAR GILING",
+          "category": "Daging & Telur",
+          "qty": 35,
+          "unit": "KG",
+          "packagingNote": "35 KG"
+        },
+        {
+          "id": "poi-19",
+          "productName": "TEMPE BALOK DAUN SPESIAL",
+          "category": "Tahu, Tempe & Bawang",
+          "qty": 30,
+          "unit": "BATANG",
+          "packagingNote": "30 Batang"
+        },
+        {
+          "id": "poi-20",
+          "productName": "APEL FUJI 2500",
+          "category": "Buah Segar",
+          "qty": 4,
+          "unit": "KARTON",
+          "packagingNote": "4 Karton"
+        }
+      ]
+    },
+    {
+      "id": "po-20261013-mangunharjo",
+      "date": "2026-10-13",
+      "dayName": "Selasa",
+      "buyer": "Pembeli Mangunharjo",
+      "items": [
+        {
+          "id": "poi-21",
+          "productName": "DAGING SAPI SEGAR GILING",
+          "category": "Daging & Telur",
+          "qty": 30,
+          "unit": "KG",
+          "packagingNote": "30 KG"
+        },
+        {
+          "id": "poi-22",
+          "productName": "APEL FUJI 2500",
+          "category": "Buah Segar",
+          "qty": 3,
+          "unit": "KARTON",
+          "packagingNote": "3 Karton"
+        },
+        {
+          "id": "poi-23",
+          "productName": "SOKLIN LANTAI 780 ML",
+          "category": "APD & Sabun",
+          "qty": 6,
+          "unit": "POUCH",
+          "packagingNote": "6 Pouch"
+        }
+      ]
+    },
+    {
+      "id": "po-20261014-banjarsari",
+      "date": "2026-10-14",
+      "dayName": "Rabu",
+      "buyer": "Pembeli Banjarsari",
+      "items": [
+        {
+          "id": "poi-24",
+          "productName": "TELUR AYAM NEGERI 1 TRAY (30 BUTIR)",
+          "category": "Daging & Telur",
+          "qty": 25,
+          "unit": "TRAY",
+          "packagingNote": "25 Tray (750 Butir)"
+        },
+        {
+          "id": "poi-25",
+          "productName": "BAYAM HIJAU SEGAR",
+          "category": "Sayuran Segar",
+          "qty": 90,
+          "unit": "IKAT",
+          "packagingNote": "90 Ikat"
+        },
+        {
+          "id": "poi-26",
+          "productName": "TEPUNG JEMPOL SPESIAL",
+          "category": "Saus, Kecap & Tepung",
+          "qty": 25,
+          "unit": "KG",
+          "packagingNote": "25 KG"
+        }
+      ]
+    },
+    {
+      "id": "po-20261014-pahlawan",
+      "date": "2026-10-14",
+      "dayName": "Rabu",
+      "buyer": "Pembeli Pahlawan",
+      "items": [
+        {
+          "id": "poi-27",
+          "productName": "TELUR AYAM NEGERI 1 TRAY (30 BUTIR)",
+          "category": "Daging & Telur",
+          "qty": 20,
+          "unit": "TRAY",
+          "packagingNote": "20 Tray"
+        },
+        {
+          "id": "poi-28",
+          "productName": "MINYAK GORENG BIMOLI 2 LITER",
+          "category": "Beras & Minyak",
+          "qty": 15,
+          "unit": "POUCH",
+          "packagingNote": "15 Pouch"
+        }
+      ]
+    },
+    {
+      "id": "po-20261014-mangunharjo",
+      "date": "2026-10-14",
+      "dayName": "Rabu",
+      "buyer": "Pembeli Mangunharjo",
+      "items": [
+        {
+          "id": "poi-29",
+          "productName": "TELUR AYAM NEGERI 1 TRAY (30 BUTIR)",
+          "category": "Daging & Telur",
+          "qty": 18,
+          "unit": "TRAY",
+          "packagingNote": "18 Tray"
+        },
+        {
+          "id": "poi-30",
+          "productName": "PISANG AMBON SUPER",
+          "category": "Buah Segar",
+          "qty": 20,
+          "unit": "SISIR",
+          "packagingNote": "20 Sisir"
+        }
+      ]
+    },
+    {
+      "id": "po-20261015-banjarsari",
+      "date": "2026-10-15",
+      "dayName": "Kamis",
+      "buyer": "Pembeli Banjarsari",
+      "items": [
+        {
+          "id": "poi-31",
+          "productName": "IKAN FILLET DORI",
+          "category": "Daging & Telur",
+          "qty": 40,
+          "unit": "KG",
+          "packagingNote": "40 KG"
+        },
+        {
+          "id": "poi-32",
+          "productName": "TEPUNG MAIZENA BOLA DELI 1 KG",
+          "category": "Saus, Kecap & Tepung",
+          "qty": 10,
+          "unit": "KG",
+          "packagingNote": "10 KG"
+        },
+        {
+          "id": "poi-33",
+          "productName": "LADA BUBUK SUPER 1 KG",
+          "category": "Bumbu Kering & Rempah",
+          "qty": 2,
+          "unit": "KG",
+          "packagingNote": "2 KG"
+        }
+      ]
+    },
+    {
+      "id": "po-20261015-pahlawan",
+      "date": "2026-10-15",
+      "dayName": "Kamis",
+      "buyer": "Pembeli Pahlawan",
+      "items": [
+        {
+          "id": "poi-34",
+          "productName": "IKAN FILLET DORI",
+          "category": "Daging & Telur",
+          "qty": 30,
+          "unit": "KG",
+          "packagingNote": "30 KG"
+        },
+        {
+          "id": "poi-35",
+          "productName": "SAORI SAOS PANDA 1 KG",
+          "category": "Saus, Kecap & Tepung",
+          "qty": 6,
+          "unit": "POUCH",
+          "packagingNote": "6 Pouch"
+        }
+      ]
+    },
+    {
+      "id": "po-20261015-mangunharjo",
+      "date": "2026-10-15",
+      "dayName": "Kamis",
+      "buyer": "Pembeli Mangunharjo",
+      "items": [
+        {
+          "id": "poi-36",
+          "productName": "IKAN FILLET DORI",
+          "category": "Daging & Telur",
+          "qty": 25,
+          "unit": "KG",
+          "packagingNote": "25 KG"
+        },
+        {
+          "id": "poi-37",
+          "productName": "MELON HIJAU MANIS",
+          "category": "Buah Segar",
+          "qty": 30,
+          "unit": "KG",
+          "packagingNote": "30 KG"
+        }
+      ]
+    },
+    {
+      "id": "po-20261016-banjarsari",
+      "date": "2026-10-16",
+      "dayName": "Jumat",
+      "buyer": "Pembeli Banjarsari",
+      "items": [
+        {
+          "id": "poi-38",
+          "productName": "AYAM POTONG AP (10)",
+          "category": "Daging & Telur",
+          "qty": 160,
+          "unit": "KG",
+          "packagingNote": "160 KG"
+        },
+        {
+          "id": "poi-39",
+          "productName": "SEMANGKA MERAH NON BIJI",
+          "category": "Buah Segar",
+          "qty": 60,
+          "unit": "KG",
+          "packagingNote": "60 KG"
+        },
+        {
+          "id": "poi-40",
+          "productName": "CABAI MERAH KERITING",
+          "category": "Sayuran Segar",
+          "qty": 12,
+          "unit": "KG",
+          "packagingNote": "12 KG"
+        },
+        {
+          "id": "poi-41",
+          "productName": "SARUNG TANGAN LATEX",
+          "category": "APD & Sabun",
+          "qty": 17,
+          "unit": "BOX",
+          "packagingNote": "17 Box"
+        }
+      ]
+    },
+    {
+      "id": "po-20261016-pahlawan",
+      "date": "2026-10-16",
+      "dayName": "Jumat",
+      "buyer": "Pembeli Pahlawan",
+      "items": [
+        {
+          "id": "poi-42",
+          "productName": "AYAM POTONG AP (10)",
+          "category": "Daging & Telur",
+          "qty": 130,
+          "unit": "KG",
+          "packagingNote": "130 KG"
+        },
+        {
+          "id": "poi-43",
+          "productName": "SEMANGKA MERAH NON BIJI",
+          "category": "Buah Segar",
+          "qty": 50,
+          "unit": "KG",
+          "packagingNote": "50 KG"
+        },
+        {
+          "id": "poi-44",
+          "productName": "SARUNG TANGAN LATEX",
+          "category": "APD & Sabun",
+          "qty": 15,
+          "unit": "BOX",
+          "packagingNote": "15 Box"
+        }
+      ]
+    },
+    {
+      "id": "po-20261016-mangunharjo",
+      "date": "2026-10-16",
+      "dayName": "Jumat",
+      "buyer": "Pembeli Mangunharjo",
+      "items": [
+        {
+          "id": "poi-45",
+          "productName": "AYAM POTONG AP (10)",
+          "category": "Daging & Telur",
+          "qty": 120,
+          "unit": "KG",
+          "packagingNote": "120 KG"
+        },
+        {
+          "id": "poi-46",
+          "productName": "SEMANGKA MERAH NON BIJI",
+          "category": "Buah Segar",
+          "qty": 45,
+          "unit": "KG",
+          "packagingNote": "45 KG"
+        },
+        {
+          "id": "poi-47",
+          "productName": "TOMAT BUAH MERAH",
+          "category": "Sayuran Segar",
+          "qty": 15,
+          "unit": "KG",
+          "packagingNote": "15 KG"
+        }
+      ]
+    }
+  ]
+}

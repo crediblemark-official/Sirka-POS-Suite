@@ -1,4 +1,4 @@
-import { dbService } from './dbService';
+import { dbService, isTauri } from './dbService';
 import { syncService } from './syncService';
 import { CategoryMarkupSetting, Product, Buyer, Discount, PreOrderSchedule, Supplier } from '@sirka/shared-types';
 import { useInventoryStore } from '../stores/inventoryStore';
@@ -23,118 +23,144 @@ export interface DemoDataPayload {
 export const demoDataService = {
   /**
    * Mengambil file eksternal /demo-data.json dari folder public
+   * Tangguh terhadap base path dev server dan SPA route fallback
    */
   async fetchDemoData(): Promise<DemoDataPayload> {
-    const res = await fetch('/demo-data.json');
-    if (!res.ok) {
-      throw new Error(`Gagal membaca file demo-data.json (Status: ${res.status})`);
+    const urlsToTry = [
+      '/demo-data.json',
+      './demo-data.json',
+      `${(typeof window !== 'undefined' && window.location.origin) ? window.location.origin : ''}/demo-data.json`
+    ];
+
+    for (const url of urlsToTry) {
+      try {
+        const res = await fetch(url);
+        if (res.ok) {
+          const text = await res.text();
+          if (text.trim().startsWith('{')) {
+            return JSON.parse(text) as DemoDataPayload;
+          }
+        }
+      } catch {
+        // Coba url berikutnya
+      }
     }
-    return await res.json();
+    throw new Error('Gagal membaca file demo-data.json. Pastikan file tersedia di direktori public.');
   },
 
   /**
-   * Mengisi database dengan data demo dari file eksternal /demo-data.json (atau payload kustom)
+   * Mengisi database / localStorage dengan data demo dari file eksternal /demo-data.json
    */
   async loadDemoData(customPayload?: DemoDataPayload): Promise<void> {
     const payload = customPayload || (await this.fetchDemoData());
 
-    // 1. Masukkan Kategori Markup
-    if (payload.categoryMarkups && Array.isArray(payload.categoryMarkups)) {
-      for (const markup of payload.categoryMarkups) {
-        await dbService.createMarkup(markup.category, markup.defaultMarkupPercent, markup.description, markup.color);
+    if (!isTauri()) {
+      // MODE WEB BROWSER: Simpan langsung ke localStorage untuk performa instan tanpa IPC
+      if (payload.categoryMarkups && Array.isArray(payload.categoryMarkups)) {
+        localStorage.setItem('kasir_citra_markups_v1', JSON.stringify(payload.categoryMarkups));
+      }
+      if (payload.products && Array.isArray(payload.products)) {
+        localStorage.setItem('kasir_citra_products_v1', JSON.stringify(payload.products));
+      }
+      if (payload.buyers && Array.isArray(payload.buyers)) {
+        localStorage.setItem('kasir_citra_buyers_v3', JSON.stringify(payload.buyers));
+      }
+      if (payload.discounts && Array.isArray(payload.discounts)) {
+        localStorage.setItem('kasir_citra_discounts_v1', JSON.stringify(payload.discounts));
+      }
+      if (payload.preOrders && Array.isArray(payload.preOrders)) {
+        localStorage.setItem('kasir_citra_preorders_v2', JSON.stringify(payload.preOrders));
+      }
+      if (payload.suppliers && Array.isArray(payload.suppliers)) {
+        localStorage.setItem('kasir_citra_suppliers_v1', JSON.stringify(payload.suppliers));
+      }
+    } else {
+      // MODE TAURI: Tulis ke backend database lokal SQLite / PostgreSQL
+      // 1. Masukkan Kategori Markup
+      if (payload.categoryMarkups && Array.isArray(payload.categoryMarkups)) {
+        for (const markup of payload.categoryMarkups) {
+          await dbService.createMarkup(markup.category, markup.defaultMarkupPercent, markup.description, markup.color);
+        }
+      }
+
+      // 2. Masukkan Produk
+      if (payload.products && Array.isArray(payload.products)) {
+        for (const prod of payload.products) {
+          await dbService.upsertProduct(prod);
+        }
+      }
+
+      // 3. Masukkan Pembeli & Member
+      if (payload.buyers && Array.isArray(payload.buyers)) {
+        for (const buyer of payload.buyers) {
+          await dbService.upsertBuyer(buyer);
+        }
+      }
+
+      // 4. Masukkan Diskon Promo
+      if (payload.discounts && Array.isArray(payload.discounts)) {
+        for (const disc of payload.discounts) {
+          await dbService.upsertDiscount(disc);
+        }
+      }
+
+      // 5. Masukkan Jadwal Pre-Order
+      if (payload.preOrders && Array.isArray(payload.preOrders)) {
+        for (const po of payload.preOrders) {
+          await dbService.savePreOrder(po);
+        }
+      }
+
+      // 6. Masukkan Mitra Supplier
+      if (payload.suppliers && Array.isArray(payload.suppliers)) {
+        const supplierStore = useSupplierStore();
+        supplierStore.suppliers = [...payload.suppliers];
+        localStorage.setItem('kasir_citra_suppliers_v1', JSON.stringify(supplierStore.suppliers));
       }
     }
 
-    // 2. Masukkan Produk
-    if (payload.products && Array.isArray(payload.products)) {
-      for (const prod of payload.products) {
-        await dbService.upsertProduct(prod);
-      }
-    }
+    // Tandai bahwa demo data telah dimuat
+    localStorage.setItem('kasir_citra_demo_loaded_v1', 'true');
 
-    // 3. Masukkan Pembeli & Member
-    if (payload.buyers && Array.isArray(payload.buyers)) {
-      for (const buyer of payload.buyers) {
-        await dbService.upsertBuyer(buyer);
-      }
-    }
-
-    // 4. Masukkan Diskon Promo
-    if (payload.discounts && Array.isArray(payload.discounts)) {
-      for (const disc of payload.discounts) {
-        await dbService.upsertDiscount(disc);
-      }
-    }
-
-    // 5. Masukkan Jadwal Pre-Order
-    if (payload.preOrders && Array.isArray(payload.preOrders)) {
-      for (const po of payload.preOrders) {
-        await dbService.savePreOrder(po);
-      }
-    }
-
-    // 6. Masukkan Mitra Supplier (murni dari demo-data.json)
-    if (payload.suppliers && Array.isArray(payload.suppliers)) {
-      const supplierStore = useSupplierStore();
-      supplierStore.suppliers = [...payload.suppliers];
-      localStorage.setItem('kasir_citra_suppliers_v1', JSON.stringify(supplierStore.suppliers));
-    }
-
-    // 7. Refresh seluruh state store Pinia
+    // Refresh seluruh state store Pinia
     await this.refreshAllStores();
 
-    // 8. Picu background sync ke PostgreSQL Cloud
-    syncService.triggerSync().catch(() => {});
+    // Picu background sync ke PostgreSQL Cloud jika di Tauri
+    if (isTauri()) {
+      syncService.triggerSync().catch(() => {});
+    }
   },
 
   /**
    * Mengosongkan seluruh database (Fresh Clean / 0 data)
    */
   async resetAllDataToFresh(wipeCloud: boolean = true): Promise<void> {
-    // 1. Kosongkan database lokal & cloud
-    await dbService.wipeAllData(wipeCloud);
+    // 1. Kosongkan database lokal & cloud jika di Tauri
+    if (isTauri()) {
+      await dbService.wipeAllData(wipeCloud);
+    }
 
     // 2. Bersihkan seluruh localStorage
-    // BUG FIX: kunci-kunci di bawah TIDAK sesuai dengan yang benar-benar dipakai
-    // store (`kasir_citra_products_v1`, `kasir_citra_markups_v1`,
-    // `kasir_citra_held_carts_v1`). Akibatnya "Kosongkan Database" tidak
-    // menghapus katalog lama, dan saat app dibuka lagi katalog lama muncul
-    // kembali seolah-olah tidak pernah dikosongkan.
     const keysToRemove = [
-      // inventoryStore
       'kasir_citra_products_v1',
       'kasir_citra_markups_v1',
-      // buyerStore
       'kasir_citra_buyers_v3',
       'kasir_citra_loyalty_settings_v1',
-      // discountStore
       'kasir_citra_discounts_v1',
-      // ledgerStore
       'kasir_citra_ledger_v1',
-      // preOrderStore
       'kasir_citra_preorders_v2',
-      // purchaseStore
       'kasir_citra_purchases_v1',
-      // posStore (keranjang parkir)
       'kasir_citra_held_carts_v1',
-      // supplierStore
       'kasir_citra_suppliers_v1',
-      // unitStore
       'kasir_citra_units_v1',
-      // stockMovementStore
       'kasir_citra_stock_movements_v1',
       'kasir_citra_stock_adjustments_v1',
-      // batchStore
       'kasir_citra_batches_v1',
-      // returnStore
       'kasir_citra_refunds_v1',
       'kasir_citra_waste_v1',
-      // settingsStore
       'kasir_citra_settings_v1',
-      // shiftStore
       'kasir_citra_current_shift_v1',
       'kasir_citra_shift_history_v1',
-      // demoDataService sendiri
       'kasir_citra_demo_loaded_v1'
     ];
     for (const k of keysToRemove) {

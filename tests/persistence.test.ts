@@ -56,7 +56,10 @@ const db = {
   })),
 };
 
-mock.module('../packages/shared-core/src/services/dbService', () => ({ dbService: db }));
+mock.module('../packages/shared-core/src/services/dbService', () => ({
+  dbService: db,
+  isTauri: () => false
+}));
 
 const {
   usePosStore,
