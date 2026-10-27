@@ -194,16 +194,19 @@ const paymentBreakdown = computed(() => {
       </div>
     </div>
 
-    <!-- 2. METRIC KPI STRIP (5 Kolom Penuh, Rapi di Desktop & Mobile) -->
-    <div class="grid grid-cols-2 md:grid-cols-5 border-b border-gray-200 bg-white shrink-0">
+    <!-- 2. METRIC KPI STRIP (Horizontal Scroll di Mobile, 5 Kolom Penuh di Desktop) -->
+    <div
+      v-horizontal-scroll
+      class="flex md:grid md:grid-cols-5 overflow-x-auto md:overflow-visible no-scrollbar snap-x scroll-smooth divide-x divide-gray-200 border-b border-gray-200 bg-white shrink-0 select-none cursor-grab active:cursor-grabbing"
+    >
       <!-- Omset Hari Ini -->
-      <div class="px-3 py-2 sm:px-4 sm:py-2.5 flex items-center gap-2.5 sm:gap-3 min-w-0 border-r border-b md:border-b-0 border-gray-200">
+      <div class="w-[200px] sm:w-[220px] md:w-auto shrink-0 md:shrink min-w-0 snap-start px-3.5 py-2.5 flex items-center gap-3">
         <div class="p-2 bg-emerald-50 text-emerald-600 shrink-0 border border-emerald-100 rounded-xs">
           <Coins :size="16" />
         </div>
         <div class="min-w-0 flex-1">
           <div class="text-[10px] text-gray-500 font-bold uppercase tracking-wider truncate">Omset Hari Ini</div>
-          <div class="text-xs sm:text-base font-black font-mono text-emerald-700 truncate leading-tight mt-0.5">
+          <div class="text-sm sm:text-base font-black font-mono text-emerald-700 truncate leading-tight mt-0.5">
             Rp {{ formatRupiah(todayRevenue) }}
           </div>
           <div class="text-[10px] text-gray-500 truncate">
@@ -213,13 +216,13 @@ const paymentBreakdown = computed(() => {
       </div>
 
       <!-- Laba Bersih Hari Ini -->
-      <div class="px-3 py-2 sm:px-4 sm:py-2.5 flex items-center gap-2.5 sm:gap-3 min-w-0 border-b md:border-b-0 md:border-r border-gray-200">
+      <div class="w-[200px] sm:w-[220px] md:w-auto shrink-0 md:shrink min-w-0 snap-start px-3.5 py-2.5 flex items-center gap-3">
         <div class="p-2 bg-blue-50 text-blue-600 shrink-0 border border-blue-100 rounded-xs">
           <TrendingUp :size="16" />
         </div>
         <div class="min-w-0 flex-1">
           <div class="text-[10px] text-gray-500 font-bold uppercase tracking-wider truncate">Laba Bersih Hari Ini</div>
-          <div class="text-xs sm:text-base font-black font-mono text-blue-700 truncate leading-tight mt-0.5">
+          <div class="text-sm sm:text-base font-black font-mono text-blue-700 truncate leading-tight mt-0.5">
             Rp {{ formatRupiah(todayProfit) }}
           </div>
           <div class="text-[10px] text-gray-500 truncate">
@@ -229,13 +232,13 @@ const paymentBreakdown = computed(() => {
       </div>
 
       <!-- Piutang / Tempo -->
-      <div class="px-3 py-2 sm:px-4 sm:py-2.5 flex items-center gap-2.5 sm:gap-3 min-w-0 border-r border-b md:border-b-0 border-gray-200">
+      <div class="w-[200px] sm:w-[220px] md:w-auto shrink-0 md:shrink min-w-0 snap-start px-3.5 py-2.5 flex items-center gap-3">
         <div class="p-2 bg-amber-50 text-amber-600 shrink-0 border border-amber-100 rounded-xs">
           <Clock :size="16" />
         </div>
         <div class="min-w-0 flex-1">
           <div class="text-[10px] text-gray-500 font-bold uppercase tracking-wider truncate">Total Piutang Tempo</div>
-          <div class="text-xs sm:text-base font-black font-mono text-amber-700 truncate leading-tight mt-0.5">
+          <div class="text-sm sm:text-base font-black font-mono text-amber-700 truncate leading-tight mt-0.5">
             Rp {{ formatRupiah(totalReceivables) }}
           </div>
           <div class="text-[10px] text-gray-500 truncate">
@@ -245,13 +248,13 @@ const paymentBreakdown = computed(() => {
       </div>
 
       <!-- Nilai Stok Fisik -->
-      <div class="px-3 py-2 sm:px-4 sm:py-2.5 flex items-center gap-2.5 sm:gap-3 min-w-0 border-b md:border-b-0 md:border-r border-gray-200">
+      <div class="w-[200px] sm:w-[220px] md:w-auto shrink-0 md:shrink min-w-0 snap-start px-3.5 py-2.5 flex items-center gap-3">
         <div class="p-2 bg-purple-50 text-purple-600 shrink-0 border border-purple-100 rounded-xs">
           <Package :size="16" />
         </div>
         <div class="min-w-0 flex-1">
           <div class="text-[10px] text-gray-500 font-bold uppercase tracking-wider truncate">Aset Stok Fisik</div>
-          <div class="text-xs sm:text-base font-black font-mono text-purple-700 truncate leading-tight mt-0.5">
+          <div class="text-sm sm:text-base font-black font-mono text-purple-700 truncate leading-tight mt-0.5">
             Rp {{ formatRupiah(totalInventoryValuation) }}
           </div>
           <div class="text-[10px] text-gray-500 truncate">
@@ -261,13 +264,13 @@ const paymentBreakdown = computed(() => {
       </div>
 
       <!-- Pelanggan & Member -->
-      <div class="px-3 py-2 sm:px-4 sm:py-2.5 flex items-center gap-2.5 sm:gap-3 min-w-0 col-span-2 md:col-span-1 border-b md:border-b-0 border-gray-200">
+      <div class="w-[200px] sm:w-[220px] md:w-auto shrink-0 md:shrink min-w-0 snap-start px-3.5 py-2.5 flex items-center gap-3">
         <div class="p-2 bg-indigo-50 text-indigo-600 shrink-0 border border-indigo-100 rounded-xs">
           <Users :size="16" />
         </div>
         <div class="min-w-0 flex-1">
           <div class="text-[10px] text-gray-500 font-bold uppercase tracking-wider truncate">Pelanggan &amp; Member</div>
-          <div class="text-xs sm:text-base font-black font-mono text-indigo-700 truncate leading-tight mt-0.5">
+          <div class="text-sm sm:text-base font-black font-mono text-indigo-700 truncate leading-tight mt-0.5">
             {{ buyerStore.buyers.length }} Pelanggan
           </div>
           <div class="text-[10px] text-gray-500 truncate">

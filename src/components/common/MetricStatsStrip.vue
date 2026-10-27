@@ -21,11 +21,14 @@ defineProps<{
 </script>
 
 <template>
-  <div class="flex items-center divide-x divide-gray-200 border-b border-gray-200 bg-white px-2 py-2 shrink-0 select-none">
+  <div
+    v-horizontal-scroll
+    class="flex items-center overflow-x-auto no-scrollbar snap-x scroll-smooth divide-x divide-gray-200 border-b border-gray-200 bg-white px-2 py-2 shrink-0 select-none cursor-grab active:cursor-grabbing"
+  >
     <div
       v-for="(item, idx) in items"
       :key="`${item.label}-${idx}`"
-      class="flex-1 min-w-0 px-2 flex items-center gap-2 group cursor-default"
+      class="flex-1 min-w-[160px] sm:min-w-0 shrink-0 sm:shrink snap-start px-2 flex items-center gap-2 group cursor-default"
       :title="item.tooltip || (typeof item.value === 'string' ? item.value : undefined)"
     >
       <div

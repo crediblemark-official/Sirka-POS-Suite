@@ -162,39 +162,8 @@ onUnmounted(() => {
     <!-- Area Tengah: Drag Region Bebas -->
     <div data-tauri-drag-region class="flex-1 h-full cursor-default"></div>
 
-    <!-- Sisi Kanan: Shell Switcher + Tombol Kontrol Jendela Desktop -->
+    <!-- Sisi Kanan: Tombol Kontrol Jendela Desktop (Minimize, Maximize, Close) -->
     <div class="flex items-center h-full shrink-0">
-      <!-- Quick Shell Preview Switcher -->
-      <div class="flex items-center gap-0.5 mr-2 px-1 py-0.5 bg-black/5 rounded text-[10px] font-bold">
-        <button
-          type="button"
-          @click="settingsStore.setUiShellMode('desktop')"
-          class="px-1.5 py-0.5 rounded transition cursor-pointer"
-          :class="settingsStore.uiShellMode === 'desktop' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:text-gray-900'"
-          title="Mode Desktop (Explorer)"
-        >
-          PC
-        </button>
-        <button
-          type="button"
-          @click="settingsStore.setUiShellMode('tablet')"
-          class="px-1.5 py-0.5 rounded transition cursor-pointer"
-          :class="settingsStore.uiShellMode === 'tablet' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:text-gray-900'"
-          title="Mode Tablet Stand (Kasir Meja)"
-        >
-          Tab
-        </button>
-        <button
-          type="button"
-          @click="settingsStore.setUiShellMode('mobile')"
-          class="px-1.5 py-0.5 rounded transition cursor-pointer"
-          :class="settingsStore.uiShellMode === 'mobile' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:text-gray-900'"
-          title="Mode Smartphone (Kasir Mobile)"
-        >
-          HP
-        </button>
-      </div>
-
       <!-- Tombol Minimize -->
       <button
         type="button"
