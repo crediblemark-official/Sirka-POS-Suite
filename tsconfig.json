@@ -1,19 +1,26 @@
 {
   "compilerOptions": {
     "target": "ES2020",
+    "useDefineForClassFields": true,
     "module": "ESNext",
-    "moduleResolution": "bundler",
-    "strict": true,
+    "lib": ["ES2020", "DOM"],
     "skipLibCheck": true,
-    "isolatedModules": true
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "strict": true,
+    "types": ["bun-types"]
   },
-  "references": [
-    { "path": "./packages/shared-types" },
-    { "path": "./packages/shared-utils" },
-    { "path": "./packages/shared-core" },
-    { "path": "./packages/shared-ui" },
-    { "path": "./apps/sirka-desktop" },
-    { "path": "./apps/sirka-mobile" }
+  "include": [
+    "tests/**/*.ts"
   ],
-  "files": []
+  "references": [
+    { "path": "./packages/shared-types/tsconfig.json" },
+    { "path": "./packages/shared-utils/tsconfig.json" },
+    { "path": "./packages/shared-core/tsconfig.json" },
+    { "path": "./packages/shared-ui/tsconfig.json" },
+    { "path": "./apps/sirka-desktop/tsconfig.json" },
+    { "path": "./apps/sirka-mobile/tsconfig.json" }
+  ]
 }

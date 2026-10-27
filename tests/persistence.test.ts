@@ -721,6 +721,6 @@ test('BUG FIX: kupon lokal (dibuat saat DB offline) tidak hilang saat fetchDisco
 
 test('BUG FIX: label "Tersinkronisasi" hanya ditampilkan bila fetch profil toko sukses', async () => {
   // Ini murni perilaku UI; diuji lewat state error yang terekspos
-  const { useStoreProfile } = await import('../mobile/src/composables/useStoreProfile');
+  const { useStoreProfile } = await import('../apps/sirka-mobile/src/composables/useStoreProfile');
   expect(typeof useStoreProfile).toBe('function');
 });

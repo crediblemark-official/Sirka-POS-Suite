@@ -1,0 +1,98 @@
+import { Discount, Buyer, CartItem, CustomerType } from '@sirka/shared-types';
+export declare const useDiscountStore: import("pinia").SetupStoreDefinition<"discount", {
+    discounts: import("vue").Ref<{
+        id: string;
+        code: string;
+        name: string;
+        type: import("@sirka/shared-types").DiscountType;
+        value: number;
+        minPurchase: number;
+        maxDiscount?: number | undefined;
+        scope: import("@sirka/shared-types").DiscountScope;
+        targetCategory?: string | undefined;
+        targetCustomerType?: CustomerType | undefined;
+        isActive: boolean;
+        description?: string | undefined;
+        usageCount?: number | undefined;
+        createdAt?: string | undefined;
+    }[], Discount[] | {
+        id: string;
+        code: string;
+        name: string;
+        type: import("@sirka/shared-types").DiscountType;
+        value: number;
+        minPurchase: number;
+        maxDiscount?: number | undefined;
+        scope: import("@sirka/shared-types").DiscountScope;
+        targetCategory?: string | undefined;
+        targetCustomerType?: CustomerType | undefined;
+        isActive: boolean;
+        description?: string | undefined;
+        usageCount?: number | undefined;
+        createdAt?: string | undefined;
+    }[]>;
+    activeDiscounts: import("vue").ComputedRef<{
+        id: string;
+        code: string;
+        name: string;
+        type: import("@sirka/shared-types").DiscountType;
+        value: number;
+        minPurchase: number;
+        maxDiscount?: number | undefined;
+        scope: import("@sirka/shared-types").DiscountScope;
+        targetCategory?: string | undefined;
+        targetCustomerType?: CustomerType | undefined;
+        isActive: boolean;
+        description?: string | undefined;
+        usageCount?: number | undefined;
+        createdAt?: string | undefined;
+    }[]>;
+    showFormSidebar: import("vue").Ref<boolean, boolean>;
+    activeDiscountForEdit: import("vue").Ref<{
+        id: string;
+        code: string;
+        name: string;
+        type: import("@sirka/shared-types").DiscountType;
+        value: number;
+        minPurchase: number;
+        maxDiscount?: number | undefined;
+        scope: import("@sirka/shared-types").DiscountScope;
+        targetCategory?: string | undefined;
+        targetCustomerType?: CustomerType | undefined;
+        isActive: boolean;
+        description?: string | undefined;
+        usageCount?: number | undefined;
+        createdAt?: string | undefined;
+    } | null, Discount | {
+        id: string;
+        code: string;
+        name: string;
+        type: import("@sirka/shared-types").DiscountType;
+        value: number;
+        minPurchase: number;
+        maxDiscount?: number | undefined;
+        scope: import("@sirka/shared-types").DiscountScope;
+        targetCategory?: string | undefined;
+        targetCustomerType?: CustomerType | undefined;
+        isActive: boolean;
+        description?: string | undefined;
+        usageCount?: number | undefined;
+        createdAt?: string | undefined;
+    } | null>;
+    openAddDiscount: () => void;
+    openEditDiscount: (discount: Discount) => void;
+    closeFormSidebar: () => void;
+    fetchDiscounts: () => Promise<void>;
+    findDiscountByCode: (code: string) => Discount | undefined;
+    calculateDiscountAmount: (discount: Discount, subtotal: number, buyer?: Buyer | null, cartItems?: CartItem[], fallbackCustomerType?: CustomerType) => {
+        amount: number;
+        valid: boolean;
+        reason?: string;
+    };
+    addDiscount: (discountData: Omit<Discount, "id">) => Promise<Discount>;
+    updateDiscount: (updated: Discount) => Promise<void>;
+    upsertDiscount: (data: Omit<Discount, "id" | "createdAt" | "usageCount"> | Discount) => Promise<Discount>;
+    deleteDiscount: (id: string) => Promise<void>;
+    toggleDiscount: (id: string) => Promise<void>;
+}>;
+//# sourceMappingURL=discountStore.d.ts.map

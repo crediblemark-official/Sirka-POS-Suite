@@ -6,6 +6,9 @@
     "strict": true,
     "skipLibCheck": true,
     "isolatedModules": true,
+    "declaration": true,
+    "declarationMap": true,
+    "composite": true,
     "jsx": "preserve"
   },
   "include": ["src/**/*", "src/**/*.vue"]
