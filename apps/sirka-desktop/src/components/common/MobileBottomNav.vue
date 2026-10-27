@@ -48,7 +48,7 @@ const preOrderStore = usePreOrderStore();
 
 const isMenuOpen = ref(false);
 
-const cartCount = computed(() => posStore.cartItems.reduce((acc, i) => acc + i.qty, 0));
+const cartCount = computed(() => posStore.cartItems.reduce((acc: number, i: { qty: number }) => acc + i.qty, 0));
 
 // Label dan icon dinamis berdasarkan jenis bisnis
 const orderTabConfig = computed(() => {
@@ -81,7 +81,7 @@ const allModules = computed(() => [
 ]);
 
 function getModuleInfo(tabId: ModuleTab) {
-  const found = allModules.value.find(m => m.id === tabId);
+  const found = allModules.value.find((m: { id: ModuleTab }) => m.id === tabId);
   if (found) return found;
   return { id: tabId, title: tabId, icon: LayoutGrid, color: '#2563eb' };
 }
@@ -90,7 +90,7 @@ function getTabBadge(tabId: ModuleTab): string | null {
   if (tabId === 'pos' && cartCount.value > 0) return `${cartCount.value}`;
   if (tabId === 'preorder' && preOrderStore.schedules.length > 0) return `${preOrderStore.schedules.length}`;
   if (tabId === 'ledger') {
-    const tempo = ledgerStore.transactions.filter(t => t.paymentStatus === 'TEMPO').length;
+    const tempo = ledgerStore.transactions.filter((t: { paymentStatus?: string }) => t.paymentStatus === 'TEMPO').length;
     if (tempo > 0) return `${tempo}`;
   }
   if ((tabId === 'products' || tabId === 'master') && inventoryStore.products.length > 0) {
@@ -229,7 +229,7 @@ function toggleMenu() {
           >
             <div
               class="w-9 h-9 rounded-xl flex items-center justify-center mb-1 shadow-2xs transition-transform group-hover:scale-105"
-              :style="{ backgroundColor: mod.color + '15', color: mod.color }"
+              :style="`background-color: ${mod.color}15; color: ${mod.color}`"
             >
               <component :is="mod.icon" class="w-4.5 h-4.5" />
             </div>

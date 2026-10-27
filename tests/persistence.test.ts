@@ -719,8 +719,8 @@ test('BUG FIX: kupon lokal (dibuat saat DB offline) tidak hilang saat fetchDisco
   expect(discount.discounts.map(d => d.id)).toContain('local-coupon');
 });
 
-test('BUG FIX: label "Tersinkronisasi" hanya ditampilkan bila fetch profil toko sukses', async () => {
-  // Ini murni perilaku UI; diuji lewat state error yang terekspos
-  const { useStoreProfile } = await import('../apps/sirka-mobile/src/composables/useStoreProfile');
-  expect(typeof useStoreProfile).toBe('function');
+test('BUG FIX: profil toko dikelola via settingsStore dengan sinkronisasi terpadu', async () => {
+  const { useSettingsStore } = await import('@sirka/shared-core');
+  const settings = useSettingsStore();
+  expect(typeof settings.storeName).toBe('string');
 });

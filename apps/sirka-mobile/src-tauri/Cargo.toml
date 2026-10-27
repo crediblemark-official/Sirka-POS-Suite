@@ -1,12 +1,12 @@
 [package]
-name = "sirka-owner-mobile"
+name = "sirka-mobile-app"
 version = "0.2.3"
-description = "Sirka Owner Mobile Reporting App"
+description = "Sirka POS Suite Mobile"
 authors = ["you"]
 edition = "2024"
 
 [lib]
-name = "sirka_owner_mobile_lib"
+name = "sirka_mobile_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
@@ -18,16 +18,17 @@ tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio-postgres = { version = "0.7.18", features = ["with-chrono-0_4", "with-serde_json-1"] }
-# BUG FIX (keamanan): koneksi PostgreSQL mobile kini bisa memakai TLS (rustls).
-# rustls dipilih karena murni Rust — tidak butuh OpenSSL dev headers saat build.
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
 rustls-native-certs = "0.8"
 rustls-pemfile = "2"
 rustls-pki-types = "1"
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12", "logging"] }
 webpki-roots = "0.26"
-tokio = { version = "1", features = ["full"] }
-chrono = { version = "0.4", features = ["serde"] }
+tokio = { version = "1.53.3", features = ["full"] }
+chrono = { version = "0.4.45", features = ["serde"] }
+uuid = { version = "1.28.0", features = ["v4", "serde"] }
+rfd = "0.17.2"
+rusqlite = { version = "0.32", features = ["bundled", "chrono", "serde_json"] }
 
 [profile.release]
 codegen-units = 1
