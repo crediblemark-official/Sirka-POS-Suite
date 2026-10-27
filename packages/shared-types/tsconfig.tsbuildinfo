@@ -1,1 +1,0 @@
-{"root":["./src/business.ts","./src/buyer.ts","./src/cash.ts","./src/common.ts","./src/index.ts","./src/license.ts","./src/preOrder.ts","./src/product.ts","./src/purchase.ts","./src/refund.ts","./src/shift.ts","./src/stickyNote.ts","./src/stock.ts","./src/supplier.ts","./src/transaction.ts","./src/unit.ts"],"version":"6.0.3"}
