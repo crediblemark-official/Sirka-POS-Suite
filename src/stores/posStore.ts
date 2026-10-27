@@ -10,7 +10,9 @@ import {
   PreOrderItem,
   CustomerType,
   Discount,
-  HeldCart
+  HeldCart,
+  OrderType,
+  ServiceStatus
 } from '../types';
 import { useInventoryStore } from './inventoryStore';
 import { useLedgerStore } from './ledgerStore';
@@ -43,6 +45,12 @@ export const usePosStore = defineStore('pos', () => {
   const isPreOrder = ref<boolean>(false);
   // Gap-3 (PRD Aturan #4): PIC penerima barang untuk Faktur B2B & tanda terima pengiriman
   const picName = ref<string>('');
+
+  // Multi-Mode Business Fields (F&B / Service / Wholesale)
+  const orderType = ref<OrderType>('STANDARD');
+  const tableNo = ref<string>('');
+  const staffName = ref<string>('');
+  const serviceStatus = ref<ServiceStatus>('QUEUED');
 
   // Fitur Parkir / Tahan Keranjang (Hold & Recall Cart - F6)
   const STORAGE_KEY_HELD_CARTS = 'kasir_citra_held_carts_v1';
@@ -128,6 +136,19 @@ export const usePosStore = defineStore('pos', () => {
   function recalculateItem(item: CartItem) {
     item.conversionFactor = item.conversionFactor || 1;
     item.baseQty = Number(((item.qty || 0) * item.conversionFactor).toFixed(4));
+
+    // Dynamic Tier Pricing (Grosir Bertingkat) jika harga tidak di-override manual
+    if (!item.isManualSellPrice) {
+      const prod = inventoryStore.products.find(p => p.id === item.productId);
+      if (prod?.tierPricing && prod.tierPricing.length > 0) {
+        const sortedTiers = [...prod.tierPricing].sort((a, b) => b.minQty - a.minQty);
+        const matched = sortedTiers.find(t => item.qty >= t.minQty);
+        if (matched) {
+          item.sellPrice = matched.price * (item.conversionFactor || 1);
+        }
+      }
+    }
+
     item.subtotalSell = Math.round(item.qty * item.sellPrice);
     item.subtotalBuy = Math.round(item.baseQty * item.buyPrice);
     item.profit = item.subtotalSell - item.subtotalBuy;
@@ -156,14 +177,23 @@ export const usePosStore = defineStore('pos', () => {
     return list;
   }
 
-  // Tambah produk ke keranjang kasir POS (Mendukung pilihan satuan awal)
-  function addProductToCart(product: Product, qtyToAdd = 1, unitName?: string) {
+  // Tambah produk ke keranjang kasir POS (Mendukung pilihan satuan awal, varian/modifier, staf)
+  function addProductToCart(
+    product: Product,
+    qtyToAdd = 1,
+    unitName?: string,
+    modifiers?: string[],
+    staffNameVal?: string
+  ) {
     const targetUnit = unitName || product.unit;
     const avail = getAvailableUnitsForProduct(product);
     const unitDef = avail.find(u => u.unitName.toUpperCase() === targetUnit.toUpperCase()) || avail[0];
 
+    // Cek apakah item yang sama (dengan varian yang sama) sudah ada di keranjang
     const existing = cartItems.value.find(
-      i => i.productId === product.id && i.unit.toUpperCase() === unitDef.unitName.toUpperCase()
+      i => i.productId === product.id &&
+           i.unit.toUpperCase() === unitDef.unitName.toUpperCase() &&
+           JSON.stringify(i.modifiers || []) === JSON.stringify(modifiers || [])
     );
 
     if (existing) {
@@ -177,6 +207,15 @@ export const usePosStore = defineStore('pos', () => {
     let sellPrice = unitDef.price && unitDef.price > 0
       ? unitDef.price
       : Math.round((product.lastSellPrice || Math.round(buyPrice * (100 + markup) / 100)) * unitDef.factor);
+
+    // Cek Tier Pricing awal jika kuantitas memenuhi
+    if (product.tierPricing && product.tierPricing.length > 0) {
+      const sortedTiers = [...product.tierPricing].sort((a, b) => b.minQty - a.minQty);
+      const matched = sortedTiers.find(t => qtyToAdd >= t.minQty);
+      if (matched) {
+        sellPrice = matched.price * unitDef.factor;
+      }
+    }
 
     const newItem: CartItem = {
       id: `cart-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
@@ -196,6 +235,10 @@ export const usePosStore = defineStore('pos', () => {
       subtotalBuy: 0,
       subtotalSell: 0,
       profit: 0,
+      productType: product.productType || 'GOODS',
+      modifiers: modifiers ? [...modifiers] : [],
+      staffName: staffNameVal,
+      itemNotes: undefined
     };
     recalculateItem(newItem);
     cartItems.value.push(newItem);
@@ -385,6 +428,11 @@ export const usePosStore = defineStore('pos', () => {
     splitNonCashAmount.value = 0;
     cashTendered.value = 0;
     infaqAmount.value = 0;
+    // Multi-business resets
+    orderType.value = 'STANDARD';
+    tableNo.value = '';
+    staffName.value = '';
+    serviceStatus.value = 'QUEUED';
     // BUG FIX: status & metode bayar harus di-reset. Kalau tidak, penjualan
     // berikutnya diam-diam mewarisi "TEMPO" / "Transfer Bank" dari penjualan
     // sebelumnya sehingga klasifikasi piutang & rekonsiliasi kas jadi salah.
@@ -404,7 +452,7 @@ export const usePosStore = defineStore('pos', () => {
     while (usedNumbers.has(cartNumber)) cartNumber += 1;
     const now = new Date();
     const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    const autoLabel = customLabel?.trim() || `${selectedBuyer.value || 'Pelanggan'} (${cartItems.value.length} item) - ${timeStr}`;
+    const autoLabel = customLabel?.trim() || `${tableNo.value ? 'Meja ' + tableNo.value + ' - ' : ''}${selectedBuyer.value || 'Pelanggan'} (${cartItems.value.length} item) - ${timeStr}`;
 
     const held: HeldCart = {
       id: `hold-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
@@ -413,6 +461,9 @@ export const usePosStore = defineStore('pos', () => {
       items: safeClone(cartItems.value, []),
       buyer: selectedBuyer.value,
       saleMode: saleMode.value,
+      orderType: orderType.value,
+      tableNo: tableNo.value,
+      staffName: staffName.value,
       totalSell: totalSell.value,
       finalTotal: finalTotal.value,
       createdAt: timeStr
@@ -432,6 +483,9 @@ export const usePosStore = defineStore('pos', () => {
     cartItems.value = safeClone(held.items, []);
     selectedBuyer.value = held.buyer;
     saleMode.value = held.saleMode;
+    if (held.orderType) orderType.value = held.orderType;
+    if (held.tableNo) tableNo.value = held.tableNo;
+    if (held.staffName) staffName.value = held.staffName;
 
     heldCarts.value.splice(idx, 1);
     saveHeldCartsLocal();
@@ -697,6 +751,12 @@ export const usePosStore = defineStore('pos', () => {
       isPreOrder: isPreOrder.value,
       picName: picName.value.trim() || undefined,
       notes: transactionNotes.value || undefined,
+      // Universal Business Fields
+      businessType: settingsStore.businessType,
+      orderType: settingsStore.businessFeatures.tableManagement ? orderType.value : undefined,
+      tableNo: settingsStore.businessFeatures.tableManagement ? (tableNo.value.trim() || undefined) : undefined,
+      staffName: settingsStore.businessFeatures.serviceStaff ? (staffName.value.trim() || undefined) : undefined,
+      serviceStatus: settingsStore.businessFeatures.serviceStatus ? serviceStatus.value : undefined,
       discountAmount: totalDiscountAmount.value,
       discountCode: discountCodeUsed,
       pointsUsed: pointsToRedeem.value,
@@ -713,31 +773,39 @@ export const usePosStore = defineStore('pos', () => {
       const prod = inventoryStore.products.find(p => p.id === item.productId);
       const qtyToDeduct = item.baseQty || (item.qty * (item.conversionFactor || 1));
       if (prod) {
-        const fifoResult = batchStore.deductFifoFefo(prod, qtyToDeduct);
-        item.batchDeductions = fifoResult.deductions;
-        item.buyPrice = fifoResult.effectiveAverageBuyPrice;
-        item.subtotalBuy = Math.round(fifoResult.totalHpp);
-        item.profit = item.subtotalSell - item.subtotalBuy;
-        computedTotalBuy += item.subtotalBuy;
+        if (prod.productType === 'SERVICE' || item.productType === 'SERVICE') {
+          // Layanan / Service tidak memiliki batch fisik atau stok gudang
+          item.batchDeductions = [];
+          item.subtotalBuy = Math.round((item.baseQty || item.qty) * item.buyPrice);
+          item.profit = item.subtotalSell - item.subtotalBuy;
+          computedTotalBuy += item.subtotalBuy;
+        } else {
+          const fifoResult = batchStore.deductFifoFefo(prod, qtyToDeduct);
+          item.batchDeductions = fifoResult.deductions;
+          item.buyPrice = fifoResult.effectiveAverageBuyPrice;
+          item.subtotalBuy = Math.round(fifoResult.totalHpp);
+          item.profit = item.subtotalSell - item.subtotalBuy;
+          computedTotalBuy += item.subtotalBuy;
 
-        // Kurangi stok fisik master lewat action resmi inventoryStore (Enkapsulasi)
-        const updatedSellPrice = (item.sellPrice > 0 && (!item.conversionFactor || item.conversionFactor === 1))
-          ? item.sellPrice
-          : undefined;
-        const deductResult = inventoryStore.deductStock(prod.id, qtyToDeduct, updatedSellPrice);
+          // Kurangi stok fisik master lewat action resmi inventoryStore (Enkapsulasi)
+          const updatedSellPrice = (item.sellPrice > 0 && (!item.conversionFactor || item.conversionFactor === 1))
+            ? item.sellPrice
+            : undefined;
+          const deductResult = inventoryStore.deductStock(prod.id, qtyToDeduct, updatedSellPrice);
 
-        const movementStore = useStockMovementStore();
-        movementStore.recordMovement({
-          product: prod,
-          type: 'PENJUALAN',
-          refNo: tx.invoiceNo,
-          qtyChange: -qtyToDeduct,
-          stockBefore: deductResult ? deductResult.stockBefore : prod.stock,
-          stockAfter: deductResult ? deductResult.stockAfter : prod.stock,
-          costPrice: item.buyPrice,
-          notes: `Terjual di Kasir (${tx.paymentMethod}${isSplit ? ' + ' + splitNonCashMethod.value : ''})`,
-          operator: shiftStore.currentShift?.cashierName || 'Kasir'
-        });
+          const movementStore = useStockMovementStore();
+          movementStore.recordMovement({
+            product: prod,
+            type: 'PENJUALAN',
+            refNo: tx.invoiceNo,
+            qtyChange: -qtyToDeduct,
+            stockBefore: deductResult ? deductResult.stockBefore : prod.stock,
+            stockAfter: deductResult ? deductResult.stockAfter : prod.stock,
+            costPrice: item.buyPrice,
+            notes: `Terjual di Kasir (${tx.paymentMethod}${isSplit ? ' + ' + splitNonCashMethod.value : ''})`,
+            operator: shiftStore.currentShift?.cashierName || 'Kasir'
+          });
+        }
       } else {
         computedTotalBuy += item.subtotalBuy;
       }
@@ -799,6 +867,27 @@ export const usePosStore = defineStore('pos', () => {
     return tx;
   }
 
+  function setItemModifiers(itemId: string, modifiers: string[]) {
+    const item = cartItems.value.find(i => i.id === itemId);
+    if (item) {
+      item.modifiers = modifiers;
+    }
+  }
+
+  function setItemStaff(itemId: string, staffNameVal: string) {
+    const item = cartItems.value.find(i => i.id === itemId);
+    if (item) {
+      item.staffName = staffNameVal;
+    }
+  }
+
+  function setItemNotes(itemId: string, notes: string) {
+    const item = cartItems.value.find(i => i.id === itemId);
+    if (item) {
+      item.itemNotes = notes;
+    }
+  }
+
   return {
     saleMode,
     setSaleMode,
@@ -816,6 +905,14 @@ export const usePosStore = defineStore('pos', () => {
     transactionNotes,
     isPreOrder,
     picName,
+    // Multi-Business Fields
+    orderType,
+    tableNo,
+    staffName,
+    serviceStatus,
+    setItemModifiers,
+    setItemStaff,
+    setItemNotes,
     cartItems,
     lastProcessedTransaction,
     appliedDiscount,

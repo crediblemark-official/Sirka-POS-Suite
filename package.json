@@ -12,8 +12,10 @@
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
     "test:all": "bun test && cargo test --manifest-path src-tauri/Cargo.toml",
     "tauri": "cargo tauri",
+    "tauri:android:init": "cargo tauri android init",
+    "tauri:android:dev": "cargo tauri android dev",
+    "tauri:android:build": "cargo tauri android build --apk",
     "mobile:dev": "cd mobile && bun run dev",
-
     "mobile:build": "cd mobile && bun run build",
     "worker:dev": "cd worker && bun run dev",
     "worker:deploy": "cd worker && bun run deploy"

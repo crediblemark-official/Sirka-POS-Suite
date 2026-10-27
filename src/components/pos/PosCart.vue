@@ -18,7 +18,9 @@ import {
   Pencil,
   Clock,
   LogIn,
-  AlertTriangle
+  AlertTriangle,
+  UtensilsCrossed,
+  Wrench
 } from 'lucide-vue-next';
 
 import { useBuyerStore } from '../../stores/buyerStore';
@@ -306,6 +308,80 @@ onUnmounted(() => {
           <span>🛒 Eceran (B2C)</span>
           <kbd class="px-1 py-0.2 bg-black/10 rounded text-[9px] font-mono opacity-70">Alt+E</kbd>
         </button>
+      </div>
+
+      <!-- F&B Order Type & Table Bar (Muncul bila mode F&B / Universal aktif) -->
+      <div
+        v-if="settingsStore.businessFeatures.tableManagement"
+        class="flex items-center gap-1.5 p-2 bg-amber-50/80 border border-amber-200 rounded-lg text-xs"
+      >
+        <div class="flex items-center gap-1 shrink-0">
+          <UtensilsCrossed :size="13" class="text-amber-700" />
+          <span class="font-bold text-[10.5px] text-amber-950">Pesanan:</span>
+        </div>
+        <div class="flex items-center gap-1 flex-1">
+          <button
+            type="button"
+            @click="posStore.orderType = 'DINE_IN'"
+            class="px-2 py-0.5 rounded text-[10.5px] font-semibold cursor-pointer transition-all"
+            :class="posStore.orderType === 'DINE_IN' ? 'bg-amber-600 text-white shadow-2xs font-bold' : 'bg-white text-slate-700 hover:bg-amber-100/70 border border-amber-200'"
+          >
+            🍽 Meja
+          </button>
+          <button
+            type="button"
+            @click="posStore.orderType = 'TAKEAWAY'"
+            class="px-2 py-0.5 rounded text-[10.5px] font-semibold cursor-pointer transition-all"
+            :class="posStore.orderType === 'TAKEAWAY' ? 'bg-amber-600 text-white shadow-2xs font-bold' : 'bg-white text-slate-700 hover:bg-amber-100/70 border border-amber-200'"
+          >
+            🥡 Bungkus
+          </button>
+          <button
+            type="button"
+            @click="posStore.orderType = 'DELIVERY'"
+            class="px-2 py-0.5 rounded text-[10.5px] font-semibold cursor-pointer transition-all"
+            :class="posStore.orderType === 'DELIVERY' ? 'bg-amber-600 text-white shadow-2xs font-bold' : 'bg-white text-slate-700 hover:bg-amber-100/70 border border-amber-200'"
+          >
+            🛵 Antar
+          </button>
+        </div>
+        <div v-if="posStore.orderType === 'DINE_IN'" class="flex items-center gap-1 shrink-0">
+          <span class="text-[10px] text-amber-900 font-bold">No.</span>
+          <input
+            v-model="posStore.tableNo"
+            type="text"
+            placeholder="Meja 01"
+            class="w-16 px-1.5 py-0.5 bg-white border border-amber-300 rounded text-xs font-bold text-center focus:outline-none focus:ring-1 focus:ring-amber-500"
+          />
+        </div>
+      </div>
+
+      <!-- Service Staff & Service Status Bar (Muncul bila mode Jasa / Universal aktif) -->
+      <div
+        v-if="settingsStore.businessFeatures.serviceStaff"
+        class="flex items-center justify-between gap-1.5 p-2 bg-indigo-50/80 border border-indigo-200 rounded-lg text-xs"
+      >
+        <div class="flex items-center gap-1.5 min-w-0 flex-1">
+          <Wrench :size="13" class="text-indigo-700 shrink-0" />
+          <span class="font-bold text-[10.5px] text-indigo-950 shrink-0">Staf/Teknisi:</span>
+          <input
+            v-model="posStore.staffName"
+            type="text"
+            placeholder="Nama teknisi / staf..."
+            class="flex-1 min-w-[70px] px-1.5 py-0.5 bg-white border border-indigo-300 rounded text-[11px] focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          />
+        </div>
+        <div v-if="settingsStore.businessFeatures.serviceStatus" class="flex items-center gap-1 shrink-0">
+          <select
+            v-model="posStore.serviceStatus"
+            class="px-1.5 py-0.5 bg-white border border-indigo-300 rounded text-[10.5px] font-bold text-indigo-900 focus:outline-none"
+          >
+            <option value="QUEUED">Antre</option>
+            <option value="IN_PROGRESS">Proses</option>
+            <option value="DONE">Selesai</option>
+            <option value="COLLECTED">Diambil</option>
+          </select>
+        </div>
       </div>
 
       <!-- Buyer Selection Bar (Search and Select + Fast Keyboard Shortcuts) -->

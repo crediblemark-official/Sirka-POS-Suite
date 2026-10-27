@@ -1,5 +1,8 @@
 import type { BuyerName, CustomerType, PaymentMethod, PaymentStatus, SupplierCategory } from './common';
-import type { BatchDeduction } from './product';
+import type { BatchDeduction, ProductType } from './product';
+
+export type OrderType = 'DINE_IN' | 'TAKEAWAY' | 'DELIVERY' | 'STANDARD';
+export type ServiceStatus = 'QUEUED' | 'IN_PROGRESS' | 'DONE' | 'COLLECTED';
 
 export interface CartItem {
   id: string;
@@ -20,6 +23,10 @@ export interface CartItem {
   subtotalSell: number;
   profit: number;
   batchDeductions?: BatchDeduction[]; // Rincian pemotongan stok batch FIFO/FEFO
+  productType?: ProductType;
+  modifiers?: string[];      // Varian / catatan rasa F&B (e.g. ['Less Sugar', 'Level 2'])
+  staffName?: string;        // Staf / teknisi / kapster pengerja jasa
+  itemNotes?: string;        // Catatan khusus baris pesanan
 }
 
 export interface Transaction {
@@ -38,6 +45,12 @@ export interface Transaction {
   isPreOrder?: boolean;
   picName?: string;
   notes?: string;
+  // Mode Bisnis & F&B / Jasa
+  businessType?: string;
+  orderType?: OrderType;       // Dine-in / Takeaway / Delivery
+  tableNo?: string;            // Nomor Meja (F&B)
+  staffName?: string;          // Staf / Operator Jasa utama
+  serviceStatus?: ServiceStatus; // Antre / Proses / Selesai / Diambil
   // Diskon & Loyalty Membership
   discountAmount?: number;
   discountCode?: string;
@@ -61,10 +74,13 @@ export interface Transaction {
 export interface HeldCart {
   id: string;
   cartNumber: number;          // e.g. 1, 2, 3
-  label?: string;              // e.g. "Ibu Rina" / "Antrean 1"
+  label?: string;              // e.g. "Ibu Rina" / "Antrean 1" / "Meja 04"
   items: CartItem[];
   buyer: BuyerName;
   saleMode: CustomerType;
+  orderType?: OrderType;
+  tableNo?: string;
+  staffName?: string;
   totalSell: number;
   finalTotal: number;
   createdAt: string;           // Formatted time or timestamp

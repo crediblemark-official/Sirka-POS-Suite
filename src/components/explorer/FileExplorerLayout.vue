@@ -12,6 +12,11 @@ import ExplorerStatusBar from './ExplorerStatusBar.vue';
 import AppLauncherTab from './AppLauncherTab.vue';
 import HomeInsightView from '../home/HomeInsightView.vue';
 import AppConfirmModal from '../common/AppConfirmModal.vue';
+import MobileHeaderBar from '../common/MobileHeaderBar.vue';
+import MobileBottomNav from '../common/MobileBottomNav.vue';
+import { useResponsive } from '../../composables/useResponsive';
+import { formatRupiah } from '../../utils/formatters';
+import { ChevronRight, ShoppingCart } from 'lucide-vue-next';
 
 // Primary POS View Modules (Loaded eagerly for rapid cashier responsiveness)
 import ProductCatalog from '../pos/ProductCatalog.vue';
@@ -44,6 +49,8 @@ import { syncService } from '../../services/syncService';
 const posStore = usePosStore();
 const shiftStore = useShiftStore();
 const licenseStore = useLicenseStore();
+const { isMobile } = useResponsive();
+const showMobileCartModal = ref(false);
 
 
 // Setiap aplikasi baru dibuka: tidak ada tab aktif, dan default memunculkan Home
@@ -300,38 +307,49 @@ onUnmounted(() => {
 
 <template>
   <div class="flex flex-col h-screen w-screen font-sans select-none overflow-hidden text-sm" style="background-color: var(--surface-body); color: var(--surface-text);">
-    <!-- Custom Desktop Window Title Bar -->
-    <AppTitleBar />
+    <!-- Custom Desktop Window Title Bar & Ribbon (Desktop only) -->
+    <template v-if="!isMobile">
+      <AppTitleBar />
 
-    <!-- Explorer Action / Toolbar (Modular Component) -->
-    <ExplorerToolbar
-      ref="toolbarRef"
-      :active-tab="activeTab"
-      :current-path="currentPath"
-      :search-placeholder="searchPlaceholder"
-      v-model:view-mode="viewMode"
-      v-model:search-query="searchQuery"
-      v-model:show-cart-drawer="showCartDrawer"
-      @open-tab="openTab"
-      @open-launcher="openLauncherTab"
-      @search-navigate="handleSearchNavigate"
-      @search-submit="handleSearchSubmit"
-    />
+      <!-- Explorer Action / Toolbar (Modular Component) -->
+      <ExplorerToolbar
+        ref="toolbarRef"
+        :active-tab="activeTab"
+        :current-path="currentPath"
+        :search-placeholder="searchPlaceholder"
+        v-model:view-mode="viewMode"
+        v-model:search-query="searchQuery"
+        v-model:show-cart-drawer="showCartDrawer"
+        @open-tab="openTab"
+        @open-launcher="openLauncherTab"
+        @search-navigate="handleSearchNavigate"
+        @search-submit="handleSearchSubmit"
+      />
 
-    <!-- Tab Bar (Modular Component): Sembunyikan bila tidak ada tab terbuka -->
-    <ExplorerTabBar
-      v-if="openTabIds.length > 0"
-      :open-tab-ids="openTabIds"
-      :active-tab="activeTab"
-      @select-tab="openTab"
-      @close-tab="closeTab"
-      @open-launcher="openLauncherTab"
-    />
+      <!-- Tab Bar (Modular Component): Sembunyikan bila tidak ada tab terbuka -->
+      <ExplorerTabBar
+        v-if="openTabIds.length > 0"
+        :open-tab-ids="openTabIds"
+        :active-tab="activeTab"
+        @select-tab="openTab"
+        @close-tab="closeTab"
+        @open-launcher="openLauncherTab"
+      />
+    </template>
+
+    <!-- Mobile Header Bar (Mobile / Android) -->
+    <template v-else>
+      <MobileHeaderBar
+        :active-tab-title="tabTitles[activeTab] || 'Kasir'"
+        v-model:search-query="searchQuery"
+        @open-shift-modal="shiftStore.showOpenShiftModal = true"
+      />
+    </template>
 
     <!-- Main File Manager Workspace (Center Content + Right Cart Drawer) -->
     <div class="flex-1 flex overflow-hidden">
       <!-- Center Content Area: Switched by Tab -->
-      <main class="flex-1 flex flex-col bg-white overflow-hidden">
+      <main class="flex-1 flex flex-col bg-white overflow-hidden" :class="{ 'pb-13': isMobile }">
         <!-- 0. BERANDA & INSIGHT STATISTIK BISNIS -->
         <div v-show="activeTab === 'home'" class="flex-1 flex overflow-hidden">
           <HomeInsightView
@@ -341,7 +359,7 @@ onUnmounted(() => {
         </div>
 
         <!-- 1. KASIR POS VIEW -->
-        <div v-show="activeTab === 'pos'" class="flex-1 flex overflow-hidden">
+        <div v-show="activeTab === 'pos'" class="flex-1 flex overflow-hidden relative">
           <ProductCatalog
             ref="productCatalogRef"
             :search-query="searchQuery"
@@ -350,12 +368,59 @@ onUnmounted(() => {
             @category-changed="onCatalogCategoryChanged"
           />
 
-          <!-- Right Struk Kasir (POS Cart Panel) -->
+          <!-- Right Struk Kasir (POS Cart Panel) for Desktop -->
           <div
-            v-if="showCartDrawer"
+            v-if="!isMobile && showCartDrawer"
             class="w-[380px] lg:w-[420px] border-l border-gray-300 bg-white flex flex-col shrink-0 shadow-lg"
           >
             <PosCart @show-receipt="handleShowReceipt" @close="showCartDrawer = false" />
+          </div>
+
+          <!-- Mobile Floating Sticky Cart Bar (Trigger Bottom Sheet) -->
+          <div
+            v-if="isMobile && posStore.cartItems.length > 0"
+            class="fixed bottom-15 inset-x-3 z-30 animate-in fade-in slide-in-from-bottom-2 duration-200"
+          >
+            <button
+              @click="showMobileCartModal = true"
+              class="w-full bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white shadow-xl rounded-xl px-4 py-3 flex items-center justify-between font-semibold transition cursor-pointer"
+            >
+              <div class="flex items-center gap-2">
+                <div class="bg-white/20 px-2 py-0.5 rounded-full text-xs font-bold flex items-center gap-1">
+                  <ShoppingCart class="w-3 h-3" />
+                  <span>{{ posStore.totalItemsCount }}</span>
+                </div>
+                <span class="text-sm font-bold">Rp {{ formatRupiah(posStore.finalTotal) }}</span>
+              </div>
+              <div class="flex items-center gap-1 text-xs font-bold text-blue-100">
+                <span>Lihat Keranjang & Bayar</span>
+                <ChevronRight class="w-4 h-4 text-white" />
+              </div>
+            </button>
+          </div>
+
+          <!-- Mobile Full Cart Bottom-Sheet Modal -->
+          <div
+            v-if="isMobile && showMobileCartModal"
+            class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex flex-col justify-end animate-in fade-in duration-150"
+          >
+            <div class="bg-white w-full h-[94vh] rounded-t-2xl flex flex-col overflow-hidden shadow-2xl animate-in slide-in-from-bottom duration-200">
+              <div class="h-10 px-4 bg-slate-100 border-b border-slate-200 flex items-center justify-between shrink-0">
+                <span class="font-bold text-xs text-slate-800">Keranjang Kasir & Pembayaran</span>
+                <button
+                  @click="showMobileCartModal = false"
+                  class="text-xs font-bold text-slate-600 hover:text-slate-900 px-2.5 py-1 rounded-md bg-slate-200 hover:bg-slate-300 transition cursor-pointer"
+                >
+                  ✕ Tutup
+                </button>
+              </div>
+              <div class="flex-1 overflow-hidden flex flex-col">
+                <PosCart
+                  @show-receipt="handleShowReceipt(); showMobileCartModal = false;"
+                  @close="showMobileCartModal = false"
+                />
+              </div>
+            </div>
           </div>
         </div>
 
@@ -419,8 +484,9 @@ onUnmounted(() => {
       </main>
     </div>
 
-    <!-- Bottom Status Bar (Modular Component) -->
-    <ExplorerStatusBar :active-tab="activeTab" />
+    <!-- Bottom Status Bar on Desktop, MobileBottomNav on Mobile -->
+    <ExplorerStatusBar v-if="!isMobile" :active-tab="activeTab" />
+    <MobileBottomNav v-else :active-tab="activeTab" @navigate="openTab" />
 
     <!-- Invoice Receipt Modal -->
     <ReceiptModal

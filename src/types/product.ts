@@ -30,6 +30,14 @@ export interface ProductBatch {
   createdAt: string;
 }
 
+export type ProductType = 'GOODS' | 'SERVICE' | 'FNB_MENU';
+
+export interface ProductTierPrice {
+  minQty: number;
+  price: number;
+  label?: string; // misal 'Grosir Lusinan', 'Grosir Dus'
+}
+
 export interface Product {
   id: string;
   code: string;
@@ -45,4 +53,8 @@ export interface Product {
   notes?: string;
   units?: ProductUnitConversion[];
   isPerishable?: boolean;    // true jika produk cepat busuk/exp (prioritas FEFO)
+  productType?: ProductType; // 'GOODS' (default), 'SERVICE', 'FNB_MENU'
+  tierPricing?: ProductTierPrice[]; // Harga grosir bertingkat berdasarkan kuantitas
+  availableModifiers?: string[]; // Pilihan varian rasa / catatan (F&B)
+  serviceDurationMinutes?: number; // Estimasi durasi pengerjaan jasa dalam menit
 }

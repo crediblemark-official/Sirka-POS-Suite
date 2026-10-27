@@ -12,6 +12,10 @@ import {
   getContrastTextColor
 } from '../../utils/theme';
 import {
+  BusinessType,
+  BUSINESS_MODES
+} from '../../types';
+import {
   Store,
   Save,
   CheckCircle2,
@@ -29,7 +33,11 @@ import {
   Phone,
   Image as ImageIcon,
   Upload,
-  Trash2
+  Trash2,
+  UtensilsCrossed,
+  Wrench,
+  Truck,
+  Layers
 } from 'lucide-vue-next';
 
 const settingsStore = useSettingsStore();
@@ -48,17 +56,19 @@ const tempStore = ref({
 
 const isUserDirty = ref(false);
 const showPrinterModal = ref(false);
+const activeBusinessType = ref<BusinessType>(settingsStore.businessType);
 
 watch(
   () => settingsStore.settings,
   () => {
     if (!isUserDirty.value) {
+      activeBusinessType.value = settingsStore.businessType;
       tempStore.value.name = settingsStore.storeName || 'Sirka';
       tempStore.value.code = settingsStore.storeCode || 'SIRKA';
       tempStore.value.tagline = settingsStore.storeTagline || '';
       tempStore.value.address = settingsStore.storeAddress || '';
       tempStore.value.phone = settingsStore.storePhone || '';
-      tempStore.value.invoicePrefix = settingsStore.invoicePrefix || 'INV-B2B';
+      tempStore.value.invoicePrefix = settingsStore.invoicePrefix || 'INV';
       tempStore.value.logo = settingsStore.settings.store_logo || '';
       tempStore.value.footer = settingsStore.receiptFooter || 'Terima kasih atas kunjungan Anda';
       tempStore.value.paperWidth = settingsStore.receiptPaperWidth || '58mm';
@@ -183,6 +193,7 @@ function resetToDefault() {
   tempStore.value.logo = '';
   tempStore.value.footer = 'Terima kasih atas kunjungan Anda';
   tempStore.value.paperWidth = '58mm';
+  activeBusinessType.value = 'universal';
   activeColor.value = '#2563eb';
   activePreset.value = 'blue';
   activeHeaderStyle.value = 'accent-line';
@@ -202,12 +213,13 @@ async function handleSaveAll() {
     const taglineVal = (tempStore.value.tagline || '').trim();
     const addressVal = (tempStore.value.address || '').trim();
     const phoneVal = (tempStore.value.phone || '').trim();
-    const prefixVal = (tempStore.value.invoicePrefix || '').trim() || 'INV-B2B';
+    const prefixVal = (tempStore.value.invoicePrefix || '').trim() || 'INV';
     const logoVal = tempStore.value.logo && tempStore.value.logo !== '/logo.png' ? tempStore.value.logo : '';
     const footerVal = (tempStore.value.footer || '').trim() || 'Terima kasih atas kunjungan Anda';
     const paperVal = tempStore.value.paperWidth || '58mm';
 
     await Promise.all([
+      settingsStore.setBusinessType(activeBusinessType.value),
       settingsStore.updateSetting('store_name', nameVal),
       settingsStore.updateSetting('store_code', codeVal),
       settingsStore.updateSetting('store_tagline', taglineVal),
@@ -363,6 +375,154 @@ async function handleSaveAll() {
         <!-- Form Vertikal Flat Tanpa Box Card -->
         <form @submit.prevent="handleSaveAll" class="flex-1 flex flex-col justify-between overflow-hidden">
           <div class="flex-1 overflow-y-auto p-4 space-y-3.5">
+            <!-- 0. Pilihan Mode & Jenis Usaha Universal -->
+            <div class="p-3 bg-gradient-to-br from-slate-50 to-indigo-50/50 border border-indigo-200/80 rounded-xl shadow-2xs">
+              <div class="flex items-center justify-between mb-2">
+                <label class="text-[11.5px] font-bold text-slate-900 flex items-center gap-1.5">
+                  <Layers :size="14" class="text-indigo-600" />
+                  <span>Mode & Jenis Usaha</span>
+                </label>
+                <span
+                  class="text-[9.5px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-wider"
+                  :class="BUSINESS_MODES[activeBusinessType].badgeColor"
+                >
+                  {{ BUSINESS_MODES[activeBusinessType].title }}
+                </span>
+              </div>
+              <p class="text-[10.5px] text-slate-500 mb-2.5 leading-relaxed">
+                Pilih model operasional usaha Anda. Fitur kasir, istilah modul, dan pengaturan alur kerja akan menyesuaikan otomatis:
+              </p>
+
+              <!-- Grid 5 Pilihan Mode Usaha -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <!-- 1. Retail -->
+                <button
+                  type="button"
+                  @click="activeBusinessType = 'retail'; isUserDirty = true"
+                  class="p-2.5 rounded-lg border text-left transition-all cursor-pointer flex flex-col justify-between"
+                  :class="activeBusinessType === 'retail'
+                    ? 'bg-emerald-50 border-emerald-500 ring-2 ring-emerald-200 shadow-xs'
+                    : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/80'"
+                >
+                  <div class="flex items-start justify-between gap-1 mb-1">
+                    <div class="flex items-center gap-1.5 font-bold text-slate-800 text-[11px]">
+                      <ShoppingBag :size="13" class="text-emerald-600 shrink-0" />
+                      <span>Ritel & Kelontong</span>
+                    </div>
+                    <Check v-if="activeBusinessType === 'retail'" :size="13" class="text-emerald-600 shrink-0 font-bold" />
+                  </div>
+                  <div class="text-[9.5px] text-slate-500 leading-tight mb-1.5">
+                    Barcode scanner, multi-satuan (pcs/dus), kasir cepat, stok fisik.
+                  </div>
+                  <div class="flex items-center gap-1 flex-wrap">
+                    <span class="text-[8.5px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded font-medium">Fast Checkout</span>
+                    <span class="text-[8.5px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded">Multi-Satuan</span>
+                  </div>
+                </button>
+
+                <!-- 2. F&B (Kafe/Resto) -->
+                <button
+                  type="button"
+                  @click="activeBusinessType = 'fnb'; isUserDirty = true"
+                  class="p-2.5 rounded-lg border text-left transition-all cursor-pointer flex flex-col justify-between"
+                  :class="activeBusinessType === 'fnb'
+                    ? 'bg-amber-50 border-amber-500 ring-2 ring-amber-200 shadow-xs'
+                    : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/80'"
+                >
+                  <div class="flex items-start justify-between gap-1 mb-1">
+                    <div class="flex items-center gap-1.5 font-bold text-slate-800 text-[11px]">
+                      <UtensilsCrossed :size="13" class="text-amber-600 shrink-0" />
+                      <span>F&B / Kuliner</span>
+                    </div>
+                    <Check v-if="activeBusinessType === 'fnb'" :size="13" class="text-amber-600 shrink-0 font-bold" />
+                  </div>
+                  <div class="text-[9.5px] text-slate-500 leading-tight mb-1.5">
+                    Meja (Dine-in/Takeaway), varian menu (pedas/topping), tiket dapur.
+                  </div>
+                  <div class="flex items-center gap-1 flex-wrap">
+                    <span class="text-[8.5px] bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded font-medium">No. Meja</span>
+                    <span class="text-[8.5px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded">Varian Rasa</span>
+                  </div>
+                </button>
+
+                <!-- 3. Jasa & Layanan -->
+                <button
+                  type="button"
+                  @click="activeBusinessType = 'service'; isUserDirty = true"
+                  class="p-2.5 rounded-lg border text-left transition-all cursor-pointer flex flex-col justify-between"
+                  :class="activeBusinessType === 'service'
+                    ? 'bg-indigo-50 border-indigo-500 ring-2 ring-indigo-200 shadow-xs'
+                    : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/80'"
+                >
+                  <div class="flex items-start justify-between gap-1 mb-1">
+                    <div class="flex items-center gap-1.5 font-bold text-slate-800 text-[11px]">
+                      <Wrench :size="13" class="text-indigo-600 shrink-0" />
+                      <span>Jasa & Servis</span>
+                    </div>
+                    <Check v-if="activeBusinessType === 'service'" :size="13" class="text-indigo-600 shrink-0 font-bold" />
+                  </div>
+                  <div class="text-[9.5px] text-slate-500 leading-tight mb-1.5">
+                    Barbershop, bengkel, laundry. Bebas stok gudang, catat teknisi.
+                  </div>
+                  <div class="flex items-center gap-1 flex-wrap">
+                    <span class="text-[8.5px] bg-indigo-100 text-indigo-800 px-1.5 py-0.2 rounded font-medium">Staf Pengerja</span>
+                    <span class="text-[8.5px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded">Bebas Stok</span>
+                  </div>
+                </button>
+
+                <!-- 4. Grosir & Distribusi -->
+                <button
+                  type="button"
+                  @click="activeBusinessType = 'wholesale'; isUserDirty = true"
+                  class="p-2.5 rounded-lg border text-left transition-all cursor-pointer flex flex-col justify-between"
+                  :class="activeBusinessType === 'wholesale'
+                    ? 'bg-blue-50 border-blue-500 ring-2 ring-blue-200 shadow-xs'
+                    : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/80'"
+                >
+                  <div class="flex items-start justify-between gap-1 mb-1">
+                    <div class="flex items-center gap-1.5 font-bold text-slate-800 text-[11px]">
+                      <Truck :size="13" class="text-blue-600 shrink-0" />
+                      <span>Grosir & Distribusi</span>
+                    </div>
+                    <Check v-if="activeBusinessType === 'wholesale'" :size="13" class="text-blue-600 shrink-0 font-bold" />
+                  </div>
+                  <div class="text-[9.5px] text-slate-500 leading-tight mb-1.5">
+                    Harga grosir bertingkat, piutang tempo B2B, PO matriks pengiriman.
+                  </div>
+                  <div class="flex items-center gap-1 flex-wrap">
+                    <span class="text-[8.5px] bg-blue-100 text-blue-800 px-1.5 py-0.2 rounded font-medium">Tier Pricing</span>
+                    <span class="text-[8.5px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded">Nota Tempo</span>
+                  </div>
+                </button>
+              </div>
+
+              <!-- 5. Universal Card (Full Width) -->
+              <button
+                type="button"
+                @click="activeBusinessType = 'universal'; isUserDirty = true"
+                class="w-full mt-2 p-2.5 rounded-lg border text-left transition-all cursor-pointer flex items-center justify-between"
+                :class="activeBusinessType === 'universal'
+                  ? 'bg-purple-50 border-purple-500 ring-2 ring-purple-200 shadow-xs'
+                  : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/80'"
+              >
+                <div class="flex items-center gap-2.5 min-w-0">
+                  <div class="w-8 h-8 rounded bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
+                    <Layers :size="16" />
+                  </div>
+                  <div class="min-w-0">
+                    <div class="flex items-center gap-1.5 font-bold text-slate-800 text-[11.5px]">
+                      <span>Universal (Semua Fitur Aktif)</span>
+                      <span class="text-[9px] bg-purple-100 text-purple-800 px-1.5 py-0.2 rounded font-semibold">Rekomendasi</span>
+                    </div>
+                    <div class="text-[10px] text-slate-500 truncate">
+                      Kombinasi fleksibel untuk usaha campuran (jual barang + makanan + jasa layanan).
+                    </div>
+                  </div>
+                </div>
+                <Check v-if="activeBusinessType === 'universal'" :size="15" class="text-purple-600 shrink-0 font-bold ml-2" />
+              </button>
+            </div>
+
             <!-- Pengaturan Logo Toko / Usaha -->
             <div class="p-3 bg-purple-50/60 border border-purple-200/90 rounded-lg">
               <div class="flex items-center justify-between mb-2">

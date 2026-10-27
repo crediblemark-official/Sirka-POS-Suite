@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { StoreSetting } from '../types';
+import { StoreSetting, BusinessType, BUSINESS_MODES } from '../types';
 import { dbService } from '../services/dbService';
 import { applyTheme } from '../utils/theme';
 import { safeParse } from '../utils/storage';
@@ -12,11 +12,12 @@ const STORAGE_KEY_OWNER_API_TOKEN = 'kasir_citra_owner_api_token';
 const DEFAULT_SETTINGS: Record<string, string> = {
   store_name: 'Sirka',
   store_code: 'SIRKA',
-  store_tagline: 'Distribusi B2B & Hub Pengadaan',
-  store_address: 'Jl. Sentral Distribusi No. 8',
+  store_tagline: 'Sistem Kasir & Operasional Bisnis Terpadu',
+  store_address: 'Jl. Niaga Utama No. 8',
   store_phone: '0812-3456-7890',
-  invoice_prefix: 'INV-B2B',
+  invoice_prefix: 'INV',
   store_logo: '',
+  business_type: 'universal',
   primary_color: '#2563eb',
   theme_preset: 'blue',
   header_accent_style: 'accent-line',
@@ -24,7 +25,7 @@ const DEFAULT_SETTINGS: Record<string, string> = {
   custom_surface_color: '#fcfbfa',
   printer_network_address: '127.0.0.1:9100',
   receipt_paper_width: '58mm',
-  receipt_footer: 'Terima kasih banyak, semoga makin sukses'
+  receipt_footer: 'Terima kasih atas kunjungan Anda'
 };
 
 export const useSettingsStore = defineStore('settings', () => {
@@ -151,6 +152,24 @@ export const useSettingsStore = defineStore('settings', () => {
     ]);
   }
 
+  // --- Business Mode & Universal Engine ---
+  const businessType = computed<BusinessType>(() => (settings.value.business_type as BusinessType) || 'universal');
+  const currentBusinessConfig = computed(() => BUSINESS_MODES[businessType.value] || BUSINESS_MODES.universal);
+  const businessFeatures = computed(() => currentBusinessConfig.value.features);
+  const businessTerminology = computed(() => currentBusinessConfig.value.terminology);
+
+  const isRetail = computed(() => businessType.value === 'retail');
+  const isFnb = computed(() => businessType.value === 'fnb');
+  const isService = computed(() => businessType.value === 'service');
+  const isWholesale = computed(() => businessType.value === 'wholesale');
+  const isUniversal = computed(() => businessType.value === 'universal');
+
+  async function setBusinessType(type: BusinessType) {
+    settings.value.business_type = type;
+    saveLocal();
+    await dbService.updateSetting('business_type', type);
+  }
+
   const storeName = computed(() => settings.value.store_name || 'Sirka');
   const storeCode = computed(() => {
     if (settings.value.store_code && settings.value.store_code.trim()) {
@@ -165,10 +184,10 @@ export const useSettingsStore = defineStore('settings', () => {
     return words.map(w => w[0]).join('').toUpperCase() || 'SIRKA';
   });
   const storeAbbreviation = computed(() => storeCode.value);
-  const storeTagline = computed(() => settings.value.store_tagline || 'Distribusi B2B & Hub Pengadaan');
+  const storeTagline = computed(() => settings.value.store_tagline || currentBusinessConfig.value.tagline);
   const storeAddress = computed(() => settings.value.store_address || '');
   const storePhone = computed(() => settings.value.store_phone || '');
-  const invoicePrefix = computed(() => settings.value.invoice_prefix || 'INV-B2B');
+  const invoicePrefix = computed(() => settings.value.invoice_prefix || 'INV');
   const storeLogo = computed(() => settings.value.store_logo || '/logo.png');
   const hasCustomLogo = computed(() => !!settings.value.store_logo);
   const primaryColor = computed(() => settings.value.primary_color || '#2563eb');
@@ -184,6 +203,18 @@ export const useSettingsStore = defineStore('settings', () => {
     settings,
     ownerApiToken,
     setOwnerApiToken,
+    // Business Mode
+    businessType,
+    currentBusinessConfig,
+    businessFeatures,
+    businessTerminology,
+    isRetail,
+    isFnb,
+    isService,
+    isWholesale,
+    isUniversal,
+    setBusinessType,
+    // Store Info
     storeName,
     storeCode,
     storeAbbreviation,

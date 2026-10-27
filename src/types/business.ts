@@ -1,0 +1,175 @@
+// Multi-Mode Business Types & Definitions for Universal POS Suite
+
+export type BusinessType = 'retail' | 'fnb' | 'service' | 'wholesale' | 'universal';
+
+export interface BusinessModeConfig {
+  id: BusinessType;
+  title: string;
+  tagline: string;
+  description: string;
+  icon: string; // Lucide icon name
+  badgeColor: string;
+  features: {
+    tableManagement: boolean;
+    modifiers: boolean;
+    kitchenTicket: boolean;
+    serviceStaff: boolean;
+    serviceStatus: boolean;
+    wholesaleTiers: boolean;
+    preOrderMatrix: boolean;
+    dynamicMarkup: boolean;
+    barcodeScanner: boolean;
+    multiUnits: boolean;
+  };
+  terminology: {
+    productLabel: string;
+    productLabelPlural: string;
+    categoryLabel: string;
+    cartTitle: string;
+    customerLabel: string;
+    addSuccessMessage: string;
+  };
+}
+
+export const BUSINESS_MODES: Record<BusinessType, BusinessModeConfig> = {
+  retail: {
+    id: 'retail',
+    title: 'Ritel & Toko Kelontong',
+    tagline: 'Minimarket, Toko Sembako, Fashion & Aksesoris',
+    description: 'Fokus pada kasir cepat (fast checkout), barcode scanner, satuan bertingkat (pcs/dus/renceng), dan manajemen stok fisik.',
+    icon: 'ShoppingBag',
+    badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+    features: {
+      tableManagement: false,
+      modifiers: false,
+      kitchenTicket: false,
+      serviceStaff: false,
+      serviceStatus: false,
+      wholesaleTiers: true,
+      preOrderMatrix: false,
+      dynamicMarkup: false,
+      barcodeScanner: true,
+      multiUnits: true,
+    },
+    terminology: {
+      productLabel: 'Barang',
+      productLabelPlural: 'Daftar Barang / SKU',
+      categoryLabel: 'Kategori Barang',
+      cartTitle: 'Keranjang Kasir',
+      customerLabel: 'Pelanggan',
+      addSuccessMessage: 'ditambahkan ke keranjang',
+    },
+  },
+  fnb: {
+    id: 'fnb',
+    title: 'F&B (Kafe, Resto & Warung)',
+    tagline: 'Restoran, Coffeeshop, Kedai Makanan & Minuman',
+    description: 'Mendukung pilihan Meja (Dine-in / Takeaway / Delivery), varian pesanan (level pedas, less sugar, topping), dan cetak tiket dapur/bar.',
+    icon: 'UtensilsCrossed',
+    badgeColor: 'bg-amber-100 text-amber-800 border-amber-300',
+    features: {
+      tableManagement: true,
+      modifiers: true,
+      kitchenTicket: true,
+      serviceStaff: false,
+      serviceStatus: false,
+      wholesaleTiers: false,
+      preOrderMatrix: false,
+      dynamicMarkup: false,
+      barcodeScanner: false,
+      multiUnits: false,
+    },
+    terminology: {
+      productLabel: 'Menu',
+      productLabelPlural: 'Daftar Menu Makanan & Minuman',
+      categoryLabel: 'Kategori Menu',
+      cartTitle: 'Pesanan Meja',
+      customerLabel: 'Tamu / Pemesan',
+      addSuccessMessage: 'ditambahkan ke pesanan',
+    },
+  },
+  service: {
+    id: 'service',
+    title: 'Jasa & Layanan',
+    tagline: 'Barbershop, Salon, Bengkel, Laundry, Cuci Mobil/Motor',
+    description: 'Pencatatan item jasa tanpa kewajiban potong stok gudang, pencatatan teknisi/kapster pengerja, dan status pengerjaan (Antre/Proses/Selesai/Diambil).',
+    icon: 'Wrench',
+    badgeColor: 'bg-indigo-100 text-indigo-800 border-indigo-300',
+    features: {
+      tableManagement: false,
+      modifiers: false,
+      kitchenTicket: false,
+      serviceStaff: true,
+      serviceStatus: true,
+      wholesaleTiers: false,
+      preOrderMatrix: false,
+      dynamicMarkup: false,
+      barcodeScanner: false,
+      multiUnits: false,
+    },
+    terminology: {
+      productLabel: 'Layanan / Jasa',
+      productLabelPlural: 'Daftar Layanan & Servis',
+      categoryLabel: 'Kategori Layanan',
+      cartTitle: 'Tiket Servis',
+      customerLabel: 'Pelanggan Servis',
+      addSuccessMessage: 'ditambahkan ke tiket servis',
+    },
+  },
+  wholesale: {
+    id: 'wholesale',
+    title: 'Grosir & Distribusi B2B',
+    tagline: 'Distributor, Supplier Bahan, Agregator Toko & Institusi',
+    description: 'Mendukung harga bertingkat (tier quantity), kalkulasi markup modal nota supplier, piutang tempo, dan rekap matriks pre-order pengiriman.',
+    icon: 'Truck',
+    badgeColor: 'bg-blue-100 text-blue-800 border-blue-300',
+    features: {
+      tableManagement: false,
+      modifiers: false,
+      kitchenTicket: false,
+      serviceStaff: false,
+      serviceStatus: false,
+      wholesaleTiers: true,
+      preOrderMatrix: true,
+      dynamicMarkup: true,
+      barcodeScanner: true,
+      multiUnits: true,
+    },
+    terminology: {
+      productLabel: 'Komoditas / Barang',
+      productLabelPlural: 'Katalog Komoditas B2B',
+      categoryLabel: 'Kategori Produk / Supplier',
+      cartTitle: 'Nota Penjualan / Distribusi',
+      customerLabel: 'Mitra / Institusi B2B',
+      addSuccessMessage: 'dimasukkan ke nota distribusi',
+    },
+  },
+  universal: {
+    id: 'universal',
+    title: 'Universal / Usaha Campuran',
+    tagline: 'Semua Fitur Aktif (Ritel, F&B, Jasa, & Grosir)',
+    description: 'Mode fleksibel paling lengkap untuk usaha hybrid — seperti toko yang menjual barang fisik sekaligus makanan/kafe dan layanan jasa servis.',
+    icon: 'Layers',
+    badgeColor: 'bg-purple-100 text-purple-800 border-purple-300',
+    features: {
+      tableManagement: true,
+      modifiers: true,
+      kitchenTicket: true,
+      serviceStaff: true,
+      serviceStatus: true,
+      wholesaleTiers: true,
+      preOrderMatrix: true,
+      dynamicMarkup: true,
+      barcodeScanner: true,
+      multiUnits: true,
+    },
+    terminology: {
+      productLabel: 'Produk & Jasa',
+      productLabelPlural: 'Katalog Produk, Menu & Jasa',
+      categoryLabel: 'Kategori',
+      cartTitle: 'Keranjang Transaksi',
+      customerLabel: 'Pelanggan / Klien',
+      addSuccessMessage: 'ditambahkan ke keranjang',
+    },
+  },
+};

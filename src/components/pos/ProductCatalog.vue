@@ -17,6 +17,7 @@ import AppEmptyState from '../common/AppEmptyState.vue';
 import CashInflowModal from './CashInflowModal.vue';
 import { demoDataService } from '../../services/demoDataService';
 import { useModalLock } from '../../composables/useModalLock';
+import { useResponsive } from '../../composables/useResponsive';
 
 const props = withDefaults(defineProps<{
   searchQuery?: string;
@@ -35,6 +36,7 @@ const emit = defineEmits<{
 const inventoryStore = useInventoryStore();
 const posStore = usePosStore();
 const { isAnyModalOpen } = useModalLock();
+const { isMobile, isTouchDevice } = useResponsive();
 
 const selectedCategory = ref<SupplierCategory | 'Semua'>('Semua');
 const selectedProductId = ref<string | null>(null);
@@ -228,6 +230,9 @@ watch(selectedProductId, (newId) => {
 
 function handleProductClick(prod: Product) {
   selectedProductId.value = prod.id;
+  if (isMobile.value || isTouchDevice.value) {
+    posStore.addProductToCart(prod, activeMultiplier.value);
+  }
 }
 
 function handleProductDoubleClick(prod: Product) {
@@ -535,7 +540,7 @@ defineExpose({
     </div>
 
     <!-- Folder & File Tiles Grid -->
-    <div class="flex-1 overflow-y-auto flex flex-col">
+    <div class="flex-1 overflow-y-auto flex flex-col" :class="{ 'pb-28': isMobile }">
       <!-- Empty state when catalog has no products at all -->
       <AppEmptyState
         v-if="inventoryStore.products.length === 0"
