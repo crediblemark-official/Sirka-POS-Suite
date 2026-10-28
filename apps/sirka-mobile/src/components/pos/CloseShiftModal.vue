@@ -237,64 +237,65 @@ bindModalLock(() => props.isOpen);
       </div>
 
       <!-- Modal Body (Scrollable) -->
-      <div class="p-5 overflow-y-auto space-y-4 text-xs">
+      <!-- Modal Body (Scrollable & Compact) -->
+      <div class="p-4 overflow-y-auto space-y-3 text-xs">
         <!-- 1. Expected Cash Breakdown Cards -->
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-          <div class="p-2.5 bg-gray-50 border border-gray-200 rounded-md">
-            <span class="text-[10px] text-gray-500 uppercase tracking-wider block font-semibold">1. Modal Awal</span>
-            <span class="text-xs font-bold font-mono text-gray-800 block mt-1">
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div class="p-2 bg-gray-50 border border-gray-200 rounded">
+            <span class="text-[9.5px] text-gray-500 uppercase tracking-wider block font-semibold">1. Modal Awal</span>
+            <span class="text-xs font-bold font-mono text-gray-800 block mt-0.5">
               Rp {{ formatRupiah(startingCash) }}
             </span>
           </div>
 
-          <div class="p-2.5 bg-emerald-50/60 border border-emerald-200 rounded-md">
-            <span class="text-[10px] text-emerald-700 uppercase tracking-wider block font-semibold flex items-center gap-1">
-              <TrendingUp :size="11" />
+          <div class="p-2 bg-emerald-50/60 border border-emerald-200 rounded">
+            <span class="text-[9.5px] text-emerald-700 uppercase tracking-wider block font-semibold flex items-center gap-1">
+              <TrendingUp :size="10" />
               2. (+) Jual Tunai & Tip
             </span>
-            <span class="text-xs font-bold font-mono text-emerald-800 block mt-1">
+            <span class="text-xs font-bold font-mono text-emerald-800 block mt-0.5">
               Rp {{ formatRupiah(cashSales + cashInflow) }}
             </span>
-            <span v-if="cashInflow > 0" class="text-[9.5px] text-emerald-600 block mt-0.5">
-              (Termasuk Infaq/Tip: Rp {{ formatRupiah(cashInflow) }})
+            <span v-if="cashInflow > 0" class="text-[9px] text-emerald-600 block">
+              (Tip: Rp {{ formatRupiah(cashInflow) }})
             </span>
           </div>
 
-          <div class="p-2.5 bg-amber-50/60 border border-amber-200 rounded-md">
-            <span class="text-[10px] text-amber-700 uppercase tracking-wider block font-semibold flex items-center gap-1">
-              <ArrowDownRight :size="11" />
+          <div class="p-2 bg-amber-50/60 border border-amber-200 rounded">
+            <span class="text-[9.5px] text-amber-700 uppercase tracking-wider block font-semibold flex items-center gap-1">
+              <ArrowDownRight :size="10" />
               3. (-) Keluar & Retur
             </span>
-            <span class="text-xs font-bold font-mono text-amber-800 block mt-1">
+            <span class="text-xs font-bold font-mono text-amber-800 block mt-0.5">
               Rp {{ formatRupiah(cashOutflow + refundOutflow) }}
             </span>
-            <span v-if="refundOutflow > 0" class="text-[9.5px] text-rose-600 block mt-0.5">
-              (Retur Tunai: Rp {{ formatRupiah(refundOutflow) }})
+            <span v-if="refundOutflow > 0" class="text-[9px] text-rose-600 block">
+              (Retur: Rp {{ formatRupiah(refundOutflow) }})
             </span>
           </div>
 
-          <div class="p-2.5 bg-blue-50/80 border border-blue-200 rounded-md">
-            <span class="text-[10px] text-blue-700 uppercase tracking-wider block font-bold">Total Kas Seharusnya</span>
-            <span class="text-xs font-extrabold font-mono text-blue-900 block mt-1">
+          <div class="p-2 bg-blue-50/80 border border-blue-200 rounded">
+            <span class="text-[9.5px] text-blue-700 uppercase tracking-wider block font-bold">Total Kas Seharusnya</span>
+            <span class="text-xs font-extrabold font-mono text-blue-900 block mt-0.5">
               Rp {{ formatRupiah(expectedCash) }}
             </span>
           </div>
         </div>
 
         <!-- Non-Cash Sales Note -->
-        <div class="flex items-center justify-between px-3 py-1.5 bg-gray-100/70 border border-gray-200 rounded text-[11px] text-gray-600">
+        <div class="flex items-center justify-between px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded text-[11px] text-gray-600">
           <div class="flex items-center gap-1.5">
-            <Receipt :size="13" class="text-gray-400" />
-            <span>Non-Tunai (Transfer Bank & QRIS - masuk rekening langsung):</span>
+            <Receipt :size="12" class="text-gray-400" />
+            <span>Non-Tunai (Transfer & QRIS - rekening toko):</span>
           </div>
           <span class="font-bold font-mono text-gray-800">Rp {{ formatRupiah(nonCashSales) }}</span>
         </div>
 
-        <!-- 2. Physical Cash Counting Section -->
-        <div class="border border-gray-300 rounded-lg p-3.5 bg-white">
-          <div class="flex items-center justify-between mb-3 border-b border-gray-200 pb-2">
-            <div class="flex items-center gap-2">
-              <Calculator :size="15" class="text-gray-600" />
+        <!-- 2. Physical Cash Counting Section (Compact, Tanpa Box Container) -->
+        <div class="space-y-1.5 pt-1">
+          <div class="flex items-center justify-between pb-1.5 border-b border-gray-200">
+            <div class="flex items-center gap-1.5">
+              <Calculator :size="13" class="text-gray-600" />
               <h3 class="font-bold text-gray-800 text-xs">Penghitungan Uang Fisik Laci (Kas Aktual)</h3>
             </div>
             <!-- Mode Switcher -->
@@ -318,168 +319,177 @@ bindModalLock(() => props.isOpen);
             </div>
           </div>
 
-          <!-- Mode 1: Denomination Counter -->
-          <div v-if="countMode === 'denominations'" class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <!-- Mode 1: Denomination Counter (Compact 2 Kolom, Tanpa Box Container) -->
+          <div v-if="countMode === 'denominations'" class="grid grid-cols-2 gap-x-3 gap-y-1 pt-0.5">
             <!-- 100k -->
-            <div class="p-2 border border-gray-200 rounded bg-gray-50/50">
-              <div class="flex justify-between items-center text-[10px] text-gray-600 mb-1">
-                <span class="font-bold text-rose-700">Rp 100.000</span>
-                <span class="font-mono text-gray-400">x lembar</span>
+            <div class="flex items-center justify-between py-1 px-1 rounded hover:bg-gray-50 border-b border-gray-100">
+              <span class="text-[11px] font-bold text-rose-700 font-mono">100.000</span>
+              <div class="flex items-center gap-1">
+                <span class="text-[10px] text-gray-400 font-mono">×</span>
+                <input
+                  v-model.number="counts.c100k"
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  class="w-12 h-6 text-center font-mono font-bold text-xs bg-slate-50 hover:bg-slate-100 focus:bg-white border border-gray-300 focus:border-blue-500 rounded outline-none"
+                />
               </div>
-              <input
-                v-model.number="counts.c100k"
-                type="number"
-                min="0"
-                class="w-full px-2 py-1 bg-white border border-gray-300 rounded text-xs font-mono font-bold text-center focus:ring-1 focus:ring-blue-500 outline-none"
-              />
-              <span class="block text-[10px] text-right font-mono text-gray-500 mt-1">
-                Rp {{ formatRupiah(counts.c100k * 100000) }}
+              <span class="text-[10.5px] font-mono text-gray-700 font-semibold text-right min-w-[54px]">
+                {{ formatRupiah(counts.c100k * 100000) }}
               </span>
             </div>
 
             <!-- 50k -->
-            <div class="p-2 border border-gray-200 rounded bg-gray-50/50">
-              <div class="flex justify-between items-center text-[10px] text-gray-600 mb-1">
-                <span class="font-bold text-blue-700">Rp 50.000</span>
-                <span class="font-mono text-gray-400">x lembar</span>
+            <div class="flex items-center justify-between py-1 px-1 rounded hover:bg-gray-50 border-b border-gray-100">
+              <span class="text-[11px] font-bold text-blue-700 font-mono">50.000</span>
+              <div class="flex items-center gap-1">
+                <span class="text-[10px] text-gray-400 font-mono">×</span>
+                <input
+                  v-model.number="counts.c50k"
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  class="w-12 h-6 text-center font-mono font-bold text-xs bg-slate-50 hover:bg-slate-100 focus:bg-white border border-gray-300 focus:border-blue-500 rounded outline-none"
+                />
               </div>
-              <input
-                v-model.number="counts.c50k"
-                type="number"
-                min="0"
-                class="w-full px-2 py-1 bg-white border border-gray-300 rounded text-xs font-mono font-bold text-center focus:ring-1 focus:ring-blue-500 outline-none"
-              />
-              <span class="block text-[10px] text-right font-mono text-gray-500 mt-1">
-                Rp {{ formatRupiah(counts.c50k * 50000) }}
+              <span class="text-[10.5px] font-mono text-gray-700 font-semibold text-right min-w-[54px]">
+                {{ formatRupiah(counts.c50k * 50000) }}
               </span>
             </div>
 
             <!-- 20k -->
-            <div class="p-2 border border-gray-200 rounded bg-gray-50/50">
-              <div class="flex justify-between items-center text-[10px] text-gray-600 mb-1">
-                <span class="font-bold text-emerald-700">Rp 20.000</span>
-                <span class="font-mono text-gray-400">x lembar</span>
+            <div class="flex items-center justify-between py-1 px-1 rounded hover:bg-gray-50 border-b border-gray-100">
+              <span class="text-[11px] font-bold text-emerald-700 font-mono">20.000</span>
+              <div class="flex items-center gap-1">
+                <span class="text-[10px] text-gray-400 font-mono">×</span>
+                <input
+                  v-model.number="counts.c20k"
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  class="w-12 h-6 text-center font-mono font-bold text-xs bg-slate-50 hover:bg-slate-100 focus:bg-white border border-gray-300 focus:border-blue-500 rounded outline-none"
+                />
               </div>
-              <input
-                v-model.number="counts.c20k"
-                type="number"
-                min="0"
-                class="w-full px-2 py-1 bg-white border border-gray-300 rounded text-xs font-mono font-bold text-center focus:ring-1 focus:ring-blue-500 outline-none"
-              />
-              <span class="block text-[10px] text-right font-mono text-gray-500 mt-1">
-                Rp {{ formatRupiah(counts.c20k * 20000) }}
+              <span class="text-[10.5px] font-mono text-gray-700 font-semibold text-right min-w-[54px]">
+                {{ formatRupiah(counts.c20k * 20000) }}
               </span>
             </div>
 
             <!-- 10k -->
-            <div class="p-2 border border-gray-200 rounded bg-gray-50/50">
-              <div class="flex justify-between items-center text-[10px] text-gray-600 mb-1">
-                <span class="font-bold text-purple-700">Rp 10.000</span>
-                <span class="font-mono text-gray-400">x lembar</span>
+            <div class="flex items-center justify-between py-1 px-1 rounded hover:bg-gray-50 border-b border-gray-100">
+              <span class="text-[11px] font-bold text-purple-700 font-mono">10.000</span>
+              <div class="flex items-center gap-1">
+                <span class="text-[10px] text-gray-400 font-mono">×</span>
+                <input
+                  v-model.number="counts.c10k"
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  class="w-12 h-6 text-center font-mono font-bold text-xs bg-slate-50 hover:bg-slate-100 focus:bg-white border border-gray-300 focus:border-blue-500 rounded outline-none"
+                />
               </div>
-              <input
-                v-model.number="counts.c10k"
-                type="number"
-                min="0"
-                class="w-full px-2 py-1 bg-white border border-gray-300 rounded text-xs font-mono font-bold text-center focus:ring-1 focus:ring-blue-500 outline-none"
-              />
-              <span class="block text-[10px] text-right font-mono text-gray-500 mt-1">
-                Rp {{ formatRupiah(counts.c10k * 10000) }}
+              <span class="text-[10.5px] font-mono text-gray-700 font-semibold text-right min-w-[54px]">
+                {{ formatRupiah(counts.c10k * 10000) }}
               </span>
             </div>
 
             <!-- 5k -->
-            <div class="p-2 border border-gray-200 rounded bg-gray-50/50">
-              <div class="flex justify-between items-center text-[10px] text-gray-600 mb-1">
-                <span class="font-bold text-amber-700">Rp 5.000</span>
-                <span class="font-mono text-gray-400">x lembar</span>
+            <div class="flex items-center justify-between py-1 px-1 rounded hover:bg-gray-50 border-b border-gray-100">
+              <span class="text-[11px] font-bold text-amber-700 font-mono">5.000</span>
+              <div class="flex items-center gap-1">
+                <span class="text-[10px] text-gray-400 font-mono">×</span>
+                <input
+                  v-model.number="counts.c5k"
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  class="w-12 h-6 text-center font-mono font-bold text-xs bg-slate-50 hover:bg-slate-100 focus:bg-white border border-gray-300 focus:border-blue-500 rounded outline-none"
+                />
               </div>
-              <input
-                v-model.number="counts.c5k"
-                type="number"
-                min="0"
-                class="w-full px-2 py-1 bg-white border border-gray-300 rounded text-xs font-mono font-bold text-center focus:ring-1 focus:ring-blue-500 outline-none"
-              />
-              <span class="block text-[10px] text-right font-mono text-gray-500 mt-1">
-                Rp {{ formatRupiah(counts.c5k * 5000) }}
+              <span class="text-[10.5px] font-mono text-gray-700 font-semibold text-right min-w-[54px]">
+                {{ formatRupiah(counts.c5k * 5000) }}
               </span>
             </div>
 
             <!-- 2k -->
-            <div class="p-2 border border-gray-200 rounded bg-gray-50/50">
-              <div class="flex justify-between items-center text-[10px] text-gray-600 mb-1">
-                <span class="font-bold text-gray-700">Rp 2.000</span>
-                <span class="font-mono text-gray-400">x lembar</span>
+            <div class="flex items-center justify-between py-1 px-1 rounded hover:bg-gray-50 border-b border-gray-100">
+              <span class="text-[11px] font-bold text-gray-700 font-mono">2.000</span>
+              <div class="flex items-center gap-1">
+                <span class="text-[10px] text-gray-400 font-mono">×</span>
+                <input
+                  v-model.number="counts.c2k"
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  class="w-12 h-6 text-center font-mono font-bold text-xs bg-slate-50 hover:bg-slate-100 focus:bg-white border border-gray-300 focus:border-blue-500 rounded outline-none"
+                />
               </div>
-              <input
-                v-model.number="counts.c2k"
-                type="number"
-                min="0"
-                class="w-full px-2 py-1 bg-white border border-gray-300 rounded text-xs font-mono font-bold text-center focus:ring-1 focus:ring-blue-500 outline-none"
-              />
-              <span class="block text-[10px] text-right font-mono text-gray-500 mt-1">
-                Rp {{ formatRupiah(counts.c2k * 2000) }}
+              <span class="text-[10.5px] font-mono text-gray-700 font-semibold text-right min-w-[54px]">
+                {{ formatRupiah(counts.c2k * 2000) }}
               </span>
             </div>
 
             <!-- 1k -->
-            <div class="p-2 border border-gray-200 rounded bg-gray-50/50">
-              <div class="flex justify-between items-center text-[10px] text-gray-600 mb-1">
-                <span class="font-bold text-cyan-700">Rp 1.000</span>
-                <span class="font-mono text-gray-400">x lembar</span>
+            <div class="flex items-center justify-between py-1 px-1 rounded hover:bg-gray-50 border-b border-gray-100">
+              <span class="text-[11px] font-bold text-cyan-700 font-mono">1.000</span>
+              <div class="flex items-center gap-1">
+                <span class="text-[10px] text-gray-400 font-mono">×</span>
+                <input
+                  v-model.number="counts.c1k"
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  class="w-12 h-6 text-center font-mono font-bold text-xs bg-slate-50 hover:bg-slate-100 focus:bg-white border border-gray-300 focus:border-blue-500 rounded outline-none"
+                />
               </div>
-              <input
-                v-model.number="counts.c1k"
-                type="number"
-                min="0"
-                class="w-full px-2 py-1 bg-white border border-gray-300 rounded text-xs font-mono font-bold text-center focus:ring-1 focus:ring-blue-500 outline-none"
-              />
-              <span class="block text-[10px] text-right font-mono text-gray-500 mt-1">
-                Rp {{ formatRupiah(counts.c1k * 1000) }}
+              <span class="text-[10.5px] font-mono text-gray-700 font-semibold text-right min-w-[54px]">
+                {{ formatRupiah(counts.c1k * 1000) }}
               </span>
             </div>
 
             <!-- Coins -->
-            <div class="p-2 border border-gray-200 rounded bg-gray-50/50">
-              <div class="flex justify-between items-center text-[10px] text-gray-600 mb-1">
-                <span class="font-bold text-slate-700 flex items-center gap-1">
-                  <Coins :size="11" /> Koin / Receh
-                </span>
-                <span class="font-mono text-gray-400">Rp total</span>
+            <div class="flex items-center justify-between py-1 px-1 rounded hover:bg-gray-50 border-b border-gray-100">
+              <span class="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                <Coins :size="11" class="text-slate-500" /> Koin
+              </span>
+              <div class="flex items-center gap-1">
+                <span class="text-[10px] text-gray-400 font-mono">Rp</span>
+                <input
+                  v-model.number="counts.cCoins"
+                  type="number"
+                  min="0"
+                  step="100"
+                  placeholder="0"
+                  class="w-14 h-6 text-right px-1 font-mono font-bold text-xs bg-slate-50 hover:bg-slate-100 focus:bg-white border border-gray-300 focus:border-blue-500 rounded outline-none"
+                />
               </div>
-              <input
-                v-model.number="counts.cCoins"
-                type="number"
-                min="0"
-                class="w-full px-2 py-1 bg-white border border-gray-300 rounded text-xs font-mono font-bold text-center focus:ring-1 focus:ring-blue-500 outline-none"
-              />
-              <span class="block text-[10px] text-right font-mono text-gray-500 mt-1">
-                Rp {{ formatRupiah(counts.cCoins || 0) }}
+              <span class="text-[10.5px] font-mono text-gray-700 font-semibold text-right min-w-[54px]">
+                {{ formatRupiah(counts.cCoins || 0) }}
               </span>
             </div>
           </div>
 
-          <!-- Mode 2: Direct Input -->
-          <div v-else class="space-y-2 py-2">
-            <label class="block text-[11px] font-semibold text-gray-700">
-              Total Uang Fisik yang Dihitung di Laci Kasir:
+          <!-- Mode 2: Direct Input (Compact Inline) -->
+          <div v-else class="flex items-center justify-between py-2 px-1 text-xs">
+            <label class="font-semibold text-gray-700">
+              Total Uang Fisik di Laci:
             </label>
-            <div class="relative max-w-sm">
-              <span class="absolute left-3 top-2.5 text-xs font-bold text-gray-400 font-mono">Rp</span>
+            <div class="relative w-44">
+              <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 font-mono">Rp</span>
               <input
                 :value="formatRupiah(directCash)"
                 @input="onDirectInput"
                 type="text"
                 placeholder="0"
-                class="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm font-bold font-mono focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none"
+                class="w-full pl-8 pr-2.5 py-1.5 bg-slate-50 border border-gray-300 rounded font-bold font-mono text-xs focus:ring-1 focus:ring-blue-500 focus:bg-white outline-none text-right"
               />
             </div>
           </div>
         </div>
 
-        <!-- 3. REAL-TIME RECONCILIATION RESULT BADGE -->
+        <!-- 3. REAL-TIME RECONCILIATION RESULT BADGE (Compact) -->
         <div
-          class="p-4 rounded-lg border transition-all flex items-center justify-between"
+          class="py-2.5 px-3 rounded-lg border transition-all flex items-center justify-between"
           :class="
             discrepancy === 0
               ? 'bg-emerald-50 border-emerald-300 text-emerald-950'
@@ -488,9 +498,9 @@ bindModalLock(() => props.isOpen);
                 : 'bg-amber-50 border-amber-300 text-amber-950'
           "
         >
-          <div class="flex items-center gap-3">
+          <div class="flex items-center gap-2.5">
             <div
-              class="p-2 rounded-full shrink-0"
+              class="p-1.5 rounded-full shrink-0"
               :class="
                 discrepancy === 0
                   ? 'bg-emerald-200 text-emerald-800'
@@ -499,32 +509,30 @@ bindModalLock(() => props.isOpen);
                     : 'bg-amber-200 text-amber-800'
               "
             >
-              <CheckCircle2 v-if="discrepancy === 0" :size="24" />
-              <AlertCircle v-else-if="discrepancy < 0" :size="24" />
-              <AlertTriangle v-else :size="24" />
+              <CheckCircle2 v-if="discrepancy === 0" :size="18" />
+              <AlertCircle v-else-if="discrepancy < 0" :size="18" />
+              <AlertTriangle v-else :size="18" />
             </div>
             <div>
-              <div class="flex items-center gap-2">
-                <span class="text-xs font-bold uppercase tracking-wider">
-                  {{
-                    discrepancy === 0
-                      ? 'KAS COCOK / PAS (100% BALANCE)'
-                      : discrepancy < 0
-                        ? 'KAS MINUS / TEKOR (UANG FISIK KURANG)'
-                        : 'KAS LEBIH (UANG FISIK LEBIH BANYAK)'
-                  }}
-                </span>
-              </div>
-              <p class="text-[11px] opacity-80 mt-0.5">
-                Uang Fisik Aktual: <strong>Rp {{ formatRupiah(actualCashTotal) }}</strong> vs Seharusnya: <strong>Rp {{ formatRupiah(expectedCash) }}</strong>
+              <span class="text-xs font-bold uppercase tracking-wider block">
+                {{
+                  discrepancy === 0
+                    ? 'KAS PAS (100% BALANCE)'
+                    : discrepancy < 0
+                      ? 'KAS MINUS / TEKOR'
+                      : 'KAS LEBIH'
+                }}
+              </span>
+              <p class="text-[10.5px] opacity-80">
+                Fisik: <strong>Rp {{ formatRupiah(actualCashTotal) }}</strong> vs Seharusnya: <strong>Rp {{ formatRupiah(expectedCash) }}</strong>
               </p>
             </div>
           </div>
 
-          <div class="text-right">
-            <span class="text-[10px] block opacity-70 font-semibold uppercase">Selisih Kas</span>
+          <div class="text-right shrink-0">
+            <span class="text-[9.5px] block opacity-70 font-semibold uppercase">Selisih</span>
             <span
-              class="text-base font-extrabold font-mono"
+              class="text-sm font-black font-mono"
               :class="
                 discrepancy === 0
                   ? 'text-emerald-700'
@@ -538,39 +546,46 @@ bindModalLock(() => props.isOpen);
           </div>
         </div>
 
-        <!-- 4. PEMINDAHAN KAS KE BENDAHARA (Poin 10) -->
-        <div class="p-3.5 bg-gradient-to-r from-blue-50/70 to-indigo-50/70 border border-blue-200/90 rounded-xl space-y-3">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <Coins :size="16" class="text-blue-700" />
-              <h3 class="font-bold text-gray-900 text-xs">Pemindahan Kas & Setoran ke Bendahara</h3>
+        <!-- 4. PEMINDAHAN KAS KE BENDAHARA (Compact, Tanpa Box Container) -->
+        <div class="space-y-1.5 pt-1.5 border-t border-gray-200">
+          <div class="flex items-center justify-between pb-1">
+            <div class="flex items-center gap-1.5 font-bold text-gray-800 text-xs">
+              <Coins :size="13" class="text-blue-700" />
+              <span>Pemindahan Kas & Setoran ke Bendahara</span>
             </div>
-            <span class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800">
-              Alokasi Kas Fisik Laci
+            <span class="text-[10px] font-mono text-gray-500">
+              Alokasi Kas Laci
             </span>
           </div>
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <!-- Disetor ke Bendahara -->
-            <div class="p-3 bg-white border border-blue-200 rounded-lg shadow-2xs">
-              <span class="text-[10px] text-gray-500 font-semibold uppercase tracking-wider block">
-                1. Disetor ke Bendahara (Setoran Tunai)
-              </span>
-              <span class="text-base font-black font-mono text-blue-700 block mt-1">
+          <div class="divide-y divide-gray-100 text-xs">
+            <!-- 1. Disetor ke Bendahara -->
+            <div class="flex items-center justify-between py-1.5 gap-2">
+              <div>
+                <span class="text-xs font-bold text-gray-800 block">
+                  1. Disetor ke Bendahara (Setoran Tunai)
+                </span>
+                <span class="text-[10px] text-gray-400 block">
+                  Uang fisik yang diserahkan ke bendahara toko
+                </span>
+              </div>
+              <span class="text-sm font-black font-mono text-blue-700 shrink-0">
                 Rp {{ formatRupiah(transferredToTreasury) }}
-              </span>
-              <span class="text-[10px] text-gray-400 block mt-0.5">
-                Uang yang diserahkan fisik ke bendahara toko
               </span>
             </div>
 
-            <!-- Sisa di Laci Kasir -->
-            <div class="p-3 bg-white border border-blue-200 rounded-lg shadow-2xs">
-              <label class="text-[10px] text-gray-500 font-semibold uppercase tracking-wider block mb-1">
-                2. Sisa di Laci (Modal Shift Berikutnya)
-              </label>
-              <div class="relative">
-                <span class="absolute left-2.5 top-1/2 -translate-y-1/2 font-mono font-bold text-gray-400 text-xs">Rp</span>
+            <!-- 2. Sisa di Laci Kasir -->
+            <div class="flex items-center justify-between py-1.5 gap-2">
+              <div>
+                <span class="text-xs font-bold text-gray-800 block">
+                  2. Sisa di Laci (Modal Shift Berikutnya)
+                </span>
+                <span class="text-[10px] text-gray-400 block">
+                  Ditinggal di register sebagai modal shift kasir berikutnya
+                </span>
+              </div>
+              <div class="relative w-32 shrink-0">
+                <span class="absolute left-2 top-1/2 -translate-y-1/2 font-mono font-bold text-gray-400 text-xs">Rp</span>
                 <input
                   v-model.number="retainedInDrawer"
                   type="number"
@@ -578,33 +593,30 @@ bindModalLock(() => props.isOpen);
                   :max="actualCashTotal"
                   step="1000"
                   placeholder="0"
-                  class="w-full pl-8 pr-2 py-1.5 border border-gray-300 rounded font-mono font-bold text-xs text-gray-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
+                  class="w-full pl-7 pr-2 py-1 bg-slate-50 border border-gray-300 rounded font-mono font-bold text-xs text-right text-gray-800 focus:ring-1 focus:ring-blue-500 focus:bg-white outline-none"
                 />
               </div>
-              <span class="text-[10px] text-gray-400 block mt-1">
-                Ditinggal di register sebagai modal kasir berikutnya
-              </span>
             </div>
-          </div>
 
-          <!-- Rekap QRIS & Non Tunai -->
-          <div class="flex items-center justify-between px-3 py-2 bg-white/80 border border-blue-100 rounded text-[11px] text-gray-700">
-            <span>Rekap Settlement Non-Tunai (QRIS & EDC Bank untuk Bendahara):</span>
-            <span class="font-mono font-bold text-indigo-700">Rp {{ formatRupiah(nonCashSales) }}</span>
+            <!-- 3. Rekap Settlement Non-Tunai -->
+            <div class="flex items-center justify-between py-1 text-[11px] text-gray-600">
+              <span>Rekap Settlement Non-Tunai (QRIS & EDC Bank):</span>
+              <span class="font-mono font-bold text-indigo-700">Rp {{ formatRupiah(nonCashSales) }}</span>
+            </div>
           </div>
         </div>
 
-        <!-- 5. Notes / Explanation -->
-        <div>
-          <label class="block text-[11px] font-bold text-gray-700 uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
-            <FileText :size="13" class="text-gray-500" />
-            Catatan Penutupan / Penjelasan Selisih (Jika ada)
+        <!-- 5. Notes / Explanation (Compact) -->
+        <div class="pt-1 border-t border-gray-200">
+          <label class="block text-[11px] font-bold text-gray-700 uppercase tracking-wide mb-1 flex items-center gap-1.5">
+            <FileText :size="12" class="text-gray-500" />
+            <span>Catatan Penutupan / Penjelasan Selisih (Jika ada)</span>
           </label>
           <textarea
             v-model="notes"
             rows="2"
-            placeholder="Contoh: Selisih Rp 2.000 karena pembeli tidak ambil kembalian / selisih tekor Rp 1.000 salah hitung..."
-            class="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
+            placeholder="Contoh: Selisih Rp 2.000 karena pembeli tidak ambil kembalian..."
+            class="w-full px-2.5 py-1.5 bg-slate-50 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:bg-white transition-all resize-none"
           ></textarea>
         </div>
       </div>
