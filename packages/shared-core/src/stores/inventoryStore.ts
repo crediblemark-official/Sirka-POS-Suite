@@ -108,6 +108,7 @@ export const useInventoryStore = defineStore('inventory', () => {
 
   function getCategoryColor(category: SupplierCategory): string | undefined {
     const found = categoryMarkups.value.find(c => c.category === category);
+    if (found?.color === 'stone') return 'sky';
     return found?.color;
   }
 

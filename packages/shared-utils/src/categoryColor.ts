@@ -126,15 +126,15 @@ export const CATEGORY_PALETTES: CategoryColorTheme[] = [
     bgLightHex: '#fdf2f8'
   },
   {
-    id: 'stone',
-    name: 'Cokelat Kayu / Kebersihan & Rumah Tangga',
-    hex: '#78716c',
-    gradientFrom: '#a8a29e',
-    gradientTo: '#57534e',
-    badgeBg: '#f5f5f4',
-    badgeText: '#44403c',
-    borderHex: '#78716c',
-    bgLightHex: '#fafaf9'
+    id: 'sky',
+    name: 'Biru Langit / Kebersihan & Rumah Tangga',
+    hex: '#0284c7',
+    gradientFrom: '#38bdf8',
+    gradientTo: '#0369a1',
+    badgeBg: '#e0f2fe',
+    badgeText: '#075985',
+    borderHex: '#0284c7',
+    bgLightHex: '#f0f9ff'
   },
   {
     id: 'lime',
@@ -187,20 +187,23 @@ function darkenHex(hex: string, factor = 0.55): string {
  */
 export function getCategoryTheme(categoryName: string, customColorOrId?: string): CategoryColorTheme {
   if (customColorOrId) {
-    const byId = CATEGORY_PALETTES.find(p => p.id === customColorOrId || p.hex.toLowerCase() === customColorOrId.toLowerCase());
+    const colorKey = (customColorOrId === 'stone' || customColorOrId === '#78716c' || customColorOrId === '#a8a29e')
+      ? 'sky'
+      : customColorOrId;
+    const byId = CATEGORY_PALETTES.find(p => p.id === colorKey || p.hex.toLowerCase() === colorKey.toLowerCase());
     if (byId) return byId;
 
-    if (customColorOrId.startsWith('#')) {
+    if (colorKey.startsWith('#')) {
       return {
         id: 'custom',
         name: 'Kustom',
-        hex: customColorOrId,
-        gradientFrom: customColorOrId,
-        gradientTo: customColorOrId,
-        badgeBg: `${customColorOrId}15`,
-        badgeText: darkenHex(customColorOrId),
-        borderHex: customColorOrId,
-        bgLightHex: `${customColorOrId}08`
+        hex: colorKey,
+        gradientFrom: colorKey,
+        gradientTo: colorKey,
+        badgeBg: `${colorKey}15`,
+        badgeText: darkenHex(colorKey),
+        borderHex: colorKey,
+        bgLightHex: `${colorKey}08`
       };
     }
   }

@@ -11,7 +11,6 @@ import {
   Coins,
   Plus,
   Minus,
-  Check,
   LayoutGrid,
   List,
   Layers,
@@ -443,26 +442,16 @@ defineExpose({
           class="flex flex-col items-center justify-between p-2.5 sm:p-3 border-b border-r border-slate-200 cursor-pointer transition-all select-none relative overflow-hidden group active:scale-[0.98] active:brightness-92 min-h-[145px]"
           :style="{
             backgroundColor: selectedProductId === prod.id
-              ? (getProductTheme(prod).badgeBg || '#e2e8f0')
-              : (getProductTheme(prod).bgLightHex || getProductTheme(prod).badgeBg || '#ffffff')
+              ? (getProductTheme(prod).badgeBg || '#e0f2fe')
+              : (getProductTheme(prod).bgLightHex || '#ffffff')
           }"
           :class="[
             selectedProductId === prod.id
-              ? 'ring-2 ring-inset ring-black/20 z-10 font-bold'
+              ? 'ring-2 ring-inset ring-blue-600 z-10 font-bold'
               : 'hover:brightness-96'
           ]"
           @click="handleAddProductDirect(prod)"
         >
-          <!-- In-Cart Quantity Indicator Badge (Top Right) -->
-          <div
-            v-if="getCartItemQty(prod.id) > 0"
-            class="absolute top-1 right-1 px-1.5 py-0.5 rounded-full bg-blue-600 text-white font-mono text-[9.5px] font-bold shadow-xs flex items-center gap-0.5 z-10 animate-scale-in"
-            :title="`${getCartItemQty(prod.id)} item di keranjang`"
-          >
-            <Check :size="10" />
-            <span>{{ getCartItemQty(prod.id) }}</span>
-          </div>
-
           <!-- Graphic Icon with Stock in Top Tab & Unit in Center Label (Desktop Parity) -->
           <div class="relative w-16 h-13 flex items-center justify-center mb-1.5 mt-0.5 group-hover:scale-105 transition-transform shrink-0">
             <!-- Folder Body with Category Gradient -->
@@ -501,10 +490,16 @@ defineExpose({
             {{ prod.name }}
           </span>
 
-          <!-- Price Label at Bottom -->
-          <div class="mt-auto w-full flex justify-center items-center pt-0.5">
+          <!-- Price & In-Cart Count at Bottom (e.g. "Rp 52.500 x 3") -->
+          <div class="mt-auto w-full flex justify-center items-center gap-1.5 pt-0.5 flex-wrap">
             <span class="text-xs font-extrabold text-slate-900 font-mono">
               Rp {{ formatRupiah(prod.lastSellPrice) }}
+            </span>
+            <span
+              v-if="getCartItemQty(prod.id) > 0"
+              class="text-[11px] font-black font-mono text-blue-700 bg-blue-100/90 px-1.5 py-0.5 rounded-md border border-blue-300 shadow-2xs animate-scale-in inline-flex items-center"
+            >
+              x {{ getCartItemQty(prod.id) }}
             </span>
           </div>
         </div>
@@ -543,7 +538,15 @@ defineExpose({
                   </span>
                 </td>
                 <td class="p-2.5 text-right font-mono font-bold text-slate-900">
-                  Rp {{ formatRupiah(prod.lastSellPrice) }}
+                  <div class="inline-flex items-center justify-end gap-1.5">
+                    <span>Rp {{ formatRupiah(prod.lastSellPrice) }}</span>
+                    <span
+                      v-if="getCartItemQty(prod.id) > 0"
+                      class="text-[10.5px] font-black text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded-md border border-blue-300 shadow-2xs"
+                    >
+                      x{{ getCartItemQty(prod.id) }}
+                    </span>
+                  </div>
                 </td>
                 <td class="p-2.5 text-center font-mono">
                   <span
