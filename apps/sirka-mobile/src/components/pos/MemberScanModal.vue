@@ -187,9 +187,27 @@ async function startWebcamScanner() {
 
     mediaStream = stream;
     if (videoRef.value) {
-      videoRef.value.srcObject = stream;
-      videoRef.value.setAttribute('playsinline', 'true');
-      await videoRef.value.play();
+      const video = videoRef.value;
+      video.srcObject = stream;
+      video.setAttribute('playsinline', 'true');
+      video.muted = true;
+
+      if (video.readyState < 1) {
+        await new Promise<void>((resolve) => {
+          const onLoaded = () => {
+            video.removeEventListener('loadedmetadata', onLoaded);
+            resolve();
+          };
+          video.addEventListener('loadedmetadata', onLoaded, { once: true });
+          setTimeout(onLoaded, 500);
+        });
+      }
+
+      try {
+        await video.play();
+      } catch (e: any) {
+        if (e?.name !== 'AbortError') console.warn('Webcam play error:', e);
+      }
       startScanLoop();
       setTimeout(() => {
         scanInputRef.value?.focus();

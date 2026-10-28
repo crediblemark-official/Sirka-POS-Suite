@@ -496,13 +496,29 @@ async function startCameraScanner() {
 
     // Pasang stream ke video element native tanpa autoplay ganda
     if (videoRef.value) {
-      videoRef.value.srcObject = stream;
-      videoRef.value.setAttribute('playsinline', 'true');
-      videoRef.value.muted = true;
+      const video = videoRef.value;
+      video.srcObject = stream;
+      video.setAttribute('playsinline', 'true');
+      video.muted = true;
+
+      // Tunggu hingga metadata video siap agar pemutaran tidak di-abort browser
+      if (video.readyState < 1) {
+        await new Promise<void>((resolve) => {
+          const onLoaded = () => {
+            video.removeEventListener('loadedmetadata', onLoaded);
+            resolve();
+          };
+          video.addEventListener('loadedmetadata', onLoaded, { once: true });
+          setTimeout(onLoaded, 500);
+        });
+      }
+
       try {
-        await videoRef.value.play();
-      } catch (playErr) {
-        console.warn('Video play caught:', playErr);
+        await video.play();
+      } catch (playErr: any) {
+        if (playErr?.name !== 'AbortError') {
+          console.warn('Video play caught:', playErr);
+        }
       }
     }
 
