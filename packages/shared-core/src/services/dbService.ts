@@ -323,18 +323,30 @@ export const dbService = {
 
   // 5. WHITE-LABEL STORE SETTINGS & BRANDING
   async getSettings(): Promise<StoreSetting[]> {
-    return safeInvoke<StoreSetting[]>('db_get_settings', undefined, () =>
-      getLocal<StoreSetting[]>('kasir_citra_settings_v1', [])
-    );
+    return safeInvoke<StoreSetting[]>('db_get_settings', undefined, () => {
+      const raw = getLocal<any>('kasir_citra_settings_v1', []);
+      if (Array.isArray(raw)) return raw;
+      if (raw && typeof raw === 'object') {
+        return Object.entries(raw).map(([key, value]) => ({ key, value: String(value) }));
+      }
+      return [];
+    });
   },
 
   async updateSetting(key: string, value: string): Promise<void> {
     return safeInvoke('db_update_setting', { key, value }, () => {
-      const list = getLocal<StoreSetting[]>('kasir_citra_settings_v1', []);
-      const idx = list.findIndex(s => s.key === key);
-      if (idx >= 0) list[idx].value = value;
-      else list.push({ key, value });
-      setLocal('kasir_citra_settings_v1', list);
+      const raw = getLocal<any>('kasir_citra_settings_v1', {});
+      if (Array.isArray(raw)) {
+        const idx = raw.findIndex((s: any) => s && s.key === key);
+        if (idx >= 0) raw[idx].value = value;
+        else raw.push({ key, value });
+        setLocal('kasir_citra_settings_v1', raw);
+      } else if (raw && typeof raw === 'object') {
+        raw[key] = value;
+        setLocal('kasir_citra_settings_v1', raw);
+      } else {
+        setLocal('kasir_citra_settings_v1', { [key]: value });
+      }
     });
   },
 
