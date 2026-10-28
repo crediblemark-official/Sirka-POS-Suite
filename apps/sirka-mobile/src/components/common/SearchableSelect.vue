@@ -395,7 +395,6 @@ defineExpose({
             >
               <Plus :size="14" />
               <span class="truncate">Tambah "{{ searchQuery.trim() }}" Baru</span>
-              <kbd class="ml-1 px-1.5 py-0.2 bg-black/20 text-white rounded text-[10px] font-mono font-normal">Tekan Enter ↵</kbd>
             </button>
           </div>
 

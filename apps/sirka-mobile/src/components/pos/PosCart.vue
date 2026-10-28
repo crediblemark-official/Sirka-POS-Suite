@@ -290,23 +290,21 @@ onUnmounted(() => {
           type="button"
           class="pos-mode-switch-btn flex-1 flex items-center justify-center gap-1.5 py-1 px-2 rounded text-[11px] font-bold cursor-pointer transition-all"
           :class="posStore.saleMode === 'B2B' ? 'active bg-white text-indigo-700 shadow-xs' : 'text-gray-600 hover:text-gray-900'"
-          title="Mode Grosir / B2B (Tekan Alt+G)"
+          title="Mode Grosir / B2B"
           @click="posStore.setSaleMode('B2B')"
         >
           <Building :size="13" />
           <span>🏢 Grosir (B2B)</span>
-          <kbd class="px-1 py-0.2 bg-black/10 rounded text-[9px] font-mono opacity-70">Alt+G</kbd>
         </button>
         <button
           type="button"
           class="pos-mode-switch-btn flex-1 flex items-center justify-center gap-1.5 py-1 px-2 rounded text-[11px] font-bold cursor-pointer transition-all"
           :class="posStore.saleMode === 'B2C' ? 'active bg-white text-teal-700 shadow-xs' : 'text-gray-600 hover:text-gray-900'"
-          title="Mode Eceran / Retail (Tekan Alt+E)"
+          title="Mode Eceran / Retail"
           @click="posStore.setSaleMode('B2C')"
         >
           <ShoppingBag :size="13" />
           <span>🛒 Eceran (B2C)</span>
-          <kbd class="px-1 py-0.2 bg-black/10 rounded text-[9px] font-mono opacity-70">Alt+E</kbd>
         </button>
       </div>
 
@@ -393,15 +391,15 @@ onUnmounted(() => {
             <span>{{ posStore.saleMode === 'B2B' ? 'Pembeli Grosir / B2B' : 'Pembeli / Pelanggan Eceran' }}</span>
           </div>
 
-          <!-- Tombol Aksi Scan Kartu Member F7 -->
+          <!-- Tombol Aksi Scan Kartu Member -->
           <button
             type="button"
             class="flex items-center gap-1 px-2.5 py-0.5 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[10.5px] cursor-pointer shadow-xs transition-all active:scale-95"
-            title="Scan Barcode / QR / Nomor Kartu Member (Tekan F7)"
+            title="Scan Barcode / QR / Nomor Kartu Member"
             @click="showScanMemberModal = true"
           >
             <QrCode :size="12" />
-            <span>Scan Member (F7)</span>
+            <span>Scan Member</span>
           </button>
         </div>
 
@@ -412,7 +410,7 @@ onUnmounted(() => {
           :options="buyerOptions"
           :placeholder="posStore.saleMode === 'B2B' ? 'Cari / Pilih Pembeli...' : 'Cari / Pilih Pelanggan...'"
           :search-placeholder="posStore.saleMode === 'B2B' ? 'Ketik nama pembeli atau kode...' : 'Ketik nama / no. telepon...'"
-          hotkey="F4"
+          hotkey=""
           allow-create
           @create="handleOpenCreateBuyerModal"
         >
@@ -494,16 +492,16 @@ onUnmounted(() => {
 
         <!-- Tombol Aksi Parkir & Tanggal -->
         <div class="flex items-center gap-1.5 shrink-0">
-          <!-- Tombol Parkir / Hold Cart (F6) -->
+          <!-- Tombol Parkir / Hold Cart -->
           <button
             v-if="posStore.cartItems.length > 0"
             type="button"
             class="btn-parkir px-2 py-0.5 rounded text-[10.5px] font-bold flex items-center gap-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs active:scale-95 cursor-pointer whitespace-nowrap transition-all"
-            title="Tahan keranjang belanja saat ini untuk melayani pembeli lain (F6)"
+            title="Tahan keranjang belanja saat ini untuk melayani pembeli lain"
             @click="handleHoldCart"
           >
             <Clock :size="11" class="text-amber-700" />
-            <span>Parkir (F6)</span>
+            <span>Parkir</span>
           </button>
 
           <!-- Tombol / Badge Antrean Parkir jika ada keranjang yang ditahan -->
@@ -726,10 +724,10 @@ onUnmounted(() => {
           v-if="!shiftStore.isShiftActive"
           class="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white rounded font-bold text-xs cursor-pointer shadow-sm transition-all"
           @click="shiftStore.showOpenShiftModal = true"
-          title="Buka shift kasir terlebih dahulu untuk memproses transaksi (F12)"
+          title="Buka shift kasir terlebih dahulu untuk memproses transaksi"
         >
           <LogIn :size="15" />
-          <span>BUKA SHIFT DULU UNTUK BAYAR (F12)</span>
+          <span>BUKA SHIFT DULU UNTUK BAYAR</span>
         </button>
 
         <button
@@ -740,7 +738,7 @@ onUnmounted(() => {
           @click="handleOpenPaymentModal"
         >
           <Printer :size="16" />
-          <span>BAYAR & CETAK NOTA (F12)</span>
+          <span>BAYAR & CETAK NOTA</span>
         </button>
       </div>
     </div>

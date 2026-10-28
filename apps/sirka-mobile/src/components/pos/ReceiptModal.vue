@@ -292,7 +292,7 @@ bindModalLock(() => !!props.transaction);
 
         <button
           class="p-1 text-gray-400 hover:text-black rounded cursor-pointer transition-colors"
-          title="Tutup (Esc)"
+          title="Tutup"
           @click="emit('close')"
         >
           <X :size="16" />
@@ -494,7 +494,7 @@ bindModalLock(() => !!props.transaction);
           <button
             type="button"
             class="h-9 flex items-center gap-1 px-3 bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-gray-700 rounded-lg font-semibold text-xs whitespace-nowrap cursor-pointer border border-gray-300 transition-colors"
-            title="Tutup nota (Esc)"
+            title="Tutup nota"
             @click="emit('close')"
           >
             <span>Tutup</span>

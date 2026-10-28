@@ -668,7 +668,7 @@ async function handleDelete() {
         :options="productOptions"
         placeholder="Cari produk katalog atau ketik nama baru..."
         search-placeholder="Ketik nama barang / SKU / barcode..."
-        hotkey="F4"
+        hotkey=""
         :allow-create="true"
         create-label="Tambah Produk Baru"
         :clearable="true"
@@ -679,7 +679,7 @@ async function handleDelete() {
 
       <div class="flex items-center justify-between text-[10.5px] text-gray-500 pt-0.5">
         <span class="truncate">
-          Ketik nama barang lalu tekan <kbd class="px-1 py-0.2 bg-white border border-gray-300 rounded font-mono font-bold text-gray-700">Enter ↵</kbd>
+          Ketik nama barang atau pilih dari katalog
         </span>
         <button
           v-if="isExistingProduct"

@@ -325,7 +325,7 @@ function selectProductFromTable(productId: string) {
           <button
             type="button"
             class="p-1.5 rounded-md hover:bg-rose-100 text-gray-400 hover:text-rose-700 cursor-pointer transition-colors ml-1"
-            title="Tutup (Esc)"
+            title="Tutup"
             @click="movementStore.closeStockCard"
           >
             <X :size="18" />
@@ -583,7 +583,6 @@ function selectProductFromTable(productId: string) {
           <template v-else>
             Menampilkan buku mutasi audit log untuk <strong class="text-gray-800 font-bold">{{ inventoryStore.products.length }} produk</strong>
           </template>
-          <span class="text-gray-400 ml-2 font-mono text-[11px]">(Tekan Esc untuk menutup)</span>
         </span>
 
         <div class="flex items-center gap-2">

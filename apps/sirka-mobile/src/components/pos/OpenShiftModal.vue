@@ -545,15 +545,9 @@ bindModalLock(() => props.isOpen);
 
       <!-- Modal Footer (Native Explorer Theme) -->
       <div
-        class="px-5 py-3.5 border-t border-gray-200 flex items-center justify-between gap-4 select-none shrink-0"
+        class="px-5 py-3.5 border-t border-gray-200 flex items-center justify-end gap-2.5 select-none shrink-0"
         style="background-color: var(--surface-ribbon, #f6f5f2);"
       >
-        <!-- Shortcut Hint -->
-        <div class="flex items-center gap-1.5 text-xs text-gray-500 whitespace-nowrap">
-          <kbd class="px-1.5 py-0.5 bg-white border border-gray-300 rounded text-[10px] font-mono text-gray-600 shadow-2xs font-semibold">Ctrl + Enter</kbd>
-          <span class="text-[11px] text-gray-500">Konfirmasi</span>
-        </div>
-
         <!-- Tombol Aksi -->
         <div class="flex items-center gap-2.5 shrink-0">
           <button

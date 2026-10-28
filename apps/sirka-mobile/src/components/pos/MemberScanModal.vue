@@ -420,7 +420,7 @@ bindModalLock(() => props.isOpen);
             <ScanLine :size="16" class="absolute left-3 top-3 text-amber-600 animate-pulse" />
           </div>
           <span class="text-[10px] text-gray-500 mt-1 block">
-            💡 Tembak barcode scanner USB ke sini atau ketik nomor lalu tekan <strong>Enter</strong>.
+            💡 Tembak barcode scanner atau ketik nomor kartu / No. HP member.
           </span>
         </div>
 
@@ -578,7 +578,7 @@ bindModalLock(() => props.isOpen);
             class="text-[11px] text-gray-500 hover:text-gray-800 cursor-pointer"
             @click="handleClose"
           >
-            Batal (Esc)
+            Batal
           </button>
           <button
             type="button"

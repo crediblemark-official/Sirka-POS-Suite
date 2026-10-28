@@ -611,10 +611,9 @@ bindModalLock(() => props.isOpen);
 
       <!-- Modal Footer -->
       <div
-        class="px-5 py-3 border-t border-gray-200 flex items-center justify-between gap-3 select-none shrink-0"
+        class="px-5 py-3 border-t border-gray-200 flex items-center justify-end gap-2 select-none shrink-0"
         style="background-color: var(--surface-ribbon, #f6f5f2);"
       >
-        <span class="text-[10px] text-gray-400 font-mono">Ctrl + Enter untuk tutup shift</span>
         <div class="flex items-center gap-2">
           <button
             type="button"

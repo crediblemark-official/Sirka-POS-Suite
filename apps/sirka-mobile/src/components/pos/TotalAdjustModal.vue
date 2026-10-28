@@ -453,7 +453,7 @@ bindModalLock(() => props.isOpen);
           class="px-3 py-1.5 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded font-medium cursor-pointer transition-colors"
           @click="emit('close')"
         >
-          Batal (Esc)
+          Batal
         </button>
         <button
           type="button"
@@ -461,7 +461,7 @@ bindModalLock(() => props.isOpen);
           @click="handleSave"
         >
           <Check :size="14" />
-          <span>Terapkan Total (Enter)</span>
+          <span>Terapkan Total</span>
         </button>
       </div>
     </div>

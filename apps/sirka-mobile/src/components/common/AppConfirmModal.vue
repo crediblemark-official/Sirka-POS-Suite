@@ -107,7 +107,6 @@ bindModalLock(() => isOpen.value);
             @click="handleCancel"
           >
             <span>{{ options.cancelText }}</span>
-            <kbd class="text-[9.5px] bg-gray-100 border border-gray-300 rounded px-1 text-gray-500 font-mono">Esc</kbd>
           </button>
 
           <button
@@ -122,7 +121,6 @@ bindModalLock(() => isOpen.value);
           >
             <Trash2 v-if="options.type === 'danger'" :size="13" />
             <span>{{ options.confirmText }}</span>
-            <kbd class="text-[9.5px] bg-white/20 rounded px-1 py-0.2 text-white font-mono">↵ Enter</kbd>
           </button>
         </div>
       </div>

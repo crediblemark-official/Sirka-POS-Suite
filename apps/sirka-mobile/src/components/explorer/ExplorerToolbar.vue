@@ -321,14 +321,11 @@ defineExpose({
             class="outline-none text-xs w-full bg-transparent placeholder-gray-400 focus:placeholder-gray-300 font-sans"
             style="color: var(--surface-text);"
           />
-          <kbd class="address-kbd px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded font-mono text-[9px] border border-gray-200 shrink-0 select-none" title="Tekan F3 untuk cari langsung">
-            F3
-          </kbd>
           <button
             v-if="searchQuery"
             type="button"
             class="text-gray-400 hover:text-gray-600 cursor-pointer p-0.5 shrink-0"
-            title="Bersihkan pencarian (Esc)"
+            title="Bersihkan pencarian"
             @click.stop="clearSearch"
           >
             <X :size="12" />
@@ -349,9 +346,6 @@ defineExpose({
           </div>
           <div class="flex items-center gap-1.5 text-gray-400 shrink-0 opacity-60 group-hover/address:opacity-100 transition-opacity">
             <Search :size="12" />
-            <kbd class="address-kbd px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded font-mono text-[9px] border border-gray-200" title="Arahkan kursor atau tekan F3 untuk mencari">
-              F3
-            </kbd>
           </div>
         </div>
       </Transition>

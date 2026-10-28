@@ -147,7 +147,7 @@ bindModalLock(() => props.isOpen);
           <button
             type="button"
             class="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-200/60 rounded-lg cursor-pointer transition-colors"
-            title="Tutup (Esc)"
+            title="Tutup"
             @click="emit('close')"
           >
             <X :size="16" />

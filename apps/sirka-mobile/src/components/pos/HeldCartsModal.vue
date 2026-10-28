@@ -106,7 +106,7 @@ bindModalLock(() => props.isOpen);
         <div v-if="posStore.heldCarts.length === 0" class="py-12 text-center text-gray-400 space-y-2">
           <PackageCheck :size="36" class="mx-auto text-gray-300" />
           <p class="font-semibold text-gray-600">Tidak ada antrean belanjaan yang sedang diparkir</p>
-          <p class="text-[11px] text-gray-400">Tekan tombol <strong>Parkir (F6)</strong> di meja kasir saat ada pembeli yang ingin mengambil barang tambahan.</p>
+          <p class="text-[11px] text-gray-400">Gunakan tombol <strong>Parkir</strong> di meja kasir saat ada pembeli yang ingin mengambil barang tambahan.</p>
         </div>
 
         <div
@@ -188,7 +188,7 @@ bindModalLock(() => props.isOpen);
           class="px-3 py-1 bg-white hover:bg-gray-100 border border-gray-300 rounded text-xs font-semibold text-gray-700 cursor-pointer transition-colors"
           @click="emit('close')"
         >
-          Tutup (Esc)
+          Tutup
         </button>
       </div>
     </div>
