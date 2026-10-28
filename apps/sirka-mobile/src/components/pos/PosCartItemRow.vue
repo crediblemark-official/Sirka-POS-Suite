@@ -156,7 +156,7 @@ function triggerDelete(direction = -1) {
 
 <template>
   <div
-    class="relative overflow-hidden border-b border-slate-100 last:border-b-0 touch-pan-y select-none"
+    class="relative overflow-hidden border-b border-slate-300 last:border-b-0 touch-pan-y select-none"
     :class="translateX !== 0 ? 'bg-rose-600' : 'bg-white'"
   >
     <!-- Left Delete Action (Muncul saat geser ke KANAN) -->
@@ -211,10 +211,10 @@ function triggerDelete(direction = -1) {
             <!-- Jika harga dinego lebih rendah dari harga master -->
             <template v-if="masterPrice > item.sellPrice">
               <span class="line-through text-slate-400 text-xs font-mono">
-                {{ formatRupiah(masterPrice) }}
+                Rp {{ formatRupiah(masterPrice) }}
               </span>
               <span class="text-sm font-black text-rose-600 font-mono group-hover/price:underline">
-                {{ formatRupiah(item.sellPrice) }}
+                Rp {{ formatRupiah(item.sellPrice) }}
               </span>
               <select
                 v-if="availableUnits.length > 1"
@@ -238,7 +238,7 @@ function triggerDelete(direction = -1) {
             <!-- Normal: Warna kontras jelas & nominal terbaca -->
             <template v-else>
               <span class="text-sm font-black text-slate-900 font-mono group-hover/price:underline">
-                {{ formatRupiah(item.sellPrice) }}
+                Rp {{ formatRupiah(item.sellPrice) }}
               </span>
               <select
                 v-if="availableUnits.length > 1"
@@ -293,7 +293,7 @@ function triggerDelete(direction = -1) {
 
         <!-- Kanan: Subtotal Nominal (Jelas, Tebal & Terbaca) -->
         <span class="font-black font-mono text-slate-900 text-sm sm:text-base text-right shrink-0 min-w-[70px]">
-          {{ formatRupiah(item.subtotalSell) }}
+          Rp {{ formatRupiah(item.subtotalSell) }}
         </span>
       </div>
 

@@ -530,7 +530,7 @@ onUnmounted(() => {
     </div>
 
     <!-- Items List Area (Clean Divider Lines, No Box Cards) -->
-    <div class="flex-1 overflow-y-auto bg-white divide-y divide-[#dedbd6]">
+    <div class="flex-1 overflow-y-auto bg-white">
       <!-- Empty Cart State -->
       <div v-if="posStore.cartItems.length === 0" class="h-full flex flex-col items-center justify-center text-center p-4 text-gray-400 gap-2">
         <div class="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
