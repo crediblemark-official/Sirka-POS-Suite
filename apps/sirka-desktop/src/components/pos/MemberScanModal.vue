@@ -17,12 +17,15 @@ import { Buyer } from '../../types';
 import { useBuyerStore } from '../../stores/buyerStore';
 import { useModalLock } from '../../composables/useModalLock';
 
-// BUG FIX: register modal-lock agar shortcut global (mis. Enter pada
-// ProductCatalog) tidak menambah produk ke keranjang saat modal terbuka.
-
 const props = defineProps<{
   isOpen: boolean;
 }>();
+
+// BUG FIX: register modal-lock agar shortcut global (mis. Enter pada
+// ProductCatalog) tidak menambah produk ke keranjang saat modal terbuka,
+// dan scanner PiP otomatis melepas webcam agar tidak tabrakan di Linux.
+const modalLock = useModalLock();
+modalLock.bind(() => props.isOpen);
 
 const emit = defineEmits<{
   (e: 'close'): void;

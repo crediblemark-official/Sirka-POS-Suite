@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
-import { Html5Qrcode, Html5QrcodeSupportedFormats, Html5QrcodeScannerState } from 'html5-qrcode';
+import { BrowserMultiFormatReader, BarcodeFormat, DecodeHintType } from '@zxing/library';
 import { usePosStore } from '../../stores/posStore';
 import { useInventoryStore } from '../../stores/inventoryStore';
+import { isAnyModalOpen } from '../../composables/useModalLock';
 import { formatRupiah } from '../../utils/formatters';
 import type { Product } from '@sirka/shared-types';
 import {
@@ -40,18 +41,20 @@ const emit = defineEmits<{
 const posStore = usePosStore();
 const inventoryStore = useInventoryStore();
 
-// Scanner DOM container ID
-const containerId = `pos-pip-scanner-${Math.random().toString(36).slice(2, 8)}`;
+// Native Video Reference
+const videoRef = ref<HTMLVideoElement | null>(null);
 
 // State
 const isCameraEnabled = ref(localStorage.getItem('sirka_scanner_camera_enabled') !== 'false');
 const isMinimized = ref(localStorage.getItem('sirka_scanner_pip_minimized') === 'true');
 const isSoundEnabled = ref(localStorage.getItem('sirka_scanner_sound_enabled') !== 'false');
-const facingMode = ref<'environment' | 'user'>(
-  (localStorage.getItem('sirka_scanner_facing_mode') as 'environment' | 'user') || 'environment'
-);
-// Kamera depan (selfie/webcam) otomatis mirror cermin, kamera belakang normal
+
+// Kamera Depan (User) vs Belakang (Environment) di Mobile
+const savedFacing = (localStorage.getItem('sirka_scanner_facing_mode') as 'user' | 'environment') || 'environment';
+const facingMode = ref<'user' | 'environment'>(savedFacing);
+// Mirror otomatis: Kamera depan (selfie) SELALU mirror, kamera belakang normal
 const isMirrored = ref(facingMode.value === 'user');
+
 const isTorchOn = ref(false);
 const isTorchAvailable = ref(false);
 
@@ -72,15 +75,30 @@ const recentScan = ref<{
   time: number;
 } | null>(null);
 
-let scannerInstance: Html5Qrcode | null = null;
+let codeReader: BrowserMultiFormatReader | null = null;
+let currentStream: MediaStream | null = null;
 let lastScannedCode = '';
 let lastScannedAt = 0;
 let clearLastCodeTimer: any = null;
 let recentScanTimer: any = null;
 
-// Hardware Barcode Scanner Keyboard Wedge Listener
+// Hardware Barcode Scanner Keyboard Wedge Listener (OTG scanner / Bluetooth Barcode)
 let barcodeBuffer = '';
 let lastKeyTime = 0;
+
+// ZXing Hints: Try harder & Support all common retail 1D/2D barcodes
+const hints = new Map<DecodeHintType, any>();
+hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+  BarcodeFormat.EAN_13,
+  BarcodeFormat.EAN_8,
+  BarcodeFormat.UPC_A,
+  BarcodeFormat.UPC_E,
+  BarcodeFormat.CODE_128,
+  BarcodeFormat.CODE_39,
+  BarcodeFormat.CODE_93,
+  BarcodeFormat.QR_CODE
+]);
+hints.set(DecodeHintType.TRY_HARDER, true);
 
 function playAudioChime(type: 'success' | 'error' = 'success') {
   if (!isSoundEnabled.value) return;
@@ -95,13 +113,12 @@ function playAudioChime(type: 'success' | 'error' = 'success') {
 
     if (type === 'success') {
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(987.77, audioCtx.currentTime); // B5 note
+      osc.frequency.setValueAtTime(987.77, audioCtx.currentTime);
       gain.gain.setValueAtTime(0.18, audioCtx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
       osc.start();
       osc.stop(audioCtx.currentTime + 0.08);
     } else {
-      // Distinctive retail scanner double buzz warning (240Hz -> 180Hz)
       const now = audioCtx.currentTime;
       osc.type = 'sawtooth';
       osc.frequency.setValueAtTime(240, now);
@@ -122,7 +139,7 @@ function playAudioChime(type: 'success' | 'error' = 'success') {
       osc2.stop(now + 0.28);
     }
   } catch {
-    // Ignore autoplay restriction block
+    // Audio autoplay block ignore
   }
 }
 
@@ -229,7 +246,7 @@ function handleCodeDetected(rawCode: string) {
   processBarcode(code);
 }
 
-// Global Hardware Barcode Scanner listener (USB / Bluetooth Keyboard Wedge)
+// Hardware Barcode Scanner listener (USB / Bluetooth Keyboard Wedge di Android / Tablet)
 function handleGlobalKeydown(e: KeyboardEvent) {
   if (!props.isActive) return;
 
@@ -241,7 +258,6 @@ function handleGlobalKeydown(e: KeyboardEvent) {
   lastKeyTime = now;
 
   if (e.key === 'Enter') {
-    // Hardware scanner sends rapid keystrokes (< 90ms gap) and terminates with Enter
     if (barcodeBuffer.length >= 3 && timeDiff < 90) {
       const scannedCode = barcodeBuffer.trim();
       barcodeBuffer = '';
@@ -260,10 +276,8 @@ function handleGlobalKeydown(e: KeyboardEvent) {
 
   if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
     if (timeDiff > 90) {
-      // Manual human typing: start fresh buffer
       barcodeBuffer = e.key;
     } else {
-      // Rapid scanner keypress: buffer character
       barcodeBuffer += e.key;
     }
   }
@@ -272,118 +286,79 @@ function handleGlobalKeydown(e: KeyboardEvent) {
 async function initializeCameras() {
   try {
     errorMessage.value = '';
-    const devices = await Html5Qrcode.getCameras();
-    if (devices && devices.length > 0) {
-      availableCameras.value = devices;
-      const saved = localStorage.getItem('sirka_scanner_camera_id');
-      if (saved && devices.some(d => d.id === saved)) {
-        selectedCameraId.value = saved;
-        const activeCam = devices.find(d => d.id === saved);
-        if (activeCam) {
-          const isFront = /front|user|selfie|webcam/i.test(activeCam.label);
-          facingMode.value = isFront ? 'user' : 'environment';
-          isMirrored.value = isFront;
-        }
-      } else {
-        // Cari kamera belakang atau depan sesuai facingMode yang tersimpan
-        const rear = devices.find(d => /back|rear|environment/i.test(d.label));
-        const front = devices.find(d => /front|user|selfie|webcam/i.test(d.label));
-        if (facingMode.value === 'user' && front) {
-          selectedCameraId.value = front.id;
-          isMirrored.value = true;
-        } else if (rear) {
-          selectedCameraId.value = rear.id;
-          facingMode.value = 'environment';
-          isMirrored.value = false;
-        } else {
-          selectedCameraId.value = devices[0].id;
-          const isFront = /front|user|selfie|webcam/i.test(devices[0].label);
-          facingMode.value = isFront ? 'user' : 'environment';
-          isMirrored.value = isFront;
-        }
-      }
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.enumerateDevices) return;
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoDevices = devices
+      .filter(d => d.kind === 'videoinput')
+      .map(d => ({ id: d.deviceId, label: d.label || 'Kamera' }));
+
+    if (videoDevices.length > 0) {
+      availableCameras.value = videoDevices;
     } else {
       errorMessage.value = 'Tidak ada perangkat kamera terdeteksi.';
     }
   } catch (err: any) {
-    errorMessage.value = 'Izin kamera belum diberikan atau perangkat tidak siap.';
+    console.warn('Gagal membaca daftar kamera mobile:', err);
   }
 }
 
 async function startCameraScanner() {
-  if (isStarting.value || isScanning.value || !isCameraEnabled.value || !props.isActive) return;
+  if (isStarting.value || isScanning.value || !isCameraEnabled.value || !props.isActive || isAnyModalOpen.value) return;
 
   isStarting.value = true;
   errorMessage.value = '';
 
   await nextTick();
-  const element = document.getElementById(containerId);
-  if (!element) {
+  if (!videoRef.value) {
     isStarting.value = false;
     return;
   }
 
   try {
-    if (!scannerInstance) {
-      scannerInstance = new Html5Qrcode(containerId, {
-        formatsToSupport: [
-          Html5QrcodeSupportedFormats.EAN_13,
-          Html5QrcodeSupportedFormats.EAN_8,
-          Html5QrcodeSupportedFormats.UPC_A,
-          Html5QrcodeSupportedFormats.UPC_E,
-          Html5QrcodeSupportedFormats.CODE_128,
-          Html5QrcodeSupportedFormats.CODE_39,
-          Html5QrcodeSupportedFormats.CODE_93,
-          Html5QrcodeSupportedFormats.QR_CODE
-        ],
-        useBarCodeDetectorIfSupported: true,
-        verbose: false
+    if (!codeReader) {
+      codeReader = new BrowserMultiFormatReader(hints, 80);
+    }
+
+    const videoConstraints: MediaTrackConstraints = {
+      width: { ideal: 1280 },
+      height: { ideal: 720 }
+    };
+
+    if (selectedCameraId.value) {
+      videoConstraints.deviceId = { exact: selectedCameraId.value };
+    } else {
+      videoConstraints.facingMode = { ideal: facingMode.value };
+    }
+
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: videoConstraints,
+        audio: false
+      });
+    } catch {
+      // Fallback tanpa resolusi spesifik
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: facingMode.value } },
+        audio: false
       });
     }
 
-    const cameraIdOrConfig = selectedCameraId.value
-      ? selectedCameraId.value
-      : { facingMode: facingMode.value };
+    currentStream = stream;
 
-    // Sensitif & Cepat: fps 26, scan seluruh area (tanpa qrbox membatasi), disableFlip true cegah lag cpu
-    try {
-      await scannerInstance.start(
-        cameraIdOrConfig,
-        {
-          fps: 26,
-          aspectRatio: 1.333333,
-          disableFlip: true
-        },
-        (decodedText: string) => {
-          handleCodeDetected(decodedText);
-        },
-        () => {
-          // Frame parse error: ignore continuous frames
-        }
-      );
-    } catch (primaryErr) {
-      console.warn('Gagal start dengan ID kamera, mencoba fallback facingMode:', primaryErr);
-      await scannerInstance.start(
-        { facingMode: facingMode.value },
-        {
-          fps: 26,
-          aspectRatio: 1.333333,
-          disableFlip: true
-        },
-        (decodedText: string) => {
-          handleCodeDetected(decodedText);
-        },
-        () => {}
-      );
-    }
+    // Pasang stream ke video native
+    await codeReader.decodeFromStream(stream, videoRef.value, (result) => {
+      if (result) {
+        handleCodeDetected(result.getText());
+      }
+    });
 
     isScanning.value = true;
     checkTorchSupport();
 
     // Coba aktifkan continuous autofocus jika webcam / hardware mendukungnya
     try {
-      const videoEl = element.querySelector('video') as HTMLVideoElement | null;
-      const track = (videoEl?.srcObject as MediaStream)?.getVideoTracks()?.[0];
+      const track = stream.getVideoTracks()?.[0];
       if (track) {
         const capabilities = (track as any).getCapabilities?.();
         if (capabilities?.focusMode?.includes('continuous')) {
@@ -393,9 +368,10 @@ async function startCameraScanner() {
         }
       }
     } catch {
-      // Focus mode constraints opsional
+      // Focus opsional
     }
   } catch (err: any) {
+    console.error('Gagal mengakses video kamera mobile:', err);
     errorMessage.value = 'Gagal mengakses video kamera.';
     isScanning.value = false;
   } finally {
@@ -404,36 +380,49 @@ async function startCameraScanner() {
 }
 
 async function stopCameraScanner() {
-  if (!scannerInstance) return;
   try {
-    if (scannerInstance.getState() === Html5QrcodeScannerState.SCANNING) {
-      await scannerInstance.stop();
-      scannerInstance.clear();
+    if (codeReader) {
+      codeReader.reset();
+    }
+    if (currentStream) {
+      currentStream.getTracks().forEach(t => t.stop());
+      currentStream = null;
+    }
+    if (videoRef.value) {
+      videoRef.value.srcObject = null;
     }
   } catch (err) {
-    // Ignore cleanup errors
+    console.warn('Cleanup error saat stop mobile scanner:', err);
   } finally {
     isScanning.value = false;
+    isTorchOn.value = false;
+    isTorchAvailable.value = false;
   }
 }
 
 function checkTorchSupport() {
-  if (!scannerInstance) return;
+  if (!currentStream) {
+    isTorchAvailable.value = false;
+    return;
+  }
   try {
-    const track = (scannerInstance as any).getRunningTrackCameraCapabilities?.();
-    isTorchAvailable.value = !!(track && track.torchFeature?.().isSupported?.());
+    const track = currentStream.getVideoTracks()?.[0];
+    const capabilities = (track as any)?.getCapabilities?.();
+    isTorchAvailable.value = !!capabilities?.torch;
   } catch {
     isTorchAvailable.value = false;
   }
 }
 
 async function toggleTorch() {
-  if (!scannerInstance || !isTorchAvailable.value) return;
+  if (!currentStream || !isTorchAvailable.value) return;
   try {
-    const track = (scannerInstance as any).getRunningTrackCameraCapabilities?.();
-    if (track && track.torchFeature?.().isSupported()) {
+    const track = currentStream.getVideoTracks()?.[0];
+    if (track) {
       isTorchOn.value = !isTorchOn.value;
-      await track.torchFeature().apply(isTorchOn.value);
+      await (track as any).applyConstraints({
+        advanced: [{ torch: isTorchOn.value }]
+      });
     }
   } catch (err) {
     console.warn('Torch error:', err);
@@ -448,30 +437,8 @@ async function flipCameraMobile() {
   localStorage.setItem('sirka_scanner_facing_mode', nextMode);
 
   // Kamera depan (selfie/webcam) otomatis mirror cermin, kamera belakang normal
-  isMirrored.value = nextMode === 'user';
-
-  if (availableCameras.value.length > 0) {
-    if (nextMode === 'user') {
-      const frontCam = availableCameras.value.find(d => /front|user|selfie|webcam/i.test(d.label));
-      if (frontCam) {
-        selectedCameraId.value = frontCam.id;
-      } else {
-        const other = availableCameras.value.find(d => d.id !== selectedCameraId.value);
-        if (other) selectedCameraId.value = other.id;
-      }
-    } else {
-      const rearCam = availableCameras.value.find(d => /back|rear|environment/i.test(d.label));
-      if (rearCam) {
-        selectedCameraId.value = rearCam.id;
-      } else {
-        const other = availableCameras.value.find(d => d.id !== selectedCameraId.value);
-        if (other) selectedCameraId.value = other.id;
-      }
-    }
-    localStorage.setItem('sirka_scanner_camera_id', selectedCameraId.value);
-  } else {
-    selectedCameraId.value = '';
-  }
+  isMirrored.value = (nextMode === 'user');
+  selectedCameraId.value = '';
 
   await stopCameraScanner();
   await startCameraScanner();
@@ -497,10 +464,21 @@ function toggleSound() {
   localStorage.setItem('sirka_scanner_sound_enabled', isSoundEnabled.value ? 'true' : 'false');
 }
 
+// Koordinasi Kamera dengan Modal (seperti Scan Kartu Member)
+watch(isAnyModalOpen, async (modalOpen) => {
+  if (modalOpen) {
+    // Bebaskan kamera saat modal scan member aktif
+    await stopCameraScanner();
+  } else if (props.isActive && isCameraEnabled.value) {
+    // Ambil kembali kamera saat modal selesai
+    await startCameraScanner();
+  }
+});
+
 watch(
   () => props.isActive,
   async (active) => {
-    if (active && isCameraEnabled.value) {
+    if (active && isCameraEnabled.value && !isAnyModalOpen.value) {
       await startCameraScanner();
     } else {
       await stopCameraScanner();
@@ -511,7 +489,7 @@ watch(
 onMounted(async () => {
   window.addEventListener('keydown', handleGlobalKeydown, true);
   await initializeCameras();
-  if (props.isActive && isCameraEnabled.value) {
+  if (props.isActive && isCameraEnabled.value && !isAnyModalOpen.value) {
     await startCameraScanner();
   }
 });
@@ -620,7 +598,7 @@ onUnmounted(async () => {
           <button
             type="button"
             class="p-1 text-slate-400 hover:text-white hover:bg-slate-800 transition"
-            :title="isCameraEnabled ? 'Jeda Kamera (Hemat Daya)' : 'Aktifkan Kamera'"
+            :title="isCameraEnabled ? 'Jeda Kamera (Hemat Baterai)' : 'Aktifkan Kamera'"
             @click="togglePower"
           >
             <Power :size="12" :class="isCameraEnabled ? 'text-emerald-400' : 'text-slate-500'" />
@@ -640,8 +618,15 @@ onUnmounted(async () => {
 
       <!-- Live Video Viewfinder -->
       <div class="relative w-full h-[150px] bg-black overflow-hidden flex items-center justify-center">
-        <!-- Html5Qrcode video mounting element -->
-        <div :id="containerId" class="w-full h-full object-cover" :class="{ 'mirror-feed': isMirrored }"></div>
+        <!-- Native Video Element (Reliable across all WebViews) -->
+        <video
+          ref="videoRef"
+          autoplay
+          playsinline
+          muted
+          class="w-full h-full object-cover transition-transform"
+          :class="{ 'mirror-feed': isMirrored }"
+        ></video>
 
         <!-- Red Glitch Overlay on Error Scan -->
         <div
@@ -676,7 +661,7 @@ onUnmounted(async () => {
         >
           <CameraOff :size="24" class="text-slate-500 mb-1" />
           <span class="text-[11px] font-bold text-slate-300">Kamera Dinonaktifkan</span>
-          <p class="text-[9.5px] text-slate-400">Scanner barcode USB/Bluetooth tetap siap digunakan.</p>
+          <p class="text-[9.5px] text-slate-400">Scanner barcode Bluetooth/USB tetap siap membaca.</p>
           <button
             type="button"
             @click="togglePower"
@@ -709,59 +694,45 @@ onUnmounted(async () => {
         >
           <div
             v-if="recentScan.success"
-            class="px-2 py-1 bg-emerald-600/95 border border-emerald-400 text-white shadow-lg backdrop-blur-xs flex items-center justify-between text-xs"
+            class="px-2.5 py-1.5 bg-emerald-600/95 border border-emerald-400 text-white shadow-lg backdrop-blur-xs flex items-center justify-between text-xs"
           >
             <div class="min-w-0 mr-1.5">
-              <div class="font-bold truncate text-[10.5px] leading-tight">+1 {{ recentScan.name }}</div>
-              <div class="text-[9px] opacity-90 font-mono">
+              <div class="font-bold truncate text-[11px] leading-tight">+1 {{ recentScan.name }}</div>
+              <div class="text-[9.5px] opacity-90 font-mono">
                 {{ recentScan.unit ? `${recentScan.unit} • ` : '' }}Rp {{ formatRupiah(recentScan.price) }}
               </div>
             </div>
-            <CheckCircle2 :size="15" class="text-emerald-200 shrink-0" />
+            <CheckCircle2 :size="16" class="text-emerald-200 shrink-0" />
           </div>
           <div
             v-else
-            class="px-2 py-1 bg-rose-600/95 border border-rose-400 text-white shadow-lg backdrop-blur-xs flex items-center justify-between text-xs"
+            class="px-2.5 py-1.5 bg-rose-600/95 border border-rose-400 text-white shadow-lg backdrop-blur-xs flex items-center justify-between text-xs"
           >
             <div class="min-w-0 mr-1.5">
               <div class="font-bold text-[10.5px] leading-tight">Belum Ada di Master</div>
-              <div class="text-[9px] opacity-90 font-mono truncate">{{ recentScan.code }}</div>
+              <div class="text-[9.5px] opacity-90 font-mono truncate">{{ recentScan.code }}</div>
             </div>
-            <AlertCircle :size="15" class="text-rose-200 shrink-0" />
+            <AlertCircle :size="16" class="text-rose-200 shrink-0" />
           </div>
         </div>
       </div>
 
       <!-- PiP Footer Guide Bar -->
-      <div class="px-2 py-1 bg-slate-900/90 border-t border-slate-800 flex items-center justify-between text-[9.5px] text-slate-400 font-mono">
+      <div class="px-2.5 py-1 bg-slate-900/90 border-t border-slate-800 flex items-center justify-between text-[9.5px] text-slate-400 font-mono">
         <span class="truncate">Arahkan barcode ke kamera</span>
-        <ScanLine :size="11" class="text-amber-400 shrink-0" />
+        <ScanLine :size="12" class="text-amber-400 shrink-0" />
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-:deep(video) {
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: cover !important;
+video {
   border-radius: 0 !important;
-  transition: transform 0.2s ease-in-out;
-  image-rendering: -webkit-optimize-contrast;
-  filter: contrast(1.05) brightness(1.02);
 }
 
-.mirror-feed :deep(video) {
+.mirror-feed {
   transform: scaleX(-1) !important;
-}
-
-:deep(img) {
-  display: none !important;
-}
-
-:deep(#qr-shaded-region) {
-  display: none !important;
 }
 
 @keyframes glitch-shake {

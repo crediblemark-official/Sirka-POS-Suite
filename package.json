@@ -30,10 +30,10 @@
     "license:release": "bun run scripts/tertaut-s2s.ts release"
   },
   "dependencies": {
-    "@sirka/shared-types": "workspace:*",
-    "@sirka/shared-utils": "workspace:*",
     "@sirka/shared-core": "workspace:*",
+    "@sirka/shared-types": "workspace:*",
     "@sirka/shared-ui": "workspace:*",
+    "@sirka/shared-utils": "workspace:*",
     "@tailwindcss/vite": "^4.3.3",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-opener": "^2",
@@ -41,6 +41,7 @@
     "@types/jsbarcode": "^3.11.4",
     "@types/pg": "^8.23.1",
     "@vueuse/core": "^15.0.0",
+    "@zxing/library": "^0.23.0",
     "hono": "^4.13.13",
     "html-to-image": "^1.11.13",
     "html5-qrcode": "^2.3.8",
