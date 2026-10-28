@@ -436,16 +436,6 @@ defineExpose({
                 <span class="text-[10px] text-gray-500">Database pelanggan Grosir (B2B) & Eceran (B2C)</span>
               </div>
             </div>
-
-            <!-- Tombol Tambah Pelanggan Baru -->
-            <button
-              type="button"
-              @click="handleOpenAdd(localFilter === 'B2C' ? 'B2C' : 'B2B')"
-              class="h-8 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer shrink-0"
-            >
-              <Plus :size="14" />
-              <span>+ Pelanggan</span>
-            </button>
           </div>
 
           <!-- Bottom Row: Marketplace-Style Filter Drawer Trigger & Quick Filter Pills -->

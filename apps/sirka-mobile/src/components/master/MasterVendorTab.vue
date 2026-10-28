@@ -568,31 +568,11 @@ defineExpose({
             </button>
           </div>
 
-          <!-- Kanan: Tombol Aksi Tambah Cepat & Status Pencarian -->
-          <div class="flex items-center gap-2 ml-auto shrink-0">
-            <span v-if="props.searchQuery" class="text-[11px] text-gray-600 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 font-medium">
+          <!-- Kanan: Status Pencarian -->
+          <div v-if="props.searchQuery" class="flex items-center gap-2 ml-auto shrink-0">
+            <span class="text-[11px] text-gray-600 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 font-medium">
               Cari: "<span class="font-bold text-gray-800">{{ props.searchQuery }}</span>"
             </span>
-
-            <button
-              v-if="activeSubTab === 'units'"
-              type="button"
-              class="flex items-center gap-1 px-2.5 py-1 bg-purple-700 hover:bg-purple-800 text-white rounded text-xs font-bold shadow-2xs cursor-pointer transition-colors"
-              @click="handleOpenAddUnit"
-            >
-              <Plus :size="13" />
-              <span>+ Tambah Satuan</span>
-            </button>
-
-            <button
-              v-else
-              type="button"
-              class="flex items-center gap-1 px-2.5 py-1 bg-rose-700 hover:bg-rose-800 text-white rounded text-xs font-bold shadow-2xs cursor-pointer transition-colors"
-              @click="handleOpenAddCategory"
-            >
-              <Plus :size="13" />
-              <span>+ Tambah Kategori</span>
-            </button>
           </div>
         </div>
 

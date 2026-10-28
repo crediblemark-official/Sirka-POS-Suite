@@ -326,16 +326,6 @@ function handleOpenAddPo() {
                 <span class="text-[10px] text-gray-500">Matriks pesanan berkala & tarik ke kasir</span>
               </div>
             </div>
-
-            <!-- Tombol Catat Pesanan Baru -->
-            <button
-              type="button"
-              @click="handleOpenAddPo"
-              class="h-8 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer shrink-0"
-            >
-              <Plus :size="14" />
-              <span>+ Pesanan</span>
-            </button>
           </div>
 
           <!-- Bottom Row: Marketplace-Style Filter Drawer Trigger & Quick Day Pills -->

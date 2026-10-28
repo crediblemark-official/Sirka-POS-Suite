@@ -294,18 +294,10 @@ defineExpose({
             </div>
           </div>
 
-          <div class="flex items-center gap-1.5 shrink-0">
-            <span v-if="props.searchQuery" class="text-[10.5px] text-gray-600 bg-gray-200/80 px-2 py-0.5 rounded-md font-medium shrink-0 whitespace-nowrap">
+          <div v-if="props.searchQuery" class="flex items-center gap-1.5 shrink-0">
+            <span class="text-[10.5px] text-gray-600 bg-gray-200/80 px-2 py-0.5 rounded-md font-medium shrink-0 whitespace-nowrap">
               Cari: "<strong class="text-gray-900">{{ props.searchQuery }}</strong>"
             </span>
-            <button
-              type="button"
-              class="h-8 px-3 rounded-lg bg-rose-700 hover:bg-rose-800 active:scale-95 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
-              @click="handleOpenAdd"
-            >
-              <Plus :size="14" />
-              <span>+ Supplier</span>
-            </button>
           </div>
         </div>
 

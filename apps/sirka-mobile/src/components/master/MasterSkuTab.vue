@@ -333,16 +333,6 @@ function handleDblClick(prod: Product) {
             <span class="text-[10px] text-gray-500">Master inventaris toko & kulakan</span>
           </div>
         </div>
-
-        <!-- Tombol Tambah Barang Baru (Mobile Touch Friendly) -->
-        <button
-          type="button"
-          @click="emit('add-product')"
-          class="h-8 px-3 rounded-lg bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer shrink-0"
-        >
-          <Plus :size="14" />
-          <span>+ Barang</span>
-        </button>
       </div>
 
       <!-- Bottom Row: Marketplace-Style Filter Drawer Trigger, Quick Stock Pills & Action Buttons -->

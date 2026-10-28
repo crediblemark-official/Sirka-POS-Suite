@@ -128,14 +128,6 @@ function onBuyerChange(val: string | number) {
           class="text-[11px] text-gray-600 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 font-medium shrink-0">
           Cari: "<span class="font-bold text-gray-800">{{ searchQuery }}</span>"
         </span>
-
-        <button type="button"
-          class="px-2.5 py-1 rounded-md bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors shadow-xs shrink-0"
-          title="Catat mutasi kas (uang keluar operasional / pemindahan dana / cairkan QRIS)"
-          @click="emit('open-mutation')">
-          <Plus :size="13" />
-          <span>+ Mutasi</span>
-        </button>
       </div>
     </div>
 

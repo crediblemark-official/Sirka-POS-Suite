@@ -354,16 +354,6 @@ function openRulesDrawer() {
                 <Sparkles :size="13" class="text-amber-500" />
                 <span class="hidden xs:inline">Aturan Poin</span>
               </button>
-
-              <!-- Tombol Daftarkan Member Baru -->
-              <button
-                type="button"
-                @click="openRegisterMemberDrawer"
-                class="h-8 px-3 rounded-lg bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
-              >
-                <UserPlus :size="14" />
-                <span>+ Member</span>
-              </button>
             </div>
           </div>
 
