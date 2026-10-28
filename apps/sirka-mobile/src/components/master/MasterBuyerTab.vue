@@ -418,28 +418,8 @@ defineExpose({
     <div class="flex-1 flex overflow-hidden">
       <!-- Sisi Kiri: Ribbon + MetricStatsStrip + Tabel Pelanggan Edge-to-Edge -->
       <div class="flex-1 flex flex-col overflow-hidden bg-white">
-        <!-- Layer 1: Mobile-First Ribbon Header & Primary Add Button -->
-        <div class="bg-[#f6f5f2] border-b border-gray-200 p-2.5 flex flex-col gap-2 shrink-0 select-none shadow-2xs">
-          <!-- Top Row: Title, Total Buyers & Primary Add Button -->
-          <div class="flex items-center justify-between gap-2">
-            <div class="flex items-center gap-2 min-w-0">
-              <div class="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
-                <Users :size="16" />
-              </div>
-              <div class="min-w-0 flex flex-col">
-                <div class="flex items-center gap-1.5">
-                  <span class="font-bold text-xs text-gray-900 truncate">Data Pelanggan & Mitra</span>
-                  <span class="text-[10px] px-2 py-0.2 rounded-full bg-indigo-100 text-indigo-800 font-bold font-mono">
-                    {{ totalBuyers }}
-                  </span>
-                </div>
-                <span class="text-[10px] text-gray-500">Database pelanggan Grosir (B2B) & Eceran (B2C)</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Bottom Row: Marketplace-Style Filter Drawer Trigger & Quick Filter Pills -->
-          <div v-horizontal-scroll class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+        <!-- Marketplace-Style Filter Drawer Trigger & Quick Filter Pills -->
+        <div v-horizontal-scroll class="bg-[#f6f5f2] border-b border-gray-200 px-3 py-1.5 flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0 select-none shadow-2xs">
             <!-- Marketplace Filter Drawer Trigger Button -->
             <button
               type="button"
@@ -552,7 +532,6 @@ defineExpose({
               Cari: "<strong class="text-gray-900">{{ props.searchQuery }}</strong>"
             </span>
           </div>
-        </div>
 
         <!-- Reusable MetricStatsStrip (DRY) di sisi kiri -->
         <MetricStatsStrip :items="buyerMetrics" />

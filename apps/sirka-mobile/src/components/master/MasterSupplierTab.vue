@@ -277,28 +277,11 @@ defineExpose({
     <div class="flex-1 flex overflow-hidden">
       <!-- Sisi Kiri: Ribbon + Stats + Tabel Supplier -->
       <div class="flex-1 flex flex-col overflow-hidden bg-white">
-        <!-- 1. Mobile-First Top Header & Action Controls -->
-        <div class="bg-[#f6f5f2] border-b border-gray-200 p-2.5 flex items-center justify-between gap-2 shrink-0 select-none shadow-2xs">
-          <div class="flex items-center gap-2 min-w-0">
-            <div class="w-8 h-8 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
-              <Truck :size="16" />
-            </div>
-            <div class="min-w-0 flex flex-col">
-              <div class="flex items-center gap-1.5">
-                <span class="font-bold text-xs text-gray-900 truncate">Mitra Supplier Kulakan</span>
-                <span class="text-[10px] px-2 py-0.2 rounded-full bg-rose-100 text-rose-800 font-bold font-mono">
-                  {{ totalSuppliers }} Mitra
-                </span>
-              </div>
-              <span class="text-[10px] text-gray-500">Distributor pemasok & histori faktur belanja</span>
-            </div>
-          </div>
-
-          <div v-if="props.searchQuery" class="flex items-center gap-1.5 shrink-0">
-            <span class="text-[10.5px] text-gray-600 bg-gray-200/80 px-2 py-0.5 rounded-md font-medium shrink-0 whitespace-nowrap">
-              Cari: "<strong class="text-gray-900">{{ props.searchQuery }}</strong>"
-            </span>
-          </div>
+        <!-- Search Query Indicator (if any) -->
+        <div v-if="props.searchQuery" class="bg-[#f6f5f2] border-b border-gray-200 px-3 py-1 flex items-center gap-1.5 shrink-0 select-none">
+          <span class="text-[10.5px] text-gray-600 bg-gray-200/80 px-2 py-0.5 rounded-md font-medium shrink-0 whitespace-nowrap">
+            Cari: "<strong class="text-gray-900">{{ props.searchQuery }}</strong>"
+          </span>
         </div>
 
         <!-- 2. Reusable MetricStatsStrip -->

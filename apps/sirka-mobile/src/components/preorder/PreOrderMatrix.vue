@@ -308,28 +308,8 @@ function handleOpenAddPo() {
     <main class="flex-1 flex overflow-hidden">
       <!-- Sisi Kiri: Ribbon + Metric Stats Strip + Grid Kartu Rekap Pesanan PO -->
       <div class="flex-1 flex flex-col overflow-hidden bg-white">
-        <!-- 1. Mobile-First Top Header & Filter Controls -->
-        <div class="bg-[#f6f5f2] border-b border-gray-200 p-2.5 flex flex-col gap-2 shrink-0 select-none shadow-2xs">
-          <!-- Top Row: Title, Total PO Count & Primary Add PO Button -->
-          <div class="flex items-center justify-between gap-2">
-            <div class="flex items-center gap-2 min-w-0">
-              <div class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
-                <Calendar :size="16" />
-              </div>
-              <div class="min-w-0 flex flex-col">
-                <div class="flex items-center gap-1.5">
-                  <span class="font-bold text-xs text-gray-900 truncate">Jadwal Pesanan & PO</span>
-                  <span class="text-[10px] px-2 py-0.2 rounded-full bg-emerald-100 text-emerald-800 font-bold font-mono">
-                    {{ filteredSchedules.length }} PO
-                  </span>
-                </div>
-                <span class="text-[10px] text-gray-500">Matriks pesanan berkala & tarik ke kasir</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Bottom Row: Marketplace-Style Filter Drawer Trigger & Quick Day Pills -->
-          <div v-horizontal-scroll class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+        <!-- 1. Marketplace-Style Filter Drawer Trigger & Quick Day Pills -->
+        <div v-horizontal-scroll class="bg-[#f6f5f2] border-b border-gray-200 px-3 py-1.5 flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0 select-none shadow-2xs">
             <!-- Tombol Trigger Filter Drawer -->
             <button
               type="button"
@@ -408,7 +388,6 @@ function handleOpenAddPo() {
               Cari: "<strong class="text-gray-900">{{ props.searchQuery }}</strong>"
             </span>
           </div>
-        </div>
 
         <!-- Reusable MetricStatsStrip (DRY) di sisi kiri -->
         <MetricStatsStrip :items="metricStats" />

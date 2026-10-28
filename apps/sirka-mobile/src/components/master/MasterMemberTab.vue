@@ -324,41 +324,8 @@ function openRulesDrawer() {
     <div class="flex-1 flex overflow-hidden">
       <!-- Sisi Kiri: Ribbon + MetricStatsStrip + Tabel Data Pelanggan & Member Edge-to-Edge -->
       <div class="flex-1 flex flex-col overflow-hidden bg-white">
-        <!-- 1. Mobile-First Top Header & Filter Controls -->
-        <div class="bg-[#f6f5f2] border-b border-gray-200 p-2.5 flex flex-col gap-2 shrink-0 select-none shadow-2xs">
-          <!-- Top Row: Title, Member Count & Primary Action Buttons -->
-          <div class="flex items-center justify-between gap-2">
-            <div class="flex items-center gap-2 min-w-0">
-              <div class="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
-                <CreditCard :size="16" />
-              </div>
-              <div class="min-w-0 flex flex-col">
-                <div class="flex items-center gap-1.5">
-                  <span class="font-bold text-xs text-gray-900 truncate">Member Loyalty & Poin</span>
-                  <span class="text-[10px] px-2 py-0.2 rounded-full bg-amber-100 text-amber-900 font-bold font-mono">
-                    {{ registeredMembersCount }} Member
-                  </span>
-                </div>
-                <span class="text-[10px] text-gray-500">Tier loyalitas, poin belanja & cetak kartu</span>
-              </div>
-            </div>
-
-            <div class="flex items-center gap-1.5 shrink-0">
-              <!-- Tombol Aturan Poin -->
-              <button
-                type="button"
-                @click="openRulesDrawer"
-                class="h-8 px-2.5 rounded-lg bg-white border border-gray-300 hover:bg-gray-50 active:scale-95 text-gray-700 font-bold text-xs flex items-center gap-1 shadow-2xs transition-all cursor-pointer"
-                title="Atur rasio poin belanja & diskon tier"
-              >
-                <Sparkles :size="13" class="text-amber-500" />
-                <span class="hidden xs:inline">Aturan Poin</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Bottom Row: Marketplace-Style Filter Drawer Trigger & Quick Filter Pills -->
-          <div v-horizontal-scroll class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+        <!-- 1. Marketplace-Style Filter Drawer Trigger & Quick Filter Pills -->
+        <div v-horizontal-scroll class="bg-[#f6f5f2] border-b border-gray-200 px-3 py-1.5 flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0 select-none shadow-2xs">
             <!-- Marketplace Filter Drawer Trigger Button -->
             <button
               type="button"
@@ -532,7 +499,6 @@ function openRulesDrawer() {
               Cari: "<strong class="text-gray-900">{{ props.searchQuery }}</strong>"
             </span>
           </div>
-        </div>
 
     <!-- Reusable MetricStatsStrip (DRY) di sisi kiri -->
     <MetricStatsStrip :items="metricStats" />

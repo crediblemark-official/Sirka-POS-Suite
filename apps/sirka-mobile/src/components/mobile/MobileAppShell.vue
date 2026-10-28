@@ -132,10 +132,10 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="h-screen w-screen flex flex-col bg-slate-100 overflow-hidden select-none font-sans" :class="{ 'pt-safe': activeTab !== 'pos' }">
-    <!-- 1. Mobile Header Bar (Hanya muncul di Menu Kasir) -->
+  <div class="h-screen w-screen flex flex-col bg-slate-100 overflow-hidden select-none font-sans">
+    <!-- 1. Mobile Header Bar -->
     <MobileHeaderBar
-      v-if="activeTab === 'pos'"
+      :active-tab="activeTab"
       :active-tab-title="activeTabTitle"
       v-model:search-query="searchQuery"
       @open-shift-modal="handleOpenShift"
@@ -321,8 +321,5 @@ onMounted(() => {
 /* Safe Area insets for modern mobile displays (Notch & Home Bar) */
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom, 0px);
-}
-.pt-safe {
-  padding-top: env(safe-area-inset-top, 0px);
 }
 </style>
