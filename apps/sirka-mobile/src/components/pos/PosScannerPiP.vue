@@ -1,6 +1,15 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
-import { BrowserMultiFormatReader, BarcodeFormat, DecodeHintType } from '@zxing/library';
+import {
+  MultiFormatReader,
+  BarcodeFormat,
+  DecodeHintType,
+  BinaryBitmap,
+  HybridBinarizer,
+  GlobalHistogramBinarizer,
+  HTMLCanvasElementLuminanceSource,
+  NotFoundException
+} from '@zxing/library';
 import { usePosStore } from '../../stores/posStore';
 import { useInventoryStore } from '../../stores/inventoryStore';
 import { isAnyModalOpen } from '../../composables/useModalLock';
@@ -21,6 +30,19 @@ import {
   Zap,
   ScanLine
 } from 'lucide-vue-next';
+
+// BUG FIX: Patch @zxing/library v0.23.0 bug di mana NotFoundException memicu console.warn banjir ribuan baris
+(MultiFormatReader.prototype as any).decodeInternal = function (this: any, image: any) {
+  if (!this.readers) throw new NotFoundException('No readers configured');
+  for (const reader of this.readers) {
+    try {
+      return reader.decode(image, this.hints);
+    } catch {
+      continue;
+    }
+  }
+  throw new NotFoundException('No barcode found');
+};
 
 const props = withDefaults(
   defineProps<{
@@ -75,7 +97,12 @@ const recentScan = ref<{
   time: number;
 } | null>(null);
 
-let codeReader: BrowserMultiFormatReader | null = null;
+let zxingReader: MultiFormatReader | null = null;
+let nativeBarcodeDetector: any = null;
+let scanCanvas: HTMLCanvasElement | null = null;
+let scanCtx: CanvasRenderingContext2D | null = null;
+let scanIntervalId: any = null;
+let isScanBusy = false;
 let currentStream: MediaStream | null = null;
 let lastScannedCode = '';
 let lastScannedAt = 0;
@@ -86,9 +113,9 @@ let recentScanTimer: any = null;
 let barcodeBuffer = '';
 let lastKeyTime = 0;
 
-// ZXing Hints: Try harder & Support all common retail 1D/2D barcodes
-const hints = new Map<DecodeHintType, any>();
-hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+// Format Barcode Retail yang didukung (Format 1D upfront agar respon kilat)
+const barcodeHints = new Map<DecodeHintType, any>();
+barcodeHints.set(DecodeHintType.POSSIBLE_FORMATS, [
   BarcodeFormat.EAN_13,
   BarcodeFormat.EAN_8,
   BarcodeFormat.UPC_A,
@@ -98,7 +125,6 @@ hints.set(DecodeHintType.POSSIBLE_FORMATS, [
   BarcodeFormat.CODE_93,
   BarcodeFormat.QR_CODE
 ]);
-hints.set(DecodeHintType.TRY_HARDER, true);
 
 function playAudioChime(type: 'success' | 'error' = 'success') {
   if (!isSoundEnabled.value) return;
@@ -302,6 +328,118 @@ async function initializeCameras() {
   }
 }
 
+function initReaders() {
+  if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
+    try {
+      nativeBarcodeDetector = new (window as any).BarcodeDetector({
+        formats: [
+          'ean_13',
+          'ean_8',
+          'upc_a',
+          'upc_e',
+          'code_128',
+          'code_39',
+          'code_93',
+          'qr_code'
+        ]
+      });
+    } catch {
+      nativeBarcodeDetector = null;
+    }
+  }
+
+  if (!zxingReader) {
+    zxingReader = new MultiFormatReader();
+    zxingReader.setHints(barcodeHints);
+  }
+
+  if (!scanCanvas) {
+    scanCanvas = document.createElement('canvas');
+    scanCtx = scanCanvas.getContext('2d', { willReadFrequently: true });
+  }
+}
+
+function startScanLoop() {
+  stopScanLoop();
+  initReaders();
+
+  // Scan loop 60ms (~16 fps)
+  scanIntervalId = setInterval(async () => {
+    if (isScanBusy || !isScanning.value) return;
+    const video = videoRef.value;
+    if (!video || video.paused || video.ended || video.videoWidth === 0) return;
+
+    isScanBusy = true;
+    try {
+      // 1. Native Hardware BarcodeDetector (Sangat cepat & akurat di Android WebView)
+      if (nativeBarcodeDetector) {
+        try {
+          const detected = await nativeBarcodeDetector.detect(video);
+          if (detected && detected.length > 0) {
+            const raw = detected[0].rawValue?.trim();
+            if (raw) {
+              handleCodeDetected(raw);
+              return;
+            }
+          }
+        } catch {
+          // fallback ke zxing jika native error di frame tertentu
+        }
+      }
+
+      // 2. ZXing Reader Fallback
+      if (zxingReader && scanCanvas && scanCtx) {
+        const targetWidth = Math.min(800, video.videoWidth);
+        const scale = targetWidth / video.videoWidth;
+        const targetHeight = Math.floor(video.videoHeight * scale);
+
+        scanCanvas.width = targetWidth;
+        scanCanvas.height = targetHeight;
+        scanCtx.drawImage(video, 0, 0, targetWidth, targetHeight);
+
+        const luminanceSource = new HTMLCanvasElementLuminanceSource(scanCanvas);
+        let result: any = null;
+
+        // Coba 1: HybridBinarizer
+        try {
+          const bitmap = new BinaryBitmap(new HybridBinarizer(luminanceSource));
+          result = zxingReader.decodeWithState(bitmap);
+        } catch {
+          // Coba 2: GlobalHistogramBinarizer (ampuh untuk barcode 1D di berbagai kondisi cahaya)
+          try {
+            const bitmap = new BinaryBitmap(new GlobalHistogramBinarizer(luminanceSource));
+            result = zxingReader.decodeWithState(bitmap);
+          } catch {
+            // Frame tanpa barcode (senyap)
+          }
+        }
+
+        if (result && result.getText()) {
+          const text = result.getText().trim();
+          if (text) {
+            handleCodeDetected(text);
+          }
+        }
+      }
+    } catch {
+      // error frame senyap
+    } finally {
+      if (zxingReader) {
+        try { zxingReader.reset(); } catch {}
+      }
+      isScanBusy = false;
+    }
+  }, 60);
+}
+
+function stopScanLoop() {
+  if (scanIntervalId) {
+    clearInterval(scanIntervalId);
+    scanIntervalId = null;
+  }
+  isScanBusy = false;
+}
+
 async function startCameraScanner() {
   if (isStarting.value || isScanning.value || !isCameraEnabled.value || !props.isActive || isAnyModalOpen.value) return;
 
@@ -315,9 +453,7 @@ async function startCameraScanner() {
   }
 
   try {
-    if (!codeReader) {
-      codeReader = new BrowserMultiFormatReader(hints, 80);
-    }
+    initReaders();
 
     const videoConstraints: MediaTrackConstraints = {
       width: { ideal: 1280 },
@@ -346,17 +482,22 @@ async function startCameraScanner() {
 
     currentStream = stream;
 
-    // Pasang stream ke video native
-    await codeReader.decodeFromStream(stream, videoRef.value, (result) => {
-      if (result) {
-        handleCodeDetected(result.getText());
+    // Pasang stream ke video native tanpa autoplay ganda
+    if (videoRef.value) {
+      videoRef.value.srcObject = stream;
+      videoRef.value.setAttribute('playsinline', 'true');
+      videoRef.value.muted = true;
+      try {
+        await videoRef.value.play();
+      } catch (playErr) {
+        console.warn('Mobile video play caught:', playErr);
       }
-    });
+    }
 
     isScanning.value = true;
     checkTorchSupport();
 
-    // Coba aktifkan continuous autofocus jika webcam / hardware mendukungnya
+    // Coba aktifkan continuous autofocus jika hardware kamera mendukungnya
     try {
       const track = stream.getVideoTracks()?.[0];
       if (track) {
@@ -370,6 +511,8 @@ async function startCameraScanner() {
     } catch {
       // Focus opsional
     }
+
+    startScanLoop();
   } catch (err: any) {
     console.error('Gagal mengakses video kamera mobile:', err);
     errorMessage.value = 'Gagal mengakses video kamera.';
@@ -381,9 +524,7 @@ async function startCameraScanner() {
 
 async function stopCameraScanner() {
   try {
-    if (codeReader) {
-      codeReader.reset();
-    }
+    stopScanLoop();
     if (currentStream) {
       currentStream.getTracks().forEach(t => t.stop());
       currentStream = null;
@@ -470,8 +611,12 @@ watch(isAnyModalOpen, async (modalOpen) => {
     // Bebaskan kamera saat modal scan member aktif
     await stopCameraScanner();
   } else if (props.isActive && isCameraEnabled.value) {
-    // Ambil kembali kamera saat modal selesai
-    await startCameraScanner();
+    // Ambil kembali kamera saat modal selesai dengan jeda 150ms agar device dilepas
+    setTimeout(async () => {
+      if (!isAnyModalOpen.value && props.isActive && isCameraEnabled.value) {
+        await startCameraScanner();
+      }
+    }, 150);
   }
 });
 
@@ -621,7 +766,6 @@ onUnmounted(async () => {
         <!-- Native Video Element (Reliable across all WebViews) -->
         <video
           ref="videoRef"
-          autoplay
           playsinline
           muted
           class="w-full h-full object-cover transition-transform"

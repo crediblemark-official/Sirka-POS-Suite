@@ -128,8 +128,13 @@ watch(
       }
 
       if (hasWebcam) {
-        // Jika ada webcam terdeteksi, buka kamera langsung secara otomatis!
-        await startWebcamScanner();
+        // Beri jeda 150ms agar stream kamera background (PosScannerPiP)
+        // telah melepaskan handle perangkat kamera secara tuntas
+        setTimeout(async () => {
+          if (props.isOpen) {
+            await startWebcamScanner();
+          }
+        }, 150);
       } else {
         // Jika tidak ada webcam, langsung fokuskan kursor ke input tembak barcode / keyboard
         setTimeout(() => {
