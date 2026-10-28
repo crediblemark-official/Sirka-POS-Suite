@@ -401,117 +401,117 @@ defineExpose({
       </div>
     </div>
 
-    <!-- 3. Main Catalog View Area -->
-    <div class="flex-1 overflow-y-auto p-3 touch-pan-y pb-28">
+    <!-- 3. Main Catalog View Area (Full Edge-to-Edge) -->
+    <div class="flex-1 overflow-y-auto touch-pan-y pb-28">
       <!-- Empty State: Katalog Kosong -->
-      <AppEmptyState
-        v-if="inventoryStore.products.length === 0"
-        :icon="Sparkles"
-        title="Katalog Produk Masih Kosong"
-        description="Database belum memiliki data barang. Anda dapat memuat data percontohan untuk langsung mencoba transaksi kasir mobile."
-      >
-        <button
-          type="button"
-          class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-white font-bold text-xs shadow-lg bg-blue-600 hover:bg-blue-700 cursor-pointer transition-all active:scale-95 disabled:opacity-50 mt-2"
-          :disabled="isLoadingDemo"
-          @click="handleLoadDemo"
+      <div v-if="inventoryStore.products.length === 0" class="p-4">
+        <AppEmptyState
+          :icon="Sparkles"
+          title="Katalog Produk Masih Kosong"
+          description="Database belum memiliki data barang. Anda dapat memuat data percontohan untuk langsung mencoba transaksi kasir mobile."
         >
-          <Sparkles class="w-4 h-4" :class="{ 'animate-spin': isLoadingDemo }" />
-          <span>{{ isLoadingDemo ? 'Memuat Data Demo...' : 'Muat Data Demo Kasir' }}</span>
-        </button>
-      </AppEmptyState>
+          <button
+            type="button"
+            class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-white font-bold text-xs shadow-lg bg-blue-600 hover:bg-blue-700 cursor-pointer transition-all active:scale-95 disabled:opacity-50 mt-2"
+            :disabled="isLoadingDemo"
+            @click="handleLoadDemo"
+          >
+            <Sparkles class="w-4 h-4" :class="{ 'animate-spin': isLoadingDemo }" />
+            <span>{{ isLoadingDemo ? 'Memuat Data Demo...' : 'Muat Data Demo Kasir' }}</span>
+          </button>
+        </AppEmptyState>
+      </div>
 
       <!-- Empty State: Filter Tidak Cocok -->
-      <AppEmptyState
-        v-else-if="filteredProducts.length === 0"
-        :icon="Folder"
-        title="Tidak ada barang yang cocok"
-        description="Coba pilih kategori lain atau periksa kata kunci pencarian Anda"
-      />
+      <div v-else-if="filteredProducts.length === 0" class="p-4">
+        <AppEmptyState
+          :icon="Folder"
+          title="Tidak ada barang yang cocok"
+          description="Coba pilih kategori lain atau periksa kata kunci pencarian Anda"
+        />
+      </div>
 
-      <!-- A. DESKTOP-STYLE BORDER GRID VIEW (Cukup dipisah garis & icon folder satuan/stok) -->
+      <!-- A. DESKTOP-STYLE BORDER GRID VIEW (Full Edge-to-Edge) -->
       <div
         v-else-if="currentViewMode === 'icons'"
-        class="border border-slate-300 rounded-xl overflow-hidden shadow-2xs bg-white"
+        class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 bg-white w-full border-t border-b border-slate-200"
       >
-        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 border-b border-r border-slate-200">
+        <div
+          v-for="prod in filteredProducts"
+          :key="prod.id"
+          :data-product-id="prod.id"
+          class="flex flex-col items-center justify-between p-2.5 sm:p-3 border-b border-r border-slate-200 cursor-pointer transition-all select-none relative overflow-hidden group active:scale-[0.98] active:brightness-92 min-h-[145px]"
+          :style="{
+            backgroundColor: selectedProductId === prod.id
+              ? (getProductTheme(prod).badgeBg || '#e2e8f0')
+              : (getProductTheme(prod).bgLightHex || getProductTheme(prod).badgeBg || '#ffffff')
+          }"
+          :class="[
+            selectedProductId === prod.id
+              ? 'ring-2 ring-inset ring-black/20 z-10 font-bold'
+              : 'hover:brightness-96'
+          ]"
+          @click="handleAddProductDirect(prod)"
+        >
+          <!-- In-Cart Quantity Indicator Badge (Top Right) -->
           <div
-            v-for="prod in filteredProducts"
-            :key="prod.id"
-            :data-product-id="prod.id"
-            class="flex flex-col items-center justify-between p-2.5 sm:p-3 border-t border-l border-slate-200 cursor-pointer transition-all select-none relative overflow-hidden group active:scale-[0.97]"
-            :style="{
-              backgroundColor: selectedProductId === prod.id
-                ? (getProductTheme(prod).badgeBg || '#e2e8f0')
-                : (getProductTheme(prod).bgLightHex || getProductTheme(prod).badgeBg || '#ffffff')
-            }"
-            :class="[
-              selectedProductId === prod.id
-                ? 'ring-2 ring-inset ring-black/20 z-10 font-bold'
-                : 'hover:brightness-96 active:brightness-90'
-            ]"
-            @click="handleAddProductDirect(prod)"
+            v-if="getCartItemQty(prod.id) > 0"
+            class="absolute top-1 right-1 px-1.5 py-0.5 rounded-full bg-blue-600 text-white font-mono text-[9.5px] font-bold shadow-xs flex items-center gap-0.5 z-10 animate-scale-in"
+            :title="`${getCartItemQty(prod.id)} item di keranjang`"
           >
-            <!-- In-Cart Quantity Indicator Badge (Top Right) -->
-            <div
-              v-if="getCartItemQty(prod.id) > 0"
-              class="absolute top-1 right-1 px-1.5 py-0.5 rounded-full bg-blue-600 text-white font-mono text-[9.5px] font-bold shadow-xs flex items-center gap-0.5 z-10 animate-scale-in"
-              :title="`${getCartItemQty(prod.id)} item di keranjang`"
-            >
-              <Check :size="10" />
-              <span>{{ getCartItemQty(prod.id) }}</span>
-            </div>
+            <Check :size="10" />
+            <span>{{ getCartItemQty(prod.id) }}</span>
+          </div>
 
-            <!-- Graphic Icon with Stock in Top Tab & Unit in Center Label (Desktop Parity) -->
-            <div class="relative w-16 h-13 flex items-center justify-center mb-1.5 mt-0.5 group-hover:scale-105 transition-transform shrink-0">
-              <!-- Folder Body with Category Gradient -->
+          <!-- Graphic Icon with Stock in Top Tab & Unit in Center Label (Desktop Parity) -->
+          <div class="relative w-16 h-13 flex items-center justify-center mb-1.5 mt-0.5 group-hover:scale-105 transition-transform shrink-0">
+            <!-- Folder Body with Category Gradient -->
+            <div
+              class="w-14 h-11 rounded-lg shadow-2xs border flex flex-col justify-end p-1 transition-colors"
+              :style="{
+                background: `linear-gradient(to bottom, ${getProductTheme(prod).gradientFrom}, ${getProductTheme(prod).gradientTo})`,
+                borderColor: getProductTheme(prod).borderHex
+              }"
+            >
+              <!-- Center Unit Label inside Folder -->
               <div
-                class="w-14 h-11 rounded-lg shadow-2xs border flex flex-col justify-end p-1 transition-colors"
+                class="h-5 rounded-xs flex items-center justify-center text-[10px] font-extrabold truncate px-1 transition-colors uppercase tracking-tight"
                 :style="{
-                  background: `linear-gradient(to bottom, ${getProductTheme(prod).gradientFrom}, ${getProductTheme(prod).gradientTo})`,
-                  borderColor: getProductTheme(prod).borderHex
+                  backgroundColor: '#ffffff',
+                  color: getProductTheme(prod).badgeText
                 }"
               >
-                <!-- Center Unit Label inside Folder -->
-                <div
-                  class="h-5 rounded-xs flex items-center justify-center text-[10px] font-extrabold truncate px-1 transition-colors uppercase tracking-tight"
-                  :style="{
-                    backgroundColor: '#ffffff',
-                    color: getProductTheme(prod).badgeText
-                  }"
-                >
-                  {{ prod.unit }}
-                </div>
-              </div>
-
-              <!-- Top Tab with Stock Number -->
-              <div
-                class="absolute -top-1 left-2 min-w-7 px-1.5 h-4 rounded-t-sm border-t border-l border-r flex items-center justify-center text-[9px] font-bold font-mono tracking-tight shadow-2xs"
-                :class="prod.stock <= 5 ? 'bg-red-500 text-white border-red-600' : 'bg-white text-gray-800'"
-                :style="prod.stock > 5 ? { borderColor: getProductTheme(prod).borderHex } : {}"
-                title="Sisa Stok Barang"
-              >
-                {{ prod.stock }}
+                {{ prod.unit }}
               </div>
             </div>
 
-            <!-- Product Name -->
-            <span class="text-xs font-bold text-center text-slate-900 line-clamp-2 leading-tight w-full mb-1">
-              {{ prod.name }}
+            <!-- Top Tab with Stock Number -->
+            <div
+              class="absolute -top-1 left-2 min-w-7 px-1.5 h-4 rounded-t-sm border-t border-l border-r flex items-center justify-center text-[9px] font-bold font-mono tracking-tight shadow-2xs"
+              :class="prod.stock <= 5 ? 'bg-red-500 text-white border-red-600' : 'bg-white text-gray-800'"
+              :style="prod.stock > 5 ? { borderColor: getProductTheme(prod).borderHex } : {}"
+              title="Sisa Stok Barang"
+            >
+              {{ prod.stock }}
+            </div>
+          </div>
+
+          <!-- Product Name -->
+          <span class="text-xs font-bold text-center text-slate-900 line-clamp-2 leading-tight w-full mb-1">
+            {{ prod.name }}
+          </span>
+
+          <!-- Price Label at Bottom -->
+          <div class="mt-auto w-full flex justify-center items-center pt-0.5">
+            <span class="text-xs font-extrabold text-slate-900 font-mono">
+              Rp {{ formatRupiah(prod.lastSellPrice) }}
             </span>
-
-            <!-- Price Label at Bottom -->
-            <div class="mt-auto w-full flex justify-center items-center pt-0.5">
-              <span class="text-xs font-extrabold text-slate-900 font-mono">
-                Rp {{ formatRupiah(prod.lastSellPrice) }}
-              </span>
-            </div>
           </div>
         </div>
       </div>
 
       <!-- B. LIST TABLE VIEW (Struktur Data Tabel Utuh 100% Sesuai Instruksi) -->
-      <div v-else class="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+      <div v-else class="bg-white border-t border-b border-slate-200 shadow-xs overflow-hidden">
         <div class="overflow-x-auto no-scrollbar">
           <table class="w-full text-xs text-left">
             <thead class="bg-slate-100/90 border-b border-slate-200 text-slate-700 font-bold uppercase text-[10.5px]">

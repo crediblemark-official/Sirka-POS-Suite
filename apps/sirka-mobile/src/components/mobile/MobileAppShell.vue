@@ -157,7 +157,7 @@ onMounted(() => {
           :search-query="searchQuery"
           view-mode="icons"
           :is-active="activeTab === 'pos'"
-          class="flex-1 overflow-y-auto"
+          class="flex-1 min-h-0"
         />
 
         <!-- Floating Cart Bar (Bottom Sticky Pill) -->
