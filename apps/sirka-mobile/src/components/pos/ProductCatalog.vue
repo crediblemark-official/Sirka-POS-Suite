@@ -492,12 +492,12 @@ defineExpose({
 
           <!-- Price & In-Cart Count at Bottom (e.g. "Rp 52.500 x 3") -->
           <div class="mt-auto w-full flex justify-center items-center gap-1.5 pt-0.5 flex-wrap">
-            <span class="text-xs font-extrabold text-slate-900 font-mono">
+            <span class="text-sm font-black text-slate-900 font-mono tracking-tight">
               Rp {{ formatRupiah(prod.lastSellPrice) }}
             </span>
             <span
               v-if="getCartItemQty(prod.id) > 0"
-              class="text-[11px] font-black font-mono text-blue-700 bg-blue-100/90 px-1.5 py-0.5 rounded-md border border-blue-300 shadow-2xs animate-scale-in inline-flex items-center"
+              class="text-xs font-black font-mono text-blue-700 bg-blue-100/90 px-1.5 py-0.5 rounded-md border border-blue-300 shadow-2xs animate-scale-in inline-flex items-center"
             >
               x {{ getCartItemQty(prod.id) }}
             </span>

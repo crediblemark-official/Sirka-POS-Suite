@@ -54,11 +54,11 @@ function handleQtyInputChange(e: Event) {
 </script>
 
 <template>
-  <div class="px-3 py-2 hover:bg-[#faf9f6] transition-colors flex flex-col gap-1.5">
+  <div class="px-3.5 py-2.5 hover:bg-slate-50/80 transition-colors flex flex-col gap-1.5 border-b border-slate-100 last:border-b-0">
     <!-- Baris 1: Nama Barang, Unit Selector, Kategori, & Tombol Hapus -->
-    <div class="flex items-center justify-between gap-1.5">
+    <div class="flex items-center justify-between gap-2">
       <div class="flex items-center gap-1.5 min-w-0 flex-1">
-        <span class="font-semibold text-gray-900 text-xs truncate" :title="item.name">
+        <span class="font-bold text-slate-900 text-sm truncate" :title="item.name">
           {{ item.name }}
         </span>
 
@@ -67,7 +67,7 @@ function handleQtyInputChange(e: Event) {
           <select
             v-if="availableUnits.length > 1"
             :value="item.unit"
-            class="px-1.5 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded text-[10px] font-bold border-none outline-none cursor-pointer transition-colors"
+            class="px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded text-xs font-bold border-none outline-none cursor-pointer transition-colors"
             title="Klik untuk ganti satuan kemasan"
             @change="(e: any) => emit('change-unit', e.target.value)"
           >
@@ -79,71 +79,71 @@ function handleQtyInputChange(e: Event) {
               {{ u.unitName }}
             </option>
           </select>
-          <span v-else class="px-1.5 py-0.2 bg-gray-100 text-gray-700 rounded text-[9.5px] font-bold uppercase">
+          <span v-else class="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded text-[11px] font-bold uppercase font-mono">
             {{ item.unit }}
           </span>
         </div>
 
-        <span class="truncate text-[10px] text-gray-400 shrink-0">
+        <span class="truncate text-xs text-slate-400 shrink-0">
           {{ item.category }}
         </span>
       </div>
 
       <button
         type="button"
-        class="p-0.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer transition-colors shrink-0"
+        class="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer transition-colors shrink-0"
         title="Hapus barang dari keranjang"
         @click="emit('remove')"
       >
-        <Trash2 :size="13" />
+        <Trash2 :size="15" />
       </button>
     </div>
 
-    <!-- Baris 2: Harga Jual Bersih (Kiri) & Qty + Subtotal (Kanan) -->
+    <!-- Baris 2: Harga Jual Satuan (Kiri) & Qty + Subtotal (Kanan) -->
     <div class="flex items-center justify-between gap-2">
-      <!-- Kiri: Tampilan Bersih: Klik untuk buka modal 3-cara penyesuaian harga -->
+      <!-- Kiri: Harga Satuan (Bisa di-tap untuk ubah harga / negosiasi) -->
       <div
-        class="text-xs font-mono flex items-center gap-1.5 cursor-pointer hover:opacity-80 group/price min-w-0"
+        class="flex items-baseline gap-1 cursor-pointer hover:opacity-80 group/price min-w-0"
         title="Klik untuk ubah harga / negosiasi"
         @click="emit('open-adjust-price')"
       >
-        <!-- Jika harga dinego lebih rendah dari harga master: cukup 2 harga (coret & gak coret) -->
+        <!-- Jika harga dinego lebih rendah dari harga master -->
         <template v-if="masterPrice > item.sellPrice">
-          <span class="line-through text-gray-400 text-[10.5px]">
+          <span class="line-through text-slate-400 text-xs font-mono">
             {{ formatRupiah(masterPrice) }}
           </span>
-          <span class="font-bold text-rose-700 group-hover/price:underline">
+          <span class="text-sm font-black text-rose-600 font-mono group-hover/price:underline">
             {{ formatRupiah(item.sellPrice) }}
           </span>
-          <span class="text-[10px] text-gray-400 uppercase">/ {{ item.unit }}</span>
+          <span class="text-xs text-slate-500 font-semibold uppercase font-mono">/ {{ item.unit }}</span>
         </template>
 
-        <!-- Normal -->
+        <!-- Normal: Warna kontras jelas & nominal terbaca -->
         <template v-else>
-          <span class="font-bold text-amber-700 group-hover/price:underline">
+          <span class="text-sm font-black text-slate-900 font-mono group-hover/price:underline">
             {{ formatRupiah(item.sellPrice) }}
           </span>
-          <span class="text-[10px] text-gray-400 uppercase">/ {{ item.unit }}</span>
+          <span class="text-xs text-slate-500 font-semibold uppercase font-mono">/ {{ item.unit }}</span>
         </template>
       </div>
 
       <!-- Kanan: Qty Control Desimal & Subtotal -->
-      <div class="flex items-center gap-2 shrink-0">
+      <div class="flex items-center gap-2.5 shrink-0">
         <!-- Flexible Qty Input (Touch-friendly 32px buttons) -->
         <div class="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200">
           <button
             type="button"
-            class="w-7 h-7 rounded-lg bg-white shadow-2xs text-slate-700 hover:text-black hover:bg-slate-200 flex items-center justify-center cursor-pointer transition-all active:scale-90"
+            class="w-8 h-8 rounded-lg bg-white shadow-2xs text-slate-700 hover:text-black hover:bg-slate-200 flex items-center justify-center cursor-pointer transition-all active:scale-90"
             title="Kurangi Qty"
             @click="emit('update-qty', Number(Math.max(0, item.qty - qtyDecrement()).toFixed(3)))"
           >
-            <Minus :size="13" />
+            <Minus :size="14" />
           </button>
           <input
             type="text"
             inputmode="decimal"
             :value="item.qty"
-            class="w-11 h-7 text-center font-mono font-bold text-xs bg-transparent text-slate-900 border-none outline-none"
+            class="w-10 h-8 text-center font-mono font-black text-sm bg-transparent text-slate-900 border-none outline-none"
             title="Jumlah beli (bisa ketik desimal, misal 0.5 atau 0.25)"
             @change="handleQtyInputChange"
             @keydown.up.prevent="emit('update-qty', Number((item.qty + qtyIncrement()).toFixed(3)))"
@@ -151,16 +151,16 @@ function handleQtyInputChange(e: Event) {
           />
           <button
             type="button"
-            class="w-7 h-7 rounded-lg bg-white shadow-2xs text-slate-700 hover:text-black hover:bg-slate-200 flex items-center justify-center cursor-pointer transition-all active:scale-90"
+            class="w-8 h-8 rounded-lg bg-white shadow-2xs text-slate-700 hover:text-black hover:bg-slate-200 flex items-center justify-center cursor-pointer transition-all active:scale-90"
             title="Tambah Qty"
             @click="emit('update-qty', Number((item.qty + qtyIncrement()).toFixed(3)))"
           >
-            <Plus :size="13" />
+            <Plus :size="14" />
           </button>
         </div>
 
-        <!-- Subtotal -->
-        <span class="font-bold font-mono text-gray-900 text-xs text-right min-w-[65px]">
+        <!-- Subtotal Nominal (Jelas, Tebal & Terbaca) -->
+        <span class="font-black font-mono text-slate-900 text-sm sm:text-base text-right min-w-[70px]">
           {{ formatRupiah(item.subtotalSell) }}
         </span>
       </div>

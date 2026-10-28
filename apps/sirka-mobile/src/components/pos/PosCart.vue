@@ -607,47 +607,47 @@ onUnmounted(() => {
       </div>
 
       <!-- Totals Breakdown -->
-      <div class="space-y-1 text-xs">
+      <div class="space-y-1.5 text-xs">
         <!-- Subtotal if any discount or points active -->
-        <div v-if="posStore.totalDiscountAmount > 0 || posStore.pointsDiscountAmount > 0" class="flex items-center justify-between text-gray-500 text-[11px]">
+        <div v-if="posStore.totalDiscountAmount > 0 || posStore.pointsDiscountAmount > 0" class="flex items-center justify-between text-slate-600 text-xs">
           <span>Subtotal Barang:</span>
-          <span class="font-mono">Rp {{ formatRupiah(posStore.totalSell) }}</span>
+          <span class="font-mono font-bold text-slate-800">Rp {{ formatRupiah(posStore.totalSell) }}</span>
         </div>
 
         <!-- Member tier discount -->
-        <div v-if="posStore.memberTierDiscountAmount > 0" class="flex items-center justify-between text-amber-800 font-medium text-[11px]">
+        <div v-if="posStore.memberTierDiscountAmount > 0" class="flex items-center justify-between text-amber-900 font-semibold text-xs">
           <span class="flex items-center gap-1">
-            <Sparkles :size="11" class="text-amber-500" />
+            <Sparkles :size="12" class="text-amber-500" />
             <span>Diskon Member ({{ posStore.memberTier }} {{ posStore.memberTierDiscountPercent }}%):</span>
           </span>
-          <span class="font-mono font-bold">-Rp {{ formatRupiah(posStore.memberTierDiscountAmount) }}</span>
+          <span class="font-mono font-black text-amber-700">-Rp {{ formatRupiah(posStore.memberTierDiscountAmount) }}</span>
         </div>
 
         <!-- Voucher discount -->
-        <div v-if="posStore.voucherDiscountAmount > 0" class="flex items-center justify-between text-rose-700 font-medium text-[11px]">
+        <div v-if="posStore.voucherDiscountAmount > 0" class="flex items-center justify-between text-rose-900 font-semibold text-xs">
           <span class="flex items-center gap-1">
-            <Tag :size="11" class="text-rose-500" />
+            <Tag :size="12" class="text-rose-500" />
             <span>Diskon Kupon ({{ posStore.appliedDiscount?.code }}):</span>
           </span>
-          <span class="font-mono font-bold">-Rp {{ formatRupiah(posStore.voucherDiscountAmount) }}</span>
+          <span class="font-mono font-black text-rose-600">-Rp {{ formatRupiah(posStore.voucherDiscountAmount) }}</span>
         </div>
 
         <!-- Manual discount row -->
-        <div v-if="posStore.manualDiscountAmount > 0" class="flex items-center justify-between text-indigo-700 font-medium text-[11px]">
+        <div v-if="posStore.manualDiscountAmount > 0" class="flex items-center justify-between text-indigo-900 font-semibold text-xs">
           <span class="flex items-center gap-1">
-            <Percent :size="11" class="text-indigo-500" />
+            <Percent :size="12" class="text-indigo-500" />
             <span>Diskon Manual Kasir{{ posStore.manualDiscountPercent > 0 ? ` (${posStore.manualDiscountPercent}%)` : '' }}:</span>
           </span>
-          <span class="font-mono font-bold">-Rp {{ formatRupiah(posStore.manualDiscountAmount) }}</span>
+          <span class="font-mono font-black text-indigo-700">-Rp {{ formatRupiah(posStore.manualDiscountAmount) }}</span>
         </div>
 
         <!-- Points discount -->
-        <div v-if="posStore.pointsDiscountAmount > 0" class="flex items-center justify-between text-amber-700 font-medium text-[11px]">
+        <div v-if="posStore.pointsDiscountAmount > 0" class="flex items-center justify-between text-amber-900 font-semibold text-xs">
           <span class="flex items-center gap-1">
-            <Coins :size="11" class="text-amber-500" />
+            <Coins :size="12" class="text-amber-500" />
             <span>Potongan Poin ({{ posStore.pointsToRedeem }} Poin):</span>
           </span>
-          <span class="font-mono font-bold">-Rp {{ formatRupiah(posStore.pointsDiscountAmount) }}</span>
+          <span class="font-mono font-black text-amber-700">-Rp {{ formatRupiah(posStore.pointsDiscountAmount) }}</span>
         </div>
 
         <!-- Grand Total row -->
