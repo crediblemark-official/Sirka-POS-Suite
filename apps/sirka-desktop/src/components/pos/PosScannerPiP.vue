@@ -18,8 +18,7 @@ import {
   Volume2,
   VolumeX,
   Zap,
-  ScanLine,
-  FlipHorizontal
+  ScanLine
 } from 'lucide-vue-next';
 
 const props = withDefaults(
@@ -48,7 +47,7 @@ const containerId = `pos-pip-scanner-${Math.random().toString(36).slice(2, 8)}`;
 const isCameraEnabled = ref(localStorage.getItem('sirka_scanner_camera_enabled') !== 'false');
 const isMinimized = ref(localStorage.getItem('sirka_scanner_pip_minimized') === 'true');
 const isSoundEnabled = ref(localStorage.getItem('sirka_scanner_sound_enabled') !== 'false');
-const isMirrored = ref(localStorage.getItem('sirka_scanner_mirror') !== 'false');
+const isMirrored = ref(true); // Webcam desktop selalu mirror secara default
 const isTorchOn = ref(false);
 const isTorchAvailable = ref(false);
 
@@ -460,11 +459,6 @@ function toggleSound() {
   localStorage.setItem('sirka_scanner_sound_enabled', isSoundEnabled.value ? 'true' : 'false');
 }
 
-function toggleMirror() {
-  isMirrored.value = !isMirrored.value;
-  localStorage.setItem('sirka_scanner_mirror', isMirrored.value ? 'true' : 'false');
-}
-
 watch(
   () => props.isActive,
   async (active) => {
@@ -567,16 +561,6 @@ onUnmounted(async () => {
             @click="switchCamera"
           >
             <RefreshCw :size="12" />
-          </button>
-
-          <!-- Mirror / Flip Horizontal Toggle -->
-          <button
-            type="button"
-            class="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition"
-            :title="isMirrored ? 'Mode Cermin (Mirror) Aktif' : 'Nyalakan Mode Cermin (Mirror)'"
-            @click="toggleMirror"
-          >
-            <FlipHorizontal :size="12" :class="{ 'text-amber-400': isMirrored }" />
           </button>
 
           <!-- Sound Toggle -->

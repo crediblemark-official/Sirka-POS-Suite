@@ -18,8 +18,7 @@ import {
   Volume2,
   VolumeX,
   Zap,
-  ScanLine,
-  FlipHorizontal
+  ScanLine
 } from 'lucide-vue-next';
 
 const props = withDefaults(
@@ -48,7 +47,11 @@ const containerId = `pos-pip-scanner-${Math.random().toString(36).slice(2, 8)}`;
 const isCameraEnabled = ref(localStorage.getItem('sirka_scanner_camera_enabled') !== 'false');
 const isMinimized = ref(localStorage.getItem('sirka_scanner_pip_minimized') === 'true');
 const isSoundEnabled = ref(localStorage.getItem('sirka_scanner_sound_enabled') !== 'false');
-const isMirrored = ref(localStorage.getItem('sirka_scanner_mirror') === 'true');
+const facingMode = ref<'environment' | 'user'>(
+  (localStorage.getItem('sirka_scanner_facing_mode') as 'environment' | 'user') || 'environment'
+);
+// Kamera depan (selfie/webcam) otomatis mirror cermin, kamera belakang normal
+const isMirrored = ref(facingMode.value === 'user');
 const isTorchOn = ref(false);
 const isTorchAvailable = ref(false);
 
@@ -275,26 +278,32 @@ async function initializeCameras() {
       const saved = localStorage.getItem('sirka_scanner_camera_id');
       if (saved && devices.some(d => d.id === saved)) {
         selectedCameraId.value = saved;
+        const activeCam = devices.find(d => d.id === saved);
+        if (activeCam) {
+          const isFront = /front|user|selfie|webcam/i.test(activeCam.label);
+          facingMode.value = isFront ? 'user' : 'environment';
+          isMirrored.value = isFront;
+        }
       } else {
-        // Prefer rear camera on mobile
+        // Cari kamera belakang atau depan sesuai facingMode yang tersimpan
         const rear = devices.find(d => /back|rear|environment/i.test(d.label));
-        selectedCameraId.value = rear ? rear.id : devices[0].id;
-      }
-
-      // Pastikan mode mirror aktif jika kamera adalah webcam atau kamera depan (selfie)
-      const savedMirror = localStorage.getItem('sirka_scanner_mirror');
-      if (savedMirror !== null) {
-        isMirrored.value = savedMirror === 'true';
-      } else {
-        const activeCam = devices.find(d => d.id === selectedCameraId.value);
-        if (activeCam && /front|user|selfie|webcam/i.test(activeCam.label)) {
+        const front = devices.find(d => /front|user|selfie|webcam/i.test(d.label));
+        if (facingMode.value === 'user' && front) {
+          selectedCameraId.value = front.id;
           isMirrored.value = true;
-        } else {
+        } else if (rear) {
+          selectedCameraId.value = rear.id;
+          facingMode.value = 'environment';
           isMirrored.value = false;
+        } else {
+          selectedCameraId.value = devices[0].id;
+          const isFront = /front|user|selfie|webcam/i.test(devices[0].label);
+          facingMode.value = isFront ? 'user' : 'environment';
+          isMirrored.value = isFront;
         }
       }
     } else {
-      errorMessage.value = 'Tidak ada perangkat kamera / webcam terdeteksi.';
+      errorMessage.value = 'Tidak ada perangkat kamera terdeteksi.';
     }
   } catch (err: any) {
     errorMessage.value = 'Izin kamera belum diberikan atau perangkat tidak siap.';
@@ -340,7 +349,7 @@ async function startCameraScanner() {
           frameRate: { ideal: 30, min: 24 }
         }
       : {
-          facingMode: 'environment',
+          facingMode: facingMode.value,
           width: { ideal: 1280, min: 640 },
           height: { ideal: 720, min: 480 },
           frameRate: { ideal: 30, min: 24 }
@@ -425,17 +434,37 @@ async function toggleTorch() {
   }
 }
 
-async function switchCamera() {
-  if (availableCameras.value.length < 2) return;
-  const currIndex = availableCameras.value.findIndex(c => c.id === selectedCameraId.value);
-  const nextIndex = (currIndex + 1) % availableCameras.value.length;
-  selectedCameraId.value = availableCameras.value[nextIndex].id;
-  localStorage.setItem('sirka_scanner_camera_id', selectedCameraId.value);
+async function flipCameraMobile() {
+  if (isStarting.value) return;
 
-  // Otomatis aktifkan mirror jika switch ke webcam atau kamera depan (selfie)
-  if (localStorage.getItem('sirka_scanner_mirror') === null) {
-    const cam = availableCameras.value[nextIndex];
-    isMirrored.value = /front|user|selfie|webcam/i.test(cam.label);
+  const nextMode = facingMode.value === 'environment' ? 'user' : 'environment';
+  facingMode.value = nextMode;
+  localStorage.setItem('sirka_scanner_facing_mode', nextMode);
+
+  // Kamera depan (selfie/webcam) otomatis mirror cermin, kamera belakang normal
+  isMirrored.value = nextMode === 'user';
+
+  if (availableCameras.value.length > 0) {
+    if (nextMode === 'user') {
+      const frontCam = availableCameras.value.find(d => /front|user|selfie|webcam/i.test(d.label));
+      if (frontCam) {
+        selectedCameraId.value = frontCam.id;
+      } else {
+        const other = availableCameras.value.find(d => d.id !== selectedCameraId.value);
+        if (other) selectedCameraId.value = other.id;
+      }
+    } else {
+      const rearCam = availableCameras.value.find(d => /back|rear|environment/i.test(d.label));
+      if (rearCam) {
+        selectedCameraId.value = rearCam.id;
+      } else {
+        const other = availableCameras.value.find(d => d.id !== selectedCameraId.value);
+        if (other) selectedCameraId.value = other.id;
+      }
+    }
+    localStorage.setItem('sirka_scanner_camera_id', selectedCameraId.value);
+  } else {
+    selectedCameraId.value = '';
   }
 
   await stopCameraScanner();
@@ -460,11 +489,6 @@ function toggleMinimize() {
 function toggleSound() {
   isSoundEnabled.value = !isSoundEnabled.value;
   localStorage.setItem('sirka_scanner_sound_enabled', isSoundEnabled.value ? 'true' : 'false');
-}
-
-function toggleMirror() {
-  isMirrored.value = !isMirrored.value;
-  localStorage.setItem('sirka_scanner_mirror', isMirrored.value ? 'true' : 'false');
 }
 
 watch(
@@ -562,25 +586,17 @@ onUnmounted(async () => {
             <Zap :size="13" :class="{ 'text-amber-400 fill-amber-400': isTorchOn }" />
           </button>
 
-          <!-- Ganti Kamera (Webcam / Belakang) jika > 1 perangkat -->
-          <button
-            v-if="availableCameras.length > 1"
-            type="button"
-            class="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition"
-            title="Ganti Perangkat Kamera / Webcam"
-            @click="switchCamera"
-          >
-            <RefreshCw :size="12" />
-          </button>
-
-          <!-- Mirror / Flip Horizontal Toggle -->
+          <!-- Tombol Flip Kamera Depan + Belakang di Mobile -->
           <button
             type="button"
-            class="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition"
-            :title="isMirrored ? 'Mode Cermin (Mirror) Aktif' : 'Nyalakan Mode Cermin (Mirror)'"
-            @click="toggleMirror"
+            class="px-1.5 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition flex items-center gap-1 cursor-pointer active:scale-95"
+            :title="facingMode === 'user' ? 'Kamera Depan Aktif (Cermin) - Klik untuk beralih ke Kamera Belakang' : 'Kamera Belakang Aktif - Klik untuk beralih ke Kamera Depan (Cermin)'"
+            @click="flipCameraMobile"
           >
-            <FlipHorizontal :size="12" :class="{ 'text-amber-400': isMirrored }" />
+            <RefreshCw :size="11" :class="facingMode === 'user' ? 'text-amber-400 rotate-180' : 'text-emerald-400'" class="transition-transform duration-300 shrink-0" />
+            <span class="text-[9px] font-bold font-mono text-slate-200">
+              {{ facingMode === 'user' ? 'Depan' : 'Belakang' }}
+            </span>
           </button>
 
           <!-- Sound Toggle -->
