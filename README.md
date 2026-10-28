@@ -28,7 +28,7 @@ Aplikasi ini menggunakan pendekatan **Local-First (Offline-First)** untuk memast
 [ Cloudflare Worker (worker/) — Hono ]
          ▲
          │ (Bearer Token Auth)
-[ Mobile App (apps/sirka-mobile/) — Android Handheld & Monitoring ]
+[ Owner Mobile (apps/sirka-owner-mobile/) & Handheld POS (apps/sirka-mobile/) ]
 ```
 
 ---
@@ -46,13 +46,17 @@ Sirka-POS-Suite/
 │   └── shared-ui/                 # @sirka/shared-ui (Komponen UI tabel & modal bersama)
 │
 ├── apps/                          # 🚀 Aplikasi Pengguna
-│   ├── sirka-desktop/             # 🖥️ PC/Laptop POS (Tauri v2 Desktop + Windows Explorer Shell)
+│   ├── sirka-desktop/             # 🖥️ App 1: PC/Laptop POS (Tauri v2 Desktop + Windows Explorer Shell)
 │   │   ├── src-tauri/             # Rust desktop backend (SQLite WAL, printer ESC/POS, laci RJ11)
 │   │   └── src/                   # UI Desktop (Katalog produk, kasir split-screen, master data)
 │   │
-│   └── sirka-mobile/              # 📱 Android Handheld POS & Monitoring (Tauri v2 Android)
-│       ├── src-tauri/             # Rust Android backend (Bluetooth thermal, Android Keystore)
-│       └── src/                   # UI Mobile-first (Katalog mobile, bottom-sheet keranjang)
+│   ├── sirka-mobile/              # 📱 App 2: Android Handheld POS Kasir (Tauri v2 Android)
+│   │   ├── src-tauri/             # Rust Android backend (Bluetooth thermal, SQLite, scanner PiP)
+│   │   └── src/                   # UI Mobile-first (Katalog mobile, bottom-sheet keranjang)
+│   │
+│   └── sirka-owner-mobile/        # 📊 App 3: Android Owner Dashboard & Monitoring (Tauri v2 Android)
+│       ├── src-tauri/             # Rust Android backend (Android Keystore, Device Key, TLS)
+│       └── src/                   # UI Mobile-first (Laba Rugi, Arus Kas, Valuasi Aset, Piutang)
 │
 ├── certs/                         # 🔐 Sertifikat Code Signing Windows (.pfx) & Android Keystore
 ├── db/                            # 🗄️ Skema Database PostgreSQL, Migrasi & Seeder
@@ -187,6 +191,7 @@ bun run test:all
 # 4. Validasi type-checking TypeScript & build produksi frontend
 bun run build:desktop
 bun run build:mobile
+bun run build:owner
 ```
 
 ---
@@ -200,9 +205,9 @@ Alur kerja CI/CD di folder [`.github/workflows`](file:///media/rasyiqi/7653717A1
    - Menandatangani file dengan sertifikat resmi [`certs/Sirka_CodeSigning.pfx`](file:///media/rasyiqi/7653717A1C07B131/Sirka%20POS%20Suite/certs/Sirka_CodeSigning.pfx).
    - Menghasilkan installer `.exe` (NSIS) dan paket `.msi`.
 2. **Android APK Release ([`build-android.yml`](file:///media/rasyiqi/7653717A1C07B131/Sirka%20POS%20Suite/.github/workflows/build-android.yml)):**
-   - Berjalan pada runner `ubuntu-24.04` dengan Java 17 dan Android NDK r26d.
-   - Menandatangani file APK menggunakan [`certs/sirka-release.keystore`](file:///media/rasyiqi/7653717A1C07B131/Sirka%20POS%20Suite/certs/sirka-release.keystore).
-   - Menghasilkan file APK resmi bertanda tangan (`Sirka_Owner_<versi>.apk`) dan otomatis diunggah ke GitHub Releases.
+   - Berjalan secara paralel via GitHub Actions matrix runner `ubuntu-24.04` (Java 17 & Android NDK r26d).
+   - Menandatangani file APK menggunakan [`certs/sirka-release.keystore`](file:///media/rasyiqi/7653717A1C07B131/Sirka%20POS%20Suite/certs/sirka-release.keystore) (zipalign 4-byte & apksigner v1, v2, v3).
+   - Menghasilkan dua file APK resmi bertanda tangan (`Sirka_POS_<versi>.apk` & `Sirka_Owner_<versi>.apk`) dan otomatis diunggah ke GitHub Releases.
 
 Pemicu rilis: Buat tag git berawalan `v*` (contoh: `git tag v0.2.3 && git push origin v0.2.3`) atau jalankan secara manual melalui menu **Actions -> Run workflow** di GitHub.
 

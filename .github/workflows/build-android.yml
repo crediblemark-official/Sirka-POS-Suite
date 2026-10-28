@@ -1,4 +1,4 @@
-name: "Build Android APK (Sirka Owner Mobile)"
+name: "Build Android APKs (Sirka POS & Owner Mobile)"
 
 on:
   push:
@@ -12,10 +12,25 @@ concurrency:
 
 jobs:
   build-apk:
-    name: Build & Sign Android APK
+    name: Build & Sign APK (${{ matrix.app.name }})
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        app:
+          - id: pos
+            name: "Sirka POS Mobile"
+            dir: "apps/sirka-mobile"
+            artifact: "sirka-pos-mobile-apk"
+            output_name: "Sirka_POS"
+          - id: owner
+            name: "Sirka Owner Mobile"
+            dir: "apps/sirka-owner-mobile"
+            artifact: "sirka-owner-mobile-apk"
+            output_name: "Sirka_Owner"
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -53,7 +68,7 @@ jobs:
 
       # 2. Inisialisasi Android Tauri Project & Pasang Aset Resmi
       - name: Inisialisasi Android Tauri Project & Pasang Aset Resmi
-        working-directory: apps/sirka-mobile
+        working-directory: ${{ matrix.app.dir }}
         run: |
           if [ ! -d "src-tauri/gen/android" ]; then
             bun run tauri android init --ci
@@ -69,23 +84,27 @@ jobs:
 
       # 3. Build APK Release (ARM64)
       - name: Build APK Release
-        working-directory: apps/sirka-mobile
+        working-directory: ${{ matrix.app.dir }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           VITE_WORKER_URL: ${{ secrets.VITE_WORKER_URL }}
+          VITE_TERTAUT_APP_ID: ${{ secrets.VITE_TERTAUT_APP_ID }}
+          VITE_TERTAUT_PUBLISHABLE_KEY: ${{ secrets.VITE_TERTAUT_PUBLISHABLE_KEY }}
+          VITE_TERTAUT_API_KEY: ${{ secrets.VITE_TERTAUT_PUBLISHABLE_KEY }}
+          VITE_TERTAUT_BASE_URL: ${{ secrets.VITE_TERTAUT_BASE_URL || 'https://tertaut.com' }}
         run: bun run tauri android build --apk --target aarch64
 
       # 4. Sign APK with Release Keystore (zipalign & apksigner v1, v2, v3)
       - name: Sign APK with Release Keystore
-        working-directory: apps/sirka-mobile
+        working-directory: ${{ matrix.app.dir }}
         run: node scripts/sign-apk.mjs
 
       # 5. Upload APK Artifact
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: sirka-owner-mobile-apk
-          path: apps/sirka-mobile/src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          name: ${{ matrix.app.artifact }}
+          path: ${{ matrix.app.dir }}/src-tauri/gen/android/app/build/outputs/apk/**/*.apk
           if-no-files-found: warn
 
       # 6. Upload APK to GitHub Release jika tag v*
@@ -95,11 +114,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG_NAME="${GITHUB_REF#refs/tags/}"
-          APK_FILE=$(find apps/sirka-mobile/src-tauri/gen/android/app/build/outputs/apk -name "*.apk" | head -n 1)
+          APK_FILE=$(find ${{ matrix.app.dir }}/src-tauri/gen/android/app/build/outputs/apk -name "*.apk" | head -n 1)
           if [ -n "$APK_FILE" ]; then
-            CLEAN_NAME="Sirka_Owner_${TAG_NAME#v}.apk"
+            CLEAN_NAME="${{ matrix.app.output_name }}_${TAG_NAME#v}.apk"
             cp "$APK_FILE" "$CLEAN_NAME"
             echo "Memastikan GitHub Release $TAG_NAME tersedia..."
-            gh release view "$TAG_NAME" || gh release create "$TAG_NAME" --title "Sirka $TAG_NAME" --notes "Rilis Sirka $TAG_NAME"
+            gh release view "$TAG_NAME" || gh release create "$TAG_NAME" --title "Sirka $TAG_NAME" --notes "Rilis Sirka $TAG_NAME" || true
             gh release upload "$TAG_NAME" "$CLEAN_NAME" --clobber
           fi

@@ -1,6 +1,6 @@
 [package]
 name = "sirka-mobile-app"
-version = "0.2.4"
+version = "0.2.5"
 description = "Sirka POS Suite Mobile"
 authors = ["you"]
 edition = "2024"

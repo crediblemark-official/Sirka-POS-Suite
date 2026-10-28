@@ -87,7 +87,7 @@ jobs:
 
             Build otomatis menggunakan GitHub Actions:
             - 🪟 **Windows Desktop**: Installer `.exe` (NSIS) dan `.msi`
-            - 📱 **Android**: `.apk` (Sirka Owner Mobile)
+            - 📱 **Android**: `.apk` (`Sirka_POS_<versi>.apk` & `Sirka_Owner_<versi>.apk`)
 
             Silakan unduh file instalasi di bawah sesuai perangkat Anda.
           releaseDraft: ${{ github.event.inputs.release_draft || false }}

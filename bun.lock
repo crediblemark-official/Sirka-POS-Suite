@@ -42,7 +42,7 @@
     },
     "apps/sirka-desktop": {
       "name": "sirka-desktop",
-      "version": "0.2.3",
+      "version": "0.2.5",
       "dependencies": {
         "@sirka/shared-core": "workspace:*",
         "@sirka/shared-types": "workspace:*",
@@ -81,7 +81,7 @@
     },
     "apps/sirka-mobile": {
       "name": "sirka-mobile",
-      "version": "0.2.3",
+      "version": "0.2.5",
       "dependencies": {
         "@sirka/shared-core": "workspace:*",
         "@sirka/shared-types": "workspace:*",
@@ -112,6 +112,28 @@
         "@tauri-apps/cli": "^2",
         "@types/bun": "^1.4.3",
         "@types/qrcode": "^1.5.6",
+        "@vitejs/plugin-vue": "^6.0.7",
+        "typescript": "~6.0.3",
+        "vite": "^8.0.16",
+        "vue-tsc": "^3.3.5",
+      },
+    },
+    "apps/sirka-owner-mobile": {
+      "name": "sirka-owner-mobile",
+      "version": "0.2.5",
+      "dependencies": {
+        "@tailwindcss/vite": "^4.3.3",
+        "@tauri-apps/api": "^2",
+        "@tauri-apps/plugin-opener": "^2",
+        "lucide-vue-next": "^1.0.0",
+        "pg": "^8.23.1",
+        "tailwindcss": "^4.3.3",
+        "vue": "^3.5.13",
+      },
+      "devDependencies": {
+        "@tauri-apps/cli": "^2",
+        "@types/bun": "^1.4.3",
+        "@types/pg": "^8.23.1",
         "@vitejs/plugin-vue": "^6.0.7",
         "typescript": "~6.0.3",
         "vite": "^8.0.16",
@@ -495,6 +517,8 @@
     "sirka-desktop": ["sirka-desktop@workspace:apps/sirka-desktop"],
 
     "sirka-mobile": ["sirka-mobile@workspace:apps/sirka-mobile"],
+
+    "sirka-owner-mobile": ["sirka-owner-mobile@workspace:apps/sirka-owner-mobile"],
 
     "source-map-js": ["source-map-js@1.2.2", "", {}, "sha512-KGj/8Y43x35aZVDtt+J4mK1hoLGHULMYfSkODJNQjNDC3oW1PqPoxMwo0pLUsWM/UEGzON/NxeHywEfNXNP3Vw=="],
 
