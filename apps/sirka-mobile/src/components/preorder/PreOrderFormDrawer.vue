@@ -285,7 +285,7 @@ async function handleDeletePoSidebar() {
         @click="handleAddItem"
       >
         <Plus :size="13" />
-        <span>+ Masukkan ke Daftar Pesanan</span>
+        <span>Masukkan ke Daftar Pesanan</span>
       </button>
     </div>
 

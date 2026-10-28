@@ -497,7 +497,7 @@ function handleRefundViewReceipt(invoiceNo: string) {
       @click="openMutationModal('TUNAI')"
     >
       <Plus :size="18" />
-      <span>+ Mutasi Kas</span>
+      <span>Mutasi Kas</span>
     </button>
   </div>
 </template>

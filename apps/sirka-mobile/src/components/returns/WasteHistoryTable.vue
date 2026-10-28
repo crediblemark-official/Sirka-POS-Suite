@@ -232,7 +232,7 @@ function formatDateTime(iso: string) {
           @click="returnStore.openWasteModal()"
         >
           <Plus :size="13" />
-          <span>+ Catat Barang Rusak</span>
+          <span>Catat Barang Rusak</span>
         </button>
       </div>
     </div>
