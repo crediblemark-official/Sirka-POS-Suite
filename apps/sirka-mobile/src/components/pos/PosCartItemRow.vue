@@ -260,21 +260,21 @@ function triggerDelete(direction = -1) {
             </template>
           </div>
 
-          <!-- Flexible Qty Input (Stepper Modern Bersekat POS) -->
-          <div class="inline-flex items-center rounded-lg border border-slate-300 bg-white shadow-2xs divide-x divide-slate-200 overflow-hidden shrink-0">
+          <!-- Flexible Qty Input (Stepper Bersih Tanpa Border) -->
+          <div class="flex items-center gap-0.5 shrink-0">
             <button
               type="button"
-              class="w-7 h-7 flex items-center justify-center bg-slate-50 hover:bg-slate-100 active:bg-slate-200 text-slate-700 hover:text-slate-950 cursor-pointer transition-colors active:scale-95"
+              class="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 active:bg-slate-200 text-slate-700 hover:text-slate-950 cursor-pointer transition-colors active:scale-90"
               title="Kurangi Qty"
               @click="emit('update-qty', Number(Math.max(0, item.qty - qtyDecrement()).toFixed(3)))"
             >
-              <Minus :size="12" class="stroke-[2.5]" />
+              <Minus :size="13" class="stroke-[2.5]" />
             </button>
             <input
               type="text"
               inputmode="decimal"
               :value="item.qty"
-              class="w-10 h-7 text-center font-mono font-black text-xs text-slate-900 bg-white border-none outline-none focus:bg-blue-50/40"
+              class="w-8 h-7 text-center font-mono font-black text-xs text-slate-900 bg-transparent border-none outline-none"
               title="Jumlah beli (bisa ketik desimal, misal 0.5 atau 0.25)"
               @change="handleQtyInputChange"
               @keydown.up.prevent="emit('update-qty', Number((item.qty + qtyIncrement()).toFixed(3)))"
@@ -282,11 +282,11 @@ function triggerDelete(direction = -1) {
             />
             <button
               type="button"
-              class="w-7 h-7 flex items-center justify-center bg-slate-50 hover:bg-slate-100 active:bg-slate-200 text-slate-700 hover:text-slate-950 cursor-pointer transition-colors active:scale-95"
+              class="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 active:bg-slate-200 text-slate-700 hover:text-slate-950 cursor-pointer transition-colors active:scale-90"
               title="Tambah Qty"
               @click="emit('update-qty', Number((item.qty + qtyIncrement()).toFixed(3)))"
             >
-              <Plus :size="12" class="stroke-[2.5]" />
+              <Plus :size="13" class="stroke-[2.5]" />
             </button>
           </div>
         </div>
