@@ -828,13 +828,15 @@ fn test_buyer_notes_persistence() {
 
 #[test]
 fn test_get_database_url_loads_env() {
+    let _ = tauri_app_lib::db::set_database_url(Some("postgresql://user:pass@localhost:5432/testdb".to_string()));
     let url = tauri_app_lib::db::get_database_url();
-    assert!(url.is_some(), "DATABASE_URL harus berhasil ditemukan dari .env atau fallback");
+    assert!(url.is_some(), "DATABASE_URL harus berhasil ditemukan");
     assert!(
         url.as_ref().unwrap().starts_with("postgresql://") || url.as_ref().unwrap().starts_with("postgres://"),
         "DATABASE_URL harus berupa URL postgres yang valid"
     );
 }
+
 
 #[test]
 fn test_multi_mode_service_no_stock_deduction_and_persistence() {

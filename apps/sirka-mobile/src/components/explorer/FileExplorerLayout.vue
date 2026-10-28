@@ -33,6 +33,8 @@ const MasterBuyerTab = defineAsyncComponent(() => import('../master/MasterBuyerT
 const MasterBrandingTab = defineAsyncComponent(() => import('../master/MasterBrandingTab.vue'));
 const MasterDiscountTab = defineAsyncComponent(() => import('../master/MasterDiscountTab.vue'));
 const MasterMemberTab = defineAsyncComponent(() => import('../master/MasterMemberTab.vue'));
+const ServerConfigTab = defineAsyncComponent(() => import('../server/ServerConfigTab.vue'));
+
 
 // On-Demand Modals (Lazy-loaded when triggered)
 const ReceiptModal = defineAsyncComponent(() => import('../pos/ReceiptModal.vue'));
@@ -87,8 +89,10 @@ const tabTitles: Record<ModuleTab, string> = {
   reports: 'Laporan',
   returns: 'Buku Kas',
   branding: 'Profil',
+  server: 'Server',
   master: 'Inventaris',
   home: 'Home',
+
   launcher: 'Menu',
   license: 'Lisensi'
 };
@@ -483,7 +487,13 @@ onUnmounted(() => {
           <MasterBrandingTab />
         </div>
 
-        <!-- 11. LAUNCHER VIEW (Modular Component) -->
+        <!-- 11. PENGATURAN SERVER & DATABASE CLOUD VIEW -->
+        <div v-if="activeTab === 'server'" class="flex-1 overflow-hidden">
+          <ServerConfigTab />
+        </div>
+
+        <!-- 12. LAUNCHER VIEW (Modular Component) -->
+
         <AppLauncherTab
           v-if="activeTab === 'launcher'"
           :open-tab-ids="openTabIds"
@@ -494,7 +504,8 @@ onUnmounted(() => {
     </div>
 
     <!-- Bottom Status Bar on Desktop, MobileBottomNav on Mobile -->
-    <ExplorerStatusBar v-if="!isMobile" :active-tab="activeTab" />
+    <ExplorerStatusBar v-if="!isMobile" :active-tab="activeTab" @open-tab="openTab" />
+
     <MobileBottomNav
       v-else
       :active-tab="activeTab"

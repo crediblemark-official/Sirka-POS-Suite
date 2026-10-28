@@ -25,8 +25,10 @@ import {
   FileSpreadsheet,
   Palette,
   Plus,
-  Lock
+  Lock,
+  Server
 } from 'lucide-vue-next';
+
 
 const props = defineProps<{
   openTabIds: ModuleTab[];
@@ -171,10 +173,13 @@ function getTabShortTitle(tabId: ModuleTab): string {
       return 'Pelanggan';
     case 'branding':
       return 'Profil';
+    case 'server':
+      return 'Server';
     default:
       return tabId;
   }
 }
+
 
 function getTabFullTitle(tabId: ModuleTab): string {
   return getTabShortTitle(tabId);
@@ -262,6 +267,8 @@ function getTabDisplayTitle(tabId: ModuleTab): string {
       <Truck v-else-if="tabId === 'suppliers'" :size="13" class="text-rose-600 shrink-0" />
       <Users v-else-if="tabId === 'buyers'" :size="13" class="text-indigo-600 shrink-0" />
       <Store v-else-if="tabId === 'branding'" :size="13" class="text-amber-600 shrink-0" />
+      <Server v-else-if="tabId === 'server'" :size="13" class="text-sky-600 shrink-0" />
+
 
       <!-- Title: Full name when roomy, short name when crowded, auto-truncated -->
       <span class="truncate flex-1">

@@ -24,7 +24,8 @@ import {
   CheckCircle2,
   RotateCcw,
   Sparkles,
-  X
+  X,
+  Server
 } from 'lucide-vue-next';
 
 const props = defineProps<{
@@ -33,7 +34,9 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'close'): void;
+  (e: 'open-server'): void;
 }>();
+
 
 const settingsStore = useSettingsStore();
 const inventoryStore = useInventoryStore();
@@ -266,8 +269,19 @@ bindModalLock(() => props.isOpen);
             <span>{{ syncService.isSyncing.value ? 'Sedang Menyinkronkan...' : 'Sinkronkan Sekarang (Push & Pull)' }}</span>
           </button>
 
+          <!-- Action: Buka Pengaturan Server -->
+          <button
+            type="button"
+            class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs border border-indigo-200 bg-indigo-50/70 text-indigo-700 hover:bg-indigo-100 cursor-pointer transition-all shadow-2xs"
+            @click="emit('open-server'); emit('close');"
+          >
+            <Server :size="14" />
+            <span>Buka Menu Pengaturan Server & Database</span>
+          </button>
+
           <!-- Action 2: Hapus Cache Section -->
           <div class="border-t border-slate-200 pt-3.5 space-y-2.5">
+
             <div>
               <h4 class="font-bold text-slate-900 text-xs">Pembersihan Cache Lokal</h4>
               <p class="text-[11px] text-slate-500 mt-0.5">Kosongkan database lokal & unduh ulang master data dari Cloud</p>

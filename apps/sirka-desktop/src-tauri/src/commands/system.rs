@@ -1145,4 +1145,36 @@ pub fn db_enqueue_outbox(action: String, payload: serde_json::Value) -> Result<i
     crate::local_db::enqueue_outbox(&conn, &action, &payload).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub fn db_get_server_config() -> Result<crate::db::ServerConfig, String> {
+    crate::db::get_server_config()
+}
+
+#[tauri::command]
+pub async fn db_save_server_config(
+    database_url: Option<String>,
+    worker_url: Option<String>,
+    worker_token: Option<String>,
+) -> Result<crate::db::ServerConfig, String> {
+    let has_db = database_url.as_ref().map(|s| !s.trim().is_empty()).unwrap_or(false);
+    crate::db::save_server_config(database_url, worker_url, worker_token)?;
+
+    if has_db {
+        tauri::async_runtime::spawn(async move {
+            let _ = crate::ensure_migrations().await;
+            let _ = crate::sync::run_sync_cycle().await;
+        });
+    } else {
+        crate::sync::mark_offline();
+    }
+
+    crate::db::get_server_config()
+}
+
+#[tauri::command]
+pub async fn db_test_database_connection(database_url: String) -> Result<String, String> {
+    crate::db::test_connection_string(&database_url).await
+}
+
+
 

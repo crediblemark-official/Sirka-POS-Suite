@@ -120,6 +120,9 @@ pub fn run() {
             db_reset_cache,
             db_wipe_all_data,
             db_enqueue_outbox,
+            db_get_server_config,
+            db_save_server_config,
+            db_test_database_connection,
             // 2. Products & Inventory
             db_get_products,
             db_upsert_product,

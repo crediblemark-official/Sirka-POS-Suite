@@ -7,8 +7,10 @@ import {
   PreOrderSchedule,
   Buyer,
   StoreSetting,
-  Discount
+  Discount,
+  ServerConfig
 } from '../types';
+
 
 /**
  * Deteksi apakah runtime Tauri (Desktop / Mobile IPC) tersedia.
@@ -546,5 +548,55 @@ export const dbService = {
 
   async enqueueOutbox(action: string, payload: unknown): Promise<number> {
     return safeInvoke<number>('db_enqueue_outbox', { action, payload }, () => 0);
+  },
+
+  async getServerConfig(): Promise<ServerConfig> {
+    return safeInvoke<ServerConfig>('db_get_server_config', undefined, () => ({
+      databaseUrl: getLocal('kasir_citra_database_url', null),
+      workerUrl: getLocal('kasir_citra_worker_url', null),
+      workerToken: getLocal('kasir_citra_owner_api_token', null),
+      isOnline: false,
+      pendingCount: 0,
+      lastSyncAt: null,
+      lastError: null
+    }));
+  },
+
+  async saveServerConfig(config: {
+    databaseUrl?: string | null;
+    workerUrl?: string | null;
+    workerToken?: string | null;
+  }): Promise<ServerConfig> {
+    return safeInvoke<ServerConfig>(
+      'db_save_server_config',
+      {
+        databaseUrl: config.databaseUrl ?? null,
+        workerUrl: config.workerUrl ?? null,
+        workerToken: config.workerToken ?? null
+      },
+      () => {
+        setLocal('kasir_citra_database_url', config.databaseUrl ?? null);
+        setLocal('kasir_citra_worker_url', config.workerUrl ?? null);
+        setLocal('kasir_citra_owner_api_token', config.workerToken ?? null);
+        return {
+          databaseUrl: config.databaseUrl ?? null,
+          workerUrl: config.workerUrl ?? null,
+          workerToken: config.workerToken ?? null,
+          isOnline: false,
+          pendingCount: 0,
+          lastSyncAt: null,
+          lastError: null
+        };
+      }
+    );
+  },
+
+  async testDatabaseConnection(databaseUrl: string): Promise<string> {
+    return safeInvoke<string>(
+      'db_test_database_connection',
+      { databaseUrl },
+      () => 'Koneksi database simulasi web preview'
+    );
   }
 };
+

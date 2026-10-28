@@ -22,8 +22,10 @@ import {
   Store,
   Scale,
   Users,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Server
 } from 'lucide-vue-next';
+
 
 const props = withDefaults(
   defineProps<{
@@ -77,8 +79,10 @@ const allModules = computed(() => [
   { id: 'buyers' as ModuleTab, title: 'Pelanggan', icon: Users, color: '#0284c7' },
   { id: 'suppliers' as ModuleTab, title: 'Supplier', icon: Truck, color: '#db2777' },
   { id: 'vendors' as ModuleTab, title: 'Kategori', icon: Scale, color: '#ea580c' },
-  { id: 'branding' as ModuleTab, title: 'Profil Toko', icon: Store, color: '#475569' }
+  { id: 'branding' as ModuleTab, title: 'Profil Toko', icon: Store, color: '#475569' },
+  { id: 'server' as ModuleTab, title: 'Server', icon: Server, color: '#0284c7' }
 ]);
+
 
 function getModuleInfo(tabId: ModuleTab) {
   const found = allModules.value.find(m => m.id === tabId);

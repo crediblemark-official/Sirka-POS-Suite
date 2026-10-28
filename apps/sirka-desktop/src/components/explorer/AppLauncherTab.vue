@@ -14,8 +14,10 @@ import {
   Scale,
   LayoutDashboard,
   Lock,
-  StickyNote
+  StickyNote,
+  Server
 } from 'lucide-vue-next';
+
 import { useLicenseStore } from '../../stores/licenseStore';
 import DesktopStickyNotes from './DesktopStickyNotes.vue';
 
@@ -34,9 +36,11 @@ export type ModuleTab =
   | 'suppliers'
   | 'buyers'
   | 'branding'
+  | 'server'
   | 'master'
   | 'license'
   | 'launcher';
+
 
 export type { StickyNoteColor, StickyNoteItem } from '../../types/stickyNote';
 
@@ -79,8 +83,10 @@ const shortcutDefs: ShortcutDef[] = [
   { id: 'preorder', title: 'Pesanan', icon: Calendar, color: '#0d9488', defaultX: 248, defaultY: 148 },
   { id: 'reports', title: 'Laporan', icon: FileSpreadsheet, color: '#16a34a', defaultX: 358, defaultY: 148 },
   { id: 'ledger', title: 'Buku Kas', icon: BookOpen, color: '#0891b2', defaultX: 468, defaultY: 148 },
-  { id: 'branding', title: 'Profil', icon: Store, color: '#475569', defaultX: 578, defaultY: 148 }
+  { id: 'branding', title: 'Profil', icon: Store, color: '#475569', defaultX: 578, defaultY: 148 },
+  { id: 'server', title: 'Server', icon: Server, color: '#0284c7', defaultX: 28, defaultY: 268 }
 ];
+
 
 export interface ShortcutItem extends ShortcutDef {
   x: number;

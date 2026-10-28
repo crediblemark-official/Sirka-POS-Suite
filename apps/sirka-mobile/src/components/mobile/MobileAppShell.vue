@@ -36,6 +36,8 @@ const MasterBuyerTab = defineAsyncComponent(() => import('../master/MasterBuyerT
 const MasterSupplierTab = defineAsyncComponent(() => import('../master/MasterSupplierTab.vue'));
 const MasterVendorTab = defineAsyncComponent(() => import('../master/MasterVendorTab.vue'));
 const MasterBrandingTab = defineAsyncComponent(() => import('../master/MasterBrandingTab.vue'));
+const ServerConfigTab = defineAsyncComponent(() => import('../server/ServerConfigTab.vue'));
+
 
 // On-Demand Modals
 const ReceiptModal = defineAsyncComponent(() => import('../pos/ReceiptModal.vue'));
@@ -76,8 +78,10 @@ const tabTitles: Record<ModuleTab, string> = {
   reports: 'Laporan',
   returns: 'Buku Kas',
   branding: 'Profil Toko',
+  server: 'Server',
   master: 'Inventaris',
   home: 'Beranda',
+
   launcher: 'Menu',
   license: 'Lisensi'
 };
@@ -274,7 +278,13 @@ onMounted(() => {
       <div v-if="activeTab === 'branding'" class="flex-1 overflow-hidden">
         <MasterBrandingTab :search-query="searchQuery" />
       </div>
+
+      <!-- 12. PENGATURAN SERVER & DATABASE CLOUD -->
+      <div v-if="activeTab === 'server'" class="flex-1 overflow-hidden">
+        <ServerConfigTab />
+      </div>
     </main>
+
 
     <!-- Floating Quick Camera Barcode Scan Button (Hanya di Kasir/POS untuk scan barang ke keranjang) -->
     <button

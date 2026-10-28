@@ -55,6 +55,12 @@ pub fn get_status() -> SyncStatusInfo {
     }
 }
 
+pub fn mark_offline() {
+    IS_ONLINE.store(false, Ordering::Relaxed);
+    *LAST_ERROR.lock().unwrap() = None;
+}
+
+
 pub async fn run_sync_cycle() -> Result<(), String> {
     // Hindari race condition & sambungan Postgres bertumpuk:
     // Jika sync sedang berjalan, outbox baru akan diproses oleh loop worker yang aktif

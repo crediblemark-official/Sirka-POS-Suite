@@ -22,6 +22,11 @@ defineProps<{
   activeTab: ModuleTab;
 }>();
 
+const emit = defineEmits<{
+  (e: 'open-tab', tabId: ModuleTab): void;
+}>();
+
+
 const showSyncModal = ref(false);
 const showAboutModal = ref(false);
 
@@ -266,7 +271,12 @@ const liveShiftDurationText = computed(() => {
   </footer>
 
   <!-- Modal Dialog Status Database & Manajemen Cache -->
-  <SyncStatusModal :is-open="showSyncModal" @close="showSyncModal = false" />
+  <SyncStatusModal
+    :is-open="showSyncModal"
+    @close="showSyncModal = false"
+    @open-server="emit('open-tab', 'server')"
+  />
+
 
   <!-- Modal Dialog Tentang Aplikasi (About) -->
   <AboutModal :is-open="showAboutModal" @close="showAboutModal = false" />
