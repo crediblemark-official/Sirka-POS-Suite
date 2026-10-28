@@ -156,12 +156,16 @@ bindModalLock(() => returnStore.showRefundModal);
 <template>
   <div
     v-if="returnStore.showRefundModal && tx"
-    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs select-none animate-in fade-in duration-150"
+    class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs select-none animate-in fade-in duration-150"
+    @click.self="returnStore.closeRefundModal()"
   >
     <div
-      class="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden text-gray-800"
+      class="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl border border-gray-200 w-full sm:max-w-3xl max-h-[92vh] sm:max-h-[88vh] flex flex-col overflow-hidden text-gray-800 animate-in slide-in-from-bottom duration-200 sm:zoom-in-95"
       @click.stop
     >
+      <!-- Mobile Pull Indicator -->
+      <div class="w-10 h-1 bg-slate-300 rounded-full mx-auto my-2 sm:hidden shrink-0"></div>
+
       <!-- HEADER -->
       <div class="px-6 py-4 bg-gradient-to-r from-rose-700 to-rose-800 text-white flex items-center justify-between shrink-0 shadow-xs">
         <div class="flex items-center gap-3">

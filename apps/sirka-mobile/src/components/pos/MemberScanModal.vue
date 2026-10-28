@@ -369,12 +369,15 @@ bindModalLock(() => props.isOpen);
 <template>
   <div
     v-if="isOpen"
-    class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 select-none text-xs"
+    class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs select-none text-xs animate-in fade-in duration-150"
     @click.self="handleClose"
   >
-    <div class="bg-white rounded-xl shadow-2xl border border-gray-300 w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+    <div class="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl border border-gray-200 w-full sm:max-w-md max-h-[92vh] sm:max-h-[88vh] overflow-hidden flex flex-col animate-in slide-in-from-bottom duration-200 sm:zoom-in-95">
+      <!-- Mobile Pull Indicator -->
+      <div class="w-10 h-1 bg-slate-300 rounded-full mx-auto my-2 sm:hidden shrink-0"></div>
+
       <!-- Header -->
-      <div class="px-4 py-3 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex items-center justify-between">
+      <div class="px-4 py-3 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex items-center justify-between shrink-0">
         <div class="flex items-center gap-2">
           <QrCode :size="17" class="text-amber-400" />
           <div>
@@ -387,7 +390,7 @@ bindModalLock(() => props.isOpen);
         </button>
       </div>
 
-      <div class="p-4 space-y-3.5">
+      <div class="p-4 space-y-3.5 flex-1 overflow-y-auto">
         <!-- Input Barcode Scanner USB / Manual (Autofocus Utama) -->
         <div>
           <div class="flex items-center justify-between mb-1">

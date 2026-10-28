@@ -246,14 +246,17 @@ function selectProductFromTable(productId: string) {
 <template>
   <div
     v-if="movementStore.isStockCardOpen"
-    class="fixed inset-0 z-50 flex select-none bg-black/50 backdrop-blur-xs animate-in fade-in duration-150"
-    :class="isFullWidth ? 'p-0 items-stretch justify-stretch' : 'items-center justify-center p-3 sm:p-6'"
+    class="fixed inset-0 z-50 flex select-none bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
+    :class="isFullWidth ? 'p-0 items-stretch justify-stretch' : 'items-end sm:items-center justify-center p-0 sm:p-4'"
     @click.self="movementStore.closeStockCard"
   >
     <div
       class="bg-white flex flex-col overflow-hidden shadow-2xl transition-all duration-200"
-      :class="isFullWidth ? 'w-full h-full rounded-none' : 'w-full max-w-6xl h-[88vh] rounded-xl border border-gray-300 animate-in zoom-in-95 duration-150'"
+      :class="isFullWidth ? 'w-full h-full rounded-none' : 'w-full sm:max-w-6xl h-[92vh] sm:h-[88vh] rounded-t-3xl sm:rounded-xl border border-gray-300 animate-in slide-in-from-bottom duration-200 sm:zoom-in-95'"
     >
+      <!-- Mobile Pull Indicator -->
+      <div class="w-10 h-1 bg-slate-300 rounded-full mx-auto my-2 sm:hidden shrink-0"></div>
+
       <!-- 1. Header Toolbar (Native Explorer Style) -->
       <div class="px-6 py-3.5 bg-[#f6f5f2] border-b border-gray-200 flex items-center justify-between shrink-0">
         <div class="flex items-center gap-3 min-w-0">

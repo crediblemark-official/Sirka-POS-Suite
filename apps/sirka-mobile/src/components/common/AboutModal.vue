@@ -31,15 +31,18 @@ async function openWhatsApp() {
 <template>
   <div
     v-if="isOpen"
-    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150 select-none"
+    class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs select-none text-xs animate-in fade-in duration-150"
     @click.self="emit('close')"
     @keydown.esc="emit('close')"
   >
     <div
-      class="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-sm overflow-hidden text-gray-900 animate-in zoom-in-95 duration-150 flex flex-col"
+      class="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl border border-gray-200 w-full sm:max-w-sm max-h-[92vh] sm:max-h-[88vh] overflow-hidden text-gray-900 animate-in slide-in-from-bottom duration-200 sm:zoom-in-95 flex flex-col"
     >
+      <!-- Mobile Pull Indicator -->
+      <div class="w-10 h-1 bg-slate-300 rounded-full mx-auto my-2 sm:hidden shrink-0"></div>
+
       <!-- Header with Gradient Background -->
-      <div class="relative bg-gradient-to-br from-indigo-600 via-blue-600 to-indigo-800 p-6 text-white text-center">
+      <div class="relative bg-gradient-to-br from-indigo-600 via-blue-600 to-indigo-800 p-6 text-white text-center shrink-0">
         <!-- Close Button -->
         <button
           type="button"
@@ -65,7 +68,7 @@ async function openWhatsApp() {
       </div>
 
       <!-- Info Cards Body -->
-      <div class="p-5 space-y-2.5 bg-gray-50/50">
+      <div class="p-5 space-y-2.5 bg-gray-50/50 flex-1 overflow-y-auto">
         <!-- Dedikasi / Lembaga -->
         <div class="flex items-start gap-3 p-3 rounded-xl bg-white border border-gray-100 shadow-2xs">
           <div class="p-2 rounded-lg bg-indigo-50 text-indigo-600 shrink-0 mt-0.5">
@@ -124,7 +127,7 @@ async function openWhatsApp() {
       </div>
 
       <!-- Footer -->
-      <div class="px-5 py-3 border-t border-gray-100 bg-white flex items-center justify-between text-xs text-gray-400">
+      <div class="px-5 py-3 border-t border-gray-100 bg-white flex items-center justify-between text-xs text-gray-400 shrink-0">
         <span class="flex items-center gap-1 text-[11px]">
           <span>Made with</span>
           <Heart :size="12" class="text-rose-500 fill-rose-500 inline" />

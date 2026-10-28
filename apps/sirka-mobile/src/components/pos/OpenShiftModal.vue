@@ -247,12 +247,15 @@ bindModalLock(() => props.isOpen);
 <template>
   <div
     v-if="isOpen"
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4"
+    class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs select-none animate-in fade-in duration-150"
     @click.self="emit('close')"
   >
     <div
-      class="bg-white rounded-lg shadow-2xl border border-gray-300 w-full max-w-3xl max-h-[92vh] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150"
+      class="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl border border-gray-200 w-full sm:max-w-2xl max-h-[92vh] sm:max-h-[88vh] overflow-hidden flex flex-col animate-in slide-in-from-bottom duration-200 sm:zoom-in-95"
     >
+      <!-- Mobile Pull Indicator -->
+      <div class="w-10 h-1 bg-slate-300 rounded-full mx-auto my-2 sm:hidden shrink-0"></div>
+
       <!-- Modal Header (Native Explorer Theme) -->
       <div
         class="px-5 py-3.5 flex items-center justify-between border-b border-gray-200 select-none shrink-0"

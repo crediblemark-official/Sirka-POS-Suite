@@ -182,14 +182,17 @@ bindModalLock(() => props.isOpen);
 <template>
   <div
     v-if="isOpen"
-    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-2xs select-none animate-in fade-in duration-150"
+    class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs select-none animate-in fade-in duration-150"
     @click.self="emit('close')"
   >
     <div
-      class="bg-white rounded-xl shadow-2xl border border-gray-300 w-full max-w-md overflow-hidden flex flex-col animate-in zoom-in-95 duration-150 text-xs"
+      class="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl border border-gray-200 w-full sm:max-w-md max-h-[92vh] sm:max-h-[88vh] overflow-hidden flex flex-col animate-in slide-in-from-bottom duration-200 sm:zoom-in-95 text-xs"
     >
+      <!-- Mobile Pull Indicator -->
+      <div class="w-10 h-1 bg-slate-300 rounded-full mx-auto my-2 sm:hidden shrink-0"></div>
+
       <!-- Header Modal -->
-      <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between bg-slate-50">
+      <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between bg-slate-50 shrink-0">
         <div class="flex items-center gap-2">
           <div class="w-7 h-7 rounded-lg bg-blue-100 text-blue-800 flex items-center justify-center">
             <Calculator :size="16" />
@@ -209,7 +212,7 @@ bindModalLock(() => props.isOpen);
       </div>
 
       <!-- Info Banner Total Asli & Modal Belanja -->
-      <div class="px-4 py-2.5 bg-blue-50/60 border-b border-blue-100 flex items-center justify-between">
+      <div class="px-4 py-2.5 bg-blue-50/60 border-b border-blue-100 flex items-center justify-between shrink-0">
         <div>
           <div class="text-[10px] text-gray-500">Total Tagihan Awal (Normal):</div>
           <div class="font-mono font-bold text-sm text-gray-900">
@@ -225,7 +228,7 @@ bindModalLock(() => props.isOpen);
       </div>
 
       <!-- Body Form -->
-      <div class="p-4 space-y-4">
+      <div class="p-4 space-y-4 flex-1 overflow-y-auto">
         <!-- Switch Mode Segmented Buttons -->
         <div>
           <div class="flex items-center justify-between mb-1.5">

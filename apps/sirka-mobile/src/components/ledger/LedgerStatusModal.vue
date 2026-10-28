@@ -58,12 +58,18 @@ onUnmounted(() => {
 <template>
   <div
     v-if="isOpen && transaction"
-    class="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 select-none text-xs"
+    class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs select-none text-xs animate-in fade-in duration-150"
     @click.self="emit('cancel')"
   >
-    <div data-status-modal class="bg-white rounded-xl shadow-2xl border border-gray-200 w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+    <div
+      data-status-modal
+      class="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl border border-gray-200 w-full sm:max-w-sm max-h-[92vh] sm:max-h-[88vh] overflow-hidden flex flex-col animate-in slide-in-from-bottom duration-200 sm:zoom-in-95"
+    >
+      <!-- Mobile Pull Indicator -->
+      <div class="w-10 h-1 bg-slate-300 rounded-full mx-auto my-2 sm:hidden shrink-0"></div>
+
       <!-- Modal Header -->
-      <div class="px-4 py-3 bg-[#f8f7f5] border-b border-gray-200 flex items-center justify-between font-bold text-sm text-gray-800">
+      <div class="px-4 py-3 bg-[#f8f7f5] border-b border-gray-200 flex items-center justify-between font-bold text-sm text-gray-800 shrink-0">
         <div class="flex items-center gap-2">
           <AlertCircle :size="16" class="text-amber-500" />
           <span>Konfirmasi Status Bayar</span>
@@ -78,7 +84,7 @@ onUnmounted(() => {
       </div>
 
       <!-- Modal Body -->
-      <div class="p-4 space-y-3">
+      <div class="p-4 space-y-3 flex-1 overflow-y-auto">
         <p class="text-gray-600 text-xs leading-relaxed">
           Apakah Anda yakin ingin mengubah status pembayaran untuk transaksi ini?
         </p>
@@ -131,7 +137,7 @@ onUnmounted(() => {
       </div>
 
       <!-- Modal Footer Actions -->
-      <div class="px-4 py-2.5 bg-[#f8f7f5] border-t border-gray-200 flex items-center justify-end gap-2">
+      <div class="px-4 py-2.5 bg-[#f8f7f5] border-t border-gray-200 flex items-center justify-end gap-2 shrink-0">
         <button
           type="button"
           class="px-3 py-1.5 rounded text-gray-600 hover:bg-gray-200 font-semibold text-xs cursor-pointer transition-colors"

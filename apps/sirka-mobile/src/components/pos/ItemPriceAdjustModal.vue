@@ -166,14 +166,17 @@ bindModalLock(() => props.isOpen);
 <template>
   <div
     v-if="isOpen && item"
-    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-2xs animate-in fade-in duration-150"
+    class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs select-none animate-in fade-in duration-150"
     @click.self="emit('close')"
   >
     <div
-      class="bg-white rounded-lg shadow-xl border border-gray-300 w-full max-w-md overflow-hidden flex flex-col animate-in zoom-in-95 duration-150"
+      class="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl border border-gray-200 w-full sm:max-w-md max-h-[92vh] sm:max-h-[88vh] overflow-hidden flex flex-col animate-in slide-in-from-bottom duration-200 sm:zoom-in-95"
     >
+      <!-- Mobile Pull Indicator -->
+      <div class="w-10 h-1 bg-slate-300 rounded-full mx-auto my-2 sm:hidden shrink-0"></div>
+
       <!-- Header -->
-      <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between bg-slate-50">
+      <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between bg-slate-50 shrink-0">
         <div class="flex items-center gap-2">
           <div class="w-7 h-7 rounded bg-amber-100 text-amber-800 flex items-center justify-center">
             <Calculator :size="15" />
@@ -212,7 +215,7 @@ bindModalLock(() => props.isOpen);
       </div>
 
       <!-- Body Content -->
-      <div class="p-4 space-y-4">
+      <div class="p-4 space-y-4 flex-1 overflow-y-auto">
         <!-- Switch Mode Buttons (Segmented Controls) -->
         <div>
           <div class="flex items-center justify-between mb-1.5">

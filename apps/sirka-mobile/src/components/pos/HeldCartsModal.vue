@@ -76,12 +76,15 @@ bindModalLock(() => props.isOpen);
 <template>
   <div
     v-if="isOpen"
-    class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 select-none text-xs"
+    class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs select-none text-xs animate-in fade-in duration-150"
     @click.self="emit('close')"
   >
-    <div class="bg-white rounded-xl shadow-2xl border border-gray-300 w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-100 flex flex-col max-h-[85vh]">
+    <div class="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl border border-gray-200 w-full sm:max-w-lg max-h-[92vh] sm:max-h-[85vh] overflow-hidden flex flex-col animate-in slide-in-from-bottom duration-200 sm:zoom-in-95">
+      <!-- Mobile Pull Indicator -->
+      <div class="w-10 h-1 bg-slate-300 rounded-full mx-auto my-2 sm:hidden shrink-0"></div>
+
       <!-- Modal Header -->
-      <div class="px-4 py-3 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-200 flex items-center justify-between font-bold text-amber-950">
+      <div class="px-4 py-3 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-200 flex items-center justify-between font-bold text-amber-950 shrink-0">
         <div class="flex items-center gap-2 text-sm">
           <Clock :size="18" class="text-amber-600" />
           <span>Antrean Belanjaan yang Diparkir (Hold Queue)</span>

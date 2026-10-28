@@ -192,14 +192,17 @@ onUnmounted(() => {
 <template>
   <div
     v-if="licenseStore.showModal"
-    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs transition-opacity animate-in fade-in duration-150"
+    class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs select-none text-xs animate-in fade-in duration-150"
     tabindex="-1"
     @click.self="licenseStore.closeLicenseModal"
     @keydown.esc="licenseStore.closeLicenseModal"
   >
     <div
-      class="bg-white border border-gray-300 rounded-lg shadow-2xl w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden text-gray-900 font-sans animate-in fade-in zoom-in-95 duration-150"
+      class="bg-white border border-gray-200 rounded-t-3xl sm:rounded-2xl shadow-2xl w-full sm:max-w-xl max-h-[92vh] sm:max-h-[88vh] flex flex-col overflow-hidden text-gray-900 font-sans animate-in slide-in-from-bottom duration-200 sm:zoom-in-95"
     >
+      <!-- Mobile Pull Indicator -->
+      <div class="w-10 h-1 bg-slate-300 rounded-full mx-auto my-2 sm:hidden shrink-0"></div>
+
       <!-- Header (Native Explorer Theme) -->
       <div
         class="px-5 py-3.5 flex items-center justify-between border-b border-gray-200 select-none shrink-0"

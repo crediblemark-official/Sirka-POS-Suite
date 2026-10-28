@@ -136,12 +136,15 @@ function handleSave() {
 <template>
   <div
     v-if="isOpen"
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-150 select-none"
+    class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs select-none text-xs animate-in fade-in duration-150"
     @click.self="emit('close')"
   >
-    <div class="bg-white rounded-xl shadow-2xl border border-gray-200 w-full max-w-lg overflow-hidden flex flex-col animate-in zoom-in-95 duration-150">
+    <div class="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl border border-gray-200 w-full sm:max-w-lg max-h-[92vh] sm:max-h-[88vh] overflow-hidden flex flex-col animate-in slide-in-from-bottom duration-200 sm:zoom-in-95">
+      <!-- Mobile Pull Indicator -->
+      <div class="w-10 h-1 bg-slate-300 rounded-full mx-auto my-2 sm:hidden shrink-0"></div>
+
       <!-- Modal Header -->
-      <div class="px-5 py-3.5 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+      <div class="px-5 py-3.5 bg-gray-50 border-b border-gray-200 flex items-center justify-between shrink-0">
         <div class="flex items-center gap-2">
           <div class="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center">
             <Wallet :size="16" />
@@ -165,7 +168,7 @@ function handleSave() {
       </div>
 
       <!-- Tab Switcher -->
-      <div class="flex border-b border-gray-200 bg-gray-100/70 p-1 gap-1">
+      <div class="flex border-b border-gray-200 bg-gray-100/70 p-1 gap-1 shrink-0">
         <button
           type="button"
           class="flex-1 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-all flex items-center justify-center gap-1.5"
@@ -188,7 +191,7 @@ function handleSave() {
       </div>
 
       <!-- Modal Body -->
-      <div class="p-5 flex flex-col gap-4 text-xs">
+      <div class="p-5 flex flex-col gap-4 text-xs overflow-y-auto flex-1">
         <!-- Error Message -->
         <div v-if="errorMessage" class="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 flex items-center gap-2">
           <AlertCircle :size="14" class="shrink-0 text-rose-600" />
@@ -390,7 +393,7 @@ function handleSave() {
       </div>
 
       <!-- Modal Footer -->
-      <div class="px-5 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-end gap-2">
+      <div class="px-5 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-end gap-2 shrink-0">
         <button
           type="button"
           class="px-3.5 py-1.5 rounded-lg border border-gray-300 bg-white hover:bg-gray-100 text-gray-700 font-semibold text-xs cursor-pointer transition-colors"

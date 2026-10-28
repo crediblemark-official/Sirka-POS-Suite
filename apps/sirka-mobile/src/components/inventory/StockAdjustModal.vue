@@ -117,14 +117,17 @@ bindModalLock(() => movementStore.isAdjustModalOpen);
 <template>
   <div
     v-if="movementStore.isAdjustModalOpen"
-    class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs select-none"
+    class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs select-none animate-in fade-in duration-150"
     @click.self="movementStore.closeAdjustModal"
   >
     <div
-      class="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+      class="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl border border-gray-200 w-full sm:max-w-lg max-h-[92vh] sm:max-h-[88vh] overflow-hidden flex flex-col animate-in slide-in-from-bottom duration-200 sm:zoom-in-95"
     >
+      <!-- Mobile Pull Indicator -->
+      <div class="w-10 h-1 bg-slate-300 rounded-full mx-auto my-2 sm:hidden shrink-0"></div>
+
       <!-- Header -->
-      <div class="px-5 py-3.5 bg-gradient-to-r from-purple-700 to-indigo-700 text-white flex items-center justify-between">
+      <div class="px-5 py-3.5 bg-gradient-to-r from-purple-700 to-indigo-700 text-white flex items-center justify-between shrink-0">
         <div class="flex items-center gap-2.5">
           <div class="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center backdrop-blur-xs">
             <Scale :size="18" class="text-white" />
@@ -144,7 +147,7 @@ bindModalLock(() => movementStore.isAdjustModalOpen);
       </div>
 
       <!-- Form Body -->
-      <div class="p-5 space-y-4 text-xs">
+      <div class="p-5 space-y-4 text-xs overflow-y-auto flex-1">
         <!-- Pilih Barang -->
         <div>
           <label class="text-[11px] font-semibold text-gray-700 block mb-1">Pilih Barang yang Disesuaikan *</label>
@@ -237,7 +240,7 @@ bindModalLock(() => movementStore.isAdjustModalOpen);
       </div>
 
       <!-- Footer Buttons -->
-      <div class="px-5 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-end gap-2">
+      <div class="px-5 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-end gap-2 shrink-0">
         <button
           type="button"
           class="px-3.5 py-1.5 bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 rounded-lg text-xs font-semibold cursor-pointer transition-colors shadow-2xs"

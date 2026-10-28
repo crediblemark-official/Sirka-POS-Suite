@@ -48,17 +48,20 @@ bindModalLock(() => isOpen.value);
   <Transition name="confirm-fade">
     <div
       v-if="isOpen"
-      class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs select-none"
+      class="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs select-none"
       @click.self="handleCancel"
     >
       <div
         data-confirm-modal
-        class="bg-white rounded-xl shadow-2xl border border-gray-200 w-full max-w-md overflow-hidden transform transition-all flex flex-col"
+        class="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl border border-gray-200 w-full sm:max-w-md max-h-[92vh] sm:max-h-[88vh] overflow-hidden transform transition-all flex flex-col animate-in slide-in-from-bottom duration-200 sm:zoom-in-95"
         role="dialog"
         aria-modal="true"
       >
+        <!-- Mobile Pull Indicator -->
+        <div class="w-10 h-1 bg-slate-300 rounded-full mx-auto my-2 sm:hidden shrink-0"></div>
+
         <!-- Modal Body -->
-        <div class="p-5 sm:p-6 text-center">
+        <div class="p-5 sm:p-6 text-center overflow-y-auto flex-1">
           <!-- Icon Bubble -->
           <div class="mx-auto flex items-center justify-center w-12 h-12 rounded-full mb-3.5"
             :class="{
@@ -97,7 +100,7 @@ bindModalLock(() => isOpen.value);
         </div>
 
         <!-- Modal Footer Actions -->
-        <div class="px-5 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-end gap-2.5">
+        <div class="px-5 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-end gap-2.5 shrink-0">
           <button
             type="button"
             class="h-8.5 px-3.5 flex items-center gap-1.5 bg-white hover:bg-gray-100 active:bg-gray-200 border border-gray-300 rounded-lg text-xs font-semibold text-gray-700 cursor-pointer transition-colors shadow-xs"

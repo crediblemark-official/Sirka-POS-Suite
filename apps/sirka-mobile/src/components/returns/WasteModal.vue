@@ -119,13 +119,17 @@ bindModalLock(() => returnStore.showWasteModal);
 <template>
   <div
     v-if="returnStore.showWasteModal"
-    class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs select-none animate-in fade-in duration-150"
+    class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs select-none animate-in fade-in duration-150"
+    @click.self="returnStore.closeWasteModal()"
   >
     <div
-      class="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-h-[92vh] flex flex-col overflow-hidden text-gray-800 transition-all duration-200"
-      :class="activeTab === 'history' ? 'max-w-4xl' : 'max-w-xl'"
+      class="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl border border-gray-200 w-full max-h-[92vh] sm:max-h-[88vh] flex flex-col overflow-hidden text-gray-800 transition-all duration-200 animate-in slide-in-from-bottom duration-200 sm:zoom-in-95"
+      :class="activeTab === 'history' ? 'sm:max-w-4xl' : 'sm:max-w-xl'"
       @click.stop
     >
+      <!-- Mobile Pull Indicator -->
+      <div class="w-10 h-1 bg-slate-300 rounded-full mx-auto my-2 sm:hidden shrink-0"></div>
+
       <!-- HEADER -->
       <div class="px-6 py-4 bg-gradient-to-r from-amber-600 to-amber-700 text-white flex items-center justify-between shrink-0 shadow-xs">
         <div class="flex items-center gap-3">

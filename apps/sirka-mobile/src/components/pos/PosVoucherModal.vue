@@ -126,12 +126,15 @@ bindModalLock(() => props.isOpen);
 <template>
   <div
     v-if="isOpen"
-    class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 select-none text-xs"
+    class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs select-none text-xs animate-in fade-in duration-150"
     @click.self="emit('close')"
   >
-    <div class="bg-white rounded-lg shadow-2xl border border-gray-300 w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+    <div class="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl border border-gray-200 w-full sm:max-w-md max-h-[92vh] sm:max-h-[85vh] overflow-hidden flex flex-col animate-in slide-in-from-bottom duration-200 sm:zoom-in-95">
+      <!-- Mobile Pull Indicator -->
+      <div class="w-10 h-1 bg-slate-300 rounded-full mx-auto my-2 sm:hidden shrink-0"></div>
+
       <!-- Header -->
-      <div class="px-4 py-3 bg-[#f6f5f2] border-b border-gray-200 flex items-center justify-between font-bold text-gray-800">
+      <div class="px-4 py-3 bg-[#f6f5f2] border-b border-gray-200 flex items-center justify-between font-bold text-gray-800 shrink-0">
         <div class="flex items-center gap-2 text-sm text-rose-700">
           <Tag :size="16" />
           <span>Gunakan Kupon / Voucher Promo</span>
@@ -146,7 +149,7 @@ bindModalLock(() => props.isOpen);
       </div>
 
       <!-- Body -->
-      <div class="p-4 space-y-3">
+      <div class="p-4 space-y-3 flex-1 overflow-y-auto">
         <!-- Manual Code Input -->
         <div>
           <label class="text-[11px] font-semibold text-gray-600 block mb-1">Punya Kode Kupon Khusus?</label>
