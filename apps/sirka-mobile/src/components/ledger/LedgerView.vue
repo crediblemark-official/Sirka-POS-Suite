@@ -11,7 +11,8 @@ import {
   PackageCheck,
   Coins,
   Clock,
-  Users
+  Users,
+  Plus
 } from 'lucide-vue-next';
 
 import MetricStatsStrip, { MetricStatItem } from '../common/MetricStatsStrip.vue';
@@ -489,5 +490,16 @@ function handleRefundViewReceipt(invoiceNo: string) {
       :initial-from-account="cashModalState.fromAccount"
       @close="cashModalState.isOpen = false"
     />
+
+    <!-- Floating Action Button: Catat Mutasi Kas -->
+    <button
+      type="button"
+      class="fixed right-4 bottom-20 z-30 flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 active:scale-95 text-white font-bold text-sm rounded-full shadow-lg shadow-rose-600/30 transition-all cursor-pointer"
+      title="Catat Mutasi Kas / Uang Keluar"
+      @click="openMutationModal('TUNAI')"
+    >
+      <Plus :size="18" />
+      <span>+ Mutasi Kas</span>
+    </button>
   </div>
 </template>

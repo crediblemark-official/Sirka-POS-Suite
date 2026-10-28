@@ -135,15 +135,16 @@ function handleSubmit() {
 </script>
 
 <template>
-  <div
-    v-if="isOpen"
-    class="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 select-none text-xs"
-    @click.self="emit('close')"
-  >
-    <div class="bg-white rounded-lg shadow-xl border border-gray-300 w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-100">
-      <!-- Modal Header -->
-      <div class="px-4 py-3 bg-[#f6f5f2] border-b border-gray-200 flex items-center justify-between font-bold text-sm text-gray-800">
-        <div class="flex items-center gap-2">
+  <Teleport to="body">
+    <div
+      v-if="isOpen"
+      class="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 z-50 select-none text-xs animate-in fade-in duration-150"
+      @click.self="emit('close')"
+    >
+      <div class="bg-white rounded-t-2xl sm:rounded-xl shadow-2xl border border-gray-200 w-full sm:max-w-md max-h-[92vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom sm:zoom-in-95 duration-200">
+        <!-- Modal Header -->
+        <div class="px-4 py-3 bg-[#f6f5f2] border-b border-gray-200 flex items-center justify-between font-bold text-sm text-gray-800 shrink-0">
+          <div class="flex items-center gap-2">
           <component :is="isEditMode ? Edit2 : Plus" :size="16" :class="form.customerType === 'B2C' ? 'text-emerald-600' : 'text-blue-600'" />
           <span>{{ isEditMode ? (form.customerType === 'B2C' ? 'Edit Pelanggan Eceran' : 'Edit Pembeli Grosir (B2B)') : (form.customerType === 'B2C' ? 'Tambah Pelanggan Eceran Baru' : 'Tambah Pembeli Grosir (B2B) Baru') }}</span>
         </div>
@@ -157,9 +158,10 @@ function handleSubmit() {
       </div>
 
       <!-- Form Body -->
-      <form @submit.prevent="handleSubmit" class="p-4 space-y-3">
-        <div>
-          <label class="text-[11px] font-semibold text-gray-600 block mb-1">Tipe Pasar / Segmen Pelanggan *</label>
+      <form @submit.prevent="handleSubmit" class="flex flex-col flex-1 overflow-hidden">
+        <div class="p-4 space-y-3 overflow-y-auto flex-1">
+          <div>
+            <label class="text-[11px] font-semibold text-gray-600 block mb-1">Tipe Pasar / Segmen Pelanggan *</label>
           <div class="grid grid-cols-2 gap-2">
             <button
               type="button"
@@ -295,18 +297,19 @@ function handleSubmit() {
             </div>
           </div>
         </div>
+      </div>
 
-        <div class="pt-2.5 flex items-center justify-end gap-2 border-t border-gray-200">
+      <div class="pt-3 pb-safe sm:pb-3 px-4 flex items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 shrink-0">
           <button
             type="button"
-            class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded font-semibold text-xs cursor-pointer transition-colors"
+            class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-semibold text-xs cursor-pointer transition-colors"
             @click="emit('close')"
           >
             Batal
           </button>
           <button
             type="submit"
-            class="flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded font-bold text-xs cursor-pointer shadow-xs transition-colors"
+            class="flex items-center gap-1.5 px-5 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-lg font-bold text-xs cursor-pointer shadow-sm transition-colors"
           >
             <Save :size="14" />
             <span>{{ isEditMode ? 'Simpan Perubahan' : 'Simpan Pelanggan' }}</span>
@@ -315,4 +318,5 @@ function handleSubmit() {
       </form>
     </div>
   </div>
+  </Teleport>
 </template>

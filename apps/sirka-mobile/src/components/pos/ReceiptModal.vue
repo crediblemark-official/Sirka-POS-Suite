@@ -276,14 +276,15 @@ bindModalLock(() => !!props.transaction);
 </script>
 
 <template>
-  <div
-    v-if="transaction"
-    class="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 z-50 text-xs select-none overflow-y-auto"
-    @click.self="emit('close')"
-  >
-    <div class="bg-white rounded-lg shadow-2xl border border-gray-300 w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden my-auto">
-      <!-- Modal Header (Pinned, Clean, No Tabs) -->
-      <div class="px-4 py-2.5 bg-gray-50 border-b border-gray-200 flex items-center justify-between font-bold text-gray-800 shrink-0">
+  <Teleport to="body">
+    <div
+      v-if="transaction"
+      class="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 z-50 text-xs select-none overflow-hidden animate-in fade-in duration-150"
+      @click.self="emit('close')"
+    >
+      <div class="bg-white rounded-t-2xl sm:rounded-xl shadow-2xl border border-gray-200 w-full sm:max-w-xl max-h-[92vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom sm:zoom-in-95 duration-200">
+        <!-- Modal Header (Pinned, Clean, No Tabs) -->
+        <div class="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between font-bold text-gray-800 shrink-0">
         <div class="flex items-center gap-2 text-blue-700">
           <Printer :size="16" />
           <span class="text-xs sm:text-sm font-bold">Struk Pembayaran — #{{ transaction.invoiceNo }}</span>
@@ -463,27 +464,27 @@ bindModalLock(() => !!props.transaction);
       </div>
 
       <!-- Clean Single Modal Footer -->
-      <div class="px-3.5 py-2.5 bg-white border-t border-gray-200 flex items-center justify-between gap-3 shrink-0">
+      <div class="px-3.5 py-3 pb-safe sm:pb-3 bg-white border-t border-gray-200 flex items-center justify-between gap-2 shrink-0">
         <!-- Left: Quick Actions -->
         <div class="flex items-center gap-1.5 shrink-0">
           <button
             type="button"
-            class="h-8 flex items-center gap-1 px-2.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-md font-semibold text-[11px] whitespace-nowrap cursor-pointer transition-colors shadow-xs shrink-0"
+            class="h-9 flex items-center gap-1 px-3 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-lg font-semibold text-xs whitespace-nowrap cursor-pointer transition-colors shadow-xs shrink-0"
             title="Salin rincian transaksi format WhatsApp"
             @click="copyToWhatsApp"
           >
-            <Check v-if="copied" :size="13" />
-            <Copy v-else :size="13" />
+            <Check v-if="copied" :size="14" />
+            <Copy v-else :size="14" />
             <span>{{ copied ? 'Tersalin' : 'Salin WA' }}</span>
           </button>
 
           <button
             type="button"
-            class="h-8 flex items-center gap-1 px-2 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 rounded-md font-semibold text-[11px] whitespace-nowrap cursor-pointer border border-slate-300 transition-colors shadow-2xs shrink-0"
+            class="h-9 flex items-center gap-1 px-2.5 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 rounded-lg font-semibold text-xs whitespace-nowrap cursor-pointer border border-slate-300 transition-colors shadow-2xs shrink-0"
             title="Pengaturan hardware printer & ukuran kertas"
             @click="showPrinterConfig = true"
           >
-            <Settings :size="12" />
+            <Settings :size="14" />
             <span class="hidden sm:inline">Printer</span>
           </button>
         </div>
@@ -492,36 +493,33 @@ bindModalLock(() => !!props.transaction);
         <div class="flex items-center gap-2 shrink-0">
           <button
             type="button"
-            class="h-8 flex items-center gap-1 px-2.5 bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-gray-700 rounded-md font-semibold text-[11px] whitespace-nowrap cursor-pointer border border-gray-300 transition-colors"
+            class="h-9 flex items-center gap-1 px-3 bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-gray-700 rounded-lg font-semibold text-xs whitespace-nowrap cursor-pointer border border-gray-300 transition-colors"
             title="Tutup nota (Esc)"
             @click="emit('close')"
           >
             <span>Tutup</span>
-            <kbd class="text-[9px] bg-white border border-gray-300 rounded px-1 text-gray-500 font-mono">Esc</kbd>
           </button>
 
           <!-- Primary Smart Print Button -->
           <button
             type="button"
-            class="h-8 flex items-center gap-1.5 px-3 text-white rounded-md font-bold text-[11px] whitespace-nowrap cursor-pointer shadow-xs transition-all active:scale-95 disabled:opacity-50"
+            class="h-9 flex items-center gap-1.5 px-4 text-white rounded-lg font-bold text-xs whitespace-nowrap cursor-pointer shadow-sm transition-all active:scale-95 disabled:opacity-50"
             :class="{
               'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800': activePrintMode === 'usb',
               'bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800': activePrintMode === 'bluetooth',
               'bg-blue-600 hover:bg-blue-700 active:bg-blue-800': activePrintMode === 'system',
             }"
             :disabled="isPrinting"
-            title="Cetak struk (Tekan Enter)"
+            title="Cetak struk"
             @click="executeSmartPrint"
           >
-            <Loader2 v-if="isPrinting" :size="13" class="animate-spin" />
-            <Cable v-else-if="activePrintMode === 'usb'" :size="13" />
-            <Bluetooth v-else-if="activePrintMode === 'bluetooth'" :size="13" />
-            <Printer v-else :size="13" />
+            <Loader2 v-if="isPrinting" :size="14" class="animate-spin" />
+            <Cable v-else-if="activePrintMode === 'usb'" :size="14" />
+            <Bluetooth v-else-if="activePrintMode === 'bluetooth'" :size="14" />
+            <Printer v-else :size="14" />
 
             <span v-if="isPrinting">Mencetak...</span>
-            <span v-else>Cetak</span>
-
-            <kbd class="text-[9px] bg-white/20 rounded px-1 py-0.2 text-white font-mono">↵ Enter</kbd>
+            <span v-else>Cetak Struk</span>
           </button>
         </div>
       </div>
@@ -534,6 +532,7 @@ bindModalLock(() => !!props.transaction);
       @close="showPrinterConfig = false; refreshPrinterDetection()"
     />
   </div>
+  </Teleport>
 </template>
 
 <style>

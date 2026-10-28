@@ -536,96 +536,106 @@ async function exportComprehensiveReport() {
 
 <template>
   <div class="flex flex-col h-full bg-[#f8f7f5] text-[#2e2b28] select-none text-xs overflow-hidden font-sans">
-    <!-- 1. Top Ribbon Bar (Desktop Native File Explorer Style) -->
-    <div
-      v-horizontal-scroll
-      class="h-10 relative z-30 flex items-center justify-between bg-[#f6f5f2] border-b border-gray-200 px-3 select-none shrink-0 gap-2 overflow-x-auto no-scrollbar"
-    >
-      <!-- Sisi Kiri: Switcher Tab Jenis Laporan (Pill Style Standard) -->
-      <div class="flex items-center gap-2 shrink-0">
-        <div class="flex bg-gray-200/90 p-0.5 rounded border border-gray-300 shrink-0">
-          <button
-            type="button"
-            class="px-2.5 py-1 rounded text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap"
-            :class="activeSubTab === 'pnl' ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
-            @click="activeSubTab = 'pnl'"
-          >
-            <FileSpreadsheet :size="13" />
-            <span>Laba Rugi (Keuntungan)</span>
-          </button>
+    <!-- 1. Mobile-First Top Header & Subtab Navigation -->
+    <div class="bg-[#f6f5f2] border-b border-gray-200 p-2.5 flex flex-col gap-2 shrink-0 select-none shadow-2xs">
+      <!-- Top Row: Title, Date Filter & Export Button -->
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2 min-w-0">
+          <div class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+            <FileSpreadsheet :size="16" />
+          </div>
+          <div class="min-w-0 flex flex-col">
+            <span class="font-bold text-xs text-gray-900 truncate">Laporan Keuangan</span>
+            <span class="text-[10px] text-gray-500">P&L, Arus Kas, Neraca & Piutang</span>
+          </div>
+        </div>
 
-          <button
-            type="button"
-            class="px-2.5 py-1 rounded text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap"
-            :class="activeSubTab === 'cashflow' ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
-            @click="activeSubTab = 'cashflow'"
-          >
-            <ArrowLeftRight :size="13" />
-            <span>Arus Kas (Uang Masuk/Keluar)</span>
-          </button>
+        <div class="flex items-center gap-1.5 shrink-0">
+          <!-- Reusable Modern Date Range Picker Popover -->
+          <DateRangePicker
+            v-model:start-date="customStartDate"
+            v-model:end-date="customEndDate"
+          />
 
+          <!-- Tombol Export Excel -->
           <button
             type="button"
-            class="px-2.5 py-1 rounded text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap"
-            :class="activeSubTab === 'balance_sheet' ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
-            @click="activeSubTab = 'balance_sheet'"
+            @click="exportComprehensiveReport"
+            class="h-8 px-2.5 rounded-lg bg-white border border-gray-300 text-gray-800 hover:bg-gray-50 active:scale-95 font-bold text-xs flex items-center gap-1.5 shadow-2xs cursor-pointer transition-all"
+            title="Ekspor Laporan ke Excel (.xlsx)"
           >
-            <Scale :size="13" />
-            <span>Kekayaan &amp; Modal Toko</span>
-          </button>
-
-          <button
-            type="button"
-            class="px-2.5 py-1 rounded text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap"
-            :class="activeSubTab === 'receivables' ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
-            @click="activeSubTab = 'receivables'"
-          >
-            <Clock :size="13" />
-            <span>Catatan Bon / Piutang Pelanggan</span>
-            <span v-if="agingReceivables.length > 0" class="px-1 py-0.2 rounded-full text-[9px] font-mono bg-amber-200 text-amber-900 font-bold">
-              {{ agingReceivables.length }}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            class="px-2.5 py-1 rounded text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap"
-            :class="activeSubTab === 'analytics' ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
-            @click="activeSubTab = 'analytics'"
-          >
-            <Zap :size="13" />
-            <span>Ringkasan Analisis Toko</span>
-          </button>
-
-          <button
-            type="button"
-            class="px-2.5 py-1 rounded text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap"
-            :class="activeSubTab === 'shifts' ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
-            @click="activeSubTab = 'shifts'"
-          >
-            <UserCheck :size="13" />
-            <span>Pergantian Kasir (Shift)</span>
-            <span v-if="shiftStore.isShiftActive" class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <Download :size="13" class="text-emerald-600" />
+            <span class="hidden xs:inline">Excel</span>
           </button>
         </div>
       </div>
 
-      <!-- Sisi Kanan: Date Range Picker & Export Button -->
-      <div class="flex items-center gap-2 shrink-0">
-        <!-- Reusable Modern Date Range Picker Popover -->
-        <DateRangePicker
-          v-model:start-date="customStartDate"
-          v-model:end-date="customEndDate"
-        />
-
-        <!-- Tombol Export Excel -->
+      <!-- Bottom Row: Subtab Pills Horizontal Scroll -->
+      <div v-horizontal-scroll class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
         <button
           type="button"
-          @click="exportComprehensiveReport"
-          class="h-7 px-2.5 rounded bg-white border border-gray-300 text-gray-800 hover:bg-gray-50 font-bold text-xs flex items-center gap-1.5 shadow-2xs cursor-pointer transition-colors"
+          class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap shadow-2xs"
+          :class="activeSubTab === 'pnl' ? 'bg-indigo-600 text-white font-bold' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+          @click="activeSubTab = 'pnl'"
         >
-          <Download :size="13" class="text-emerald-600" />
-          <span>Ekspor Excel (.xlsx)</span>
+          <FileSpreadsheet :size="12" />
+          <span>Laba Rugi</span>
+        </button>
+
+        <button
+          type="button"
+          class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap shadow-2xs"
+          :class="activeSubTab === 'cashflow' ? 'bg-indigo-600 text-white font-bold' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+          @click="activeSubTab = 'cashflow'"
+        >
+          <ArrowLeftRight :size="12" />
+          <span>Arus Kas</span>
+        </button>
+
+        <button
+          type="button"
+          class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap shadow-2xs"
+          :class="activeSubTab === 'balance_sheet' ? 'bg-indigo-600 text-white font-bold' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+          @click="activeSubTab = 'balance_sheet'"
+        >
+          <Scale :size="12" />
+          <span>Kekayaan Toko</span>
+        </button>
+
+        <button
+          type="button"
+          class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap shadow-2xs"
+          :class="activeSubTab === 'receivables' ? 'bg-indigo-600 text-white font-bold' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+          @click="activeSubTab = 'receivables'"
+        >
+          <Clock :size="12" />
+          <span>Bon &amp; Piutang</span>
+          <span v-if="agingReceivables.length > 0" class="px-1.5 py-0.2 rounded-full text-[9px] font-mono font-bold"
+            :class="activeSubTab === 'receivables' ? 'bg-indigo-700 text-white' : 'bg-amber-100 text-amber-900'"
+          >
+            {{ agingReceivables.length }}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap shadow-2xs"
+          :class="activeSubTab === 'analytics' ? 'bg-indigo-600 text-white font-bold' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+          @click="activeSubTab = 'analytics'"
+        >
+          <Zap :size="12" />
+          <span>Analisis</span>
+        </button>
+
+        <button
+          type="button"
+          class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap shadow-2xs"
+          :class="activeSubTab === 'shifts' ? 'bg-indigo-600 text-white font-bold' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+          @click="activeSubTab = 'shifts'"
+        >
+          <UserCheck :size="12" />
+          <span>Shift Kasir</span>
+          <span v-if="shiftStore.isShiftActive" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
         </button>
       </div>
     </div>

@@ -19,7 +19,8 @@ import {
   TrendingUp,
   Coins,
   Users,
-  RotateCcw
+  RotateCcw,
+  Plus
 } from 'lucide-vue-next';
 import MetricStatsStrip, { MetricStatItem } from '../common/MetricStatsStrip.vue';
 import SearchableSelect, { type SelectOption } from '../common/SearchableSelect.vue';
@@ -281,6 +282,11 @@ function handleCardClick(sched: PreOrderSchedule) {
   preOrderStore.activeScheduleForSidebar = sched;
   preOrderStore.showPreOrderSidebar = true;
 }
+
+function handleOpenAddPo() {
+  preOrderStore.activeScheduleForSidebar = null;
+  preOrderStore.showPreOrderSidebar = true;
+}
 </script>
 
 <template>
@@ -289,27 +295,52 @@ function handleCardClick(sched: PreOrderSchedule) {
     <main class="flex-1 flex overflow-hidden">
       <!-- Sisi Kiri: Ribbon + Metric Stats Strip + Grid Kartu Rekap Pesanan PO -->
       <div class="flex-1 flex flex-col overflow-hidden bg-white">
-        <!-- 1. Top Ribbon: Filter Bar (Hari Kirim & Pelanggan) -->
-        <div
-          v-horizontal-scroll
-          class="h-10 relative z-30 flex items-center justify-between bg-[#f6f5f2] border-b border-gray-200 px-3 select-none shrink-0 gap-3 overflow-x-auto no-scrollbar"
-        >
-          <!-- Sisi Kiri: Filter Hari & Pelanggan -->
-          <div class="flex items-center gap-3 shrink-0">
-            <!-- 1. Filter Hari Kirim (Pill Horizontal) -->
+        <!-- 1. Mobile-First Top Header & Filter Controls -->
+        <div class="bg-[#f6f5f2] border-b border-gray-200 p-2.5 flex flex-col gap-2 shrink-0 select-none shadow-2xs">
+          <!-- Top Row: Title, Total PO Count & Primary Add PO Button -->
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2 min-w-0">
+              <div class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                <Calendar :size="16" />
+              </div>
+              <div class="min-w-0 flex flex-col">
+                <div class="flex items-center gap-1.5">
+                  <span class="font-bold text-xs text-gray-900 truncate">Jadwal Pesanan & PO</span>
+                  <span class="text-[10px] px-2 py-0.2 rounded-full bg-emerald-100 text-emerald-800 font-bold font-mono">
+                    {{ filteredSchedules.length }} PO
+                  </span>
+                </div>
+                <span class="text-[10px] text-gray-500">Matriks pesanan berkala & tarik ke kasir</span>
+              </div>
+            </div>
+
+            <!-- Tombol Catat Pesanan Baru -->
+            <button
+              type="button"
+              @click="handleOpenAddPo"
+              class="h-8 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer shrink-0"
+            >
+              <Plus :size="14" />
+              <span>+ Pesanan</span>
+            </button>
+          </div>
+
+          <!-- Bottom Row: Horizontal Chips (Hari Kirim) + Pelanggan Select -->
+          <div v-horizontal-scroll class="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
+            <!-- Filter Hari Kirim Chips -->
             <div class="flex items-center gap-1 shrink-0">
               <button
                 v-for="d in days"
                 :key="d"
                 type="button"
-                class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1"
-                :class="selectedDay === d ? 'bg-emerald-600 text-white font-bold shadow-2xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+                class="px-2.5 py-1 rounded-lg text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1 shadow-2xs"
+                :class="selectedDay === d ? 'bg-emerald-600 text-white font-bold' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
                 @click="selectedDay = d"
               >
                 <span>{{ d === 'Semua' ? 'Semua Hari' : d }}</span>
                 <span
-                  class="text-[10px] px-1 rounded-full"
-                  :class="selectedDay === d ? 'bg-emerald-700 text-white' : 'bg-gray-100 text-gray-600'"
+                  class="text-[10px] px-1 rounded-full font-mono font-bold"
+                  :class="selectedDay === d ? 'bg-emerald-700 text-white' : 'bg-gray-200 text-gray-700'"
                 >
                   {{ getDayCount(d) }}
                 </span>
@@ -318,43 +349,30 @@ function handleCardClick(sched: PreOrderSchedule) {
 
             <div class="h-4 w-px bg-gray-300 shrink-0"></div>
 
-            <!-- 2. Filter Pelanggan Pemesan -->
-            <div class="flex items-center gap-1.5">
-              <span class="text-gray-500 font-bold text-[11px] uppercase tracking-wider flex items-center gap-1 shrink-0">
-                <Users :size="13" class="text-emerald-700" />
-                <span>Pelanggan:</span>
-              </span>
-              <div class="w-56 shrink-0 relative z-40">
-                <SearchableSelect
-                  v-model="selectedBuyer"
-                  :options="buyerOptions"
-                  placeholder="Semua Pelanggan"
-                  search-placeholder="Ketik nama pelanggan..."
-                  size="sm"
-                />
-              </div>
+            <!-- Filter Pelanggan Pemesan -->
+            <div class="w-48 shrink-0 relative z-30">
+              <SearchableSelect
+                v-model="selectedBuyer"
+                :options="buyerOptions"
+                placeholder="Semua Pelanggan"
+                search-placeholder="Ketik nama pelanggan..."
+                size="sm"
+              />
             </div>
-          </div>
 
-          <!-- Sisi Kanan: Reset Filter & Total Hasil -->
-          <div class="flex items-center gap-2 shrink-0">
             <button
               v-if="hasActiveFilter"
               type="button"
-              class="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded cursor-pointer transition-colors shadow-2xs"
+              class="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg cursor-pointer transition-colors shadow-2xs shrink-0 whitespace-nowrap"
               title="Reset semua filter"
               @click="resetFilters"
             >
               <RotateCcw :size="12" />
-              <span>Reset Filter</span>
+              <span>Reset</span>
             </button>
 
-            <div class="font-mono text-xs text-gray-500 px-2 py-0.5 bg-gray-100 rounded border border-gray-200">
-              <span class="font-bold text-gray-800">{{ filteredSchedules.length }}</span> Jadwal PO
-            </div>
-
-            <span v-if="props.searchQuery" class="text-[11px] text-gray-600 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 font-medium">
-              Cari: "<span class="font-bold text-gray-800">{{ props.searchQuery }}</span>"
+            <span v-if="props.searchQuery" class="text-[10.5px] text-gray-600 bg-gray-200/80 px-2 py-0.5 rounded-md font-medium shrink-0 whitespace-nowrap ml-auto">
+              Cari: "<strong class="text-gray-900">{{ props.searchQuery }}</strong>"
             </span>
           </div>
         </div>
@@ -476,5 +494,15 @@ function handleCardClick(sched: PreOrderSchedule) {
         @update:is-open="preOrderStore.showPreOrderSidebar = $event"
       />
     </main>
+
+    <!-- Floating Action Button: Tambah Pesanan Baru -->
+    <button
+      type="button"
+      @click="handleOpenAddPo"
+      class="fixed right-4 bottom-20 z-30 w-13 h-13 rounded-full bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white shadow-xl flex items-center justify-center transition cursor-pointer border-2 border-white/20"
+      title="Catat Pesanan Baru"
+    >
+      <Plus :size="24" />
+    </button>
   </div>
 </template>

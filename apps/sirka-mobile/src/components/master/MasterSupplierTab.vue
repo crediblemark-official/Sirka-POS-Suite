@@ -277,30 +277,34 @@ defineExpose({
     <div class="flex-1 flex overflow-hidden">
       <!-- Sisi Kiri: Ribbon + Stats + Tabel Supplier -->
       <div class="flex-1 flex flex-col overflow-hidden bg-white">
-        <!-- 1. Top Ribbon -->
-        <div
-          v-horizontal-scroll
-          class="h-10 relative flex items-center justify-between bg-[#f6f5f2] border-b border-gray-200 px-3 select-none shrink-0 gap-1.5 overflow-x-auto no-scrollbar"
-        >
-          <div class="flex items-center gap-2 shrink-0">
-            <Truck :size="15" class="text-rose-700" />
-            <span class="font-bold text-xs text-gray-800">Mitra Supplier & Pemasok Kulakan</span>
-            <span class="text-[10px] px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 font-bold font-mono">
-              {{ totalSuppliers }} Mitra Terdaftar
-            </span>
+        <!-- 1. Mobile-First Top Header & Action Controls -->
+        <div class="bg-[#f6f5f2] border-b border-gray-200 p-2.5 flex items-center justify-between gap-2 shrink-0 select-none shadow-2xs">
+          <div class="flex items-center gap-2 min-w-0">
+            <div class="w-8 h-8 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+              <Truck :size="16" />
+            </div>
+            <div class="min-w-0 flex flex-col">
+              <div class="flex items-center gap-1.5">
+                <span class="font-bold text-xs text-gray-900 truncate">Mitra Supplier Kulakan</span>
+                <span class="text-[10px] px-2 py-0.2 rounded-full bg-rose-100 text-rose-800 font-bold font-mono">
+                  {{ totalSuppliers }} Mitra
+                </span>
+              </div>
+              <span class="text-[10px] text-gray-500">Distributor pemasok & histori faktur belanja</span>
+            </div>
           </div>
 
-          <div class="flex items-center gap-2 shrink-0 ml-auto">
-            <span v-if="props.searchQuery" class="text-[11px] text-gray-600 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 font-medium">
-              Cari: "<span class="font-bold text-gray-800">{{ props.searchQuery }}</span>"
+          <div class="flex items-center gap-1.5 shrink-0">
+            <span v-if="props.searchQuery" class="text-[10.5px] text-gray-600 bg-gray-200/80 px-2 py-0.5 rounded-md font-medium shrink-0 whitespace-nowrap">
+              Cari: "<strong class="text-gray-900">{{ props.searchQuery }}</strong>"
             </span>
             <button
               type="button"
-              class="h-7 px-2.5 rounded bg-rose-700 hover:bg-rose-800 text-white font-bold flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 transition-all text-xs"
+              class="h-8 px-3 rounded-lg bg-rose-700 hover:bg-rose-800 active:scale-95 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
               @click="handleOpenAdd"
             >
-              <Plus :size="13" />
-              <span>Supplier Baru</span>
+              <Plus :size="14" />
+              <span>+ Supplier</span>
             </button>
           </div>
         </div>
@@ -601,5 +605,15 @@ defineExpose({
         </div>
       </FormSidebarDrawer>
     </div>
+
+    <!-- Floating Action Button: Tambah Supplier Baru -->
+    <button
+      type="button"
+      @click="handleOpenAdd"
+      class="fixed right-4 bottom-20 z-30 w-13 h-13 rounded-full bg-rose-700 hover:bg-rose-800 active:scale-95 text-white shadow-xl flex items-center justify-center transition cursor-pointer border-2 border-white/20"
+      title="Tambah Supplier Baru"
+    >
+      <Plus :size="24" />
+    </button>
   </div>
 </template>

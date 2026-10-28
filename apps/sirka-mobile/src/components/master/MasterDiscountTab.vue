@@ -23,7 +23,8 @@ import {
   ChevronDown,
   ChevronUp,
   ChevronsUpDown,
-  ChevronsDownUp
+  ChevronsDownUp,
+  Plus
 } from 'lucide-vue-next';
 
 const props = withDefaults(defineProps<{
@@ -316,125 +317,145 @@ function handleKeyDown(e: KeyboardEvent) {
     <div class="flex-1 flex overflow-hidden">
       <!-- Sisi Kiri: Ribbon + MetricStatsStrip + Tabel Data Promo Edge-to-Edge -->
       <div class="flex-1 flex flex-col overflow-hidden bg-white">
-        <!-- 1. Top Category / Filter Ribbon -->
-        <div
-          v-horizontal-scroll
-          class="h-10 relative flex items-center bg-[#f6f5f2] border-b border-gray-200 px-3 select-none shrink-0 gap-1.5 overflow-x-auto no-scrollbar"
-        >
-          <span class="text-gray-500 font-bold text-[11px] uppercase tracking-wider shrink-0 flex items-center gap-1 mr-1">
-            <Tag :size="13" class="text-rose-600" />
-            <span>Kategori Diskon:</span>
-          </span>
+        <!-- 1. Mobile-First Top Header & Filter Controls -->
+        <div class="bg-[#f6f5f2] border-b border-gray-200 p-2.5 flex flex-col gap-2 shrink-0 select-none shadow-2xs">
+          <!-- Top Row: Title, Total Discounts & Primary Add Button -->
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2 min-w-0">
+              <div class="w-8 h-8 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                <Tag :size="16" />
+              </div>
+              <div class="min-w-0 flex flex-col">
+                <div class="flex items-center gap-1.5">
+                  <span class="font-bold text-xs text-gray-900 truncate">Kupon Promo & Diskon</span>
+                  <span class="text-[10px] px-2 py-0.2 rounded-full bg-rose-100 text-rose-800 font-bold font-mono">
+                    {{ discountStore.discounts.length }} Kupon
+                  </span>
+                </div>
+                <span class="text-[10px] text-gray-500">Program diskon persen, nominal, & member</span>
+              </div>
+            </div>
 
-      <!-- Filter Buttons -->
-      <button
-        type="button"
-        class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1"
-        :class="activeFilter === 'ALL' ? 'bg-rose-600 text-white font-bold shadow-2xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
-        @click="activeFilter = 'ALL'"
-      >
-        <span>Semua Diskon</span>
-        <span class="text-[10px] px-1 rounded-full" :class="activeFilter === 'ALL' ? 'bg-rose-700 text-white' : 'bg-gray-100 text-gray-600'">
-          {{ discountStore.discounts.length }}
-        </span>
-      </button>
+            <!-- Tombol Tambah Diskon Baru -->
+            <button
+              type="button"
+              @click="handleOpenAdd"
+              class="h-8 px-3 rounded-lg bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer shrink-0"
+            >
+              <Plus :size="14" />
+              <span>+ Diskon</span>
+            </button>
+          </div>
 
-      <button
-        type="button"
-        class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1"
-        :class="activeFilter === 'ACTIVE' ? 'bg-emerald-600 text-white font-bold shadow-2xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
-        @click="activeFilter = 'ACTIVE'"
-      >
-        <span class="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span>
-        <span>Aktif</span>
-        <span class="text-[10px] px-1 rounded-full" :class="activeFilter === 'ACTIVE' ? 'bg-emerald-700 text-white' : 'bg-gray-100 text-gray-600'">
-          {{ discountStore.activeDiscounts.length }}
-        </span>
-      </button>
+          <!-- Bottom Row: Filter Chips Horizontal -->
+          <div v-horizontal-scroll class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+            <button
+              type="button"
+              class="px-2.5 py-1 rounded-lg text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1 shadow-2xs"
+              :class="activeFilter === 'ALL' ? 'bg-rose-600 text-white font-bold' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+              @click="activeFilter = 'ALL'"
+            >
+              <span>Semua Diskon</span>
+              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="activeFilter === 'ALL' ? 'bg-rose-700 text-white' : 'bg-gray-200 text-gray-700'">
+                {{ discountStore.discounts.length }}
+              </span>
+            </button>
 
-      <button
-        type="button"
-        class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1"
-        :class="activeFilter === 'INACTIVE' ? 'bg-gray-700 text-white font-bold shadow-2xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
-        @click="activeFilter = 'INACTIVE'"
-      >
-        <span class="w-2 h-2 rounded-full bg-gray-400 inline-block"></span>
-        <span>Nonaktif</span>
-      </button>
+            <button
+              type="button"
+              class="px-2.5 py-1 rounded-lg text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1 shadow-2xs"
+              :class="activeFilter === 'ACTIVE' ? 'bg-emerald-600 text-white font-bold' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+              @click="activeFilter = 'ACTIVE'"
+            >
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span>
+              <span>Aktif</span>
+              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="activeFilter === 'ACTIVE' ? 'bg-emerald-700 text-white' : 'bg-gray-200 text-gray-700'">
+                {{ discountStore.activeDiscounts.length }}
+              </span>
+            </button>
 
-      <div class="h-4 w-px bg-gray-300 mx-1 shrink-0"></div>
+            <button
+              type="button"
+              class="px-2.5 py-1 rounded-lg text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1 shadow-2xs"
+              :class="activeFilter === 'INACTIVE' ? 'bg-gray-700 text-white font-bold' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+              @click="activeFilter = 'INACTIVE'"
+            >
+              <span class="w-1.5 h-1.5 rounded-full bg-gray-400 inline-block"></span>
+              <span>Nonaktif</span>
+            </button>
 
-      <button
-        type="button"
-        class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1"
-        :class="activeFilter === 'PERCENT' ? 'bg-blue-600 text-white font-bold shadow-2xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
-        @click="activeFilter = 'PERCENT'"
-      >
-        <Percent :size="11" />
-        <span>Diskon Persen (%)</span>
-        <span class="text-[10px] px-1 rounded-full" :class="activeFilter === 'PERCENT' ? 'bg-blue-700 text-white' : 'bg-gray-100 text-gray-600'">
-          {{ percentCount }}
-        </span>
-      </button>
+            <div class="h-4 w-px bg-gray-300 shrink-0"></div>
 
-      <button
-        type="button"
-        class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1"
-        :class="activeFilter === 'FIXED' ? 'bg-amber-600 text-white font-bold shadow-2xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
-        @click="activeFilter = 'FIXED'"
-      >
-        <DollarSign :size="11" />
-        <span>Potongan Tetap (Rp)</span>
-        <span class="text-[10px] px-1 rounded-full" :class="activeFilter === 'FIXED' ? 'bg-amber-700 text-white' : 'bg-gray-100 text-gray-600'">
-          {{ fixedCount }}
-        </span>
-      </button>
+            <button
+              type="button"
+              class="px-2.5 py-1 rounded-lg text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1 shadow-2xs"
+              :class="activeFilter === 'PERCENT' ? 'bg-blue-600 text-white font-bold' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+              @click="activeFilter = 'PERCENT'"
+            >
+              <Percent :size="11" />
+              <span>Persen (%)</span>
+              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="activeFilter === 'PERCENT' ? 'bg-blue-700 text-white' : 'bg-gray-200 text-gray-700'">
+                {{ percentCount }}
+              </span>
+            </button>
 
-      <button
-        type="button"
-        class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1"
-        :class="activeFilter === 'MEMBER' ? 'bg-purple-600 text-white font-bold shadow-2xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
-        @click="activeFilter = 'MEMBER'"
-      >
-        <Users :size="11" />
-        <span>Khusus Member</span>
-        <span class="text-[10px] px-1 rounded-full" :class="activeFilter === 'MEMBER' ? 'bg-purple-700 text-white' : 'bg-gray-100 text-gray-600'">
-          {{ memberCount }}
-        </span>
-      </button>
+            <button
+              type="button"
+              class="px-2.5 py-1 rounded-lg text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1 shadow-2xs"
+              :class="activeFilter === 'FIXED' ? 'bg-amber-600 text-white font-bold' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+              @click="activeFilter = 'FIXED'"
+            >
+              <DollarSign :size="11" />
+              <span>Tetap (Rp)</span>
+              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="activeFilter === 'FIXED' ? 'bg-amber-700 text-white' : 'bg-gray-200 text-gray-700'">
+                {{ fixedCount }}
+              </span>
+            </button>
 
-      <button
-        type="button"
-        class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1"
-        :class="activeFilter === 'B2B' ? 'bg-indigo-600 text-white font-bold shadow-2xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
-        @click="activeFilter = 'B2B'"
-      >
-        <Building :size="11" />
-        <span>Langganan Grosir</span>
-        <span class="text-[10px] px-1 rounded-full" :class="activeFilter === 'B2B' ? 'bg-indigo-700 text-white' : 'bg-gray-100 text-gray-600'">
-          {{ b2bCount }}
-        </span>
-      </button>
+            <button
+              type="button"
+              class="px-2.5 py-1 rounded-lg text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1 shadow-2xs"
+              :class="activeFilter === 'MEMBER' ? 'bg-purple-600 text-white font-bold' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+              @click="activeFilter = 'MEMBER'"
+            >
+              <Users :size="11" />
+              <span>Member</span>
+              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="activeFilter === 'MEMBER' ? 'bg-purple-700 text-white' : 'bg-gray-200 text-gray-700'">
+                {{ memberCount }}
+              </span>
+            </button>
 
-      <button
-        type="button"
-        class="px-2.5 py-1 rounded text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1"
-        :class="activeFilter === 'B2C' ? 'bg-teal-600 text-white font-bold shadow-2xs' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
-        @click="activeFilter = 'B2C'"
-      >
-        <UserCheck :size="11" />
-        <span>Pelanggan Eceran</span>
-        <span class="text-[10px] px-1 rounded-full" :class="activeFilter === 'B2C' ? 'bg-teal-700 text-white' : 'bg-gray-100 text-gray-600'">
-          {{ b2cCount }}
-        </span>
-      </button>
+            <button
+              type="button"
+              class="px-2.5 py-1 rounded-lg text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1 shadow-2xs"
+              :class="activeFilter === 'B2B' ? 'bg-indigo-600 text-white font-bold' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+              @click="activeFilter = 'B2B'"
+            >
+              <Building :size="11" />
+              <span>Grosir B2B</span>
+              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="activeFilter === 'B2B' ? 'bg-indigo-700 text-white' : 'bg-gray-200 text-gray-700'">
+                {{ b2bCount }}
+              </span>
+            </button>
 
-      <div v-if="props.searchQuery" class="flex items-center gap-2 ml-auto shrink-0">
-        <span class="text-[11px] text-gray-600 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 font-medium">
-          Cari: "<span class="font-bold text-gray-800">{{ props.searchQuery }}</span>"
-        </span>
-      </div>
-    </div>
+            <button
+              type="button"
+              class="px-2.5 py-1 rounded-lg text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1 shadow-2xs"
+              :class="activeFilter === 'B2C' ? 'bg-teal-600 text-white font-bold' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+              @click="activeFilter = 'B2C'"
+            >
+              <UserCheck :size="11" />
+              <span>Eceran B2C</span>
+              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="activeFilter === 'B2C' ? 'bg-teal-700 text-white' : 'bg-gray-200 text-gray-700'">
+                {{ b2cCount }}
+              </span>
+            </button>
+
+            <span v-if="props.searchQuery" class="text-[10.5px] text-gray-600 bg-gray-200/80 px-2 py-0.5 rounded-md font-medium shrink-0 whitespace-nowrap ml-auto">
+              Cari: "<strong class="text-gray-900">{{ props.searchQuery }}</strong>"
+            </span>
+          </div>
+        </div>
 
     <!-- Reusable MetricStatsStrip (DRY) di sisi kiri -->
     <MetricStatsStrip :items="discountMetrics" />
@@ -728,5 +749,15 @@ function handleKeyDown(e: KeyboardEvent) {
         @deleted="handleDelete"
       />
     </div>
+
+    <!-- Floating Action Button: Tambah Diskon Baru -->
+    <button
+      type="button"
+      @click="handleOpenAdd"
+      class="fixed right-4 bottom-20 z-30 w-13 h-13 rounded-full bg-rose-600 hover:bg-rose-700 active:scale-95 text-white shadow-xl flex items-center justify-center transition cursor-pointer border-2 border-white/20"
+      title="Tambah Diskon Baru"
+    >
+      <Plus :size="24" />
+    </button>
   </div>
 </template>

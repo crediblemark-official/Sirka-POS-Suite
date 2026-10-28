@@ -106,13 +106,14 @@ async function handleSave() {
 </script>
 
 <template>
-  <div
-    v-if="isOpen && buyer"
-    class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 select-none text-xs"
-    @click.self="emit('close')"
-  >
-    <div class="bg-white rounded-lg shadow-2xl border border-gray-300 w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-100">
-      <div class="px-4 py-3 bg-[#f6f5f2] border-b border-gray-200 flex items-center justify-between font-bold text-gray-800">
+  <Teleport to="body">
+    <div
+      v-if="isOpen && buyer"
+      class="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 select-none text-xs animate-in fade-in duration-150"
+      @click.self="emit('close')"
+    >
+      <div class="bg-white rounded-t-2xl sm:rounded-xl shadow-2xl border border-gray-200 w-full sm:max-w-sm overflow-hidden animate-in slide-in-from-bottom sm:zoom-in-95 duration-200">
+        <div class="px-4 py-3 bg-[#f6f5f2] border-b border-gray-200 flex items-center justify-between font-bold text-gray-800 shrink-0">
         <div class="flex items-center gap-2 text-sm">
           <Coins :size="16" class="text-amber-500" />
           <span>Penyesuaian Poin Loyalitas</span>
@@ -173,10 +174,10 @@ async function handleSave() {
           />
         </div>
 
-        <div class="flex items-center justify-end gap-2 pt-2 border-t border-gray-200">
+        <div class="flex items-center justify-end gap-2 pt-3 pb-safe sm:pb-3 border-t border-gray-200">
           <button
             type="button"
-            class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded font-semibold cursor-pointer"
+            class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-semibold cursor-pointer"
             @click="emit('close')"
           >
             Batal
@@ -184,7 +185,7 @@ async function handleSave() {
           <button
             type="button"
             :disabled="isSaving"
-            class="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded font-bold cursor-pointer disabled:opacity-50"
+            class="px-5 py-2 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white rounded-lg font-bold cursor-pointer disabled:opacity-50 shadow-sm"
             @click="handleSave"
           >
             {{ isSaving ? 'Menyimpan...' : 'Simpan Poin' }}
@@ -193,4 +194,5 @@ async function handleSave() {
       </div>
     </div>
   </div>
+  </Teleport>
 </template>

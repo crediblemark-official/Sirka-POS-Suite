@@ -1030,5 +1030,16 @@ defineExpose({
         </div>
       </FormSidebarDrawer>
     </div>
+
+    <!-- Floating Action Button: Tambah Satuan / Kategori -->
+    <button
+      type="button"
+      @click="handleOpenAdd"
+      class="fixed right-4 bottom-20 z-30 w-13 h-13 rounded-full text-white shadow-xl flex items-center justify-center transition cursor-pointer border-2 border-white/20 active:scale-95"
+      :class="activeSubTab === 'units' ? 'bg-purple-700 hover:bg-purple-800' : 'bg-rose-700 hover:bg-rose-800'"
+      :title="activeSubTab === 'units' ? 'Tambah Satuan Baru' : 'Tambah Kategori Baru'"
+    >
+      <Plus :size="24" />
+    </button>
   </div>
 </template>

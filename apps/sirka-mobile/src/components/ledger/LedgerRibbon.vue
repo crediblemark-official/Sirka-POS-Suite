@@ -66,12 +66,72 @@ function onBuyerChange(val: string | number) {
 </script>
 
 <template>
-  <div v-horizontal-scroll
-    class="h-10 relative z-30 flex items-center justify-between bg-[#f6f5f2] border-b border-gray-200 px-3 select-none shrink-0 gap-2 overflow-x-auto no-scrollbar">
-    <!-- Sisi Kiri: Switcher Tab Jenis Filter + Pill Opsi -->
-    <div class="flex items-center gap-2 shrink-0">
+  <div class="relative z-30 flex flex-col bg-[#f6f5f2] border-b border-gray-200 select-none shrink-0 shadow-2xs">
+    <!-- Baris 1: Mode Switcher (Nota, Rincian, Retur, Mutasi Kas) + Tombol Aksi (+ Mutasi, Reset) -->
+    <div class="flex items-center justify-between gap-2 px-3 py-2 border-b border-gray-200/60 overflow-x-auto no-scrollbar">
+      <!-- Mode View Tabs: Nota | Rincian | Retur | Mutasi Kas -->
+      <div class="flex bg-gray-200/90 p-0.5 rounded-lg border border-gray-300 shrink-0">
+        <button type="button" class="px-2.5 py-1 rounded-md text-xs font-semibold cursor-pointer transition-all shrink-0 whitespace-nowrap"
+          :class="viewMode === 'transactions' ? 'bg-white text-gray-900 shadow-xs font-bold' : 'text-gray-600 hover:text-black'"
+          @click="emit('update:viewMode', 'transactions')">
+          Nota
+        </button>
+        <button type="button" class="px-2.5 py-1 rounded-md text-xs font-semibold cursor-pointer transition-all shrink-0 whitespace-nowrap"
+          :class="viewMode === 'items' ? 'bg-white text-gray-900 shadow-xs font-bold' : 'text-gray-600 hover:text-black'"
+          @click="emit('update:viewMode', 'items')">
+          Rincian Barang
+        </button>
+        <button type="button"
+          class="px-2.5 py-1 rounded-md text-xs font-semibold cursor-pointer transition-all flex items-center gap-1 shrink-0 whitespace-nowrap"
+          :class="viewMode === 'refunds' ? 'bg-white text-rose-900 shadow-xs font-bold' : 'text-gray-600 hover:text-black'"
+          @click="emit('update:viewMode', 'refunds')">
+          <span>Retur</span>
+          <span v-if="(refundsCount || 0) > 0" class="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold"
+            :class="viewMode === 'refunds' ? 'bg-rose-100 text-rose-700' : 'bg-gray-300 text-gray-700'">
+            {{ refundsCount }}
+          </span>
+        </button>
+
+        <button type="button"
+          class="px-2.5 py-1 rounded-md text-xs font-semibold cursor-pointer transition-all flex items-center gap-1 shrink-0 whitespace-nowrap"
+          :class="viewMode === 'mutations' ? 'bg-white text-indigo-900 shadow-xs font-bold' : 'text-gray-600 hover:text-black'"
+          @click="emit('update:viewMode', 'mutations')">
+          <span>Mutasi Kas</span>
+          <span v-if="(mutationsCount || 0) > 0" class="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold"
+            :class="viewMode === 'mutations' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-300 text-gray-700'">
+            {{ mutationsCount }}
+          </span>
+        </button>
+      </div>
+
+      <!-- Sisi Kanan: Reset Filter & Quick Action + Mutasi -->
+      <div class="flex items-center gap-1.5 shrink-0">
+        <button v-if="hasActiveFilter" type="button"
+          class="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-md cursor-pointer transition-colors shrink-0"
+          title="Reset semua filter" @click="emit('reset-filters')">
+          <RotateCcw :size="12" />
+          <span>Reset</span>
+        </button>
+
+        <span v-if="searchQuery"
+          class="text-[11px] text-gray-600 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 font-medium shrink-0">
+          Cari: "<span class="font-bold text-gray-800">{{ searchQuery }}</span>"
+        </span>
+
+        <button type="button"
+          class="px-2.5 py-1 rounded-md bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors shadow-xs shrink-0"
+          title="Catat mutasi kas (uang keluar operasional / pemindahan dana / cairkan QRIS)"
+          @click="emit('open-mutation')">
+          <Plus :size="13" />
+          <span>+ Mutasi</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Baris 2: Switcher Tab Jenis Filter + Pill Opsi Subfilter -->
+    <div class="flex items-center gap-2 px-3 py-1.5 overflow-x-auto no-scrollbar">
       <!-- Tab Pilihan Jenis Filter -->
-      <div class="flex bg-gray-200/90 p-0.5 rounded border border-gray-300 shrink-0">
+      <div class="flex bg-gray-200/90 p-0.5 rounded-lg border border-gray-300 shrink-0">
         <button type="button"
           class="px-2 py-0.5 rounded text-xs font-semibold cursor-pointer transition-all flex items-center gap-1"
           :class="activeFilterType === 'status' ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
@@ -168,12 +228,6 @@ function onBuyerChange(val: string | number) {
           <span v-if="filterMethod === 'Semua'">Semua Metode</span>
           <span class="text-[10px] px-1 rounded-full font-mono"
             :class="filterMethod === 'Semua' ? 'bg-indigo-700 text-white' : 'bg-gray-100 text-gray-600'">
-            <!--
-              BUG FIX: pill "Semua Metode" menampilkan total transaksi SEMUA,
-              sementara pill-method di sebelahnya menampilkan jumlah per
-              metode -> angka dalam satu grup tidak konsisten. Sekarang
-              jumlahnya = jumlah seluruh metode.
-            -->
             {{ (tunaiCount ?? 0) + (transferCount ?? 0) + (qrisCount ?? 0) + (notaTempoCount ?? 0) }}
           </span>
         </button>
@@ -236,8 +290,6 @@ function onBuyerChange(val: string | number) {
           <span>Semua Transaksi</span>
           <span class="text-[10px] px-1 rounded-full"
             :class="filterMarket === 'Semua' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600'">
-            <!-- BUG FIX: samakan dengan pill B2B + B2C (dulu memakai total
-                 transaksi SEMUA termasuk yang tidak terfilter). -->
             {{ b2bCount + b2cCount }}
           </span>
         </button>
@@ -267,77 +319,18 @@ function onBuyerChange(val: string | number) {
         </button>
       </div>
 
-      <!-- 1.3 SearchableSelect: Pelanggan -->
+      <!-- 1.4 SearchableSelect: Pelanggan -->
       <div v-else-if="activeFilterType === 'buyer'" class="w-64 shrink-0 relative z-40">
         <SearchableSelect :model-value="filterBuyer" :options="buyerOptions" placeholder="Cari / Pilih Pelanggan..."
           search-placeholder="Ketik nama pelanggan..." size="sm" @update:model-value="onBuyerChange" />
       </div>
 
-      <!-- 1.4 Date Range Filter: Rentang Tanggal Popover -->
+      <!-- 1.5 Date Range Filter: Rentang Tanggal Popover -->
       <div v-else-if="activeFilterType === 'date'" class="flex items-center gap-2 shrink-0">
         <DateRangePicker :start-date="filterStartDate" :end-date="filterEndDate"
           @update:start-date="emit('update:filterStartDate', $event)"
           @update:end-date="emit('update:filterEndDate', $event)" />
       </div>
-    </div>
-
-    <!-- Sisi Kanan: Reset, Search, Mode Switcher & Ekspor Excel -->
-    <div class="flex items-center gap-2 shrink-0">
-      <button v-if="hasActiveFilter" type="button"
-        class="flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded cursor-pointer transition-colors"
-        title="Reset semua filter" @click="emit('reset-filters')">
-        <RotateCcw :size="11" />
-        <span>Reset Filter</span>
-      </button>
-
-      <span v-if="searchQuery"
-        class="text-[11px] text-gray-600 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 font-medium">
-        Cari: "<span class="font-bold text-gray-800">{{ searchQuery }}</span>"
-      </span>
-
-      <!-- View Mode Switcher -->
-      <div class="flex bg-gray-200/80 p-0.5 rounded border border-gray-300 shrink-0">
-        <button type="button" class="px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all shrink-0 whitespace-nowrap"
-          :class="viewMode === 'transactions' ? 'bg-white text-gray-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
-          @click="emit('update:viewMode', 'transactions')">
-          Nota
-        </button>
-        <button type="button" class="px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all shrink-0 whitespace-nowrap"
-          :class="viewMode === 'items' ? 'bg-white text-gray-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
-          @click="emit('update:viewMode', 'items')">
-          Rincian Barang
-        </button>
-        <button type="button"
-          class="px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all flex items-center gap-1 shrink-0 whitespace-nowrap"
-          :class="viewMode === 'refunds' ? 'bg-white text-rose-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
-          @click="emit('update:viewMode', 'refunds')">
-          <span>Retur &amp; Refund</span>
-          <span v-if="(refundsCount || 0) > 0" class="px-1.5 py-0.2 rounded-full text-[9.5px] font-mono font-bold"
-            :class="viewMode === 'refunds' ? 'bg-rose-100 text-rose-700' : 'bg-gray-300 text-gray-700'">
-            {{ refundsCount }}
-          </span>
-        </button>
-
-        <button type="button"
-          class="px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer transition-all flex items-center gap-1 shrink-0 whitespace-nowrap"
-          :class="viewMode === 'mutations' ? 'bg-white text-indigo-900 shadow-2xs font-bold' : 'text-gray-600 hover:text-black'"
-          @click="emit('update:viewMode', 'mutations')">
-          <span>Mutasi Kas</span>
-          <span v-if="(mutationsCount || 0) > 0" class="px-1.5 py-0.2 rounded-full text-[9.5px] font-mono font-bold"
-            :class="viewMode === 'mutations' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-300 text-gray-700'">
-            {{ mutationsCount }}
-          </span>
-        </button>
-      </div>
-
-      <!-- Quick Action Button: Catat Mutasi Kas -->
-      <button type="button"
-        class="h-7 px-2.5 rounded bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors shadow-2xs shrink-0 ml-1"
-        title="Catat mutasi kas (uang keluar operasional / pemindahan dana / cairkan QRIS)"
-        @click="emit('open-mutation')">
-        <Plus :size="13" />
-        <span>+ Mutasi</span>
-      </button>
     </div>
   </div>
 </template>

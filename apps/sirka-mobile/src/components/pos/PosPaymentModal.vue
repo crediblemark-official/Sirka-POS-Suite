@@ -184,27 +184,30 @@ bindModalLock(() => props.isOpen);
 <template>
   <div
     v-if="isOpen"
-    class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 select-none text-xs"
+    class="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 select-none text-xs animate-in fade-in duration-150"
     @click.self="!posStore.isCheckingOut && emit('close')"
   >
-    <div class="bg-white rounded-xl shadow-2xl border border-gray-300 w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-100 flex flex-col max-h-[90vh]">
-      <!-- Modal Header -->
-      <div class="px-4 py-3 bg-[#f6f5f2] border-b border-gray-200 flex items-center justify-between font-bold text-gray-800">
-        <div class="flex items-center gap-2 text-sm">
-          <Receipt :size="17" class="text-blue-600" />
-          <span>Konfirmasi Pembayaran Kasir</span>
+    <div class="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[92vh] animate-in slide-in-from-bottom duration-200">
+      <!-- Mobile Pull Indicator & Header -->
+      <div class="pt-2 px-4 pb-3 bg-slate-100 border-b border-slate-200 flex flex-col shrink-0">
+        <div class="w-10 h-1 bg-slate-300 rounded-full mx-auto mb-2 sm:hidden"></div>
+        <div class="flex items-center justify-between font-bold text-slate-800">
+          <div class="flex items-center gap-2 text-sm">
+            <Receipt :size="18" class="text-blue-600" />
+            <span>Pembayaran Kasir</span>
+          </div>
+          <button
+            type="button"
+            class="p-1.5 text-slate-400 hover:text-slate-800 rounded-lg cursor-pointer transition-colors"
+            @click="!posStore.isCheckingOut && emit('close')"
+          >
+            <X :size="18" />
+          </button>
         </div>
-        <button
-          type="button"
-          class="p-1 text-gray-400 hover:text-black rounded cursor-pointer"
-          @click="!posStore.isCheckingOut && emit('close')"
-        >
-          <X :size="16" />
-        </button>
       </div>
 
       <!-- Modal Body -->
-      <div class="p-4 space-y-3.5 flex-1 overflow-y-auto">
+      <div class="p-4 space-y-4 flex-1 overflow-y-auto touch-pan-y">
         <!-- Total Tagihan Display -->
         <div class="p-3 bg-blue-50/70 border border-blue-200 rounded-lg text-center">
           <span class="text-[11px] font-semibold text-gray-600 block mb-0.5">TOTAL TAGIHAN AKHIR:</span>
@@ -485,30 +488,29 @@ bindModalLock(() => props.isOpen);
         </div>
       </div>
 
-      <!-- Modal Footer Actions -->
-      <div class="px-4 py-2.5 bg-[#f6f5f2] border-t border-gray-200 flex items-center justify-between">
-        <span v-if="posStore.isSplitPayment && !isSplitValid" class="text-[10.5px] font-bold text-rose-600 font-mono">
-          ⚠️ Nominal campur belum mencapai tagihan
-        </span>
-        <span v-else class="text-[10px] text-gray-400 font-mono">Tekan Enter untuk cetak struk</span>
+      <!-- Modal Footer Actions (Mobile-First Touch Zone) -->
+      <div class="p-3.5 bg-slate-50 border-t border-slate-200 shrink-0 space-y-2 pb-safe">
+        <div v-if="posStore.isSplitPayment && !isSplitValid" class="text-[11px] font-bold text-rose-600 font-mono text-center">
+          ⚠️ Nominal campur belum mencapai total tagihan
+        </div>
 
-        <div class="flex items-center gap-2 ml-auto">
+        <div class="grid grid-cols-3 gap-2">
           <button
             type="button"
-            class="px-3 py-1 bg-white hover:bg-gray-100 border border-gray-300 rounded text-xs font-semibold text-gray-700 cursor-pointer transition-colors"
+            class="col-span-1 py-3 bg-white hover:bg-slate-100 border border-slate-300 rounded-xl font-bold text-xs text-slate-700 cursor-pointer transition-all active:scale-95 flex items-center justify-center"
             @click="!posStore.isCheckingOut && emit('close')"
           >
-            Batal (Esc)
+            Batal
           </button>
           <button
             type="button"
-            class="px-4 py-1.5 text-white rounded text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors disabled:opacity-50 hover:brightness-110 active:brightness-95"
-            :style="{ backgroundColor: settingsStore.primaryColor }"
+            class="col-span-2 py-3 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-lg cursor-pointer transition-all disabled:opacity-50 active:scale-95"
+            :style="{ backgroundColor: settingsStore.primaryColor || '#2563eb' }"
             :disabled="posStore.isCheckingOut || (posStore.isSplitPayment && !isSplitValid)"
             @click="handleConfirm"
           >
-            <Printer :size="14" />
-            <span>{{ posStore.isCheckingOut ? 'Menyimpan…' : 'Selesaikan & Cetak Struk ↵' }}</span>
+            <Printer :size="16" />
+            <span>{{ posStore.isCheckingOut ? 'Memproses Transaksi...' : 'Bayar & Cetak Struk' }}</span>
           </button>
         </div>
       </div>

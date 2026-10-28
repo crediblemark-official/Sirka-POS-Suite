@@ -16,7 +16,8 @@ import {
   MapPin,
   RefreshCw,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  Plus
 } from 'lucide-vue-next';
 import FormSidebarDrawer from '../common/FormSidebarDrawer.vue';
 import AppTableContainer from '../common/AppTableContainer.vue';
@@ -391,58 +392,93 @@ defineExpose({
     <div class="flex-1 flex overflow-hidden">
       <!-- Sisi Kiri: Ribbon + MetricStatsStrip + Tabel Pelanggan Edge-to-Edge -->
       <div class="flex-1 flex flex-col overflow-hidden bg-white">
-        <!-- Layer 1: Ribbon Header (Standar Kulakan) -->
-        <div
-          v-horizontal-scroll
-          class="h-10 relative flex items-center justify-between bg-[#f6f5f2] border-b border-gray-200 px-3 select-none shrink-0 gap-1.5 overflow-x-auto no-scrollbar"
-        >
-          <div class="flex items-center gap-2 shrink-0">
-            <Users :size="15" class="text-indigo-700" />
-            <span class="font-bold text-xs text-gray-800">Data Pelanggan & Mitra</span>
-            <!-- Filter Pills Horizontal -->
-            <div class="flex items-center gap-1 ml-2 shrink-0">
-              <button
-                @click="localFilter = 'ALL'"
-                :class="[
-                  'px-2 py-0.5 rounded text-[11px] font-medium transition-colors flex items-center gap-1 cursor-pointer shrink-0 whitespace-nowrap',
-                  localFilter === 'ALL'
-                    ? 'bg-white shadow-2xs border border-gray-300 text-gray-900 font-bold'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50'
-                ]"
-              >
-                Semua
-                <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-gray-200 text-gray-700 font-bold">{{ totalBuyers }}</span>
-              </button>
-              <button
-                @click="localFilter = 'B2B'"
-                :class="[
-                  'px-2 py-0.5 rounded text-[11px] font-medium transition-colors flex items-center gap-1 cursor-pointer shrink-0 whitespace-nowrap',
-                  localFilter === 'B2B'
-                    ? 'bg-white shadow-2xs border border-gray-300 text-indigo-900 font-bold'
-                    : 'text-gray-600 hover:text-indigo-900 hover:bg-gray-200/50'
-                ]"
-              >
-                Grosir B2B
-                <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-indigo-100 text-indigo-800 font-bold">{{ b2bCount }}</span>
-              </button>
-              <button
-                @click="localFilter = 'B2C'"
-                :class="[
-                  'px-2 py-0.5 rounded text-[11px] font-medium transition-colors flex items-center gap-1 cursor-pointer shrink-0 whitespace-nowrap',
-                  localFilter === 'B2C'
-                    ? 'bg-white shadow-2xs border border-gray-300 text-teal-900 font-bold'
-                    : 'text-gray-600 hover:text-teal-900 hover:bg-gray-200/50'
-                ]"
-              >
-                Eceran B2C
-                <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-teal-100 text-teal-800 font-bold">{{ b2cCount }}</span>
-              </button>
+        <!-- Layer 1: Mobile-First Ribbon Header & Primary Add Button -->
+        <div class="bg-[#f6f5f2] border-b border-gray-200 p-2.5 flex flex-col gap-2 shrink-0 select-none shadow-2xs">
+          <!-- Top Row: Title, Total Buyers & Primary Add Button -->
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2 min-w-0">
+              <div class="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
+                <Users :size="16" />
+              </div>
+              <div class="min-w-0 flex flex-col">
+                <div class="flex items-center gap-1.5">
+                  <span class="font-bold text-xs text-gray-900 truncate">Data Pelanggan & Mitra</span>
+                  <span class="text-[10px] px-2 py-0.2 rounded-full bg-indigo-100 text-indigo-800 font-bold font-mono">
+                    {{ totalBuyers }}
+                  </span>
+                </div>
+                <span class="text-[10px] text-gray-500">Database pelanggan Grosir (B2B) & Eceran (B2C)</span>
+              </div>
             </div>
+
+            <!-- Tombol Tambah Pelanggan Baru -->
+            <button
+              type="button"
+              @click="handleOpenAdd(localFilter === 'B2C' ? 'B2C' : 'B2B')"
+              class="h-8 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer shrink-0"
+            >
+              <Plus :size="14" />
+              <span>+ Pelanggan</span>
+            </button>
           </div>
 
-          <div v-if="props.searchQuery" class="flex items-center gap-2 shrink-0 ml-auto">
-            <span class="text-[11px] text-gray-600 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 font-medium">
-              Cari: "<span class="font-bold text-gray-800">{{ props.searchQuery }}</span>"
+          <!-- Bottom Row: Filter Pills (Semua, Grosir B2B, Eceran B2C) + Search status -->
+          <div v-horizontal-scroll class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+            <button
+              @click="localFilter = 'ALL'"
+              :class="[
+                'px-3 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap shadow-2xs',
+                localFilter === 'ALL'
+                  ? 'bg-indigo-600 text-white font-bold'
+                  : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'
+              ]"
+            >
+              <span>Semua Pelanggan</span>
+              <span class="px-1.5 py-0.2 rounded-full text-[10px] font-bold"
+                :class="localFilter === 'ALL' ? 'bg-indigo-700 text-white' : 'bg-gray-200 text-gray-700'"
+              >
+                {{ totalBuyers }}
+              </span>
+            </button>
+
+            <button
+              @click="localFilter = 'B2B'"
+              :class="[
+                'px-3 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap shadow-2xs',
+                localFilter === 'B2B'
+                  ? 'bg-indigo-600 text-white font-bold'
+                  : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'
+              ]"
+            >
+              <Building :size="12" />
+              <span>Grosir (B2B)</span>
+              <span class="px-1.5 py-0.2 rounded-full text-[10px] font-bold"
+                :class="localFilter === 'B2B' ? 'bg-indigo-700 text-white' : 'bg-indigo-100 text-indigo-800'"
+              >
+                {{ b2bCount }}
+              </span>
+            </button>
+
+            <button
+              @click="localFilter = 'B2C'"
+              :class="[
+                'px-3 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap shadow-2xs',
+                localFilter === 'B2C'
+                  ? 'bg-teal-600 text-white font-bold'
+                  : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'
+              ]"
+            >
+              <ShoppingBag :size="12" />
+              <span>Eceran (B2C)</span>
+              <span class="px-1.5 py-0.2 rounded-full text-[10px] font-bold"
+                :class="localFilter === 'B2C' ? 'bg-teal-700 text-white' : 'bg-teal-100 text-teal-800'"
+              >
+                {{ b2cCount }}
+              </span>
+            </button>
+
+            <span v-if="props.searchQuery" class="text-[10.5px] text-gray-600 bg-gray-200/80 px-2 py-0.5 rounded-md font-medium shrink-0 whitespace-nowrap ml-auto">
+              Cari: "<strong class="text-gray-900">{{ props.searchQuery }}</strong>"
             </span>
           </div>
         </div>
@@ -817,5 +853,15 @@ defineExpose({
         </div>
       </FormSidebarDrawer>
     </div>
+
+    <!-- Floating Action Button: Tambah Pelanggan Baru -->
+    <button
+      type="button"
+      @click="handleOpenAdd(localFilter === 'B2C' ? 'B2C' : 'B2B')"
+      class="fixed right-4 bottom-20 z-30 w-13 h-13 rounded-full bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white shadow-xl flex items-center justify-center transition cursor-pointer border-2 border-white/20"
+      title="Tambah Pelanggan Baru"
+    >
+      <Plus :size="24" />
+    </button>
   </div>
 </template>

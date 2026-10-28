@@ -80,14 +80,15 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div
-    v-if="isOpen"
-    class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs select-none text-xs"
-    @click.self="emit('close')"
-  >
-    <div class="bg-white rounded-2xl shadow-2xl border border-gray-300 w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100 flex flex-col max-h-[90vh]">
-      <!-- Header Modal -->
-      <div class="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
+  <Teleport to="body">
+    <div
+      v-if="isOpen"
+      class="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 backdrop-blur-xs select-none text-xs animate-in fade-in duration-150"
+      @click.self="emit('close')"
+    >
+      <div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-gray-200 w-full sm:max-w-2xl overflow-hidden animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 flex flex-col max-h-[92vh]">
+        <!-- Header Modal -->
+        <div class="px-5 py-3.5 bg-slate-900 text-white flex items-center justify-between shrink-0">
         <div class="flex items-center gap-2.5">
           <div class="w-8 h-8 rounded-lg bg-amber-400/20 text-amber-400 flex items-center justify-center">
             <Printer :size="18" />
@@ -279,4 +280,5 @@ onUnmounted(() => {
       </div>
     </div>
   </div>
+  </Teleport>
 </template>
