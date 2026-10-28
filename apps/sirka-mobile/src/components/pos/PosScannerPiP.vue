@@ -14,6 +14,7 @@ import {
   Power,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   Volume2,
   VolumeX,
   Zap,
@@ -55,6 +56,7 @@ const errorMessage = ref('');
 const availableCameras = ref<Array<{ id: string; label: string }>>([]);
 const selectedCameraId = ref<string>('');
 const isSuccessFlashing = ref(false);
+const isErrorFlashing = ref(false);
 
 const recentScan = ref<{
   success: boolean;
@@ -94,12 +96,25 @@ function playAudioChime(type: 'success' | 'error' = 'success') {
       osc.start();
       osc.stop(audioCtx.currentTime + 0.08);
     } else {
+      // Distinctive retail scanner double buzz warning (240Hz -> 180Hz)
+      const now = audioCtx.currentTime;
       osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(260, audioCtx.currentTime);
-      gain.gain.setValueAtTime(0.18, audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.16);
-      osc.start();
-      osc.stop(audioCtx.currentTime + 0.16);
+      osc.frequency.setValueAtTime(240, now);
+      gain.gain.setValueAtTime(0.25, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.11);
+      osc.start(now);
+      osc.stop(now + 0.11);
+
+      const osc2 = audioCtx.createOscillator();
+      const gain2 = audioCtx.createGain();
+      osc2.connect(gain2);
+      gain2.connect(audioCtx.destination);
+      osc2.type = 'sawtooth';
+      osc2.frequency.setValueAtTime(180, now + 0.13);
+      gain2.gain.setValueAtTime(0.25, now + 0.13);
+      gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.28);
+      osc2.start(now + 0.13);
+      osc2.stop(now + 0.28);
     }
   } catch {
     // Ignore autoplay restriction block
@@ -167,6 +182,11 @@ function processBarcode(rawCode: string) {
     emit('scan-success', found);
   } else {
     playAudioChime('error');
+    isErrorFlashing.value = true;
+    setTimeout(() => {
+      isErrorFlashing.value = false;
+    }, 600);
+
     recentScan.value = {
       success: false,
       name: 'Produk Tidak Ditemukan',
@@ -457,7 +477,11 @@ onUnmounted(async () => {
       class="fixed z-40 pointer-events-auto transition-all animate-in fade-in zoom-in-95 duration-200"
       :class="[
         isMobile ? 'bottom-20 right-3' : 'bottom-4 left-4',
-        isSuccessFlashing ? 'ring-4 ring-emerald-400/80 shadow-[0_0_25px_rgba(16,185,129,0.5)]' : 'ring-1 ring-slate-700/80 shadow-2xl'
+        isErrorFlashing
+          ? 'ring-4 ring-rose-500 shadow-[0_0_35px_rgba(244,63,94,0.95)] animate-glitch'
+          : isSuccessFlashing
+            ? 'ring-4 ring-emerald-400/80 shadow-[0_0_25px_rgba(16,185,129,0.5)]'
+            : 'ring-1 ring-slate-700/80 shadow-2xl'
       ]"
       style="width: 220px; border-radius: 1rem; overflow: hidden; background: #0f172a;"
     >
@@ -535,6 +559,17 @@ onUnmounted(async () => {
       <div class="relative w-full h-[150px] bg-black overflow-hidden flex items-center justify-center">
         <!-- Html5Qrcode video mounting element -->
         <div :id="containerId" class="w-full h-full object-cover"></div>
+
+        <!-- Red Glitch Overlay on Error Scan -->
+        <div
+          v-if="isErrorFlashing"
+          class="absolute inset-0 z-30 pointer-events-none bg-rose-600/40 backdrop-blur-[1px] flex items-center justify-center animate-glitch"
+        >
+          <div class="px-2.5 py-1 rounded-lg bg-rose-950/95 border border-rose-400 text-rose-200 text-[10.5px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-2xl animate-pulse">
+            <AlertTriangle :size="15" class="text-rose-400 shrink-0" />
+            <span>BARCODE TIDAK ADA</span>
+          </div>
+        </div>
 
         <!-- Laser Scanning Animation Bar (Active when camera is running) -->
         <div v-if="isScanning" class="absolute inset-0 pointer-events-none flex flex-col justify-between py-3 px-4">
@@ -637,5 +672,18 @@ onUnmounted(async () => {
 
 :deep(#qr-shaded-region) {
   display: none !important;
+}
+
+@keyframes glitch-shake {
+  0% { transform: translate(0, 0) scale(1); }
+  20% { transform: translate(-4px, 2px) scale(1.02); }
+  40% { transform: translate(4px, -2px) scale(0.98); }
+  60% { transform: translate(-3px, -1px) scale(1.01); }
+  80% { transform: translate(3px, 1px) scale(1); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+
+.animate-glitch {
+  animation: glitch-shake 0.35s ease-in-out;
 }
 </style>
