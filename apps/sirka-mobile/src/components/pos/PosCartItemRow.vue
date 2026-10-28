@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onUnmounted } from 'vue';
 import { CartItem } from '../../types';
 import { Trash2 } from 'lucide-vue-next';
 import { formatRupiah } from '../../utils/formatters';
@@ -237,6 +237,11 @@ function onTitlePointerCancel() {
     titlePressTimer = null;
   }
 }
+
+onUnmounted(() => {
+  if (feedbackTimeout) clearTimeout(feedbackTimeout);
+  if (titlePressTimer) clearTimeout(titlePressTimer);
+});
 </script>
 
 <template>
@@ -323,6 +328,7 @@ function onTitlePointerCancel() {
           @pointermove="onTitlePointerMove"
           @pointerup="onTitlePointerUp"
           @pointercancel="onTitlePointerCancel"
+          @contextmenu.prevent
         >
           {{ item.name }}
         </span>
@@ -408,45 +414,45 @@ function onTitlePointerCancel() {
         </span>
       </div>
 
-    <!-- Baris 3: Shortcut Pecahan Cepat Timbangan (1/4, 1/2, 3/4, 1) jika satuan KG/Liter -->
-    <div
-      v-if="['KG', 'LITER', 'LTR'].includes((item.unit || '').toUpperCase())"
-      class="flex items-center gap-1 text-[9.5px] pt-0.5"
-    >
-      <span class="text-gray-400 font-medium text-[9px]">Pecahan:</span>
-      <button
-        type="button"
-        class="px-1.5 py-0.2 rounded text-gray-700 hover:text-amber-900 border border-gray-200 font-mono font-semibold cursor-pointer transition-colors"
-        :class="item.qty === 0.25 ? 'bg-amber-500 text-white border-amber-600' : 'bg-gray-100 hover:bg-amber-100'"
-        @click="emit('update-qty', 0.25)"
+      <!-- Baris 3: Shortcut Pecahan Cepat Timbangan (1/4, 1/2, 3/4, 1) jika satuan KG/Liter -->
+      <div
+        v-if="['KG', 'LITER', 'LTR'].includes((item.unit || '').toUpperCase())"
+        class="flex items-center gap-1 text-[9.5px] pt-0.5"
       >
-        1/4
-      </button>
-      <button
-        type="button"
-        class="px-1.5 py-0.2 rounded text-gray-700 hover:text-amber-900 border border-gray-200 font-mono font-semibold cursor-pointer transition-colors"
-        :class="item.qty === 0.5 ? 'bg-amber-500 text-white border-amber-600' : 'bg-gray-100 hover:bg-amber-100'"
-        @click="emit('update-qty', 0.5)"
-      >
-        1/2
-      </button>
-      <button
-        type="button"
-        class="px-1.5 py-0.2 rounded text-gray-700 hover:text-amber-900 border border-gray-200 font-mono font-semibold cursor-pointer transition-colors"
-        :class="item.qty === 0.75 ? 'bg-amber-500 text-white border-amber-600' : 'bg-gray-100 hover:bg-amber-100'"
-        @click="emit('update-qty', 0.75)"
-      >
-        3/4
-      </button>
-      <button
-        type="button"
-        class="px-1.5 py-0.2 rounded text-gray-700 hover:text-amber-900 border border-gray-200 font-mono font-semibold cursor-pointer transition-colors"
-        :class="item.qty === 1 ? 'bg-amber-500 text-white border-amber-600' : 'bg-gray-100 hover:bg-amber-100'"
-        @click="emit('update-qty', 1)"
-      >
-        1 {{ item.unit.toLowerCase() }}
-      </button>
-    </div>
+        <span class="text-gray-400 font-medium text-[9px]">Pecahan:</span>
+        <button
+          type="button"
+          class="px-1.5 py-0.2 rounded text-gray-700 hover:text-amber-900 border border-gray-200 font-mono font-semibold cursor-pointer transition-colors"
+          :class="item.qty === 0.25 ? 'bg-amber-500 text-white border-amber-600' : 'bg-gray-100 hover:bg-amber-100'"
+          @click="emit('update-qty', 0.25)"
+        >
+          1/4
+        </button>
+        <button
+          type="button"
+          class="px-1.5 py-0.2 rounded text-gray-700 hover:text-amber-900 border border-gray-200 font-mono font-semibold cursor-pointer transition-colors"
+          :class="item.qty === 0.5 ? 'bg-amber-500 text-white border-amber-600' : 'bg-gray-100 hover:bg-amber-100'"
+          @click="emit('update-qty', 0.5)"
+        >
+          1/2
+        </button>
+        <button
+          type="button"
+          class="px-1.5 py-0.2 rounded text-gray-700 hover:text-amber-900 border border-gray-200 font-mono font-semibold cursor-pointer transition-colors"
+          :class="item.qty === 0.75 ? 'bg-amber-500 text-white border-amber-600' : 'bg-gray-100 hover:bg-amber-100'"
+          @click="emit('update-qty', 0.75)"
+        >
+          3/4
+        </button>
+        <button
+          type="button"
+          class="px-1.5 py-0.2 rounded text-gray-700 hover:text-amber-900 border border-gray-200 font-mono font-semibold cursor-pointer transition-colors"
+          :class="item.qty === 1 ? 'bg-amber-500 text-white border-amber-600' : 'bg-gray-100 hover:bg-amber-100'"
+          @click="emit('update-qty', 1)"
+        >
+          1 {{ item.unit.toLowerCase() }}
+        </button>
+      </div>
     </div>
   </div>
 </template>
