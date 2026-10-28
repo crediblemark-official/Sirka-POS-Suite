@@ -264,12 +264,13 @@ onMounted(() => {
       </div>
     </main>
 
-    <!-- Floating Quick Camera Barcode Scan Button -->
+    <!-- Floating Quick Camera Barcode Scan Button (Hanya di Kasir/POS untuk scan barang ke keranjang) -->
     <button
-      v-if="activeTab === 'pos' || activeTab === 'products'"
+      v-if="activeTab === 'pos'"
       type="button"
       @click="showCameraScanner = true"
-      class="fixed right-4 bottom-22 z-30 w-12 h-12 rounded-full bg-slate-900 text-white shadow-xl flex items-center justify-center hover:bg-slate-800 active:scale-95 transition cursor-pointer border-2 border-white/20"
+      class="fixed right-4 z-30 w-12 h-12 rounded-full bg-slate-900 text-white shadow-xl flex items-center justify-center hover:bg-slate-800 active:scale-95 transition-all cursor-pointer border-2 border-white/20"
+      :class="posStore.cartItems.length > 0 ? 'bottom-34' : 'bottom-20'"
       title="Scan Barcode Kamera"
     >
       <Camera class="w-6 h-6 text-amber-400" />
