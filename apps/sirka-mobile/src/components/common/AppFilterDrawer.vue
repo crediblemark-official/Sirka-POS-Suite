@@ -133,6 +133,6 @@ onUnmounted(() => {
 
 <style scoped>
 .pb-safe {
-  padding-bottom: max(env(safe-area-inset-bottom, 0px), 12px);
+  padding-bottom: max(1.75rem, calc(env(safe-area-inset-bottom, 0px) + 1rem));
 }
 </style>

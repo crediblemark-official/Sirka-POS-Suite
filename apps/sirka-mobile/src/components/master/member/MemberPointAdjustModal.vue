@@ -174,10 +174,13 @@ async function handleSave() {
           />
         </div>
 
-        <div class="flex items-center justify-end gap-2 pt-3 pb-safe sm:pb-3 border-t border-gray-200">
+        <div
+          class="flex items-center justify-end gap-2 pt-3 pb-8 sm:pb-3 border-t border-gray-200 pb-safe"
+          style="padding-bottom: max(2rem, calc(env(safe-area-inset-bottom, 0px) + 1rem));"
+        >
           <button
             type="button"
-            class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-semibold cursor-pointer"
+            class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-semibold cursor-pointer active:scale-95"
             @click="emit('close')"
           >
             Batal
@@ -185,7 +188,7 @@ async function handleSave() {
           <button
             type="button"
             :disabled="isSaving"
-            class="px-5 py-2 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white rounded-lg font-bold cursor-pointer disabled:opacity-50 shadow-sm"
+            class="px-5 py-2 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white rounded-lg font-bold cursor-pointer disabled:opacity-50 shadow-sm active:scale-95"
             @click="handleSave"
           >
             {{ isSaving ? 'Menyimpan...' : 'Simpan Poin' }}
@@ -196,3 +199,9 @@ async function handleSave() {
   </div>
   </Teleport>
 </template>
+
+<style scoped>
+.pb-safe {
+  padding-bottom: max(2rem, calc(env(safe-area-inset-bottom, 0px) + 1rem));
+}
+</style>

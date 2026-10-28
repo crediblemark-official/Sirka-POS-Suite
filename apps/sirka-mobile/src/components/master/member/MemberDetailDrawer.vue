@@ -244,32 +244,35 @@ function onMemberUpdated(updated: Buyer) {
       </div>
 
       <!-- Sticky Footer Standar FormSidebarDrawer -->
-      <div class="p-2.5 bg-white border-t border-gray-200 shrink-0">
-        <div class="grid grid-cols-3 gap-1.5">
+      <div
+        class="p-4 pt-3 pb-8 sm:pb-3 bg-white border-t border-gray-200 shrink-0 pb-safe"
+        style="padding-bottom: max(2rem, calc(env(safe-area-inset-bottom, 0px) + 1rem));"
+      >
+        <div class="grid grid-cols-3 gap-2">
           <button
             type="button"
-            class="flex items-center justify-center gap-1 px-2 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-200 rounded font-bold text-xs cursor-pointer shadow-2xs transition-colors"
+            class="flex items-center justify-center gap-1.5 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-200 rounded-xl font-bold text-xs cursor-pointer shadow-2xs transition-colors active:scale-95"
             @click="activeDrawerTab = 'EDIT'"
           >
-            <Edit2 :size="12" class="text-blue-700" />
+            <Edit2 :size="13" class="text-blue-700" />
             <span>Edit Data</span>
           </button>
 
           <button
             type="button"
-            class="flex items-center justify-center gap-1 px-2 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded font-bold text-xs cursor-pointer shadow-2xs transition-colors"
+            class="flex items-center justify-center gap-1.5 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl font-bold text-xs cursor-pointer shadow-2xs transition-colors active:scale-95"
             @click="emit('adjust-points', buyer)"
           >
-            <Coins :size="12" class="text-amber-600" />
+            <Coins :size="13" class="text-amber-600" />
             <span>Atur Poin</span>
           </button>
 
           <button
             type="button"
-            class="flex items-center justify-center gap-1 px-2 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded font-bold text-xs cursor-pointer shadow-2xs transition-colors"
+            class="flex items-center justify-center gap-1.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold text-xs cursor-pointer shadow-2xs transition-colors active:scale-95"
             @click="emit('print-card', buyer)"
           >
-            <Printer :size="12" />
+            <Printer :size="13" />
             <span>Cetak</span>
           </button>
         </div>

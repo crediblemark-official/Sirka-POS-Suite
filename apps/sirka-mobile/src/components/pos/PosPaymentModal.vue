@@ -489,7 +489,10 @@ bindModalLock(() => props.isOpen);
       </div>
 
       <!-- Modal Footer Actions (Mobile-First Touch Zone) -->
-      <div class="p-3.5 bg-slate-50 border-t border-slate-200 shrink-0 space-y-2 pb-safe">
+      <div
+        class="p-4 pt-3.5 pb-8 sm:pb-3.5 bg-slate-50 border-t border-slate-200 shrink-0 space-y-2.5 pb-safe"
+        style="padding-bottom: max(2rem, calc(env(safe-area-inset-bottom, 0px) + 1.25rem));"
+      >
         <div v-if="posStore.isSplitPayment && !isSplitValid" class="text-[11px] font-bold text-rose-600 font-mono text-center">
           ⚠️ Nominal campur belum mencapai total tagihan
         </div>
@@ -517,4 +520,10 @@ bindModalLock(() => props.isOpen);
     </div>
   </div>
 </template>
+
+<style scoped>
+.pb-safe {
+  padding-bottom: max(2rem, calc(env(safe-area-inset-bottom, 0px) + 1.25rem));
+}
+</style>
 

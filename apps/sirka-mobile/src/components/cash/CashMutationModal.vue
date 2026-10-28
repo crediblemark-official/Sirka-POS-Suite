@@ -392,18 +392,21 @@ function handleSave() {
         </div>
       </div>
 
-      <!-- Modal Footer -->
-      <div class="px-5 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-end gap-2 shrink-0">
+      <!-- Modal Footer with Safe Area -->
+      <div
+        class="px-5 py-3.5 pb-8 sm:pb-3 bg-gray-50 border-t border-gray-200 flex items-center justify-end gap-2.5 shrink-0 pb-safe"
+        style="padding-bottom: max(2rem, calc(env(safe-area-inset-bottom, 0px) + 1rem));"
+      >
         <button
           type="button"
-          class="px-3.5 py-1.5 rounded-lg border border-gray-300 bg-white hover:bg-gray-100 text-gray-700 font-semibold text-xs cursor-pointer transition-colors"
+          class="px-4 py-2.5 sm:py-1.5 rounded-xl border border-gray-300 bg-white hover:bg-gray-100 text-gray-700 font-bold text-xs cursor-pointer transition-colors active:scale-95"
           @click="emit('close')"
         >
           Batal
         </button>
         <button
           type="button"
-          class="px-4 py-1.5 rounded-lg font-bold text-xs text-white cursor-pointer transition-all shadow-xs"
+          class="px-5 py-2.5 sm:py-1.5 rounded-xl font-bold text-xs text-white cursor-pointer transition-all shadow-md active:scale-95"
           :class="activeTab === 'EXPENSE' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-blue-600 hover:bg-blue-700'"
           @click="handleSave"
         >
@@ -413,3 +416,9 @@ function handleSave() {
     </div>
   </div>
 </template>
+
+<style scoped>
+.pb-safe {
+  padding-bottom: max(2rem, calc(env(safe-area-inset-bottom, 0px) + 1rem));
+}
+</style>

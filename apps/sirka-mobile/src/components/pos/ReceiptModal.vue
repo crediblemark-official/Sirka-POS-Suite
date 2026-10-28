@@ -463,8 +463,11 @@ bindModalLock(() => !!props.transaction);
         <button class="text-xs text-gray-400 hover:text-gray-700 cursor-pointer ml-2" @click="printFeedback = null">✕</button>
       </div>
 
-      <!-- Clean Single Modal Footer -->
-      <div class="px-3.5 py-3 pb-safe sm:pb-3 bg-white border-t border-gray-200 flex items-center justify-between gap-2 shrink-0">
+      <!-- Clean Single Modal Footer with Safe Area -->
+      <div
+        class="px-4 py-3 pb-8 sm:pb-3 bg-white border-t border-gray-200 flex items-center justify-between gap-2 shrink-0 pb-safe"
+        style="padding-bottom: max(2rem, calc(env(safe-area-inset-bottom, 0px) + 1rem));"
+      >
         <!-- Left: Quick Actions -->
         <div class="flex items-center gap-1.5 shrink-0">
           <button
@@ -566,5 +569,9 @@ bindModalLock(() => !!props.transaction);
     size: auto;
     margin: 2mm;
   }
+}
+
+.pb-safe {
+  padding-bottom: max(2rem, calc(env(safe-area-inset-bottom, 0px) + 1rem));
 }
 </style>

@@ -299,24 +299,33 @@ function handleSubmit() {
         </div>
       </div>
 
-      <div class="pt-3 pb-safe sm:pb-3 px-4 flex items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 shrink-0">
-          <button
-            type="button"
-            class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-semibold text-xs cursor-pointer transition-colors"
-            @click="emit('close')"
-          >
-            Batal
-          </button>
-          <button
-            type="submit"
-            class="flex items-center gap-1.5 px-5 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-lg font-bold text-xs cursor-pointer shadow-sm transition-colors"
-          >
-            <Save :size="14" />
-            <span>{{ isEditMode ? 'Simpan Perubahan' : 'Simpan Pelanggan' }}</span>
-          </button>
-        </div>
-      </form>
-    </div>
+      <div
+        class="pt-3 pb-8 sm:pb-3 px-4 flex items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 shrink-0 pb-safe"
+        style="padding-bottom: max(2rem, calc(env(safe-area-inset-bottom, 0px) + 1rem));"
+      >
+        <button
+          type="button"
+          class="px-4 py-2.5 sm:py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl font-bold text-xs cursor-pointer transition-colors active:scale-95"
+          @click="emit('close')"
+        >
+          Batal
+        </button>
+        <button
+          type="submit"
+          class="flex items-center gap-1.5 px-5 py-2.5 sm:py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl font-bold text-xs cursor-pointer shadow-md transition-all active:scale-95"
+        >
+          <Save :size="14" />
+          <span>{{ isEditMode ? 'Simpan Perubahan' : 'Simpan Pelanggan' }}</span>
+        </button>
+      </div>
+    </form>
   </div>
-  </Teleport>
+</div>
+</Teleport>
 </template>
+
+<style scoped>
+.pb-safe {
+  padding-bottom: max(2rem, calc(env(safe-area-inset-bottom, 0px) + 1rem));
+}
+</style>

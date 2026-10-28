@@ -222,24 +222,27 @@ onUnmounted(() => {
         </div>
 
         <!-- Compact Sticky Footer with Safe Area Support -->
-        <div class="p-3 bg-slate-50 border-t border-slate-200 shrink-0 space-y-2 pb-safe">
+        <div
+          class="p-4 pt-3 pb-8 sm:pb-4 bg-slate-50 border-t border-slate-200 shrink-0 space-y-2.5 pb-safe"
+          style="padding-bottom: max(2rem, calc(env(safe-area-inset-bottom, 0px) + 1.25rem));"
+        >
           <slot name="footer-prefix" />
           <div v-if="isEditing" class="grid grid-cols-4 gap-2">
             <button
               v-if="showDelete"
               type="button"
-              class="col-span-1 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-xl font-bold text-xs cursor-pointer flex items-center justify-center gap-1 transition-colors active:scale-95"
+              class="col-span-1 py-3 sm:py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-xl font-bold text-xs sm:text-sm cursor-pointer flex items-center justify-center gap-1 transition-colors active:scale-95"
               title="Hapus Data Ini"
               @click="emit('delete')"
             >
-              <Trash2 :size="14" />
+              <Trash2 :size="15" />
               <span>Hapus</span>
             </button>
 
             <button
               type="button"
               :class="showDelete ? 'col-span-1' : 'col-span-2'"
-              class="py-2.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl font-bold text-xs cursor-pointer flex items-center justify-center gap-1 transition-colors active:scale-95"
+              class="py-3 sm:py-2.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl font-bold text-xs sm:text-sm cursor-pointer flex items-center justify-center gap-1 transition-colors active:scale-95"
               @click="handleClose"
             >
               <span>Batal</span>
@@ -247,7 +250,7 @@ onUnmounted(() => {
 
             <button
               type="button"
-              class="col-span-2 py-2.5 text-white rounded-xl font-bold text-xs cursor-pointer flex items-center justify-center gap-1.5 shadow-md transition-all disabled:opacity-40 active:scale-95"
+              class="col-span-2 py-3 sm:py-2.5 text-white rounded-xl font-bold text-xs sm:text-sm cursor-pointer flex items-center justify-center gap-1.5 shadow-md transition-all disabled:opacity-40 active:scale-95"
               :class="colorConfig.saveBtn"
               :style="colorConfig.saveBtnStyle || {}"
               :disabled="!canSave"
@@ -261,7 +264,7 @@ onUnmounted(() => {
           <div v-else class="grid grid-cols-3 gap-2">
             <button
               type="button"
-              class="col-span-1 py-2.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl font-bold text-xs cursor-pointer flex items-center justify-center gap-1 transition-colors active:scale-95"
+              class="col-span-1 py-3 sm:py-2.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl font-bold text-xs sm:text-sm cursor-pointer flex items-center justify-center gap-1 transition-colors active:scale-95"
               @click="handleClose"
             >
               <span>Batal</span>
@@ -269,7 +272,7 @@ onUnmounted(() => {
 
             <button
               type="button"
-              class="col-span-2 py-2.5 text-white rounded-xl font-bold text-xs cursor-pointer flex items-center justify-center gap-1.5 shadow-md transition-all disabled:opacity-40 active:scale-95"
+              class="col-span-2 py-3 sm:py-2.5 text-white rounded-xl font-bold text-xs sm:text-sm cursor-pointer flex items-center justify-center gap-1.5 shadow-md transition-all disabled:opacity-40 active:scale-95"
               :class="colorConfig.saveBtn"
               :style="colorConfig.saveBtnStyle || {}"
               :disabled="!canSave"
@@ -284,3 +287,9 @@ onUnmounted(() => {
     </div>
   </Teleport>
 </template>
+
+<style scoped>
+.pb-safe {
+  padding-bottom: max(2rem, calc(env(safe-area-inset-bottom, 0px) + 1.25rem));
+}
+</style>

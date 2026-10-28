@@ -318,8 +318,8 @@ onMounted(() => {
 </template>
 
 <style>
-/* Safe Area insets for modern mobile displays (Notch & Home Bar) */
+/* Safe Area insets for modern mobile displays (Notch & Home Bar) with minimum ergonomic clearance */
 .pb-safe {
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: max(1.5rem, calc(env(safe-area-inset-bottom, 0px) + 0.75rem));
 }
 </style>

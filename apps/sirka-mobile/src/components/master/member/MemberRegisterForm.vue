@@ -357,11 +357,14 @@ async function handleSaveRegisterMember() {
     </div>
 
     <!-- Sticky Footer Submit Button -->
-    <div class="p-2.5 bg-white border-t border-gray-200 shrink-0">
+    <div
+      class="p-4 pt-3 pb-8 sm:pb-3 bg-white border-t border-gray-200 shrink-0 pb-safe"
+      style="padding-bottom: max(2rem, calc(env(safe-area-inset-bottom, 0px) + 1rem));"
+    >
       <div class="flex items-center gap-2">
         <button
           type="button"
-          class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded font-semibold text-xs cursor-pointer transition-colors"
+          class="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold text-xs cursor-pointer transition-colors active:scale-95"
           @click="emit('cancel')"
         >
           Batal
@@ -370,9 +373,9 @@ async function handleSaveRegisterMember() {
           type="submit"
           form="member-register-form"
           :disabled="isSavingMember || (registerMode === 'EXISTING' && !selectedExistingBuyerId)"
-          class="flex-1 flex items-center justify-center gap-1.5 px-4 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded font-bold text-xs cursor-pointer transition-all shadow-2xs active:scale-95 disabled:opacity-50"
+          class="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl font-bold text-xs cursor-pointer transition-all shadow-md active:scale-95 disabled:opacity-50"
         >
-          <Check :size="13" />
+          <Check :size="15" />
           <span>{{ isSavingMember ? 'Menyimpan...' : 'Terbitkan Kartu Member' }}</span>
         </button>
       </div>
