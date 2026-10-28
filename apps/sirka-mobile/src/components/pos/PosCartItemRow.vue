@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { CartItem } from '../../types';
-import { Trash2, Plus, Minus } from 'lucide-vue-next';
+import { Trash2 } from 'lucide-vue-next';
 import { formatRupiah } from '../../utils/formatters';
 
 export interface AvailableUnitOption {
@@ -191,6 +191,52 @@ function triggerDelete(direction = -1) {
     translateX.value = 0;
   }, 180);
 }
+
+// Long-Press (Tekan Tahan 2 Detik) pada Judul Barang untuk Negosiasi Harga
+let titlePressTimer: any = null;
+const isTitlePressing = ref(false);
+let titleStartX = 0;
+let titleStartY = 0;
+
+function onTitlePointerDown(e: PointerEvent) {
+  if (e.button !== 0) return;
+  e.stopPropagation();
+  titleStartX = e.clientX;
+  titleStartY = e.clientY;
+  isTitlePressing.value = true;
+  if (titlePressTimer) clearTimeout(titlePressTimer);
+  titlePressTimer = setTimeout(() => {
+    isTitlePressing.value = false;
+    emit('open-adjust-price');
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate(60);
+    }
+  }, 2000);
+}
+
+function onTitlePointerMove(e: PointerEvent) {
+  if (!isTitlePressing.value) return;
+  const dist = Math.hypot(e.clientX - titleStartX, e.clientY - titleStartY);
+  if (dist > 8) {
+    onTitlePointerCancel();
+  }
+}
+
+function onTitlePointerUp() {
+  isTitlePressing.value = false;
+  if (titlePressTimer) {
+    clearTimeout(titlePressTimer);
+    titlePressTimer = null;
+  }
+}
+
+function onTitlePointerCancel() {
+  isTitlePressing.value = false;
+  if (titlePressTimer) {
+    clearTimeout(titlePressTimer);
+    titlePressTimer = null;
+  }
+}
 </script>
 
 <template>
@@ -267,29 +313,33 @@ function triggerDelete(direction = -1) {
           </span>
         </div>
       </transition>
-      <!-- Baris 1: Nama Barang (Satuan & Kategori setelah judul dihapus) -->
+      <!-- Baris 1: Nama Barang (Klik tahan 2 detik untuk negosiasi harga) -->
       <div class="flex items-center justify-between gap-2">
-        <span class="font-bold text-slate-900 text-sm truncate" :title="item.name">
+        <span
+          class="font-bold text-slate-900 text-sm truncate cursor-pointer select-none transition-all active:opacity-80"
+          :class="{ 'text-amber-700 underline decoration-amber-500 scale-[0.99]': isTitlePressing }"
+          :title="'Tekan tahan 2 detik untuk negosiasi harga: ' + item.name"
+          @pointerdown="onTitlePointerDown"
+          @pointermove="onTitlePointerMove"
+          @pointerup="onTitlePointerUp"
+          @pointercancel="onTitlePointerCancel"
+        >
           {{ item.name }}
         </span>
       </div>
 
-      <!-- Baris 2: [Harga Satuan] + [Stepper Qty] di Kiri, [Subtotal] di Kanan -->
+      <!-- Baris 2: [Harga Satuan] + [Multiplier Qty] di Kiri, [Subtotal] di Kanan -->
       <div class="flex items-center justify-between gap-2">
-        <!-- Kiri: Harga Satuan + Stepper Qty (Berurutan setelah harga) -->
+        <!-- Kiri: Harga Satuan + Multiplier Qty (Berurutan setelah harga) -->
         <div class="flex items-center gap-2.5 min-w-0 flex-1 flex-wrap xs:flex-nowrap">
-          <!-- Harga Satuan (Bisa di-tap untuk ubah harga / negosiasi) -->
-          <div
-            class="flex items-baseline gap-1 cursor-pointer hover:opacity-80 group/price shrink-0"
-            title="Klik untuk ubah harga / negosiasi"
-            @click="emit('open-adjust-price')"
-          >
+          <!-- Harga Satuan (Hanya info nominal, negosiasi dipindah ke judul tahan 2 detik) -->
+          <div class="flex items-baseline gap-1 shrink-0 select-none">
             <!-- Jika harga dinego lebih rendah dari harga master -->
             <template v-if="masterPrice > item.sellPrice">
               <span class="line-through text-slate-400 text-xs font-mono">
                 Rp {{ formatRupiah(masterPrice) }}
               </span>
-              <span class="text-sm font-black text-rose-600 font-mono group-hover/price:underline">
+              <span class="text-sm font-black text-rose-600 font-mono">
                 Rp {{ formatRupiah(item.sellPrice) }}
               </span>
               <select
@@ -313,7 +363,7 @@ function triggerDelete(direction = -1) {
 
             <!-- Normal: Warna kontras jelas & nominal terbaca -->
             <template v-else>
-              <span class="text-sm font-black text-slate-900 font-mono group-hover/price:underline">
+              <span class="text-sm font-black text-slate-900 font-mono">
                 Rp {{ formatRupiah(item.sellPrice) }}
               </span>
               <select
@@ -336,34 +386,19 @@ function triggerDelete(direction = -1) {
             </template>
           </div>
 
-          <!-- Flexible Qty Input (Stepper Bersih Tanpa Border) -->
-          <div class="flex items-center gap-0.5 shrink-0">
-            <button
-              type="button"
-              class="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 active:bg-slate-200 text-slate-700 hover:text-slate-950 cursor-pointer transition-colors active:scale-90"
-              title="Kurangi Qty"
-              @click="emit('update-qty', Number(Math.max(0, item.qty - qtyDecrement()).toFixed(3)))"
-            >
-              <Minus :size="13" class="stroke-[2.5]" />
-            </button>
+          <!-- Qty Multiplier (Ketik manual jika perlu, atau klik 2x kiri (-) / kanan (+) kartu) -->
+          <div class="inline-flex items-center gap-0.5 text-slate-800 shrink-0 select-none">
+            <span class="text-xs font-bold text-slate-400 font-mono">×</span>
             <input
               type="text"
               inputmode="decimal"
               :value="item.qty"
-              class="w-8 h-7 text-center font-mono font-black text-xs text-slate-900 bg-transparent border-none outline-none"
-              title="Jumlah beli (bisa ketik desimal, misal 0.5 atau 0.25)"
+              class="w-10 h-6 text-center font-mono font-black text-xs text-slate-900 bg-slate-100 hover:bg-slate-200 focus:bg-white focus:ring-1 focus:ring-blue-500 rounded px-1 border border-slate-200 outline-none transition-all"
+              title="Ketik jumlah manual (atau klik 2x di kiri/kanan kartu untuk ubah cepat)"
               @change="handleQtyInputChange"
               @keydown.up.prevent="emit('update-qty', Number((item.qty + qtyIncrement()).toFixed(3)))"
               @keydown.down.prevent="emit('update-qty', Number(Math.max(0, item.qty - qtyDecrement()).toFixed(3)))"
             />
-            <button
-              type="button"
-              class="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 active:bg-slate-200 text-slate-700 hover:text-slate-950 cursor-pointer transition-colors active:scale-90"
-              title="Tambah Qty"
-              @click="emit('update-qty', Number((item.qty + qtyIncrement()).toFixed(3)))"
-            >
-              <Plus :size="13" class="stroke-[2.5]" />
-            </button>
           </div>
         </div>
 
