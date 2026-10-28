@@ -618,7 +618,7 @@ pub async fn pg_delete_preorder(id: String) -> Result<(), String> {
 
 async fn ensure_purchases_schema(client: &Client) -> Result<(), String> {
     client
-        .batch_execute(include_str!("../../db/purchases.sql"))
+        .batch_execute(include_str!("../../../../db/purchases.sql"))
         .await
         .map_err(|e| e.to_string())
 }

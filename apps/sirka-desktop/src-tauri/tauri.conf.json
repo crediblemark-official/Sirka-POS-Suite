@@ -35,7 +35,7 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "../certs/Sirka_CodeSigning.cer": "certs/Sirka_CodeSigning.cer"
+      "../../../certs/Sirka_CodeSigning.cer": "certs/Sirka_CodeSigning.cer"
     },
     "windows": {
       "certificateThumbprint": "BCBE5A68ACC01117B20CA483B18535FF74EF67BD",

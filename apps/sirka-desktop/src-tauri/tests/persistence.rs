@@ -22,7 +22,7 @@ async fn persistence_workflows() {
     );
 
     client
-        .batch_execute(include_str!("../../db/schema.sql"))
+        .batch_execute(include_str!("../../../../db/schema.sql"))
         .await
         .unwrap();
     client.batch_execute("INSERT INTO category_markups(category) VALUES ('test');

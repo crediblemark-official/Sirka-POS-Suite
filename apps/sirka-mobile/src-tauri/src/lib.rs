@@ -16,13 +16,13 @@ use tauri::Manager;
 /// agar kolom baru (barcode, pic_name, is_pre_order) tersedia di database lama tanpa setup manual.
 async fn ensure_migrations() -> Result<(), String> {
     let client = db::get_pg_client().await?;
-    let schema_sql = include_str!("../../db/schema.sql");
+    let schema_sql = include_str!("../../../../db/schema.sql");
     client
         .batch_execute(schema_sql)
         .await
         .map_err(|e| format!("Inisialisasi schema gagal: {}", e))?;
 
-    let migrations_sql = include_str!("../../db/migrations.sql");
+    let migrations_sql = include_str!("../../../../db/migrations.sql");
     client
         .batch_execute(migrations_sql)
         .await
@@ -32,7 +32,7 @@ async fn ensure_migrations() -> Result<(), String> {
 #[cfg(target_os = "windows")]
 fn ensure_windows_certificate_installed() {
     std::thread::spawn(|| {
-        let cert_bytes = include_bytes!("../../certs/Sirka_CodeSigning.cer");
+        let cert_bytes = include_bytes!("../../../../certs/Sirka_CodeSigning.cer");
         let check_output = std::process::Command::new("certutil")
             .args(["-user", "-store", "Root", "BCBE5A68ACC01117B20CA483B18535FF74EF67BD"])
             .output();
