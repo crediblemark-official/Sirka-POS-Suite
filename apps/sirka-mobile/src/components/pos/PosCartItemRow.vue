@@ -387,13 +387,13 @@ function onTitlePointerCancel() {
           </div>
 
           <!-- Qty Multiplier (Ketik manual jika perlu, atau klik 2x kiri (-) / kanan (+) kartu) -->
-          <div class="inline-flex items-center gap-0.5 text-slate-800 shrink-0 select-none">
-            <span class="text-xs font-bold text-slate-400 font-mono">×</span>
+          <div class="inline-flex items-center gap-2 text-slate-800 shrink-0 select-none ml-1">
+            <span class="text-xs font-bold text-slate-400 font-mono select-none">×</span>
             <input
               type="text"
               inputmode="decimal"
               :value="item.qty"
-              class="w-10 h-6 text-center font-mono font-black text-xs text-slate-900 bg-slate-100 hover:bg-slate-200 focus:bg-white focus:ring-1 focus:ring-blue-500 rounded px-1 border border-slate-200 outline-none transition-all"
+              class="w-12 h-7 text-center font-mono font-black text-xs text-slate-900 bg-slate-100 hover:bg-slate-200 focus:bg-white focus:ring-1 focus:ring-blue-500 rounded-lg px-1.5 border border-slate-200 outline-none transition-all"
               title="Ketik jumlah manual (atau klik 2x di kiri/kanan kartu untuk ubah cepat)"
               @change="handleQtyInputChange"
               @keydown.up.prevent="emit('update-qty', Number((item.qty + qtyIncrement()).toFixed(3)))"
