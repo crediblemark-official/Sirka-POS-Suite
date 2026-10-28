@@ -191,92 +191,110 @@ function triggerDelete(direction = -1) {
       @pointerup="onPointerUp"
       @pointercancel="onPointerCancel"
     >
-      <!-- Baris 1: Nama Barang (Kiri) & Subtotal Hasil (Kanan Atas) -->
+      <!-- Baris 1: Nama Barang (Satuan & Kategori setelah judul dihapus) -->
       <div class="flex items-center justify-between gap-2">
-        <div class="flex items-center gap-1.5 min-w-0 flex-1">
-          <span class="font-bold text-slate-900 text-sm truncate" :title="item.name">
-            {{ item.name }}
-          </span>
-
-          <!-- Dropdown multi-satuan jika produk memiliki lebih dari 1 satuan kemasan -->
-          <select
-            v-if="availableUnits.length > 1"
-            :value="item.unit"
-            class="px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded text-xs font-bold border-none outline-none cursor-pointer transition-colors shrink-0"
-            title="Klik untuk ganti satuan kemasan"
-            @change="(e: any) => emit('change-unit', e.target.value)"
-          >
-            <option
-              v-for="u in availableUnits"
-              :key="u.unitName"
-              :value="u.unitName"
-            >
-              {{ u.unitName }}
-            </option>
-          </select>
-        </div>
-
-        <!-- Subtotal Hasil di Kanan Atas Sejajar Nama Produk -->
-        <span class="font-black font-mono text-slate-900 text-sm sm:text-base text-right shrink-0 min-w-[70px]">
-          {{ formatRupiah(item.subtotalSell) }}
+        <span class="font-bold text-slate-900 text-sm truncate" :title="item.name">
+          {{ item.name }}
         </span>
       </div>
 
-      <!-- Baris 2: Harga Satuan & Stepper Qty di Bawah -->
-      <div class="flex items-center gap-2.5">
-        <!-- Harga Satuan (@ harga) -->
-        <div
-          class="flex items-baseline gap-1 cursor-pointer hover:opacity-80 group/price shrink-0 text-xs font-mono"
-          title="Klik untuk ubah harga / negosiasi"
-          @click="emit('open-adjust-price')"
-        >
-          <!-- Jika harga dinego lebih rendah dari harga master -->
-          <template v-if="masterPrice > item.sellPrice">
-            <span class="line-through text-slate-400 text-[11px]">
-              {{ formatRupiah(masterPrice) }}
-            </span>
-            <span class="font-bold text-rose-600 group-hover/price:underline">
-              @ {{ formatRupiah(item.sellPrice) }}
-            </span>
-          </template>
+      <!-- Baris 2: [Harga Satuan] + [Stepper Qty] di Kiri, [Subtotal] di Kanan -->
+      <div class="flex items-center justify-between gap-2">
+        <!-- Kiri: Harga Satuan + Stepper Qty (Berurutan setelah harga) -->
+        <div class="flex items-center gap-2.5 min-w-0 flex-1 flex-wrap xs:flex-nowrap">
+          <!-- Harga Satuan (Bisa di-tap untuk ubah harga / negosiasi) -->
+          <div
+            class="flex items-baseline gap-1 cursor-pointer hover:opacity-80 group/price shrink-0"
+            title="Klik untuk ubah harga / negosiasi"
+            @click="emit('open-adjust-price')"
+          >
+            <!-- Jika harga dinego lebih rendah dari harga master -->
+            <template v-if="masterPrice > item.sellPrice">
+              <span class="line-through text-slate-400 text-xs font-mono">
+                {{ formatRupiah(masterPrice) }}
+              </span>
+              <span class="text-sm font-black text-rose-600 font-mono group-hover/price:underline">
+                {{ formatRupiah(item.sellPrice) }}
+              </span>
+              <select
+                v-if="availableUnits.length > 1"
+                :value="item.unit"
+                class="text-xs text-amber-700 hover:text-amber-900 font-bold uppercase font-mono bg-amber-50 hover:bg-amber-100 rounded px-1 py-0.5 border border-amber-200 cursor-pointer outline-none"
+                title="Klik untuk ganti satuan kemasan"
+                @click.stop
+                @change="(e: any) => emit('change-unit', e.target.value)"
+              >
+                <option
+                  v-for="u in availableUnits"
+                  :key="u.unitName"
+                  :value="u.unitName"
+                >
+                  / {{ u.unitName }}
+                </option>
+              </select>
+              <span v-else class="text-xs text-slate-500 font-semibold uppercase font-mono">/ {{ item.unit }}</span>
+            </template>
 
-          <!-- Normal -->
-          <template v-else>
-            <span class="font-medium text-slate-500 group-hover/price:underline">
-              @ {{ formatRupiah(item.sellPrice) }}
-            </span>
-          </template>
+            <!-- Normal: Warna kontras jelas & nominal terbaca -->
+            <template v-else>
+              <span class="text-sm font-black text-slate-900 font-mono group-hover/price:underline">
+                {{ formatRupiah(item.sellPrice) }}
+              </span>
+              <select
+                v-if="availableUnits.length > 1"
+                :value="item.unit"
+                class="text-xs text-amber-700 hover:text-amber-900 font-bold uppercase font-mono bg-amber-50 hover:bg-amber-100 rounded px-1 py-0.5 border border-amber-200 cursor-pointer outline-none"
+                title="Klik untuk ganti satuan kemasan"
+                @click.stop
+                @change="(e: any) => emit('change-unit', e.target.value)"
+              >
+                <option
+                  v-for="u in availableUnits"
+                  :key="u.unitName"
+                  :value="u.unitName"
+                >
+                  / {{ u.unitName }}
+                </option>
+              </select>
+              <span v-else class="text-xs text-slate-500 font-semibold uppercase font-mono">/ {{ item.unit }}</span>
+            </template>
+          </div>
+
+          <!-- Flexible Qty Input (Stepper Modern Bersekat POS) -->
+          <div class="inline-flex items-center rounded-lg border border-slate-300 bg-white shadow-2xs divide-x divide-slate-200 overflow-hidden shrink-0">
+            <button
+              type="button"
+              class="w-7 h-7 flex items-center justify-center bg-slate-50 hover:bg-slate-100 active:bg-slate-200 text-slate-700 hover:text-slate-950 cursor-pointer transition-colors active:scale-95"
+              title="Kurangi Qty"
+              @click="emit('update-qty', Number(Math.max(0, item.qty - qtyDecrement()).toFixed(3)))"
+            >
+              <Minus :size="12" class="stroke-[2.5]" />
+            </button>
+            <input
+              type="text"
+              inputmode="decimal"
+              :value="item.qty"
+              class="w-10 h-7 text-center font-mono font-black text-xs text-slate-900 bg-white border-none outline-none focus:bg-blue-50/40"
+              title="Jumlah beli (bisa ketik desimal, misal 0.5 atau 0.25)"
+              @change="handleQtyInputChange"
+              @keydown.up.prevent="emit('update-qty', Number((item.qty + qtyIncrement()).toFixed(3)))"
+              @keydown.down.prevent="emit('update-qty', Number(Math.max(0, item.qty - qtyDecrement()).toFixed(3)))"
+            />
+            <button
+              type="button"
+              class="w-7 h-7 flex items-center justify-center bg-slate-50 hover:bg-slate-100 active:bg-slate-200 text-slate-700 hover:text-slate-950 cursor-pointer transition-colors active:scale-95"
+              title="Tambah Qty"
+              @click="emit('update-qty', Number((item.qty + qtyIncrement()).toFixed(3)))"
+            >
+              <Plus :size="12" class="stroke-[2.5]" />
+            </button>
+          </div>
         </div>
 
-        <!-- Flexible Qty Input (Stepper Modern Bersekat POS) -->
-        <div class="inline-flex items-center rounded-lg border border-slate-300 bg-white shadow-2xs divide-x divide-slate-200 overflow-hidden shrink-0">
-          <button
-            type="button"
-            class="w-6.5 h-6.5 flex items-center justify-center bg-slate-50 hover:bg-slate-100 active:bg-slate-200 text-slate-700 hover:text-slate-950 cursor-pointer transition-colors active:scale-95"
-            title="Kurangi Qty"
-            @click="emit('update-qty', Number(Math.max(0, item.qty - qtyDecrement()).toFixed(3)))"
-          >
-            <Minus :size="12" class="stroke-[2.5]" />
-          </button>
-          <input
-            type="text"
-            inputmode="decimal"
-            :value="item.qty"
-            class="w-9 h-6.5 text-center font-mono font-black text-xs text-slate-900 bg-white border-none outline-none focus:bg-blue-50/40"
-            title="Jumlah beli (bisa ketik desimal, misal 0.5 atau 0.25)"
-            @change="handleQtyInputChange"
-            @keydown.up.prevent="emit('update-qty', Number((item.qty + qtyIncrement()).toFixed(3)))"
-            @keydown.down.prevent="emit('update-qty', Number(Math.max(0, item.qty - qtyDecrement()).toFixed(3)))"
-          />
-          <button
-            type="button"
-            class="w-6.5 h-6.5 flex items-center justify-center bg-slate-50 hover:bg-slate-100 active:bg-slate-200 text-slate-700 hover:text-slate-950 cursor-pointer transition-colors active:scale-95"
-            title="Tambah Qty"
-            @click="emit('update-qty', Number((item.qty + qtyIncrement()).toFixed(3)))"
-          >
-            <Plus :size="12" class="stroke-[2.5]" />
-          </button>
-        </div>
+        <!-- Kanan: Subtotal Nominal (Jelas, Tebal & Terbaca) -->
+        <span class="font-black font-mono text-slate-900 text-sm sm:text-base text-right shrink-0 min-w-[70px]">
+          {{ formatRupiah(item.subtotalSell) }}
+        </span>
       </div>
 
     <!-- Baris 3: Shortcut Pecahan Cepat Timbangan (1/4, 1/2, 3/4, 1) jika satuan KG/Liter -->
