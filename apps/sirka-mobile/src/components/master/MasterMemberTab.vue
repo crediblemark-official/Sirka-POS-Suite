@@ -17,11 +17,15 @@ import {
   Phone,
   ArrowUp,
   ArrowDown,
-  Plus
+  Plus,
+  SlidersHorizontal,
+  RotateCcw,
+  X
 } from 'lucide-vue-next';
 
 import MetricStatsStrip, { MetricStatItem } from '../common/MetricStatsStrip.vue';
 import AppTableContainer from '../common/AppTableContainer.vue';
+import AppFilterDrawer from '../common/AppFilterDrawer.vue';
 import MemberPointAdjustModal from './member/MemberPointAdjustModal.vue';
 import MemberPrintModal from './member/MemberPrintModal.vue';
 import MemberDetailDrawer from './member/MemberDetailDrawer.vue';
@@ -56,8 +60,26 @@ const props = withDefaults(defineProps<{
 
 const buyerStore = useBuyerStore();
 
-type MemberFilterTier = MembershipTier | 'ALL' | 'UNREGISTERED' | 'B2B' | 'B2C';
-const selectedTierFilter = ref<MemberFilterTier>('ALL');
+// Marketplace Filter Drawer States
+const showFilterDrawer = ref(false);
+
+type MemberTierFilter = 'ALL' | 'REGULAR' | 'SILVER' | 'GOLD' | 'PLATINUM' | 'UNREGISTERED' | 'EVERYONE';
+type MemberMarketFilter = 'ALL' | 'B2B' | 'B2C';
+
+const memberTierFilter = ref<MemberTierFilter>('ALL');
+const memberMarketFilter = ref<MemberMarketFilter>('ALL');
+
+const activeFiltersCount = computed(() => {
+  let count = 0;
+  if (memberTierFilter.value !== 'ALL') count++;
+  if (memberMarketFilter.value !== 'ALL') count++;
+  return count;
+});
+
+function resetAllFilters() {
+  memberTierFilter.value = 'ALL';
+  memberMarketFilter.value = 'ALL';
+}
 
 // Drawer State
 const showDetailDrawer = computed({
@@ -174,18 +196,26 @@ const filteredMembers = computed(() => {
       (b.memberCardNo && b.memberCardNo.toLowerCase().includes(q)) ||
       (b.phone && b.phone.includes(q));
 
-    if (selectedTierFilter.value === 'UNREGISTERED') {
-      return !isMbr && matchesSearch;
-    }
-    if (selectedTierFilter.value === 'B2B') {
-      return b.customerType === 'B2B' && matchesSearch;
-    }
-    if (selectedTierFilter.value === 'B2C') {
-      return b.customerType === 'B2C' && matchesSearch;
+    if (!matchesSearch) return false;
+
+    // 1. Tier / Status Kartu Member
+    if (memberTierFilter.value === 'UNREGISTERED') {
+      if (isMbr) return false;
+    } else if (memberTierFilter.value === 'EVERYONE') {
+      // Tampilkan seluruh pelanggan tanpa syarat kartu member
+    } else if (memberTierFilter.value === 'ALL') {
+      // Default: Hanya member yang sudah memiliki kartu
+      if (!isMbr) return false;
+    } else {
+      // Tier spesifik (REGULAR, SILVER, GOLD, PLATINUM)
+      if (!isMbr || b.tier !== memberTierFilter.value) return false;
     }
 
-    const matchesTier = selectedTierFilter.value === 'ALL' || b.tier === selectedTierFilter.value;
-    return isMbr && matchesSearch && matchesTier;
+    // 2. Segmentasi Pasar
+    if (memberMarketFilter.value === 'B2B' && b.customerType !== 'B2B') return false;
+    if (memberMarketFilter.value === 'B2C' && b.customerType !== 'B2C') return false;
+
+    return true;
   });
 });
 
@@ -337,108 +367,83 @@ function openRulesDrawer() {
             </div>
           </div>
 
-          <!-- Bottom Row: Filter Chips Horizontal (Tier & Status) -->
-          <div v-horizontal-scroll class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+          <!-- Bottom Row: Marketplace-Style Filter Drawer Trigger & Active Filter Chips -->
+          <div v-horizontal-scroll class="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
+            <!-- Marketplace Filter Drawer Trigger Button -->
             <button
               type="button"
-              class="px-2.5 py-1 rounded-lg text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1 shadow-2xs"
-              :class="selectedTierFilter === 'ALL' ? 'bg-amber-600 text-white font-bold' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
-              @click="selectedTierFilter = 'ALL'"
+              @click="showFilterDrawer = true"
+              class="flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-lg border transition-all cursor-pointer shrink-0 shadow-xs whitespace-nowrap active:scale-95"
+              :class="activeFiltersCount > 0
+                ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-amber-500/20 font-bold'
+                : 'bg-white text-gray-800 border-gray-300 hover:bg-gray-50'"
             >
-              <span>Semua Member</span>
-              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="selectedTierFilter === 'ALL' ? 'bg-amber-700 text-white' : 'bg-gray-200 text-gray-700'">
-                {{ buyerStore.memberBuyers.length }}
+              <SlidersHorizontal :size="13" />
+              <span>Filter</span>
+              <span
+                v-if="activeFiltersCount > 0"
+                class="px-1.5 py-0.2 rounded-full bg-slate-950 text-white font-mono text-[10px] font-bold"
+              >
+                {{ activeFiltersCount }}
               </span>
             </button>
 
-            <button
-              type="button"
-              class="px-2.5 py-1 rounded-lg text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1 shadow-2xs"
-              :class="selectedTierFilter === 'REGULAR' ? 'bg-slate-700 text-white font-bold' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
-              @click="selectedTierFilter = 'REGULAR'"
+            <!-- Active Filter Chip: Tier / Status Member -->
+            <div
+              v-if="memberTierFilter !== 'ALL'"
+              class="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold bg-amber-50 text-amber-900 border border-amber-200 rounded-lg shrink-0 whitespace-nowrap"
             >
-              <span>Regular</span>
-              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="selectedTierFilter === 'REGULAR' ? 'bg-slate-800 text-white' : 'bg-gray-200 text-gray-700'">
-                {{ regularCount }}
-              </span>
-            </button>
+              <span>Tier: <strong>{{ memberTierFilter === 'UNREGISTERED' ? 'Belum Member' : (memberTierFilter === 'EVERYONE' ? 'Semua Pelanggan' : memberTierFilter) }}</strong></span>
+              <button
+                type="button"
+                class="p-0.5 hover:bg-amber-200 rounded-full cursor-pointer ml-0.5"
+                @click="memberTierFilter = 'ALL'"
+              >
+                <X :size="11" />
+              </button>
+            </div>
 
-            <button
-              type="button"
-              class="px-2.5 py-1 rounded-lg text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1 shadow-2xs"
-              :class="selectedTierFilter === 'SILVER' ? 'bg-blue-600 text-white font-bold' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
-              @click="selectedTierFilter = 'SILVER'"
+            <!-- Active Filter Chip: Segmentasi Pasar -->
+            <div
+              v-if="memberMarketFilter !== 'ALL'"
+              class="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold bg-indigo-50 text-indigo-800 border border-indigo-200 rounded-lg shrink-0 whitespace-nowrap"
             >
-              <span>Silver</span>
-              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="selectedTierFilter === 'SILVER' ? 'bg-blue-700 text-white' : 'bg-gray-200 text-gray-700'">
-                {{ silverCount }}
-              </span>
-            </button>
+              <span>Pasar: <strong>{{ memberMarketFilter === 'B2B' ? 'Grosir B2B' : 'Eceran B2C' }}</strong></span>
+              <button
+                type="button"
+                class="p-0.5 hover:bg-indigo-200 rounded-full cursor-pointer ml-0.5"
+                @click="memberMarketFilter = 'ALL'"
+              >
+                <X :size="11" />
+              </button>
+            </div>
 
+            <!-- Reset Button jika ada filter aktif -->
             <button
+              v-if="activeFiltersCount > 0"
               type="button"
-              class="px-2.5 py-1 rounded-lg text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1 shadow-2xs"
-              :class="selectedTierFilter === 'GOLD' ? 'bg-amber-500 text-slate-950 font-bold' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
-              @click="selectedTierFilter = 'GOLD'"
+              class="flex items-center gap-1 px-2 py-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg cursor-pointer transition-colors shrink-0 whitespace-nowrap"
+              title="Hapus semua filter"
+              @click="resetAllFilters"
             >
-              <span>Gold</span>
-              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="selectedTierFilter === 'GOLD' ? 'bg-amber-600 text-slate-950' : 'bg-gray-200 text-gray-700'">
-                {{ goldCount }}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              class="px-2.5 py-1 rounded-lg text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1 shadow-2xs"
-              :class="selectedTierFilter === 'PLATINUM' ? 'bg-purple-700 text-white font-bold' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
-              @click="selectedTierFilter = 'PLATINUM'"
-            >
-              <span>Platinum</span>
-              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="selectedTierFilter === 'PLATINUM' ? 'bg-purple-800 text-white' : 'bg-gray-200 text-gray-700'">
-                {{ platinumCount }}
-              </span>
+              <RotateCcw :size="11" />
+              <span>Reset</span>
             </button>
 
             <div class="h-4 w-px bg-gray-300 shrink-0"></div>
 
+            <!-- Tombol Aturan Poin -->
             <button
               type="button"
-              class="px-2.5 py-1 rounded-lg text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1 shadow-2xs"
-              :class="selectedTierFilter === 'UNREGISTERED' ? 'bg-rose-600 text-white font-bold' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
-              @click="selectedTierFilter = 'UNREGISTERED'"
+              @click="openRulesDrawer"
+              class="flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-lg border cursor-pointer transition-colors shrink-0 bg-white hover:bg-amber-50 text-amber-800 border-amber-300 shadow-2xs whitespace-nowrap"
+              title="Atur rasio poin belanja & diskon tier"
             >
-              <span>Belum Punya Member</span>
-              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="selectedTierFilter === 'UNREGISTERED' ? 'bg-rose-700 text-white' : 'bg-rose-50 text-rose-700 border border-rose-200'">
-                {{ nonMemberCount }}
-              </span>
+              <Sparkles :size="12" class="text-amber-500" />
+              <span>Aturan Poin</span>
             </button>
 
-            <button
-              type="button"
-              class="px-2.5 py-1 rounded-lg text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1 shadow-2xs"
-              :class="selectedTierFilter === 'B2B' ? 'bg-indigo-600 text-white font-bold' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
-              @click="selectedTierFilter = 'B2B'"
-            >
-              <Building :size="11" />
-              <span>Grosir</span>
-              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="selectedTierFilter === 'B2B' ? 'bg-indigo-700 text-white' : 'bg-gray-200 text-gray-700'">
-                {{ b2bCount }}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              class="px-2.5 py-1 rounded-lg text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1 shadow-2xs"
-              :class="selectedTierFilter === 'B2C' ? 'bg-teal-600 text-white font-bold' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
-              @click="selectedTierFilter = 'B2C'"
-            >
-              <UserCheck :size="11" />
-              <span>Eceran</span>
-              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="selectedTierFilter === 'B2C' ? 'bg-teal-700 text-white' : 'bg-gray-200 text-gray-700'">
-                {{ b2cCount }}
-              </span>
-            </button>
-
+            <!-- Indikator Query Pencarian -->
             <span v-if="props.searchQuery" class="text-[10.5px] text-gray-600 bg-gray-200/80 px-2 py-0.5 rounded-md font-medium shrink-0 whitespace-nowrap ml-auto">
               Cari: "<strong class="text-gray-900">{{ props.searchQuery }}</strong>"
             </span>
@@ -460,7 +465,7 @@ function openRulesDrawer() {
             <button
               type="button"
               class="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs font-semibold cursor-pointer border border-gray-300 transition-colors"
-              @click="selectedTierFilter = 'ALL'"
+              @click="resetAllFilters"
             >
               Reset Filter & Pencarian
             </button>
@@ -699,6 +704,201 @@ function openRulesDrawer() {
             </tbody>
           </table>
         </AppTableContainer>
+
+        <!-- Marketplace-Style Filter Drawer Component -->
+        <AppFilterDrawer
+          :is-open="showFilterDrawer"
+          title="Filter Member & Pelanggan"
+          subtitle="Saring data berdasarkan tier loyalitas, status kepemilikan kartu, dan segmen pasar"
+          :active-filters-count="activeFiltersCount"
+          :result-count="filteredMembers.length"
+          result-label="Pelanggan"
+          apply-button-color="bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-slate-950 font-bold"
+          @close="showFilterDrawer = false"
+          @reset="resetAllFilters"
+          @apply="showFilterDrawer = false"
+        >
+          <!-- Seksi 1: Tier Loyalitas & Status Kartu -->
+          <div class="space-y-2">
+            <label class="font-bold text-gray-800 text-xs block">Tier Loyalitas & Status Kartu Member</label>
+            <div class="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                class="px-3 py-2 rounded-lg text-xs font-semibold border text-left flex items-center justify-between cursor-pointer transition-all"
+                :class="memberTierFilter === 'ALL'
+                  ? 'bg-amber-50 border-amber-500 text-amber-950 font-bold shadow-2xs'
+                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+                @click="memberTierFilter = 'ALL'"
+              >
+                <span>Semua Member ({{ buyerStore.memberBuyers.length }})</span>
+                <span class="w-2 h-2 rounded-full" :class="memberTierFilter === 'ALL' ? 'bg-amber-500' : 'bg-transparent'"></span>
+              </button>
+
+              <button
+                type="button"
+                class="px-3 py-2 rounded-lg text-xs font-semibold border text-left flex items-center justify-between cursor-pointer transition-all"
+                :class="memberTierFilter === 'REGULAR'
+                  ? 'bg-slate-100 border-slate-700 text-slate-900 font-bold shadow-2xs'
+                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+                @click="memberTierFilter = 'REGULAR'"
+              >
+                <span>Regular ({{ regularCount }})</span>
+                <span class="w-2 h-2 rounded-full" :class="memberTierFilter === 'REGULAR' ? 'bg-slate-700' : 'bg-transparent'"></span>
+              </button>
+
+              <button
+                type="button"
+                class="px-3 py-2 rounded-lg text-xs font-semibold border text-left flex items-center justify-between cursor-pointer transition-all"
+                :class="memberTierFilter === 'SILVER'
+                  ? 'bg-blue-50 border-blue-600 text-blue-900 font-bold shadow-2xs'
+                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+                @click="memberTierFilter = 'SILVER'"
+              >
+                <span>Silver ({{ silverCount }})</span>
+                <span class="w-2 h-2 rounded-full" :class="memberTierFilter === 'SILVER' ? 'bg-blue-600' : 'bg-transparent'"></span>
+              </button>
+
+              <button
+                type="button"
+                class="px-3 py-2 rounded-lg text-xs font-semibold border text-left flex items-center justify-between cursor-pointer transition-all"
+                :class="memberTierFilter === 'GOLD'
+                  ? 'bg-amber-100 border-amber-600 text-amber-950 font-bold shadow-2xs'
+                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+                @click="memberTierFilter = 'GOLD'"
+              >
+                <span>Gold ({{ goldCount }})</span>
+                <span class="w-2 h-2 rounded-full" :class="memberTierFilter === 'GOLD' ? 'bg-amber-600' : 'bg-transparent'"></span>
+              </button>
+
+              <button
+                type="button"
+                class="px-3 py-2 rounded-lg text-xs font-semibold border text-left flex items-center justify-between cursor-pointer transition-all"
+                :class="memberTierFilter === 'PLATINUM'
+                  ? 'bg-purple-50 border-purple-600 text-purple-900 font-bold shadow-2xs'
+                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+                @click="memberTierFilter = 'PLATINUM'"
+              >
+                <span>Platinum ({{ platinumCount }})</span>
+                <span class="w-2 h-2 rounded-full" :class="memberTierFilter === 'PLATINUM' ? 'bg-purple-600' : 'bg-transparent'"></span>
+              </button>
+
+              <button
+                type="button"
+                class="px-3 py-2 rounded-lg text-xs font-semibold border text-left flex items-center justify-between cursor-pointer transition-all"
+                :class="memberTierFilter === 'UNREGISTERED'
+                  ? 'bg-rose-50 border-rose-600 text-rose-900 font-bold shadow-2xs'
+                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+                @click="memberTierFilter = 'UNREGISTERED'"
+              >
+                <span>Belum Berkartu ({{ nonMemberCount }})</span>
+                <span class="w-2 h-2 rounded-full" :class="memberTierFilter === 'UNREGISTERED' ? 'bg-rose-600' : 'bg-transparent'"></span>
+              </button>
+
+              <button
+                type="button"
+                class="col-span-2 px-3 py-2 rounded-lg text-xs font-semibold border text-left flex items-center justify-between cursor-pointer transition-all"
+                :class="memberTierFilter === 'EVERYONE'
+                  ? 'bg-emerald-50 border-emerald-600 text-emerald-950 font-bold shadow-2xs'
+                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+                @click="memberTierFilter = 'EVERYONE'"
+              >
+                <span>Semua Pelanggan (Member + Reguler) ({{ buyerStore.buyers.length }})</span>
+                <span class="w-2 h-2 rounded-full" :class="memberTierFilter === 'EVERYONE' ? 'bg-emerald-600' : 'bg-transparent'"></span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Seksi 2: Segmentasi Pasar -->
+          <div class="pt-3 space-y-2">
+            <label class="font-bold text-gray-800 text-xs block">Segmentasi Pasar Pelanggan</label>
+            <div class="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                class="px-3 py-2 rounded-lg text-xs font-semibold border text-center cursor-pointer transition-all"
+                :class="memberMarketFilter === 'ALL'
+                  ? 'bg-amber-50 border-amber-500 text-amber-950 font-bold shadow-2xs'
+                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+                @click="memberMarketFilter = 'ALL'"
+              >
+                Semua Pasar
+              </button>
+              <button
+                type="button"
+                class="px-3 py-2 rounded-lg text-xs font-semibold border text-center cursor-pointer transition-all"
+                :class="memberMarketFilter === 'B2B'
+                  ? 'bg-indigo-50 border-indigo-600 text-indigo-900 font-bold shadow-2xs'
+                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+                @click="memberMarketFilter = 'B2B'"
+              >
+                Grosir B2B ({{ b2bCount }})
+              </button>
+              <button
+                type="button"
+                class="px-3 py-2 rounded-lg text-xs font-semibold border text-center cursor-pointer transition-all"
+                :class="memberMarketFilter === 'B2C'
+                  ? 'bg-teal-50 border-teal-600 text-teal-900 font-bold shadow-2xs'
+                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+                @click="memberMarketFilter = 'B2C'"
+              >
+                Eceran B2C ({{ b2cCount }})
+              </button>
+            </div>
+          </div>
+
+          <!-- Seksi 3: Urutkan Data Pelanggan -->
+          <div class="pt-3 space-y-2">
+            <label class="font-bold text-gray-800 text-xs block">Urutkan Tampilan Data</label>
+            <div class="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                class="px-3 py-2 rounded-lg text-xs font-semibold border text-left flex items-center justify-between cursor-pointer transition-all"
+                :class="sortField === 'name'
+                  ? 'bg-amber-50 border-amber-500 text-amber-950 font-bold shadow-2xs'
+                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+                @click="sortField = 'name'; sortDirection = 'asc'"
+              >
+                <span>Nama Pelanggan (A - Z)</span>
+                <span class="w-2 h-2 rounded-full" :class="sortField === 'name' ? 'bg-amber-500' : 'bg-transparent'"></span>
+              </button>
+
+              <button
+                type="button"
+                class="px-3 py-2 rounded-lg text-xs font-semibold border text-left flex items-center justify-between cursor-pointer transition-all"
+                :class="sortField === 'points'
+                  ? 'bg-amber-50 border-amber-500 text-amber-950 font-bold shadow-2xs'
+                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+                @click="sortField = 'points'; sortDirection = 'desc'"
+              >
+                <span>Poin Terbanyak</span>
+                <span class="w-2 h-2 rounded-full" :class="sortField === 'points' ? 'bg-amber-500' : 'bg-transparent'"></span>
+              </button>
+
+              <button
+                type="button"
+                class="px-3 py-2 rounded-lg text-xs font-semibold border text-left flex items-center justify-between cursor-pointer transition-all"
+                :class="sortField === 'totalSpend'
+                  ? 'bg-amber-50 border-amber-500 text-amber-950 font-bold shadow-2xs'
+                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+                @click="sortField = 'totalSpend'; sortDirection = 'desc'"
+              >
+                <span>Belanja Terbanyak</span>
+                <span class="w-2 h-2 rounded-full" :class="sortField === 'totalSpend' ? 'bg-amber-500' : 'bg-transparent'"></span>
+              </button>
+
+              <button
+                type="button"
+                class="px-3 py-2 rounded-lg text-xs font-semibold border text-left flex items-center justify-between cursor-pointer transition-all"
+                :class="sortField === 'tier'
+                  ? 'bg-amber-50 border-amber-500 text-amber-950 font-bold shadow-2xs'
+                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+                @click="sortField = 'tier'; sortDirection = 'desc'"
+              >
+                <span>Tier Tertinggi</span>
+                <span class="w-2 h-2 rounded-full" :class="sortField === 'tier' ? 'bg-amber-500' : 'bg-transparent'"></span>
+              </button>
+            </div>
+          </div>
+        </AppFilterDrawer>
       </div>
 
       <!-- Sisi Kanan: Panel Drawer Kartu Member & Form Pendaftaran Baru -->

@@ -18,11 +18,15 @@ import {
   FileText,
   ArrowUp,
   ArrowDown,
-  Plus
+  Plus,
+  SlidersHorizontal,
+  X,
+  RotateCcw
 } from 'lucide-vue-next';
 import AppTableContainer from '../common/AppTableContainer.vue';
 import MetricStatsStrip, { MetricStatItem } from '../common/MetricStatsStrip.vue';
 import SearchableSelect, { type SelectOption } from '../common/SearchableSelect.vue';
+import AppFilterDrawer from '../common/AppFilterDrawer.vue';
 import { useConfirmDialog } from '../../composables/useConfirmDialog';
 import { useReturnStore } from '../../stores/returnStore';
 
@@ -57,8 +61,24 @@ async function handleDeleteProduct(prod: Product) {
   }
 }
 
+const showFilterDrawer = ref(false);
 const selectedCategory = ref<string>('Semua');
 const selectedSupplier = ref<string>('Semua');
+const selectedStockStatus = ref<'Semua' | 'Kritis' | 'Habis' | 'Tersedia'>('Semua');
+
+const activeFiltersCount = computed(() => {
+  let count = 0;
+  if (selectedCategory.value !== 'Semua') count++;
+  if (selectedSupplier.value !== 'Semua') count++;
+  if (selectedStockStatus.value !== 'Semua') count++;
+  return count;
+});
+
+function resetAllFilters() {
+  selectedCategory.value = 'Semua';
+  selectedSupplier.value = 'Semua';
+  selectedStockStatus.value = 'Semua';
+}
 
 const categoryOptions = computed<SelectOption[]>(() => [
   { value: 'Semua', label: 'Semua Kategori' },
@@ -98,6 +118,15 @@ const filteredProducts = computed(() => {
     // Filter Supplier
     if (selectedSupplier.value !== 'Semua') {
       if ((p.supplier || '') !== selectedSupplier.value) return false;
+    }
+
+    // Filter Status Stok Fisik
+    if (selectedStockStatus.value === 'Kritis') {
+      if (p.stock > 5) return false;
+    } else if (selectedStockStatus.value === 'Habis') {
+      if (p.stock > 0) return false;
+    } else if (selectedStockStatus.value === 'Tersedia') {
+      if (p.stock <= 0) return false;
     }
 
     return true;
@@ -316,31 +345,83 @@ function handleDblClick(prod: Product) {
         </button>
       </div>
 
-      <!-- Bottom Row: Filters (Kategori & Supplier) + Quick Actions (Opname, Kartu Stok, Rusak) -->
+      <!-- Bottom Row: Marketplace-Style Filter Drawer Trigger & Quick Action Buttons -->
       <div v-horizontal-scroll class="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
-        <!-- Filter Kategori -->
-        <div class="w-36 shrink-0">
-          <SearchableSelect
-            v-model="selectedCategory"
-            :options="categoryOptions"
-            placeholder="Semua Kategori"
-            search-placeholder="Cari kategori..."
-            hotkey=""
-            size="sm"
-          />
+        <!-- Marketplace Filter Drawer Trigger Button -->
+        <button
+          type="button"
+          @click="showFilterDrawer = true"
+          class="flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-lg border transition-all cursor-pointer shrink-0 shadow-xs whitespace-nowrap active:scale-95"
+          :class="activeFiltersCount > 0
+            ? 'bg-purple-600 text-white border-purple-600 shadow-purple-500/20'
+            : 'bg-white text-gray-800 border-gray-300 hover:bg-gray-50'"
+        >
+          <SlidersHorizontal :size="13" />
+          <span>Filter</span>
+          <span
+            v-if="activeFiltersCount > 0"
+            class="px-1.5 py-0.2 rounded-full bg-white text-purple-700 font-mono text-[10px] font-bold"
+          >
+            {{ activeFiltersCount }}
+          </span>
+        </button>
+
+        <!-- Active Filter Chip: Kategori -->
+        <div
+          v-if="selectedCategory !== 'Semua'"
+          class="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold bg-purple-50 text-purple-800 border border-purple-200 rounded-lg shrink-0 whitespace-nowrap"
+        >
+          <span>Kategori: <strong>{{ selectedCategory }}</strong></span>
+          <button
+            type="button"
+            class="p-0.5 hover:bg-purple-200 rounded-full cursor-pointer ml-0.5"
+            @click="selectedCategory = 'Semua'"
+          >
+            <X :size="11" />
+          </button>
         </div>
 
-        <!-- Filter Supplier -->
-        <div class="w-36 shrink-0">
-          <SearchableSelect
-            v-model="selectedSupplier"
-            :options="supplierOptions"
-            placeholder="Semua Supplier"
-            search-placeholder="Cari supplier..."
-            hotkey=""
-            size="sm"
-          />
+        <!-- Active Filter Chip: Supplier -->
+        <div
+          v-if="selectedSupplier !== 'Semua'"
+          class="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold bg-blue-50 text-blue-800 border border-blue-200 rounded-lg shrink-0 whitespace-nowrap"
+        >
+          <span>Supplier: <strong>{{ selectedSupplier }}</strong></span>
+          <button
+            type="button"
+            class="p-0.5 hover:bg-blue-200 rounded-full cursor-pointer ml-0.5"
+            @click="selectedSupplier = 'Semua'"
+          >
+            <X :size="11" />
+          </button>
         </div>
+
+        <!-- Active Filter Chip: Stok -->
+        <div
+          v-if="selectedStockStatus !== 'Semua'"
+          class="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 rounded-lg shrink-0 whitespace-nowrap"
+        >
+          <span>Stok: <strong>{{ selectedStockStatus }}</strong></span>
+          <button
+            type="button"
+            class="p-0.5 hover:bg-amber-200 rounded-full cursor-pointer ml-0.5"
+            @click="selectedStockStatus = 'Semua'"
+          >
+            <X :size="11" />
+          </button>
+        </div>
+
+        <!-- Reset Button jika ada filter aktif -->
+        <button
+          v-if="activeFiltersCount > 0"
+          type="button"
+          class="flex items-center gap-1 px-2 py-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg cursor-pointer transition-colors shrink-0 whitespace-nowrap"
+          title="Hapus semua filter"
+          @click="resetAllFilters"
+        >
+          <RotateCcw :size="11" />
+          <span>Reset</span>
+        </button>
 
         <div class="h-4 w-px bg-gray-300 shrink-0"></div>
 
@@ -597,6 +678,154 @@ function handleDblClick(prod: Product) {
         </tbody>
       </table>
     </AppTableContainer>
+
+    <!-- Marketplace-Style Filter Drawer Component -->
+    <AppFilterDrawer
+      :is-open="showFilterDrawer"
+      title="Filter Katalog Barang"
+      subtitle="Saring produk berdasarkan kategori, supplier, dan stok"
+      :active-filters-count="activeFiltersCount"
+      :result-count="filteredProducts.length"
+      result-label="Barang"
+      apply-button-color="bg-purple-600 hover:bg-purple-700 active:bg-purple-800"
+      @close="showFilterDrawer = false"
+      @reset="resetAllFilters"
+      @apply="showFilterDrawer = false"
+    >
+      <!-- Seksi 1: Kategori Barang -->
+      <div class="space-y-2">
+        <label class="font-bold text-gray-800 text-xs block">Kategori Barang</label>
+        <div class="flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            class="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer"
+            :class="selectedCategory === 'Semua'
+              ? 'bg-purple-600 text-white border-purple-600 shadow-2xs font-bold'
+              : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+            @click="selectedCategory = 'Semua'"
+          >
+            Semua Kategori
+          </button>
+          <button
+            v-for="cat in inventoryStore.categoryMarkups"
+            :key="cat.category"
+            type="button"
+            class="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer"
+            :class="selectedCategory === cat.category
+              ? 'bg-purple-600 text-white border-purple-600 shadow-2xs font-bold'
+              : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+            @click="selectedCategory = cat.category"
+          >
+            {{ cat.category }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Seksi 2: Mitra Supplier -->
+      <div class="pt-3 space-y-2">
+        <label class="font-bold text-gray-800 text-xs block">Mitra Supplier / Pemasok</label>
+        <SearchableSelect
+          v-model="selectedSupplier"
+          :options="supplierOptions"
+          placeholder="Pilih Supplier..."
+          search-placeholder="Cari nama supplier..."
+          hotkey=""
+        />
+      </div>
+
+      <!-- Seksi 3: Status Ketersediaan Stok -->
+      <div class="pt-3 space-y-2">
+        <label class="font-bold text-gray-800 text-xs block">Status Ketersediaan Stok</label>
+        <div class="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            class="px-3 py-2 rounded-lg text-xs font-semibold border text-left flex items-center justify-between cursor-pointer transition-all"
+            :class="selectedStockStatus === 'Semua'
+              ? 'bg-purple-50 border-purple-600 text-purple-900 font-bold'
+              : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+            @click="selectedStockStatus = 'Semua'"
+          >
+            <span>Semua Stok</span>
+            <span class="w-2 h-2 rounded-full" :class="selectedStockStatus === 'Semua' ? 'bg-purple-600' : 'bg-transparent'"></span>
+          </button>
+
+          <button
+            type="button"
+            class="px-3 py-2 rounded-lg text-xs font-semibold border text-left flex items-center justify-between cursor-pointer transition-all"
+            :class="selectedStockStatus === 'Kritis'
+              ? 'bg-rose-50 border-rose-600 text-rose-900 font-bold'
+              : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+            @click="selectedStockStatus = 'Kritis'"
+          >
+            <span>Stok Kritis (≤ 5)</span>
+            <span class="w-2 h-2 rounded-full" :class="selectedStockStatus === 'Kritis' ? 'bg-rose-600' : 'bg-transparent'"></span>
+          </button>
+
+          <button
+            type="button"
+            class="px-3 py-2 rounded-lg text-xs font-semibold border text-left flex items-center justify-between cursor-pointer transition-all"
+            :class="selectedStockStatus === 'Habis'
+              ? 'bg-gray-100 border-gray-600 text-gray-900 font-bold'
+              : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+            @click="selectedStockStatus = 'Habis'"
+          >
+            <span>Stok Habis (0)</span>
+            <span class="w-2 h-2 rounded-full" :class="selectedStockStatus === 'Habis' ? 'bg-gray-600' : 'bg-transparent'"></span>
+          </button>
+
+          <button
+            type="button"
+            class="px-3 py-2 rounded-lg text-xs font-semibold border text-left flex items-center justify-between cursor-pointer transition-all"
+            :class="selectedStockStatus === 'Tersedia'
+              ? 'bg-emerald-50 border-emerald-600 text-emerald-900 font-bold'
+              : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+            @click="selectedStockStatus = 'Tersedia'"
+          >
+            <span>Stok Tersedia (&gt; 0)</span>
+            <span class="w-2 h-2 rounded-full" :class="selectedStockStatus === 'Tersedia' ? 'bg-emerald-600' : 'bg-transparent'"></span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Seksi 4: Urutkan Barang (Sort) -->
+      <div class="pt-3 space-y-2">
+        <label class="font-bold text-gray-800 text-xs block">Urutkan Barang</label>
+        <div class="flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            class="px-3 py-1.5 rounded-lg text-xs font-semibold border cursor-pointer transition-all"
+            :class="sortField === 'name' ? 'bg-slate-800 text-white border-slate-800 font-bold' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+            @click="toggleSort('name')"
+          >
+            Nama Produk {{ sortField === 'name' ? (sortDirection === 'asc' ? '↑' : '↓') : '' }}
+          </button>
+          <button
+            type="button"
+            class="px-3 py-1.5 rounded-lg text-xs font-semibold border cursor-pointer transition-all"
+            :class="sortField === 'stock' ? 'bg-slate-800 text-white border-slate-800 font-bold' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+            @click="toggleSort('stock')"
+          >
+            Jumlah Stok {{ sortField === 'stock' ? (sortDirection === 'desc' ? '↓' : '↑') : '' }}
+          </button>
+          <button
+            type="button"
+            class="px-3 py-1.5 rounded-lg text-xs font-semibold border cursor-pointer transition-all"
+            :class="sortField === 'sellPrice' ? 'bg-slate-800 text-white border-slate-800 font-bold' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+            @click="toggleSort('sellPrice')"
+          >
+            Harga Jual {{ sortField === 'sellPrice' ? (sortDirection === 'desc' ? '↓' : '↑') : '' }}
+          </button>
+          <button
+            type="button"
+            class="px-3 py-1.5 rounded-lg text-xs font-semibold border cursor-pointer transition-all"
+            :class="sortField === 'margin' ? 'bg-slate-800 text-white border-slate-800 font-bold' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+            @click="toggleSort('margin')"
+          >
+            Margin Laba {{ sortField === 'margin' ? (sortDirection === 'desc' ? '↓' : '↑') : '' }}
+          </button>
+        </div>
+      </div>
+    </AppFilterDrawer>
 
     <!-- Floating Action Button: Tambah Barang Baru -->
     <button

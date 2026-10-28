@@ -5,6 +5,7 @@ import { useDiscountStore } from '../../stores/discountStore';
 import { formatRupiah } from '../../utils/formatters';
 import MetricStatsStrip, { MetricStatItem } from '../common/MetricStatsStrip.vue';
 import AppTableContainer from '../common/AppTableContainer.vue';
+import AppFilterDrawer from '../common/AppFilterDrawer.vue';
 import DiscountSimulator from './discount/DiscountSimulator.vue';
 import DiscountFormDrawer from './discount/DiscountFormDrawer.vue';
 import { useConfirmDialog } from '../../composables/useConfirmDialog';
@@ -24,7 +25,10 @@ import {
   ChevronUp,
   ChevronsUpDown,
   ChevronsDownUp,
-  Plus
+  Plus,
+  SlidersHorizontal,
+  RotateCcw,
+  X
 } from 'lucide-vue-next';
 
 const props = withDefaults(defineProps<{
@@ -40,9 +44,30 @@ const emit = defineEmits<{
 
 const discountStore = useDiscountStore();
 
-// Filter & Search states
-type FilterCategory = 'ALL' | 'ACTIVE' | 'INACTIVE' | 'PERCENT' | 'FIXED' | 'MEMBER' | 'B2B' | 'B2C';
-const activeFilter = ref<FilterCategory>('ALL');
+// Marketplace Filter Drawer States
+const showFilterDrawer = ref(false);
+
+type DiscountStatusFilter = 'ALL' | 'ACTIVE' | 'INACTIVE';
+type DiscountTypeFilter = 'ALL' | 'PERCENT' | 'FIXED';
+type DiscountScopeFilter = 'ALL' | 'MEMBER' | 'B2B' | 'B2C';
+
+const filterStatus = ref<DiscountStatusFilter>('ALL');
+const filterType = ref<DiscountTypeFilter>('ALL');
+const filterScope = ref<DiscountScopeFilter>('ALL');
+
+const activeFiltersCount = computed(() => {
+  let count = 0;
+  if (filterStatus.value !== 'ALL') count++;
+  if (filterType.value !== 'ALL') count++;
+  if (filterScope.value !== 'ALL') count++;
+  return count;
+});
+
+function resetAllFilters() {
+  filterStatus.value = 'ALL';
+  filterType.value = 'ALL';
+  filterScope.value = 'ALL';
+}
 
 // Selection & Form Sidebar states
 const selectedDiscountId = ref<string>('');
@@ -73,36 +98,22 @@ const filteredDiscounts = computed(() => {
       d.name.toLowerCase().includes(q) ||
       (d.description && d.description.toLowerCase().includes(q));
 
-    // 2. Category Filter
-    let matchesCategory = true;
-    switch (activeFilter.value) {
-      case 'ACTIVE':
-        matchesCategory = d.isActive;
-        break;
-      case 'INACTIVE':
-        matchesCategory = !d.isActive;
-        break;
-      case 'PERCENT':
-        matchesCategory = d.type === 'PERCENT';
-        break;
-      case 'FIXED':
-        matchesCategory = d.type === 'FIXED';
-        break;
-      case 'MEMBER':
-        matchesCategory = d.scope === 'MEMBER_ONLY';
-        break;
-      case 'B2B':
-        matchesCategory = d.targetCustomerType === 'B2B';
-        break;
-      case 'B2C':
-        matchesCategory = d.targetCustomerType === 'B2C';
-        break;
-      case 'ALL':
-      default:
-        matchesCategory = true;
-    }
+    if (!matchesSearch) return false;
 
-    return matchesSearch && matchesCategory;
+    // 2. Status Filter
+    if (filterStatus.value === 'ACTIVE' && !d.isActive) return false;
+    if (filterStatus.value === 'INACTIVE' && d.isActive) return false;
+
+    // 3. Type Filter
+    if (filterType.value === 'PERCENT' && d.type !== 'PERCENT') return false;
+    if (filterType.value === 'FIXED' && d.type !== 'FIXED') return false;
+
+    // 4. Scope Filter
+    if (filterScope.value === 'MEMBER' && d.scope !== 'MEMBER_ONLY') return false;
+    if (filterScope.value === 'B2B' && d.targetCustomerType !== 'B2B') return false;
+    if (filterScope.value === 'B2C' && d.targetCustomerType !== 'B2C') return false;
+
+    return true;
   });
 });
 
@@ -347,110 +358,97 @@ function handleKeyDown(e: KeyboardEvent) {
             </button>
           </div>
 
-          <!-- Bottom Row: Filter Chips Horizontal -->
-          <div v-horizontal-scroll class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+          <!-- Bottom Row: Marketplace-Style Filter Drawer Trigger & Active Filter Chips -->
+          <div v-horizontal-scroll class="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
+            <!-- Marketplace Filter Drawer Trigger Button -->
             <button
               type="button"
-              class="px-2.5 py-1 rounded-lg text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1 shadow-2xs"
-              :class="activeFilter === 'ALL' ? 'bg-rose-600 text-white font-bold' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
-              @click="activeFilter = 'ALL'"
+              @click="showFilterDrawer = true"
+              class="flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-lg border transition-all cursor-pointer shrink-0 shadow-xs whitespace-nowrap active:scale-95"
+              :class="activeFiltersCount > 0
+                ? 'bg-rose-600 text-white border-rose-600 shadow-rose-500/20'
+                : 'bg-white text-gray-800 border-gray-300 hover:bg-gray-50'"
             >
-              <span>Semua Diskon</span>
-              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="activeFilter === 'ALL' ? 'bg-rose-700 text-white' : 'bg-gray-200 text-gray-700'">
-                {{ discountStore.discounts.length }}
+              <SlidersHorizontal :size="13" />
+              <span>Filter</span>
+              <span
+                v-if="activeFiltersCount > 0"
+                class="px-1.5 py-0.2 rounded-full bg-white text-rose-700 font-mono text-[10px] font-bold"
+              >
+                {{ activeFiltersCount }}
               </span>
             </button>
 
-            <button
-              type="button"
-              class="px-2.5 py-1 rounded-lg text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1 shadow-2xs"
-              :class="activeFilter === 'ACTIVE' ? 'bg-emerald-600 text-white font-bold' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
-              @click="activeFilter = 'ACTIVE'"
+            <!-- Active Filter Chip: Status -->
+            <div
+              v-if="filterStatus !== 'ALL'"
+              class="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold bg-rose-50 text-rose-800 border border-rose-200 rounded-lg shrink-0 whitespace-nowrap"
             >
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span>
-              <span>Aktif</span>
-              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="activeFilter === 'ACTIVE' ? 'bg-emerald-700 text-white' : 'bg-gray-200 text-gray-700'">
-                {{ discountStore.activeDiscounts.length }}
-              </span>
-            </button>
+              <span>Status: <strong>{{ filterStatus === 'ACTIVE' ? 'Aktif' : 'Nonaktif' }}</strong></span>
+              <button
+                type="button"
+                class="p-0.5 hover:bg-rose-200 rounded-full cursor-pointer ml-0.5"
+                @click="filterStatus = 'ALL'"
+              >
+                <X :size="11" />
+              </button>
+            </div>
 
-            <button
-              type="button"
-              class="px-2.5 py-1 rounded-lg text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1 shadow-2xs"
-              :class="activeFilter === 'INACTIVE' ? 'bg-gray-700 text-white font-bold' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
-              @click="activeFilter = 'INACTIVE'"
+            <!-- Active Filter Chip: Tipe -->
+            <div
+              v-if="filterType !== 'ALL'"
+              class="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold bg-blue-50 text-blue-800 border border-blue-200 rounded-lg shrink-0 whitespace-nowrap"
             >
-              <span class="w-1.5 h-1.5 rounded-full bg-gray-400 inline-block"></span>
-              <span>Nonaktif</span>
+              <span>Tipe: <strong>{{ filterType === 'PERCENT' ? 'Persen (%)' : 'Tetap (Rp)' }}</strong></span>
+              <button
+                type="button"
+                class="p-0.5 hover:bg-blue-200 rounded-full cursor-pointer ml-0.5"
+                @click="filterType = 'ALL'"
+              >
+                <X :size="11" />
+              </button>
+            </div>
+
+            <!-- Active Filter Chip: Target Sasaran -->
+            <div
+              v-if="filterScope !== 'ALL'"
+              class="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold bg-purple-50 text-purple-800 border border-purple-200 rounded-lg shrink-0 whitespace-nowrap"
+            >
+              <span>Target: <strong>{{ filterScope === 'MEMBER' ? 'Member' : (filterScope === 'B2B' ? 'Grosir B2B' : 'Eceran B2C') }}</strong></span>
+              <button
+                type="button"
+                class="p-0.5 hover:bg-purple-200 rounded-full cursor-pointer ml-0.5"
+                @click="filterScope = 'ALL'"
+              >
+                <X :size="11" />
+              </button>
+            </div>
+
+            <!-- Reset Button jika ada filter aktif -->
+            <button
+              v-if="activeFiltersCount > 0"
+              type="button"
+              class="flex items-center gap-1 px-2 py-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg cursor-pointer transition-colors shrink-0 whitespace-nowrap"
+              title="Hapus semua filter"
+              @click="resetAllFilters"
+            >
+              <RotateCcw :size="11" />
+              <span>Reset</span>
             </button>
 
             <div class="h-4 w-px bg-gray-300 shrink-0"></div>
 
+            <!-- Toggle Expand All Rows -->
             <button
               type="button"
-              class="px-2.5 py-1 rounded-lg text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1 shadow-2xs"
-              :class="activeFilter === 'PERCENT' ? 'bg-blue-600 text-white font-bold' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
-              @click="activeFilter = 'PERCENT'"
+              class="flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-lg border cursor-pointer transition-colors shrink-0 bg-white hover:bg-gray-100 text-gray-700 border-gray-300 shadow-2xs whitespace-nowrap"
+              @click="toggleExpandAll"
             >
-              <Percent :size="11" />
-              <span>Persen (%)</span>
-              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="activeFilter === 'PERCENT' ? 'bg-blue-700 text-white' : 'bg-gray-200 text-gray-700'">
-                {{ percentCount }}
-              </span>
+              <component :is="isAllExpanded ? ChevronsDownUp : ChevronsUpDown" :size="12" />
+              <span>{{ isAllExpanded ? 'Tutup Detail' : 'Buka Semua' }}</span>
             </button>
 
-            <button
-              type="button"
-              class="px-2.5 py-1 rounded-lg text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1 shadow-2xs"
-              :class="activeFilter === 'FIXED' ? 'bg-amber-600 text-white font-bold' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
-              @click="activeFilter = 'FIXED'"
-            >
-              <DollarSign :size="11" />
-              <span>Tetap (Rp)</span>
-              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="activeFilter === 'FIXED' ? 'bg-amber-700 text-white' : 'bg-gray-200 text-gray-700'">
-                {{ fixedCount }}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              class="px-2.5 py-1 rounded-lg text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1 shadow-2xs"
-              :class="activeFilter === 'MEMBER' ? 'bg-purple-600 text-white font-bold' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
-              @click="activeFilter = 'MEMBER'"
-            >
-              <Users :size="11" />
-              <span>Member</span>
-              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="activeFilter === 'MEMBER' ? 'bg-purple-700 text-white' : 'bg-gray-200 text-gray-700'">
-                {{ memberCount }}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              class="px-2.5 py-1 rounded-lg text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1 shadow-2xs"
-              :class="activeFilter === 'B2B' ? 'bg-indigo-600 text-white font-bold' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
-              @click="activeFilter = 'B2B'"
-            >
-              <Building :size="11" />
-              <span>Grosir B2B</span>
-              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="activeFilter === 'B2B' ? 'bg-indigo-700 text-white' : 'bg-gray-200 text-gray-700'">
-                {{ b2bCount }}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              class="px-2.5 py-1 rounded-lg text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1 shadow-2xs"
-              :class="activeFilter === 'B2C' ? 'bg-teal-600 text-white font-bold' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
-              @click="activeFilter = 'B2C'"
-            >
-              <UserCheck :size="11" />
-              <span>Eceran B2C</span>
-              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="activeFilter === 'B2C' ? 'bg-teal-700 text-white' : 'bg-gray-200 text-gray-700'">
-                {{ b2cCount }}
-              </span>
-            </button>
-
+            <!-- Indikator Query Pencarian -->
             <span v-if="props.searchQuery" class="text-[10.5px] text-gray-600 bg-gray-200/80 px-2 py-0.5 rounded-md font-medium shrink-0 whitespace-nowrap ml-auto">
               Cari: "<strong class="text-gray-900">{{ props.searchQuery }}</strong>"
             </span>
@@ -473,7 +471,7 @@ function handleKeyDown(e: KeyboardEvent) {
             <button
               type="button"
               class="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs font-semibold cursor-pointer border border-gray-300 transition-colors"
-              @click="activeFilter = 'ALL'"
+              @click="resetAllFilters"
             >
               Reset Filter & Pencarian
             </button>
@@ -737,6 +735,145 @@ function handleKeyDown(e: KeyboardEvent) {
             </tbody>
           </table>
         </AppTableContainer>
+
+        <!-- Marketplace-Style Filter Drawer Component -->
+        <AppFilterDrawer
+          :is-open="showFilterDrawer"
+          title="Filter Kupon Promo"
+          subtitle="Saring kupon berdasarkan status, tipe potongan, dan sasaran pelanggan"
+          :active-filters-count="activeFiltersCount"
+          :result-count="filteredDiscounts.length"
+          result-label="Kupon Promo"
+          apply-button-color="bg-rose-600 hover:bg-rose-700 active:bg-rose-800"
+          @close="showFilterDrawer = false"
+          @reset="resetAllFilters"
+          @apply="showFilterDrawer = false"
+        >
+          <!-- Seksi 1: Status Kupon Promo -->
+          <div class="space-y-2">
+            <label class="font-bold text-gray-800 text-xs block">Status Kupon Promo</label>
+            <div class="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                class="px-3 py-2 rounded-lg text-xs font-semibold border text-center cursor-pointer transition-all"
+                :class="filterStatus === 'ALL'
+                  ? 'bg-rose-50 border-rose-600 text-rose-900 font-bold shadow-2xs'
+                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+                @click="filterStatus = 'ALL'"
+              >
+                Semua
+              </button>
+              <button
+                type="button"
+                class="px-3 py-2 rounded-lg text-xs font-semibold border text-center cursor-pointer transition-all"
+                :class="filterStatus === 'ACTIVE'
+                  ? 'bg-emerald-50 border-emerald-600 text-emerald-900 font-bold shadow-2xs'
+                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+                @click="filterStatus = 'ACTIVE'"
+              >
+                Aktif ({{ activeDiscountsCount }})
+              </button>
+              <button
+                type="button"
+                class="px-3 py-2 rounded-lg text-xs font-semibold border text-center cursor-pointer transition-all"
+                :class="filterStatus === 'INACTIVE'
+                  ? 'bg-gray-100 border-gray-600 text-gray-900 font-bold shadow-2xs'
+                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+                @click="filterStatus = 'INACTIVE'"
+              >
+                Nonaktif
+              </button>
+            </div>
+          </div>
+
+          <!-- Seksi 2: Jenis Potongan Harga -->
+          <div class="pt-3 space-y-2">
+            <label class="font-bold text-gray-800 text-xs block">Jenis Potongan Harga</label>
+            <div class="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                class="px-3 py-2 rounded-lg text-xs font-semibold border text-center cursor-pointer transition-all"
+                :class="filterType === 'ALL'
+                  ? 'bg-rose-50 border-rose-600 text-rose-900 font-bold shadow-2xs'
+                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+                @click="filterType = 'ALL'"
+              >
+                Semua Tipe
+              </button>
+              <button
+                type="button"
+                class="px-3 py-2 rounded-lg text-xs font-semibold border text-center cursor-pointer transition-all"
+                :class="filterType === 'PERCENT'
+                  ? 'bg-blue-50 border-blue-600 text-blue-900 font-bold shadow-2xs'
+                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+                @click="filterType = 'PERCENT'"
+              >
+                Persen (%) ({{ percentCount }})
+              </button>
+              <button
+                type="button"
+                class="px-3 py-2 rounded-lg text-xs font-semibold border text-center cursor-pointer transition-all"
+                :class="filterType === 'FIXED'
+                  ? 'bg-amber-50 border-amber-600 text-amber-900 font-bold shadow-2xs'
+                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+                @click="filterType = 'FIXED'"
+              >
+                Tetap (Rp) ({{ fixedCount }})
+              </button>
+            </div>
+          </div>
+
+          <!-- Seksi 3: Sasaran / Target Pasar -->
+          <div class="pt-3 space-y-2">
+            <label class="font-bold text-gray-800 text-xs block">Target Sasaran Pelanggan</label>
+            <div class="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                class="px-3 py-2 rounded-lg text-xs font-semibold border text-left flex items-center justify-between cursor-pointer transition-all"
+                :class="filterScope === 'ALL'
+                  ? 'bg-rose-50 border-rose-600 text-rose-900 font-bold shadow-2xs'
+                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+                @click="filterScope = 'ALL'"
+              >
+                <span>Semua Sasaran</span>
+                <span class="w-2 h-2 rounded-full" :class="filterScope === 'ALL' ? 'bg-rose-600' : 'bg-transparent'"></span>
+              </button>
+              <button
+                type="button"
+                class="px-3 py-2 rounded-lg text-xs font-semibold border text-left flex items-center justify-between cursor-pointer transition-all"
+                :class="filterScope === 'MEMBER'
+                  ? 'bg-purple-50 border-purple-600 text-purple-900 font-bold shadow-2xs'
+                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+                @click="filterScope = 'MEMBER'"
+              >
+                <span>Khusus Member ({{ memberCount }})</span>
+                <span class="w-2 h-2 rounded-full" :class="filterScope === 'MEMBER' ? 'bg-purple-600' : 'bg-transparent'"></span>
+              </button>
+              <button
+                type="button"
+                class="px-3 py-2 rounded-lg text-xs font-semibold border text-left flex items-center justify-between cursor-pointer transition-all"
+                :class="filterScope === 'B2B'
+                  ? 'bg-indigo-50 border-indigo-600 text-indigo-900 font-bold shadow-2xs'
+                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+                @click="filterScope = 'B2B'"
+              >
+                <span>Grosir B2B ({{ b2bCount }})</span>
+                <span class="w-2 h-2 rounded-full" :class="filterScope === 'B2B' ? 'bg-indigo-600' : 'bg-transparent'"></span>
+              </button>
+              <button
+                type="button"
+                class="px-3 py-2 rounded-lg text-xs font-semibold border text-left flex items-center justify-between cursor-pointer transition-all"
+                :class="filterScope === 'B2C'
+                  ? 'bg-teal-50 border-teal-600 text-teal-900 font-bold shadow-2xs'
+                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+                @click="filterScope = 'B2C'"
+              >
+                <span>Eceran B2C ({{ b2cCount }})</span>
+                <span class="w-2 h-2 rounded-full" :class="filterScope === 'B2C' ? 'bg-teal-600' : 'bg-transparent'"></span>
+              </button>
+            </div>
+          </div>
+        </AppFilterDrawer>
       </div>
 
       <!-- Sisi Kanan: Form Input & Edit Diskon (Modular Component) -->

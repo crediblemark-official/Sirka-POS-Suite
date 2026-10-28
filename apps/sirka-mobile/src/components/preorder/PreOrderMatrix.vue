@@ -18,13 +18,16 @@ import {
   PackageCheck,
   TrendingUp,
   Coins,
-  Users,
   RotateCcw,
-  Plus
+  Plus,
+  SlidersHorizontal,
+  X,
+  Users
 } from 'lucide-vue-next';
 import MetricStatsStrip, { MetricStatItem } from '../common/MetricStatsStrip.vue';
 import SearchableSelect, { type SelectOption } from '../common/SearchableSelect.vue';
 import AppEmptyState from '../common/AppEmptyState.vue';
+import AppFilterDrawer from '../common/AppFilterDrawer.vue';
 import PreOrderFormDrawer from './PreOrderFormDrawer.vue';
 import { useConfirmDialog } from '../../composables/useConfirmDialog';
 
@@ -70,6 +73,15 @@ const buyerOptions = computed<SelectOption[]>(() => {
     label: b === 'Semua' ? 'Semua Pelanggan' : b,
     badge: `${getBuyerCount(b)} PO`
   }));
+});
+
+const showFilterDrawer = ref(false);
+
+const activeFiltersCount = computed(() => {
+  let count = 0;
+  if (selectedDay.value !== 'Semua') count++;
+  if (selectedBuyer.value !== 'Semua') count++;
+  return count;
 });
 
 const hasActiveFilter = computed(() => {
@@ -325,49 +337,66 @@ function handleOpenAddPo() {
             </button>
           </div>
 
-          <!-- Bottom Row: Horizontal Chips (Hari Kirim) + Pelanggan Select -->
+          <!-- Bottom Row: Marketplace-Style Filter Drawer Trigger & Active Filter Chips -->
           <div v-horizontal-scroll class="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
-            <!-- Filter Hari Kirim Chips -->
-            <div class="flex items-center gap-1 shrink-0">
-              <button
-                v-for="d in days"
-                :key="d"
-                type="button"
-                class="px-2.5 py-1 rounded-lg text-xs cursor-pointer transition-all shrink-0 select-none flex items-center gap-1 shadow-2xs"
-                :class="selectedDay === d ? 'bg-emerald-600 text-white font-bold' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
-                @click="selectedDay = d"
+            <!-- Tombol Trigger Filter Drawer -->
+            <button
+              type="button"
+              @click="showFilterDrawer = true"
+              class="flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-lg border transition-all cursor-pointer shrink-0 shadow-xs whitespace-nowrap active:scale-95"
+              :class="activeFiltersCount > 0
+                ? 'bg-emerald-600 text-white border-emerald-600 shadow-emerald-500/20'
+                : 'bg-white text-gray-800 border-gray-300 hover:bg-gray-50'"
+            >
+              <SlidersHorizontal :size="13" />
+              <span>Filter</span>
+              <span
+                v-if="activeFiltersCount > 0"
+                class="px-1.5 py-0.2 rounded-full bg-white text-emerald-700 font-mono text-[10px] font-bold"
               >
-                <span>{{ d === 'Semua' ? 'Semua Hari' : d }}</span>
-                <span
-                  class="text-[10px] px-1 rounded-full font-mono font-bold"
-                  :class="selectedDay === d ? 'bg-emerald-700 text-white' : 'bg-gray-200 text-gray-700'"
-                >
-                  {{ getDayCount(d) }}
-                </span>
+                {{ activeFiltersCount }}
+              </span>
+            </button>
+
+            <!-- Active Filter Chip: Hari -->
+            <div
+              v-if="selectedDay !== 'Semua'"
+              class="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg shrink-0 whitespace-nowrap"
+            >
+              <span>Hari: <strong>{{ selectedDay }}</strong></span>
+              <button
+                type="button"
+                class="p-0.5 hover:bg-emerald-200 rounded-full cursor-pointer ml-0.5"
+                @click="selectedDay = 'Semua'"
+              >
+                <X :size="11" />
               </button>
             </div>
 
-            <div class="h-4 w-px bg-gray-300 shrink-0"></div>
-
-            <!-- Filter Pelanggan Pemesan -->
-            <div class="w-48 shrink-0 relative z-30">
-              <SearchableSelect
-                v-model="selectedBuyer"
-                :options="buyerOptions"
-                placeholder="Semua Pelanggan"
-                search-placeholder="Ketik nama pelanggan..."
-                size="sm"
-              />
+            <!-- Active Filter Chip: Pelanggan -->
+            <div
+              v-if="selectedBuyer !== 'Semua'"
+              class="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold bg-blue-50 text-blue-800 border border-blue-200 rounded-lg shrink-0 whitespace-nowrap"
+            >
+              <span>Pelanggan: <strong>{{ selectedBuyer }}</strong></span>
+              <button
+                type="button"
+                class="p-0.5 hover:bg-blue-200 rounded-full cursor-pointer ml-0.5"
+                @click="selectedBuyer = 'Semua'"
+              >
+                <X :size="11" />
+              </button>
             </div>
 
+            <!-- Tombol Reset Filter jika ada filter aktif -->
             <button
               v-if="hasActiveFilter"
               type="button"
-              class="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg cursor-pointer transition-colors shadow-2xs shrink-0 whitespace-nowrap"
+              class="flex items-center gap-1 px-2 py-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg cursor-pointer transition-colors shadow-2xs shrink-0 whitespace-nowrap"
               title="Reset semua filter"
               @click="resetFilters"
             >
-              <RotateCcw :size="12" />
+              <RotateCcw :size="11" />
               <span>Reset</span>
             </button>
 
@@ -494,6 +523,57 @@ function handleOpenAddPo() {
         @update:is-open="preOrderStore.showPreOrderSidebar = $event"
       />
     </main>
+
+    <!-- Marketplace Filter Drawer Component untuk Pesanan & PO -->
+    <AppFilterDrawer
+      :is-open="showFilterDrawer"
+      title="Filter Pesanan & PO"
+      subtitle="Saring pesanan berdasarkan jadwal kirim & pelanggan"
+      :active-filters-count="activeFiltersCount"
+      :result-count="filteredSchedules.length"
+      result-label="PO"
+      apply-button-color="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800"
+      @close="showFilterDrawer = false"
+      @reset="resetFilters"
+      @apply="showFilterDrawer = false"
+    >
+      <!-- Seksi 1: Hari Pengiriman -->
+      <div class="space-y-2">
+        <label class="font-bold text-gray-800 text-xs flex items-center gap-1.5">
+          <Calendar :size="13" class="text-emerald-600" />
+          <span>Hari Jadwal Kirim</span>
+        </label>
+        <div class="grid grid-cols-4 gap-1.5">
+          <button
+            v-for="d in days"
+            :key="d"
+            type="button"
+            class="px-2 py-2 rounded-lg text-xs font-semibold border flex flex-col items-center justify-center cursor-pointer transition-all"
+            :class="selectedDay === d
+              ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs font-bold'
+              : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+            @click="selectedDay = d"
+          >
+            <span class="truncate">{{ d === 'Semua' ? 'Semua' : d }}</span>
+            <span class="text-[9.5px] opacity-80 font-mono">({{ getDayCount(d) }})</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Seksi 2: Pelanggan Pemesan -->
+      <div class="pt-3 space-y-2">
+        <label class="font-bold text-gray-800 text-xs flex items-center gap-1.5">
+          <Building :size="13" class="text-blue-600" />
+          <span>Pelanggan Pemesan</span>
+        </label>
+        <SearchableSelect
+          v-model="selectedBuyer"
+          :options="buyerOptions"
+          placeholder="Semua Pelanggan"
+          search-placeholder="Ketik nama pelanggan..."
+        />
+      </div>
+    </AppFilterDrawer>
 
     <!-- Floating Action Button: Tambah Pesanan Baru -->
     <button

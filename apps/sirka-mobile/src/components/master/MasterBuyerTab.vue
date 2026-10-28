@@ -17,10 +17,14 @@ import {
   RefreshCw,
   ArrowUp,
   ArrowDown,
-  Plus
+  Plus,
+  SlidersHorizontal,
+  RotateCcw,
+  X
 } from 'lucide-vue-next';
 import FormSidebarDrawer from '../common/FormSidebarDrawer.vue';
 import AppTableContainer from '../common/AppTableContainer.vue';
+import AppFilterDrawer from '../common/AppFilterDrawer.vue';
 import MetricStatsStrip, { MetricStatItem } from '../common/MetricStatsStrip.vue';
 import SearchableSelect, { type SelectOption } from '../common/SearchableSelect.vue';
 import { useConfirmDialog } from '../../composables/useConfirmDialog';
@@ -65,7 +69,23 @@ const props = withDefaults(
   }
 );
 
+// Marketplace Filter Drawer States
+const showFilterDrawer = ref(false);
+
 const localFilter = ref<'ALL' | 'B2B' | 'B2C'>(props.filterType || 'ALL');
+const memberFilter = ref<'ALL' | 'MEMBER' | 'NON_MEMBER'>('ALL');
+
+const activeFiltersCount = computed(() => {
+  let count = 0;
+  if (localFilter.value !== 'ALL') count++;
+  if (memberFilter.value !== 'ALL') count++;
+  return count;
+});
+
+function resetAllFilters() {
+  localFilter.value = 'ALL';
+  memberFilter.value = 'ALL';
+}
 
 // BUG FIX: `localFilter` di-init dari `props.filterType` tapi TIDAK di-watch
 // -> perubahan filterType dari parent tidak pernah terpakai.
@@ -182,6 +202,12 @@ const filteredBuyers = computed(() => {
     list = buyerStore.b2bBuyers;
   } else if (localFilter.value === 'B2C') {
     list = buyerStore.b2cBuyers;
+  }
+
+  if (memberFilter.value === 'MEMBER') {
+    list = list.filter(b => Boolean(b.memberCardNo));
+  } else if (memberFilter.value === 'NON_MEMBER') {
+    list = list.filter(b => !b.memberCardNo);
   }
 
   // BUG FIX: query tidak menormalisasi spasi ganda -> "Toko  Barokah" (2 spasi)
@@ -422,59 +448,67 @@ defineExpose({
             </button>
           </div>
 
-          <!-- Bottom Row: Filter Pills (Semua, Grosir B2B, Eceran B2C) + Search status -->
-          <div v-horizontal-scroll class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+          <!-- Bottom Row: Marketplace-Style Filter Drawer Trigger & Active Filter Chips -->
+          <div v-horizontal-scroll class="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
+            <!-- Marketplace Filter Drawer Trigger Button -->
             <button
-              @click="localFilter = 'ALL'"
-              :class="[
-                'px-3 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap shadow-2xs',
-                localFilter === 'ALL'
-                  ? 'bg-indigo-600 text-white font-bold'
-                  : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'
-              ]"
+              type="button"
+              @click="showFilterDrawer = true"
+              class="flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-lg border transition-all cursor-pointer shrink-0 shadow-xs whitespace-nowrap active:scale-95"
+              :class="activeFiltersCount > 0
+                ? 'bg-indigo-600 text-white border-indigo-600 shadow-indigo-500/20'
+                : 'bg-white text-gray-800 border-gray-300 hover:bg-gray-50'"
             >
-              <span>Semua Pelanggan</span>
-              <span class="px-1.5 py-0.2 rounded-full text-[10px] font-bold"
-                :class="localFilter === 'ALL' ? 'bg-indigo-700 text-white' : 'bg-gray-200 text-gray-700'"
+              <SlidersHorizontal :size="13" />
+              <span>Filter</span>
+              <span
+                v-if="activeFiltersCount > 0"
+                class="px-1.5 py-0.2 rounded-full bg-white text-indigo-700 font-mono text-[10px] font-bold"
               >
-                {{ totalBuyers }}
+                {{ activeFiltersCount }}
               </span>
             </button>
 
-            <button
-              @click="localFilter = 'B2B'"
-              :class="[
-                'px-3 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap shadow-2xs',
-                localFilter === 'B2B'
-                  ? 'bg-indigo-600 text-white font-bold'
-                  : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'
-              ]"
+            <!-- Active Filter Chip: Segmentasi Pasar -->
+            <div
+              v-if="localFilter !== 'ALL'"
+              class="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold bg-indigo-50 text-indigo-800 border border-indigo-200 rounded-lg shrink-0 whitespace-nowrap"
             >
-              <Building :size="12" />
-              <span>Grosir (B2B)</span>
-              <span class="px-1.5 py-0.2 rounded-full text-[10px] font-bold"
-                :class="localFilter === 'B2B' ? 'bg-indigo-700 text-white' : 'bg-indigo-100 text-indigo-800'"
+              <span>Pasar: <strong>{{ localFilter === 'B2B' ? 'Grosir (B2B)' : 'Eceran (B2C)' }}</strong></span>
+              <button
+                type="button"
+                class="p-0.5 hover:bg-indigo-200 rounded-full cursor-pointer ml-0.5"
+                @click="localFilter = 'ALL'"
               >
-                {{ b2bCount }}
-              </span>
-            </button>
+                <X :size="11" />
+              </button>
+            </div>
 
-            <button
-              @click="localFilter = 'B2C'"
-              :class="[
-                'px-3 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap shadow-2xs',
-                localFilter === 'B2C'
-                  ? 'bg-teal-600 text-white font-bold'
-                  : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'
-              ]"
+            <!-- Active Filter Chip: Status Member -->
+            <div
+              v-if="memberFilter !== 'ALL'"
+              class="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold bg-purple-50 text-purple-800 border border-purple-200 rounded-lg shrink-0 whitespace-nowrap"
             >
-              <ShoppingBag :size="12" />
-              <span>Eceran (B2C)</span>
-              <span class="px-1.5 py-0.2 rounded-full text-[10px] font-bold"
-                :class="localFilter === 'B2C' ? 'bg-teal-700 text-white' : 'bg-teal-100 text-teal-800'"
+              <span>Status: <strong>{{ memberFilter === 'MEMBER' ? 'Punya Member' : 'Bukan Member' }}</strong></span>
+              <button
+                type="button"
+                class="p-0.5 hover:bg-purple-200 rounded-full cursor-pointer ml-0.5"
+                @click="memberFilter = 'ALL'"
               >
-                {{ b2cCount }}
-              </span>
+                <X :size="11" />
+              </button>
+            </div>
+
+            <!-- Reset Button jika ada filter aktif -->
+            <button
+              v-if="activeFiltersCount > 0"
+              type="button"
+              class="flex items-center gap-1 px-2 py-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg cursor-pointer transition-colors shrink-0 whitespace-nowrap"
+              title="Hapus semua filter"
+              @click="resetAllFilters"
+            >
+              <RotateCcw :size="11" />
+              <span>Reset</span>
             </button>
 
             <span v-if="props.searchQuery" class="text-[10.5px] text-gray-600 bg-gray-200/80 px-2 py-0.5 rounded-md font-medium shrink-0 whitespace-nowrap ml-auto">
@@ -693,6 +727,124 @@ defineExpose({
             </tbody>
           </table>
         </AppTableContainer>
+
+        <!-- Marketplace-Style Filter Drawer Component -->
+        <AppFilterDrawer
+          :is-open="showFilterDrawer"
+          title="Filter Data Pelanggan"
+          subtitle="Saring pelanggan berdasarkan segmentasi pasar dan status member"
+          :active-filters-count="activeFiltersCount"
+          :result-count="filteredBuyers.length"
+          result-label="Pelanggan"
+          apply-button-color="bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800"
+          @close="showFilterDrawer = false"
+          @reset="resetAllFilters"
+          @apply="showFilterDrawer = false"
+        >
+          <!-- Seksi 1: Segmentasi Pasar -->
+          <div class="space-y-2">
+            <label class="font-bold text-gray-800 text-xs block">Segmentasi Pasar Pelanggan</label>
+            <div class="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                class="px-3 py-2 rounded-lg text-xs font-semibold border text-center cursor-pointer transition-all"
+                :class="localFilter === 'ALL'
+                  ? 'bg-indigo-50 border-indigo-600 text-indigo-900 font-bold shadow-2xs'
+                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+                @click="localFilter = 'ALL'"
+              >
+                Semua ({{ totalBuyers }})
+              </button>
+              <button
+                type="button"
+                class="px-3 py-2 rounded-lg text-xs font-semibold border text-center cursor-pointer transition-all"
+                :class="localFilter === 'B2B'
+                  ? 'bg-indigo-50 border-indigo-600 text-indigo-900 font-bold shadow-2xs'
+                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+                @click="localFilter = 'B2B'"
+              >
+                Grosir B2B ({{ b2bCount }})
+              </button>
+              <button
+                type="button"
+                class="px-3 py-2 rounded-lg text-xs font-semibold border text-center cursor-pointer transition-all"
+                :class="localFilter === 'B2C'
+                  ? 'bg-teal-50 border-teal-600 text-teal-900 font-bold shadow-2xs'
+                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+                @click="localFilter = 'B2C'"
+              >
+                Eceran B2C ({{ b2cCount }})
+              </button>
+            </div>
+          </div>
+
+          <!-- Seksi 2: Status Kepemilikan Member -->
+          <div class="pt-3 space-y-2">
+            <label class="font-bold text-gray-800 text-xs block">Status Member Loyalitas</label>
+            <div class="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                class="px-3 py-2 rounded-lg text-xs font-semibold border text-center cursor-pointer transition-all"
+                :class="memberFilter === 'ALL'
+                  ? 'bg-indigo-50 border-indigo-600 text-indigo-900 font-bold shadow-2xs'
+                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+                @click="memberFilter = 'ALL'"
+              >
+                Semua
+              </button>
+              <button
+                type="button"
+                class="px-3 py-2 rounded-lg text-xs font-semibold border text-center cursor-pointer transition-all"
+                :class="memberFilter === 'MEMBER'
+                  ? 'bg-purple-50 border-purple-600 text-purple-900 font-bold shadow-2xs'
+                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+                @click="memberFilter = 'MEMBER'"
+              >
+                Punya Kartu ({{ memberBuyersCount }})
+              </button>
+              <button
+                type="button"
+                class="px-3 py-2 rounded-lg text-xs font-semibold border text-center cursor-pointer transition-all"
+                :class="memberFilter === 'NON_MEMBER'
+                  ? 'bg-gray-100 border-gray-600 text-gray-900 font-bold shadow-2xs'
+                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+                @click="memberFilter = 'NON_MEMBER'"
+              >
+                Bukan Member
+              </button>
+            </div>
+          </div>
+
+          <!-- Seksi 3: Urutkan Data Pelanggan -->
+          <div class="pt-3 space-y-2">
+            <label class="font-bold text-gray-800 text-xs block">Urutkan Pelanggan</label>
+            <div class="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                class="px-3 py-2 rounded-lg text-xs font-semibold border text-left flex items-center justify-between cursor-pointer transition-all"
+                :class="sortField === 'name'
+                  ? 'bg-indigo-50 border-indigo-600 text-indigo-900 font-bold shadow-2xs'
+                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+                @click="sortField = 'name'; sortDirection = 'asc'"
+              >
+                <span>Nama (A - Z)</span>
+                <span class="w-2 h-2 rounded-full" :class="sortField === 'name' ? 'bg-indigo-600' : 'bg-transparent'"></span>
+              </button>
+
+              <button
+                type="button"
+                class="px-3 py-2 rounded-lg text-xs font-semibold border text-left flex items-center justify-between cursor-pointer transition-all"
+                :class="sortField === 'code'
+                  ? 'bg-indigo-50 border-indigo-600 text-indigo-900 font-bold shadow-2xs'
+                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'"
+                @click="sortField = 'code'; sortDirection = 'asc'"
+              >
+                <span>Kode Pelanggan</span>
+                <span class="w-2 h-2 rounded-full" :class="sortField === 'code' ? 'bg-indigo-600' : 'bg-transparent'"></span>
+              </button>
+            </div>
+          </div>
+        </AppFilterDrawer>
       </div>
 
       <!-- Sisi Kanan: FormSidebarDrawer untuk Input/Edit Pelanggan -->
