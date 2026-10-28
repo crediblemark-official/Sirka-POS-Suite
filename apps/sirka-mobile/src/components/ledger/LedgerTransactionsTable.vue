@@ -95,214 +95,106 @@ const sortedTransactions = computed(() => {
 </script>
 
 <template>
-  <table class="table-explorer min-w-[1150px] whitespace-nowrap">
-    <thead>
-      <tr>
-        <th class="w-12 text-center select-none">
+  <div class="flex-1 flex flex-col h-full bg-slate-50 select-none text-xs overflow-hidden">
+    <!-- Mobile Sort & Control Ribbon -->
+    <div class="px-3 py-2 bg-white border-b border-gray-200 flex items-center justify-between gap-2 shrink-0">
+      <div class="flex items-center gap-1.5 text-[11px] text-gray-600">
+        <span class="font-medium">Urut:</span>
+        <select
+          :value="sortField"
+          class="bg-gray-50 border border-gray-300 rounded px-2 py-0.5 text-xs text-gray-800 font-medium focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+          @change="e => sortField = (e.target as HTMLSelectElement).value as any"
+        >
+          <option value="date">Waktu Transaksi</option>
+          <option value="invoiceNo">No. Nota</option>
+          <option value="finalTotal">Total Nota</option>
+          <option value="totalProfit">Untung Bersih</option>
+          <option value="buyer">Nama Pelanggan</option>
+          <option value="paymentStatus">Status Bayar</option>
+        </select>
+      </div>
+
+      <div class="flex items-center gap-1.5">
+        <button
+          type="button"
+          class="flex items-center gap-1 px-2 py-1 bg-white border border-gray-300 rounded text-xs font-semibold text-gray-700 active:bg-gray-100"
+          @click="sortDirection = sortDirection === 'asc' ? 'desc' : 'asc'"
+        >
+          <span>{{ sortDirection === 'asc' ? 'Naik' : 'Turun' }}</span>
+          <ArrowUp v-if="sortDirection === 'asc'" :size="12" class="text-indigo-600" />
+          <ArrowDown v-else :size="12" class="text-indigo-600" />
+        </button>
+
+        <button
+          type="button"
+          class="p-1 bg-white border border-gray-300 rounded text-gray-600 hover:text-indigo-700 active:bg-gray-100"
+          :title="isAllExpanded ? 'Tutup semua rincian' : 'Buka semua rincian'"
+          @click="emit('toggle-expand-all')"
+        >
+          <ChevronsDownUp v-if="isAllExpanded" :size="14" class="text-indigo-800" />
+          <ChevronsUpDown v-else :size="14" class="text-gray-600" />
+        </button>
+      </div>
+    </div>
+
+    <!-- Mobile Transaction Cards List -->
+    <div class="flex-1 overflow-y-auto p-3 space-y-3 pb-20">
+      <div
+        v-if="sortedTransactions.length === 0"
+        class="flex flex-col items-center justify-center p-8 text-center text-gray-500"
+      >
+        <Package :size="40" class="text-gray-300 mb-2" />
+        <p class="font-bold text-gray-700 text-sm">Belum Ada Transaksi</p>
+        <p class="text-xs text-gray-500 max-w-xs mt-1">Tidak ada transaksi pada filter tanggal atau pencarian saat ini.</p>
+      </div>
+
+      <div
+        v-for="tx in sortedTransactions"
+        :key="tx.id"
+        class="bg-white rounded-xl border border-gray-200 shadow-xs overflow-hidden transition-all"
+        :class="expandedTxIds.has(tx.id) ? 'ring-1 ring-indigo-400' : ''"
+      >
+        <!-- Card Header: Invoice, Status Bayar & Retur -->
+        <div class="p-3 border-b border-gray-100 flex items-center justify-between gap-2 bg-gray-50/50">
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <span class="font-mono font-bold text-sm text-blue-700">
+              {{ tx.invoiceNo }}
+            </span>
+            <span
+              v-if="tx.refundStatus"
+              class="px-1.5 py-0.5 rounded text-[10px] font-bold"
+              :class="tx.refundStatus === 'FULL' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'"
+            >
+              {{ tx.refundStatus === 'FULL' ? 'RETUR PENUH' : 'RETUR SEBAGIAN' }}
+            </span>
+          </div>
+
+          <!-- Status Bayar (Clickable) -->
           <button
             type="button"
-            class="p-1 hover:bg-black/10 rounded cursor-pointer transition-colors"
-            :title="isAllExpanded ? 'Tutup semua rincian nota' : 'Buka semua rincian nota'"
-            @click="emit('toggle-expand-all')"
+            class="px-2.5 py-1 rounded-full text-xs font-bold cursor-pointer transition-all active:scale-95"
+            :class="tx.paymentStatus === 'LUNAS' ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-amber-100 text-amber-800 hover:bg-amber-200'"
+            title="Klik untuk mengubah status Lunas / Tempo"
+            @click="emit('open-status-confirm', tx)"
           >
-            <ChevronsDownUp v-if="isAllExpanded" :size="14" class="text-indigo-800" />
-            <ChevronsUpDown v-else :size="14" class="text-gray-600" />
+            {{ tx.paymentStatus }}
           </button>
-        </th>
+        </div>
 
-        <th
-          class="is-sortable w-48 whitespace-nowrap"
-          :class="{ 'is-sorted': sortField === 'invoiceNo' }"
-          title="Klik untuk mengurutkan no. nota"
-          @click="toggleSort('invoiceNo')"
-        >
-          <div class="flex items-center gap-1">
-            <span>NO. NOTA</span>
-            <ArrowUp v-if="sortField === 'invoiceNo' && sortDirection === 'asc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
-            <ArrowDown v-else-if="sortField === 'invoiceNo' && sortDirection === 'desc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
-          </div>
-        </th>
-
-        <th
-          class="is-sortable w-24 text-center whitespace-nowrap"
-          :class="{ 'is-sorted': sortField === 'date' }"
-          title="Klik untuk mengurutkan tanggal"
-          @click="toggleSort('date')"
-        >
-          <div class="flex items-center justify-center gap-1">
-            <span>TANGGAL</span>
-            <ArrowUp v-if="sortField === 'date' && sortDirection === 'asc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
-            <ArrowDown v-else-if="sortField === 'date' && sortDirection === 'desc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
-          </div>
-        </th>
-
-        <th
-          class="is-sortable w-16 text-center whitespace-nowrap"
-          :class="{ 'is-sorted': sortField === 'customerType' }"
-          title="Klik untuk mengurutkan jenis pelanggan"
-          @click="toggleSort('customerType')"
-        >
-          <div class="flex items-center justify-center gap-1">
-            <span>JENIS</span>
-            <ArrowUp v-if="sortField === 'customerType' && sortDirection === 'asc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
-            <ArrowDown v-else-if="sortField === 'customerType' && sortDirection === 'desc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
-          </div>
-        </th>
-
-        <th
-          class="is-sortable w-40 whitespace-nowrap"
-          :class="{ 'is-sorted': sortField === 'buyer' }"
-          title="Klik untuk mengurutkan pelanggan"
-          @click="toggleSort('buyer')"
-        >
-          <div class="flex items-center gap-1">
-            <span>PELANGGAN</span>
-            <ArrowUp v-if="sortField === 'buyer' && sortDirection === 'asc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
-            <ArrowDown v-else-if="sortField === 'buyer' && sortDirection === 'desc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
-          </div>
-        </th>
-
-        <th
-          class="is-sortable w-24 text-center whitespace-nowrap"
-          :class="{ 'is-sorted': sortField === 'itemsCount' }"
-          title="Klik untuk mengurutkan jumlah item"
-          @click="toggleSort('itemsCount')"
-        >
-          <div class="flex items-center justify-center gap-1">
-            <span>TOTAL ITEM</span>
-            <ArrowUp v-if="sortField === 'itemsCount' && sortDirection === 'asc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
-            <ArrowDown v-else-if="sortField === 'itemsCount' && sortDirection === 'desc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
-          </div>
-        </th>
-
-        <th
-          class="is-sortable w-32 text-right whitespace-nowrap"
-          :class="{ 'is-sorted': sortField === 'totalBuy' }"
-          title="Klik untuk mengurutkan modal"
-          @click="toggleSort('totalBuy')"
-        >
-          <div class="flex items-center justify-end gap-1">
-            <span>MODAL (HPP)</span>
-            <ArrowUp v-if="sortField === 'totalBuy' && sortDirection === 'asc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
-            <ArrowDown v-else-if="sortField === 'totalBuy' && sortDirection === 'desc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
-          </div>
-        </th>
-
-        <th
-          class="is-sortable w-32 text-right whitespace-nowrap"
-          :class="{ 'is-sorted': sortField === 'finalTotal' }"
-          title="Klik untuk mengurutkan total nota"
-          @click="toggleSort('finalTotal')"
-        >
-          <div class="flex items-center justify-end gap-1">
-            <span>TOTAL NOTA</span>
-            <ArrowUp v-if="sortField === 'finalTotal' && sortDirection === 'asc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
-            <ArrowDown v-else-if="sortField === 'finalTotal' && sortDirection === 'desc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
-          </div>
-        </th>
-
-        <th
-          class="is-sortable w-32 text-right whitespace-nowrap"
-          :class="{ 'is-sorted': sortField === 'totalProfit' }"
-          title="Klik untuk mengurutkan untung bersih"
-          @click="toggleSort('totalProfit')"
-        >
-          <div class="flex items-center justify-end gap-1">
-            <span>UNTUNG BERSIH</span>
-            <ArrowUp v-if="sortField === 'totalProfit' && sortDirection === 'asc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
-            <ArrowDown v-else-if="sortField === 'totalProfit' && sortDirection === 'desc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
-          </div>
-        </th>
-
-        <th
-          class="is-sortable w-28 text-center whitespace-nowrap"
-          :class="{ 'is-sorted': sortField === 'paymentStatus' }"
-          title="Klik untuk mengurutkan status bayar"
-          @click="toggleSort('paymentStatus')"
-        >
-          <div class="flex items-center justify-center gap-1">
-            <span>STATUS BAYAR</span>
-            <ArrowUp v-if="sortField === 'paymentStatus' && sortDirection === 'asc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
-            <ArrowDown v-else-if="sortField === 'paymentStatus' && sortDirection === 'desc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
-          </div>
-        </th>
-
-        <th
-          class="is-sortable w-32 text-center whitespace-nowrap"
-          :class="{ 'is-sorted': sortField === 'paymentMethod' }"
-          title="Klik untuk mengurutkan metode bayar"
-          @click="toggleSort('paymentMethod')"
-        >
-          <div class="flex items-center justify-center gap-1">
-            <span>METODE BAYAR</span>
-            <ArrowUp v-if="sortField === 'paymentMethod' && sortDirection === 'asc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
-            <ArrowDown v-else-if="sortField === 'paymentMethod' && sortDirection === 'desc'" :size="12" class="text-indigo-600 dark:text-indigo-400 shrink-0" />
-          </div>
-        </th>
-
-        <!-- Sticky Action Header -->
-        <th class="th-action-sticky w-20 text-center select-none">AKSI</th>
-      </tr>
-    </thead>
-    <tbody>
-      <template v-for="tx in sortedTransactions" :key="tx.id">
-        <tr
-          class="cursor-pointer"
-          :class="{ 'bg-[#fefcf8]': expandedTxIds.has(tx.id) }"
-          @click="emit('toggle-expand', tx.id)"
-        >
-          <td class="text-center text-gray-400">
-            <ChevronUp v-if="expandedTxIds.has(tx.id)" :size="14" class="inline text-indigo-700" />
-            <ChevronDown v-else :size="14" class="inline" />
-          </td>
-          <td class="font-mono font-bold text-blue-700 whitespace-nowrap" :title="tx.invoiceNo">
-            <div>{{ tx.invoiceNo }}</div>
-            <div v-if="tx.refundStatus" class="mt-0.5">
-              <span
-                class="px-1.5 py-0.2 rounded text-[9.5px] font-sans font-bold"
-                :class="tx.refundStatus === 'FULL' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'"
-              >
-                {{ tx.refundStatus === 'FULL' ? 'RETUR PENUH' : 'RETUR SEBAGIAN' }}
-              </span>
-            </div>
-          </td>
-          <td class="font-mono text-gray-500 text-center whitespace-nowrap">{{ tx.date }}</td>
-          <td class="text-center whitespace-nowrap">
+        <!-- Card Meta: Pelanggan, Waktu, Metode Bayar -->
+        <div class="px-3 pt-2.5 pb-2 flex items-center justify-between text-xs text-gray-600 gap-2 flex-wrap">
+          <div class="flex items-center gap-1.5">
             <span
               class="px-1.5 py-0.5 rounded text-[10px] font-bold"
               :class="tx.customerType === 'B2C' ? 'bg-teal-100 text-teal-800' : 'bg-indigo-100 text-indigo-800'"
             >
               {{ tx.customerType || 'B2B' }}
             </span>
-          </td>
-          <td class="whitespace-nowrap" :title="tx.buyer">
-            <span class="px-2 py-0.5 bg-gray-100 rounded font-semibold text-gray-800 text-[11px] inline-block truncate max-w-[170px]">
-              {{ tx.buyer }}
-            </span>
-          </td>
-          <td class="text-center font-mono font-semibold text-gray-700 whitespace-nowrap" :title="`${tx.items.length} item barang terjual (Klik baris untuk rincian)`">
-            {{ tx.items.length }} Item
-          </td>
-          <td class="text-right font-mono text-gray-600 whitespace-nowrap">Rp {{ formatRupiah(tx.totalBuy) }}</td>
-          <td class="text-right font-mono font-bold text-blue-700 whitespace-nowrap">
-            <div>Rp {{ formatRupiah(tx.finalTotal ?? tx.totalSell) }}</div>
-            <div v-if="tx.refundTotal" class="text-[10px] text-rose-600 font-normal">
-              -Rp {{ formatRupiah(tx.refundTotal) }}
-            </div>
-          </td>
-          <td class="text-right font-mono font-bold text-emerald-700 whitespace-nowrap">Rp {{ formatRupiah(tx.totalProfit) }}</td>
-          <td class="text-center whitespace-nowrap" @click.stop>
-            <button
-              type="button"
-              class="px-2.5 py-0.5 rounded text-[10.5px] font-bold cursor-pointer transition-all"
-              :class="tx.paymentStatus === 'LUNAS' ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200' : 'bg-amber-100 text-amber-800 hover:bg-amber-200'"
-              title="Klik untuk mengubah Lunas / Tempo"
-              @click="emit('open-status-confirm', tx)"
-            >
-              {{ tx.paymentStatus }}
-            </button>
-          </td>
-          <td class="text-center whitespace-nowrap">
+            <span class="font-semibold text-gray-800">{{ tx.buyer }}</span>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <span class="text-[11px] text-gray-500 font-mono">{{ tx.date }}</span>
             <span
               class="px-2 py-0.5 rounded text-[10px] font-bold inline-flex items-center gap-1 border"
               :class="{
@@ -318,151 +210,117 @@ const sortedTransactions = computed(() => {
               <FileText v-else-if="tx.paymentMethod === 'Nota Tempo' || (tx.paymentMethod as string) === 'TEMPO'" :size="11" />
               <span>{{ tx.paymentMethod || 'Transfer Bank' }}</span>
             </span>
-          </td>
-          <!-- Sticky Action Cell (Right Anchor) -->
-          <td class="td-action-sticky whitespace-nowrap" @click.stop>
-            <div class="flex items-center justify-center gap-1">
-              <button
-                type="button"
-                class="p-1 text-gray-500 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer transition-colors"
-                title="Retur / Koreksi Nota Ini"
-                @click="returnStore.openRefundModal(tx)"
-              >
-                <RotateCcw :size="13" />
-              </button>
-              <button
-                type="button"
-                class="p-1 text-gray-500 hover:text-blue-700 hover:bg-blue-50 rounded cursor-pointer transition-colors"
-                title="Cetak Ulang Nota"
-                @click="emit('view-receipt', tx)"
-              >
-                <Printer :size="13" />
-              </button>
-              <button
-                type="button"
-                class="p-1 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer transition-colors"
-                title="Hapus Transaksi"
-                @click="emit('delete-transaction', tx.id)"
-              >
-                <Trash2 :size="13" />
-              </button>
+          </div>
+        </div>
+
+        <!-- Financial Breakdown Strip -->
+        <div class="mx-3 mb-2.5 grid grid-cols-2 gap-2 bg-slate-50 rounded-lg p-2.5 border border-slate-100">
+          <div>
+            <div class="text-[10px] text-gray-500 uppercase tracking-wider font-semibold">Total Item & Modal</div>
+            <div class="text-xs text-gray-700 font-medium">{{ tx.items.length }} Item (HPP Rp {{ formatRupiah(tx.totalBuy) }})</div>
+          </div>
+          <div>
+            <div class="text-[10px] text-gray-500 uppercase tracking-wider font-semibold">Total Transaksi</div>
+            <div class="text-sm font-mono font-bold text-blue-700">
+              Rp {{ formatRupiah(tx.finalTotal ?? tx.totalSell) }}
+              <span v-if="tx.refundTotal" class="text-[10px] text-rose-600 font-normal block">
+                -Rp {{ formatRupiah(tx.refundTotal) }} (Retur)
+              </span>
             </div>
-          </td>
-        </tr>
+          </div>
+          <div>
+            <div class="text-[10px] text-gray-500 uppercase tracking-wider font-semibold">Untung Bersih</div>
+            <div class="text-xs font-mono font-bold text-emerald-700">Rp {{ formatRupiah(tx.totalProfit) }}</div>
+          </div>
+          <div class="flex items-end justify-end">
+            <button
+              type="button"
+              class="text-[11px] font-bold text-indigo-700 flex items-center gap-1 active:underline"
+              @click="emit('toggle-expand', tx.id)"
+            >
+              <span>{{ expandedTxIds.has(tx.id) ? 'Tutup Rincian' : 'Lihat ' + tx.items.length + ' Barang' }}</span>
+              <ChevronUp v-if="expandedTxIds.has(tx.id)" :size="13" />
+              <ChevronDown v-else :size="13" />
+            </button>
+          </div>
+        </div>
 
-        <!-- EXPANDED DETAIL SUBTABLE -->
-        <tr v-if="expandedTxIds.has(tx.id)" class="subtable-row border-b border-indigo-200">
-          <td colspan="12" class="p-0!">
-            <div class="bg-white overflow-hidden border-y border-indigo-200/80">
-              <!-- SUBTABLE HEADER (Hanya data komplementer / non-duplikat) -->
-              <div class="px-4 py-1.5 bg-[#f6f4ee] border-b border-indigo-200/80 text-[11px] flex items-center justify-between">
-                <!-- Sisi Kiri: Label & Info Tambahan Khusus Nota (Kasir, Catatan, Diskon, Split) -->
-                <div class="flex items-center gap-2 flex-wrap">
-                  <span class="font-bold text-gray-800 flex items-center gap-1.5">
-                    <Package :size="13" class="text-indigo-800" />
-                    <span>Rincian Barang Terjual:</span>
-                  </span>
+        <!-- Expanded Item Details -->
+        <div v-if="expandedTxIds.has(tx.id)" class="border-t border-indigo-100 bg-indigo-50/20 p-3 space-y-2">
+          <!-- Notes & Metadata -->
+          <div class="flex flex-wrap gap-1.5 text-[11px]">
+            <span v-if="tx.picName" class="px-2 py-0.5 bg-white rounded border border-gray-200 text-gray-700">
+              Kasir: <strong>{{ tx.picName }}</strong>
+            </span>
+            <span v-if="tx.notes" class="px-2 py-0.5 bg-amber-50 rounded border border-amber-200 text-amber-800 italic">
+              Catatan: "{{ tx.notes }}"
+            </span>
+            <span v-if="tx.discountAmount && tx.discountAmount > 0" class="px-2 py-0.5 bg-rose-50 rounded border border-rose-200 text-rose-700 font-semibold">
+              Diskon: -Rp {{ formatRupiah(tx.discountAmount) }} {{ tx.discountCode ? '(' + tx.discountCode + ')' : '' }}
+            </span>
+            <span v-if="tx.pointsDiscount && tx.pointsDiscount > 0" class="px-2 py-0.5 bg-amber-50 rounded border border-amber-200 text-amber-800">
+              Poin: -Rp {{ formatRupiah(tx.pointsDiscount) }} ({{ tx.pointsUsed || 0 }} pt)
+            </span>
+            <span v-if="tx.infaqAmount && tx.infaqAmount > 0" class="px-2 py-0.5 bg-emerald-50 rounded border border-emerald-200 text-emerald-800">
+              Infaq: Rp {{ formatRupiah(tx.infaqAmount) }}
+            </span>
+          </div>
 
-                  <!-- Kasir / PIC -->
-                  <template v-if="tx.picName">
-                    <span class="text-gray-600">Kasir: <strong class="text-gray-800">{{ tx.picName }}</strong></span>
-                    <span class="text-gray-300">|</span>
-                  </template>
-
-                  <!-- Catatan Faktur -->
-                  <template v-if="tx.notes">
-                    <span class="text-gray-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200/80 font-medium italic">
-                      Catatan: "{{ tx.notes }}"
-                    </span>
-                    <span class="text-gray-300">|</span>
-                  </template>
-
-                  <!-- Rincian Diskon Kupon -->
-                  <template v-if="tx.discountAmount && tx.discountAmount > 0">
-                    <span class="text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200 font-medium">
-                      Diskon Kupon: -Rp {{ formatRupiah(tx.discountAmount) }} <strong v-if="tx.discountCode">({{ tx.discountCode }})</strong>
-                    </span>
-                    <span class="text-gray-300">|</span>
-                  </template>
-
-                  <!-- Rincian Loyalty Poin -->
-                  <template v-if="tx.pointsDiscount && tx.pointsDiscount > 0">
-                    <span class="text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 font-medium">
-                      Poin Digunakan: {{ tx.pointsUsed || 0 }} pt (-Rp {{ formatRupiah(tx.pointsDiscount) }})
-                    </span>
-                    <span class="text-gray-300">|</span>
-                  </template>
-                  <template v-if="tx.pointsEarned && tx.pointsEarned > 0">
-                    <span class="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 font-medium">
-                      +{{ tx.pointsEarned }} Poin Didapat
-                    </span>
-                    <span class="text-gray-300">|</span>
-                  </template>
-
-                  <!-- Rincian Split Payment -->
-                  <template v-if="tx.isSplitPayment">
-                    <span class="text-indigo-800 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200 font-medium">
-                      Bayar Campur: Tunai Rp {{ formatRupiah(tx.cashAmount || 0) }} + {{ tx.nonCashMethod || 'Non-Tunai' }} Rp {{ formatRupiah(tx.nonCashAmount || 0) }}
-                    </span>
-                    <span class="text-gray-300">|</span>
-                  </template>
-
-                  <!-- Infaq Kasir -->
-                  <template v-if="tx.infaqAmount && tx.infaqAmount > 0">
-                    <span class="text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 font-medium">
-                      Infaq: Rp {{ formatRupiah(tx.infaqAmount) }}
-                    </span>
-                  </template>
-                </div>
-
-                <!-- Sisi Kanan: Aksi Cepat Retur / Koreksi -->
-                <div class="flex items-center gap-2">
-                  <button
-                    type="button"
-                    class="px-2 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded font-bold text-[10.5px] flex items-center gap-1 cursor-pointer transition-colors"
-                    title="Retur atau koreksi barang pada nota ini"
-                    @click="returnStore.openRefundModal(tx)"
-                  >
-                    <RotateCcw :size="11" />
-                    <span>Retur / Koreksi Nota</span>
-                  </button>
+          <!-- Items list -->
+          <div class="bg-white rounded-lg border border-gray-200 divide-y divide-gray-100 overflow-hidden">
+            <div
+              v-for="(it, iIdx) in tx.items"
+              :key="it.id"
+              class="p-2 flex items-center justify-between gap-2 text-xs"
+            >
+              <div class="min-w-0 flex-1">
+                <div class="font-semibold text-gray-900 truncate">{{ iIdx + 1 }}. {{ it.name }}</div>
+                <div class="text-[11px] text-gray-500 font-mono">
+                  {{ it.qty }} {{ it.unit }} × Rp {{ formatRupiah(it.sellPrice) }}
                 </div>
               </div>
-
-              <table class="w-full text-xs text-left border-collapse">
-                <thead class="bg-gray-50 border-b border-gray-200 text-gray-500 font-semibold text-[10.5px]">
-                  <tr class="h-7">
-                    <th class="px-4 py-1.5 text-center w-10">NO</th>
-                    <th class="px-3 py-1.5">NAMA BARANG</th>
-                    <th class="px-3 py-1.5 text-center w-20">QTY</th>
-                    <th class="px-3 py-1.5 text-center w-20">SATUAN</th>
-                    <th class="px-3 py-1.5 text-right w-28 whitespace-nowrap">MODAL (HPP)</th>
-                    <th class="px-3 py-1.5 text-right w-32 whitespace-nowrap">HARGA JUAL</th>
-                    <th class="px-3 py-1.5 text-right w-32 whitespace-nowrap">SUBTOTAL</th>
-                    <th class="px-4 py-1.5 text-right w-32 whitespace-nowrap pr-4">LABA ITEM</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100">
-                  <tr
-                    v-for="(it, iIdx) in tx.items"
-                    :key="it.id"
-                    class="hover:bg-indigo-50/30 transition-colors"
-                  >
-                    <td class="px-4 py-1.5 text-center text-gray-400 font-mono">{{ iIdx + 1 }}</td>
-                    <td class="px-3 py-1.5 font-semibold text-gray-800" :title="it.name">{{ it.name }}</td>
-                    <td class="px-3 py-1.5 text-center font-mono font-bold text-gray-900">{{ it.qty }}</td>
-                    <td class="px-3 py-1.5 text-center text-gray-500 font-mono">{{ it.unit }}</td>
-                    <td class="px-3 py-1.5 text-right font-mono text-gray-600 whitespace-nowrap">Rp {{ formatRupiah(it.buyPrice) }}</td>
-                    <td class="px-3 py-1.5 text-right font-mono text-blue-700 whitespace-nowrap">Rp {{ formatRupiah(it.sellPrice) }}</td>
-                    <td class="px-3 py-1.5 text-right font-mono font-bold text-gray-900 whitespace-nowrap">Rp {{ formatRupiah(it.subtotalSell) }}</td>
-                    <td class="px-4 py-1.5 text-right font-mono font-bold text-emerald-700 whitespace-nowrap pr-4">Rp {{ formatRupiah(it.profit) }}</td>
-                  </tr>
-                </tbody>
-              </table>
+              <div class="text-right shrink-0">
+                <div class="font-mono font-bold text-gray-900">Rp {{ formatRupiah(it.subtotalSell) }}</div>
+                <div class="text-[10px] text-emerald-600 font-mono">Laba: Rp {{ formatRupiah(it.profit) }}</div>
+              </div>
             </div>
-          </td>
-        </tr>
-      </template>
-    </tbody>
-  </table>
+          </div>
+        </div>
+
+        <!-- Action Bar: Thumb Friendly -->
+        <div class="p-2.5 border-t border-gray-100 flex items-center justify-between gap-2 bg-gray-50/70">
+          <div class="flex items-center gap-1.5 flex-1">
+            <button
+              type="button"
+              class="flex-1 flex items-center justify-center gap-1 py-1.5 px-2 bg-white active:bg-blue-50 text-blue-700 font-semibold rounded-lg text-xs border border-blue-200 shadow-2xs transition-colors"
+              title="Cetak Struk Transaksi"
+              @click="emit('view-receipt', tx)"
+            >
+              <Printer :size="13" />
+              <span>Cetak Nota</span>
+            </button>
+
+            <button
+              type="button"
+              class="flex items-center justify-center gap-1 py-1.5 px-2.5 bg-white active:bg-rose-50 text-rose-700 font-medium rounded-lg text-xs border border-rose-200 shadow-2xs transition-colors"
+              title="Retur / Koreksi Transaksi"
+              @click="returnStore.openRefundModal(tx)"
+            >
+              <RotateCcw :size="13" />
+              <span>Retur</span>
+            </button>
+          </div>
+
+          <button
+            type="button"
+            class="p-2 text-gray-400 active:text-rose-600 active:bg-rose-50 rounded-lg border border-gray-200 transition-colors"
+            title="Hapus Transaksi"
+            @click="emit('delete-transaction', tx.id)"
+          >
+            <Trash2 :size="14" />
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>

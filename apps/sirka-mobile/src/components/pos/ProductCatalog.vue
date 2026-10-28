@@ -228,11 +228,14 @@ watch(selectedProductId, (newId) => {
   }
 });
 
+function getCartQty(productId: string): number {
+  const item = posStore.cartItems.find(i => i.productId === productId);
+  return item ? item.qty : 0;
+}
+
 function handleProductClick(prod: Product) {
   selectedProductId.value = prod.id;
-  if (isMobile.value || isTouchDevice.value) {
-    posStore.addProductToCart(prod, activeMultiplier.value);
-  }
+  posStore.addProductToCart(prod, activeMultiplier.value);
 }
 
 function handleProductDoubleClick(prod: Product) {
@@ -591,6 +594,14 @@ defineExpose({
           @click="handleProductClick(prod)"
           @dblclick="handleProductDoubleClick(prod)"
         >
+          <!-- Cart Quantity Badge Indicator -->
+          <div
+            v-if="getCartQty(prod.id) > 0"
+            class="absolute top-1.5 right-1.5 bg-emerald-600 text-white font-bold text-[10px] font-mono px-1.5 py-0.5 rounded-full shadow-xs flex items-center justify-center animate-in zoom-in-75 duration-150 z-20"
+          >
+            {{ getCartQty(prod.id) }}x
+          </div>
+
           <!-- Graphic Icon with Stock in Top Tab & Unit in Center Label -->
           <div class="relative w-16 h-14 flex items-center justify-center mb-1.5 mt-0.5 group-hover:scale-105 transition-transform">
             <div

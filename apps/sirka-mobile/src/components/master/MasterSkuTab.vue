@@ -17,7 +17,10 @@ import {
   AlertTriangle,
   FileText,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  Plus,
+  Edit2,
+  ArrowUpDown
 } from 'lucide-vue-next';
 import AppTableContainer from '../common/AppTableContainer.vue';
 import MetricStatsStrip, { MetricStatItem } from '../common/MetricStatsStrip.vue';
@@ -378,212 +381,153 @@ function handleDblClick(prod: Product) {
     <!-- 2. Reusable MetricStatsStrip (DRY) -->
     <MetricStatsStrip :items="metricStats" />
 
-    <!-- Table of SKUs (Edge-to-Edge) -->
-    <AppTableContainer
-      :is-empty="filteredProducts.length === 0"
-      :empty-icon="Package"
-      empty-title="Belum Ada Barang Dagangan"
-      empty-description="Tidak ada barang atau SKU yang cocok dengan pencarian."
-    >
-      <table class="table-explorer whitespace-nowrap min-w-[850px]">
-        <thead>
-          <tr>
-            <th
-              class="is-sortable w-28 whitespace-nowrap"
-              :class="{ 'is-sorted': sortField === 'code' }"
-              title="Klik untuk mengurutkan kode"
-              @click="toggleSort('code')"
-            >
-              <div class="flex items-center gap-1.5">
-                <span>KODE</span>
-                <ArrowUp v-if="sortField === 'code' && sortDirection === 'asc'" :size="12" class="text-purple-600 shrink-0" />
-                <ArrowDown v-else-if="sortField === 'code' && sortDirection === 'desc'" :size="12" class="text-purple-600 shrink-0" />
-              </div>
-            </th>
-            <th
-              class="is-sortable whitespace-nowrap"
-              :class="{ 'is-sorted': sortField === 'name' }"
-              title="Klik untuk mengurutkan nama barang"
-              @click="toggleSort('name')"
-            >
-              <div class="flex items-center gap-1.5">
-                <span>NAMA BARANG</span>
-                <ArrowUp v-if="sortField === 'name' && sortDirection === 'asc'" :size="12" class="text-purple-600 shrink-0" />
-                <ArrowDown v-else-if="sortField === 'name' && sortDirection === 'desc'" :size="12" class="text-purple-600 shrink-0" />
-              </div>
-            </th>
-            <th
-              class="is-sortable w-32 whitespace-nowrap"
-              :class="{ 'is-sorted': sortField === 'category' }"
-              title="Klik untuk mengurutkan kategori"
-              @click="toggleSort('category')"
-            >
-              <div class="flex items-center gap-1.5">
-                <span>KATEGORI</span>
-                <ArrowUp v-if="sortField === 'category' && sortDirection === 'asc'" :size="12" class="text-purple-600 shrink-0" />
-                <ArrowDown v-else-if="sortField === 'category' && sortDirection === 'desc'" :size="12" class="text-purple-600 shrink-0" />
-              </div>
-            </th>
-            <th
-              class="is-sortable w-32 whitespace-nowrap"
-              :class="{ 'is-sorted': sortField === 'supplier' }"
-              title="Klik untuk mengurutkan mitra supplier"
-              @click="toggleSort('supplier')"
-            >
-              <div class="flex items-center gap-1.5">
-                <span>MITRA SUPPLIER</span>
-                <ArrowUp v-if="sortField === 'supplier' && sortDirection === 'asc'" :size="12" class="text-purple-600 shrink-0" />
-                <ArrowDown v-else-if="sortField === 'supplier' && sortDirection === 'desc'" :size="12" class="text-purple-600 shrink-0" />
-              </div>
-            </th>
-            <th
-              class="is-sortable w-16 text-center whitespace-nowrap"
-              :class="{ 'is-sorted': sortField === 'unit' }"
-              title="Klik untuk mengurutkan satuan"
-              @click="toggleSort('unit')"
-            >
-              <div class="flex items-center justify-center gap-1.5">
-                <span>SATUAN</span>
-                <ArrowUp v-if="sortField === 'unit' && sortDirection === 'asc'" :size="12" class="text-purple-600 shrink-0" />
-                <ArrowDown v-else-if="sortField === 'unit' && sortDirection === 'desc'" :size="12" class="text-purple-600 shrink-0" />
-              </div>
-            </th>
-            <th
-              class="is-sortable w-24 text-center whitespace-nowrap"
-              :class="{ 'is-sorted': sortField === 'margin' }"
-              title="Klik untuk mengurutkan margin"
-              @click="toggleSort('margin')"
-            >
-              <div class="flex items-center justify-center gap-1.5">
-                <span>MARGIN (%)</span>
-                <ArrowUp v-if="sortField === 'margin' && sortDirection === 'asc'" :size="12" class="text-purple-600 shrink-0" />
-                <ArrowDown v-else-if="sortField === 'margin' && sortDirection === 'desc'" :size="12" class="text-purple-600 shrink-0" />
-              </div>
-            </th>
-            <th
-              class="is-sortable w-28 text-right whitespace-nowrap"
-              :class="{ 'is-sorted': sortField === 'buyPrice' }"
-              title="Klik untuk mengurutkan modal beli"
-              @click="toggleSort('buyPrice')"
-            >
-              <div class="flex items-center justify-end gap-1.5">
-                <span>MODAL BELI</span>
-                <ArrowUp v-if="sortField === 'buyPrice' && sortDirection === 'asc'" :size="12" class="text-purple-600 shrink-0" />
-                <ArrowDown v-else-if="sortField === 'buyPrice' && sortDirection === 'desc'" :size="12" class="text-purple-600 shrink-0" />
-              </div>
-            </th>
-            <th
-              class="is-sortable w-28 text-right whitespace-nowrap"
-              :class="{ 'is-sorted': sortField === 'sellPrice' }"
-              title="Klik untuk mengurutkan harga jual"
-              @click="toggleSort('sellPrice')"
-            >
-              <div class="flex items-center justify-end gap-1.5">
-                <span>HARGA JUAL</span>
-                <ArrowUp v-if="sortField === 'sellPrice' && sortDirection === 'asc'" :size="12" class="text-purple-600 shrink-0" />
-                <ArrowDown v-else-if="sortField === 'sellPrice' && sortDirection === 'desc'" :size="12" class="text-purple-600 shrink-0" />
-              </div>
-            </th>
-            <th
-              class="is-sortable w-24 text-center whitespace-nowrap"
-              :class="{ 'is-sorted': sortField === 'stock' }"
-              title="Klik untuk mengurutkan stok fisik"
-              @click="toggleSort('stock')"
-            >
-              <div class="flex items-center justify-center gap-1.5">
-                <span>STOK FISIK</span>
-                <ArrowUp v-if="sortField === 'stock' && sortDirection === 'asc'" :size="12" class="text-purple-600 shrink-0" />
-                <ArrowDown v-else-if="sortField === 'stock' && sortDirection === 'desc'" :size="12" class="text-purple-600 shrink-0" />
-              </div>
-            </th>
-            <!-- Sticky Action Header -->
-            <th class="th-action-sticky w-24 text-center">KARTU & AKSI</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="prod in sortedProducts"
-            :key="prod.id"
-            class="cursor-pointer whitespace-nowrap"
-            :class="inventoryStore.activeProductForSidebar?.id === prod.id ? 'bg-[#f7f0fa] ring-1 ring-inset ring-purple-400 font-semibold' : ''"
-            @click="emit('edit-product', prod)"
-            @dblclick="handleDblClick(prod)"
+    <!-- Sort Selector Bar for Mobile -->
+    <div class="px-3 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between gap-2 shrink-0">
+      <div class="flex items-center gap-1.5 text-[11px] text-gray-600">
+        <ArrowUpDown :size="13" class="text-purple-600" />
+        <span class="font-medium">Urut:</span>
+        <select
+          :value="sortField"
+          class="bg-white border border-gray-300 rounded px-2 py-0.5 text-xs text-gray-800 font-medium focus:ring-1 focus:ring-purple-500 focus:outline-none"
+          @change="e => sortField = (e.target as HTMLSelectElement).value as any"
+        >
+          <option value="name">Nama Barang</option>
+          <option value="code">Kode SKU</option>
+          <option value="category">Kategori</option>
+          <option value="stock">Jumlah Stok</option>
+          <option value="sellPrice">Harga Jual</option>
+          <option value="buyPrice">Harga Beli</option>
+        </select>
+      </div>
+
+      <button
+        type="button"
+        class="flex items-center gap-1 px-2 py-1 bg-white border border-gray-300 rounded text-xs font-semibold text-gray-700 active:bg-gray-100"
+        @click="sortDirection = sortDirection === 'asc' ? 'desc' : 'asc'"
+      >
+        <span>{{ sortDirection === 'asc' ? 'A-Z (Naik)' : 'Z-A (Turun)' }}</span>
+        <ArrowUp v-if="sortDirection === 'asc'" :size="12" class="text-purple-600" />
+        <ArrowDown v-else :size="12" class="text-purple-600" />
+      </button>
+    </div>
+
+    <!-- Mobile Product Cards List -->
+    <div class="flex-1 overflow-y-auto p-3 space-y-3 pb-24">
+      <div
+        v-if="sortedProducts.length === 0"
+        class="flex flex-col items-center justify-center p-8 text-center text-gray-500"
+      >
+        <Package :size="40" class="text-gray-300 mb-2" />
+        <p class="font-bold text-gray-700 text-sm">Belum Ada Barang Dagangan</p>
+        <p class="text-xs text-gray-500 max-w-xs mt-1">Tidak ada barang atau SKU yang cocok dengan pencarian / filter.</p>
+      </div>
+
+      <div
+        v-for="prod in sortedProducts"
+        :key="prod.id"
+        class="bg-white rounded-xl border border-gray-200 shadow-xs p-3.5 flex flex-col gap-2.5 transition-all"
+        :class="inventoryStore.activeProductForSidebar?.id === prod.id ? 'ring-2 ring-purple-500 bg-purple-50/20' : ''"
+        @click="emit('edit-product', prod)"
+      >
+        <!-- Card Top: SKU, Kategori, Stok Badge -->
+        <div class="flex items-center justify-between gap-2">
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <span class="font-mono text-[11px] font-bold text-gray-700 bg-gray-100 px-2 py-0.5 rounded border border-gray-200">
+              {{ prod.code }}
+            </span>
+            <span class="px-2 py-0.5 bg-purple-50 text-purple-700 rounded text-[11px] font-medium border border-purple-200">
+              {{ prod.category }}
+            </span>
+          </div>
+
+          <!-- Stock Status Badge -->
+          <span
+            class="px-2.5 py-0.5 rounded-full text-xs font-bold shrink-0"
+            :class="
+              prod.stock === 0
+                ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                : prod.stock <= 5
+                ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+            "
           >
-            <td class="font-mono text-gray-600 font-bold truncate whitespace-nowrap" :title="prod.code">{{ prod.code }}</td>
-            <td class="font-semibold text-gray-900 truncate" :title="prod.name">{{ prod.name }}</td>
-            <td class="truncate" :title="prod.category">
-              <span class="px-2 py-0.5 bg-purple-50 text-purple-700 rounded text-[11px] font-medium border border-purple-200 truncate block">
-                {{ prod.category }}
-              </span>
-            </td>
-            <td class="truncate" :title="prod.supplier || resolveProductSupplier(prod) || '-'">
-              <span class="px-2 py-0.5 bg-gray-50 text-gray-700 rounded text-[11px] font-medium border border-gray-200 truncate block">
-                {{ prod.supplier || resolveProductSupplier(prod) || '-' }}
-              </span>
-            </td>
-            <td class="text-center font-bold text-gray-600 font-mono whitespace-nowrap">{{ prod.unit }}</td>
-            <td class="text-center font-mono font-bold text-emerald-700 whitespace-nowrap">
-              +{{ prod.defaultMarkupPercent || inventoryStore.getCategoryMarkup(prod.category) }}%
-            </td>
-            <td class="text-right font-mono text-gray-500 whitespace-nowrap">
-              Rp {{ formatRupiah(prod.lastBuyPrice) }}
-            </td>
-            <td class="text-right font-mono font-bold text-blue-700 whitespace-nowrap">
-              Rp {{ formatRupiah(prod.lastSellPrice) }}
-            </td>
-            <!-- Stok Fisik dengan Indikator Status -->
-            <td class="text-center font-mono font-bold whitespace-nowrap">
-              <span
-                class="px-2 py-0.5 rounded-full text-[11px] font-bold inline-block"
-                :class="
-                  prod.stock === 0
-                    ? 'bg-rose-100 text-rose-800 border border-rose-300'
-                    : prod.stock <= 5
-                    ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                    : 'bg-emerald-50 text-emerald-800'
-                "
-                :title="prod.stock === 0 ? 'Stok Habis!' : prod.stock <= 5 ? 'Stok Menipis' : 'Stok Aman'"
-              >
-                {{ prod.stock }} {{ prod.unit }}
-              </span>
-            </td>
-            <!-- Sticky Action Cell -->
-            <td class="td-action-sticky text-center whitespace-nowrap" @click.stop>
-              <div class="flex items-center justify-center gap-1">
-                <!-- Kartu Stok -->
-                <button
-                  type="button"
-                  class="p-1 text-purple-700 hover:text-purple-900 hover:bg-purple-100 rounded cursor-pointer transition-colors"
-                  title="Lihat Kartu Stok & Mutasi"
-                  @click.stop="movementStore.openStockCard(prod)"
-                >
-                  <FileText :size="13" />
-                </button>
+            {{ prod.stock === 0 ? 'Habis (0)' : prod.stock + ' ' + prod.unit }}
+          </span>
+        </div>
 
-                <!-- Adjust Stok -->
-                <button
-                  type="button"
-                  class="p-1 text-indigo-700 hover:text-indigo-900 hover:bg-indigo-100 rounded cursor-pointer transition-colors"
-                  title="Koreksi / Adjust Stok (Opname)"
-                  @click.stop="movementStore.openAdjustModal(prod)"
-                >
-                  <Scale :size="13" />
-                </button>
+        <!-- Product Name & Supplier -->
+        <div>
+          <h4 class="font-bold text-sm text-gray-900 leading-snug">{{ prod.name }}</h4>
+          <p class="text-[11px] text-gray-500 mt-0.5">
+            Supplier: <span class="font-medium text-gray-700">{{ prod.supplier || resolveProductSupplier(prod) || '-' }}</span>
+          </p>
+        </div>
 
-                <!-- Hapus SKU -->
-                <button
-                  type="button"
-                  class="p-1 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer transition-colors"
-                  title="Hapus SKU"
-                  @click.stop="handleDeleteProduct(prod)"
-                >
-                  <Trash2 :size="13" />
-                </button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </AppTableContainer>
+        <!-- Price Breakdown Strip -->
+        <div class="grid grid-cols-2 gap-2 bg-gray-50/80 rounded-lg p-2 border border-gray-100">
+          <div>
+            <div class="text-[10px] text-gray-500 uppercase tracking-wider font-semibold">Harga Beli</div>
+            <div class="font-mono text-xs text-gray-700">Rp {{ formatRupiah(prod.lastBuyPrice) }}</div>
+          </div>
+          <div>
+            <div class="text-[10px] text-gray-500 uppercase tracking-wider font-semibold">Harga Jual</div>
+            <div class="font-mono text-sm font-bold text-blue-700">Rp {{ formatRupiah(prod.lastSellPrice) }}</div>
+          </div>
+        </div>
+
+        <!-- Action Buttons (Thumb-friendly touch targets) -->
+        <div class="flex items-center justify-between pt-1 border-t border-gray-100 gap-2" @click.stop>
+          <div class="flex items-center gap-1.5 flex-1">
+            <button
+              type="button"
+              class="flex-1 flex items-center justify-center gap-1 py-1.5 px-2 bg-purple-50 active:bg-purple-100 text-purple-700 font-semibold rounded-lg text-xs border border-purple-200 transition-colors"
+              @click.stop="emit('edit-product', prod)"
+            >
+              <Edit2 :size="13" />
+              <span>Edit</span>
+            </button>
+
+            <button
+              type="button"
+              class="flex items-center justify-center gap-1 py-1.5 px-2 bg-gray-50 active:bg-gray-100 text-gray-700 font-medium rounded-lg text-xs border border-gray-200 transition-colors"
+              title="Lihat Kartu Stok"
+              @click.stop="movementStore.openStockCard(prod)"
+            >
+              <FileText :size="13" />
+              <span>Kartu</span>
+            </button>
+
+            <button
+              type="button"
+              class="flex items-center justify-center gap-1 py-1.5 px-2 bg-indigo-50 active:bg-indigo-100 text-indigo-700 font-medium rounded-lg text-xs border border-indigo-200 transition-colors"
+              title="Opname / Sesuaikan Stok"
+              @click.stop="movementStore.openAdjustModal(prod)"
+            >
+              <Scale :size="13" />
+              <span>Opname</span>
+            </button>
+          </div>
+
+          <button
+            type="button"
+            class="p-2 text-gray-400 active:text-rose-600 active:bg-rose-50 rounded-lg border border-gray-200 transition-colors"
+            title="Hapus Barang"
+            @click.stop="handleDeleteProduct(prod)"
+          >
+            <Trash2 :size="14" />
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Floating Action Button: + Barang Baru -->
+    <button
+      type="button"
+      class="fixed right-4 bottom-20 z-30 flex items-center gap-2 px-4 py-3 bg-purple-700 active:bg-purple-800 text-white font-bold rounded-full shadow-lg shadow-purple-900/25 cursor-pointer transition-transform active:scale-95"
+      @click="emit('add-product')"
+    >
+      <Plus :size="18" />
+      <span class="text-xs">Barang Baru</span>
+    </button>
   </div>
 </template>
