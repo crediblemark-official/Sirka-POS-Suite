@@ -11,7 +11,6 @@ import {
   Landmark,
   QrCode,
   FileText,
-  Calendar,
   Plus,
   SlidersHorizontal,
   X
@@ -67,7 +66,6 @@ const activeFiltersCount = computed(() => {
   if (props.filterMethod && props.filterMethod !== 'Semua') count++;
   if (props.filterMarket !== 'Semua') count++;
   if (props.filterBuyer !== 'Semua') count++;
-  if (props.filterStartDate || props.filterEndDate) count++;
   return count;
 });
 
@@ -131,7 +129,7 @@ function onBuyerChange(val: string | number) {
       </div>
     </div>
 
-    <!-- Baris 2: Marketplace-Style Filter Drawer Trigger & Active Filter Chips -->
+    <!-- Baris 2: Marketplace-Style Filter Drawer Trigger, DateRangePicker & Active Filter Chips -->
     <div v-horizontal-scroll class="flex items-center gap-2 px-3 py-1.5 overflow-x-auto no-scrollbar">
       <!-- Tombol Trigger Filter Drawer -->
       <button
@@ -151,6 +149,14 @@ function onBuyerChange(val: string | number) {
           {{ activeFiltersCount }}
         </span>
       </button>
+
+      <!-- Tombol Filter Tanggal (DateRangePicker) di LUAR drawer -->
+      <DateRangePicker
+        :start-date="filterStartDate"
+        :end-date="filterEndDate"
+        @update:start-date="emit('update:filterStartDate', $event)"
+        @update:end-date="emit('update:filterEndDate', $event)"
+      />
 
       <!-- Tombol Reset Filter jika ada filter aktif -->
       <button
@@ -500,20 +506,6 @@ function onBuyerChange(val: string | number) {
           placeholder="Cari / Pilih Pelanggan..."
           search-placeholder="Ketik nama pelanggan..."
           @update:model-value="onBuyerChange"
-        />
-      </div>
-
-      <!-- Seksi 5: Rentang Tanggal -->
-      <div class="pt-3 space-y-2">
-        <label class="font-bold text-gray-800 text-xs flex items-center gap-1.5">
-          <Calendar :size="13" class="text-rose-600" />
-          <span>Rentang Tanggal Nota</span>
-        </label>
-        <DateRangePicker
-          :start-date="filterStartDate"
-          :end-date="filterEndDate"
-          @update:start-date="emit('update:filterStartDate', $event)"
-          @update:end-date="emit('update:filterEndDate', $event)"
         />
       </div>
     </AppFilterDrawer>
