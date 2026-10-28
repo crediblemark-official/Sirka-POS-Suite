@@ -10,9 +10,10 @@ import {
   Users,
   Coins,
   Printer,
-  Plus,
   Pencil,
-  Edit2
+  Edit2,
+  UserPlus,
+  ChevronLeft
 } from 'lucide-vue-next';
 import MemberCardVisual from './MemberCardVisual.vue';
 import MemberLoyaltyRulesForm from './MemberLoyaltyRulesForm.vue';
@@ -51,6 +52,15 @@ watch(
   { immediate: true }
 );
 
+watch(
+  () => props.isOpen,
+  (open) => {
+    if (open && props.initialTab) {
+      activeDrawerTab.value = props.initialTab;
+    }
+  }
+);
+
 function onMemberRegistered(newBuyer: Buyer) {
   emit('registered', newBuyer);
   activeDrawerTab.value = 'CARD';
@@ -63,74 +73,91 @@ function onMemberUpdated(updated: Buyer) {
 </script>
 
 <template>
-  <div
-    v-if="isOpen"
-    class="w-[380px] lg:w-[420px] border-l border-gray-300 bg-white flex flex-col shrink-0 shadow-lg overflow-hidden select-none text-xs"
-  >
-    <!-- Drawer Header Strip (h-10 standar FormSidebarDrawer) -->
-    <div class="h-10 px-3 bg-[#f6f5f2] border-b border-gray-200 flex items-center justify-between shrink-0">
-      <!-- Drawer Sub-Tabs (Segmented Baru vs Edit, ditambah Kartu & Aturan) -->
-      <div class="flex items-center gap-1.5">
-        <!-- Segmented Control Baru & Edit -->
-        <div class="flex items-center p-0.5 bg-gray-200/80 rounded-md text-[11px] font-semibold select-none">
-          <button
-            type="button"
-            class="px-2.5 py-0.5 rounded transition-all cursor-pointer flex items-center gap-1 select-none"
-            :class="activeDrawerTab === 'REGISTER'
-              ? 'bg-white text-slate-800 shadow-xs font-bold'
-              : 'text-gray-600 hover:text-gray-900 font-medium'"
-            title="Daftar Member Baru"
-            @click="activeDrawerTab = 'REGISTER'"
-          >
-            <Plus :size="11" class="stroke-[2.5]" />
-            <span>Baru</span>
-          </button>
+  <Teleport to="body">
+    <div
+      v-if="isOpen"
+      class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex justify-end animate-in fade-in duration-150"
+      @click.self="emit('close')"
+    >
+      <div
+        class="w-full sm:max-w-md md:max-w-lg h-full bg-white flex flex-col shadow-2xl animate-in slide-in-from-right duration-200 border-l border-slate-200 overflow-hidden select-none text-xs"
+      >
+        <!-- Single-Row Compact Header Strip -->
+        <div class="h-11 px-3.5 bg-slate-100/90 border-b border-slate-200 flex items-center justify-between shrink-0 gap-2">
+          <!-- 1. State REGISTER: Judul Pendaftaran Baru -->
+          <div v-if="activeDrawerTab === 'REGISTER'" class="flex items-center gap-2 min-w-0">
+            <div class="p-1 rounded-md bg-white shadow-2xs text-amber-600 shrink-0">
+              <UserPlus :size="15" />
+            </div>
+            <span class="font-bold text-sm text-slate-800 truncate">
+              Daftar Member Baru
+            </span>
+            <span class="px-2 py-0.5 rounded font-bold text-[10px] bg-amber-100 text-amber-900 border border-amber-300 shrink-0">
+              Baru
+            </span>
+          </div>
 
+          <!-- 2. State EDIT: Back Button + Judul Edit Data -->
+          <div v-else-if="activeDrawerTab === 'EDIT'" class="flex items-center gap-1.5 min-w-0">
+            <button
+              type="button"
+              class="p-1 -ml-1 text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded cursor-pointer transition-colors"
+              title="Kembali ke Kartu Member"
+              @click="activeDrawerTab = 'CARD'"
+            >
+              <ChevronLeft :size="16" />
+            </button>
+            <div class="p-1 rounded-md bg-white shadow-2xs text-blue-600 shrink-0">
+              <Pencil :size="14" />
+            </div>
+            <span class="font-bold text-sm text-slate-800 truncate">
+              Edit Data Member
+            </span>
+            <span
+              v-if="buyer?.name"
+              class="px-2 py-0.5 rounded font-bold text-[10px] bg-blue-100 text-blue-900 border border-blue-300 truncate max-w-[120px] shrink-0"
+            >
+              {{ buyer.name }}
+            </span>
+          </div>
+
+          <!-- 3. State CARD / RULES: Tab Switcher Bersih Kartu vs Aturan Poin -->
+          <div v-else class="flex items-center p-0.5 bg-slate-200/80 rounded-lg text-xs font-semibold select-none">
+            <button
+              type="button"
+              class="px-3 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 select-none"
+              :class="activeDrawerTab === 'CARD'
+                ? 'bg-white text-slate-900 shadow-xs font-bold'
+                : 'text-slate-600 hover:text-slate-900 font-medium'"
+              @click="activeDrawerTab = 'CARD'"
+            >
+              <CreditCard :size="13" class="text-amber-600" />
+              <span>Kartu Member</span>
+            </button>
+
+            <button
+              type="button"
+              class="px-3 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 select-none"
+              :class="activeDrawerTab === 'RULES'
+                ? 'bg-white text-slate-900 shadow-xs font-bold'
+                : 'text-slate-600 hover:text-slate-900 font-medium'"
+              @click="activeDrawerTab = 'RULES'"
+            >
+              <Sliders :size="13" class="text-indigo-600" />
+              <span>Aturan Poin</span>
+            </button>
+          </div>
+
+          <!-- Close Button -->
           <button
             type="button"
-            class="px-2.5 py-0.5 rounded transition-all cursor-pointer flex items-center gap-1 select-none"
-            :class="activeDrawerTab === 'EDIT'
-              ? 'bg-white text-[#b45309] shadow-xs font-bold'
-              : 'text-gray-600 hover:text-gray-900 font-medium'"
-            title="Edit Data Member"
-            @click="activeDrawerTab = 'EDIT'"
+            class="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg cursor-pointer transition-colors shrink-0"
+            title="Tutup Panel Member"
+            @click="emit('close')"
           >
-            <Pencil :size="11" :class="activeDrawerTab === 'EDIT' ? 'text-[#b45309]' : 'text-gray-500'" class="stroke-[2]" />
-            <span>Edit</span>
+            <X :size="16" />
           </button>
         </div>
-
-        <button
-          type="button"
-          class="px-2 py-1 rounded text-xs font-bold cursor-pointer transition-all flex items-center gap-1"
-          :class="activeDrawerTab === 'CARD' ? 'bg-white text-slate-900 shadow-2xs' : 'text-gray-600 hover:text-black'"
-          @click="activeDrawerTab = 'CARD'"
-        >
-          <CreditCard :size="12" class="text-amber-600" />
-          <span>Kartu</span>
-        </button>
-
-        <button
-          type="button"
-          class="px-2 py-1 rounded text-xs font-bold cursor-pointer transition-all flex items-center gap-1"
-          :class="activeDrawerTab === 'RULES' ? 'bg-white text-slate-900 shadow-2xs' : 'text-gray-600 hover:text-black'"
-          @click="activeDrawerTab = 'RULES'"
-        >
-          <Sliders :size="12" class="text-indigo-600" />
-          <span>Aturan</span>
-        </button>
-      </div>
-
-      <!-- Close Button -->
-      <button
-        type="button"
-        class="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-200 rounded cursor-pointer transition-colors"
-        title="Tutup Panel Member"
-        @click="emit('close')"
-      >
-        <X :size="14" />
-      </button>
-    </div>
 
     <!-- Drawer Body 1: Tab Form Pendaftaran Member Baru -->
     <!--
@@ -253,5 +280,7 @@ function onMemberUpdated(updated: Buyer) {
     <div v-else-if="activeDrawerTab === 'RULES'" class="flex-1 overflow-y-auto px-4 py-3.5 bg-white">
       <MemberLoyaltyRulesForm />
     </div>
-  </div>
+      </div>
+    </div>
+  </Teleport>
 </template>

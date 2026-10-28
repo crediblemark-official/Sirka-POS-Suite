@@ -969,6 +969,7 @@ function openRulesDrawer() {
 
     <!-- Floating Action Button: Daftarkan Member Baru -->
     <button
+      v-if="!showDetailDrawer"
       type="button"
       @click="openRegisterMemberDrawer"
       class="fixed right-4 bottom-20 z-30 w-13 h-13 rounded-full bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 shadow-xl flex items-center justify-center transition cursor-pointer border-2 border-white/20"
