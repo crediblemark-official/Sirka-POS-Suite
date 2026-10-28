@@ -316,153 +316,158 @@ bindModalLock(() => props.isOpen);
             </div>
           </div>
 
-          <!-- Mode 1: Denomination Counter (Compact 2 Kolom, Tanpa Box Container) -->
-          <div v-if="countMode === 'denominations'" class="grid grid-cols-2 gap-x-3 gap-y-1 pt-0.5">
-            <!-- 100k -->
-            <div class="flex items-center justify-between py-1 px-1 rounded hover:bg-gray-50 border-b border-gray-100">
-              <span class="text-[11px] font-bold text-rose-700 font-mono">100.000</span>
-              <div class="flex items-center gap-1">
-                <span class="text-[10px] text-gray-400 font-mono">×</span>
-                <input
-                  v-model.number="counts.c100k"
-                  type="number"
-                  min="0"
-                  placeholder="0"
-                  class="w-12 h-6 text-center font-mono font-bold text-xs bg-slate-50 hover:bg-slate-100 focus:bg-white border border-gray-300 focus:border-blue-500 rounded outline-none"
-                />
+          <!-- Mode 1: Denomination Counter (Compact, Rapi & Tabular Aligned) -->
+          <div v-if="countMode === 'denominations'" class="space-y-1.5 pt-1">
+            <div class="grid grid-cols-2 gap-x-4">
+              <!-- Kolom Kiri: 100k, 20k, 5k, 1k -->
+              <div class="space-y-1">
+                <!-- 100k -->
+                <div class="flex items-center gap-1.5 py-1 px-1 border-b border-slate-100 hover:bg-slate-50 rounded transition-colors">
+                  <span class="w-14 text-right font-mono font-bold text-[11px] text-rose-700 shrink-0">100.000</span>
+                  <span class="w-3 text-center text-slate-400 font-mono text-[10px] shrink-0">×</span>
+                  <input
+                    v-model.number="counts.c100k"
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    class="w-11 h-6 text-center font-mono font-bold text-xs bg-slate-50 hover:bg-slate-100 focus:bg-white border border-slate-300 focus:border-blue-500 rounded outline-none shrink-0 transition-colors"
+                    @focus="($event.target as HTMLInputElement).select()"
+                  />
+                  <span class="flex-1 text-right font-mono text-[10.5px] font-semibold text-slate-700 shrink-0">
+                    {{ formatRupiah(counts.c100k * 100000) }}
+                  </span>
+                </div>
+
+                <!-- 20k -->
+                <div class="flex items-center gap-1.5 py-1 px-1 border-b border-slate-100 hover:bg-slate-50 rounded transition-colors">
+                  <span class="w-14 text-right font-mono font-bold text-[11px] text-emerald-700 shrink-0">20.000</span>
+                  <span class="w-3 text-center text-slate-400 font-mono text-[10px] shrink-0">×</span>
+                  <input
+                    v-model.number="counts.c20k"
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    class="w-11 h-6 text-center font-mono font-bold text-xs bg-slate-50 hover:bg-slate-100 focus:bg-white border border-slate-300 focus:border-blue-500 rounded outline-none shrink-0 transition-colors"
+                    @focus="($event.target as HTMLInputElement).select()"
+                  />
+                  <span class="flex-1 text-right font-mono text-[10.5px] font-semibold text-slate-700 shrink-0">
+                    {{ formatRupiah(counts.c20k * 20000) }}
+                  </span>
+                </div>
+
+                <!-- 5k -->
+                <div class="flex items-center gap-1.5 py-1 px-1 border-b border-slate-100 hover:bg-slate-50 rounded transition-colors">
+                  <span class="w-14 text-right font-mono font-bold text-[11px] text-amber-700 shrink-0">5.000</span>
+                  <span class="w-3 text-center text-slate-400 font-mono text-[10px] shrink-0">×</span>
+                  <input
+                    v-model.number="counts.c5k"
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    class="w-11 h-6 text-center font-mono font-bold text-xs bg-slate-50 hover:bg-slate-100 focus:bg-white border border-slate-300 focus:border-blue-500 rounded outline-none shrink-0 transition-colors"
+                    @focus="($event.target as HTMLInputElement).select()"
+                  />
+                  <span class="flex-1 text-right font-mono text-[10.5px] font-semibold text-slate-700 shrink-0">
+                    {{ formatRupiah(counts.c5k * 5000) }}
+                  </span>
+                </div>
+
+                <!-- 1k -->
+                <div class="flex items-center gap-1.5 py-1 px-1 border-b border-slate-100 hover:bg-slate-50 rounded transition-colors">
+                  <span class="w-14 text-right font-mono font-bold text-[11px] text-cyan-700 shrink-0">1.000</span>
+                  <span class="w-3 text-center text-slate-400 font-mono text-[10px] shrink-0">×</span>
+                  <input
+                    v-model.number="counts.c1k"
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    class="w-11 h-6 text-center font-mono font-bold text-xs bg-slate-50 hover:bg-slate-100 focus:bg-white border border-slate-300 focus:border-blue-500 rounded outline-none shrink-0 transition-colors"
+                    @focus="($event.target as HTMLInputElement).select()"
+                  />
+                  <span class="flex-1 text-right font-mono text-[10.5px] font-semibold text-slate-700 shrink-0">
+                    {{ formatRupiah(counts.c1k * 1000) }}
+                  </span>
+                </div>
               </div>
-              <span class="text-[10.5px] font-mono text-gray-700 font-semibold text-right min-w-[54px]">
-                {{ formatRupiah(counts.c100k * 100000) }}
-              </span>
+
+              <!-- Kolom Kanan: 50k, 10k, 2k, Koin -->
+              <div class="space-y-1">
+                <!-- 50k -->
+                <div class="flex items-center gap-1.5 py-1 px-1 border-b border-slate-100 hover:bg-slate-50 rounded transition-colors">
+                  <span class="w-14 text-right font-mono font-bold text-[11px] text-blue-700 shrink-0">50.000</span>
+                  <span class="w-3 text-center text-slate-400 font-mono text-[10px] shrink-0">×</span>
+                  <input
+                    v-model.number="counts.c50k"
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    class="w-11 h-6 text-center font-mono font-bold text-xs bg-slate-50 hover:bg-slate-100 focus:bg-white border border-slate-300 focus:border-blue-500 rounded outline-none shrink-0 transition-colors"
+                    @focus="($event.target as HTMLInputElement).select()"
+                  />
+                  <span class="flex-1 text-right font-mono text-[10.5px] font-semibold text-slate-700 shrink-0">
+                    {{ formatRupiah(counts.c50k * 50000) }}
+                  </span>
+                </div>
+
+                <!-- 10k -->
+                <div class="flex items-center gap-1.5 py-1 px-1 border-b border-slate-100 hover:bg-slate-50 rounded transition-colors">
+                  <span class="w-14 text-right font-mono font-bold text-[11px] text-purple-700 shrink-0">10.000</span>
+                  <span class="w-3 text-center text-slate-400 font-mono text-[10px] shrink-0">×</span>
+                  <input
+                    v-model.number="counts.c10k"
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    class="w-11 h-6 text-center font-mono font-bold text-xs bg-slate-50 hover:bg-slate-100 focus:bg-white border border-slate-300 focus:border-blue-500 rounded outline-none shrink-0 transition-colors"
+                    @focus="($event.target as HTMLInputElement).select()"
+                  />
+                  <span class="flex-1 text-right font-mono text-[10.5px] font-semibold text-slate-700 shrink-0">
+                    {{ formatRupiah(counts.c10k * 10000) }}
+                  </span>
+                </div>
+
+                <!-- 2k -->
+                <div class="flex items-center gap-1.5 py-1 px-1 border-b border-slate-100 hover:bg-slate-50 rounded transition-colors">
+                  <span class="w-14 text-right font-mono font-bold text-[11px] text-gray-700 shrink-0">2.000</span>
+                  <span class="w-3 text-center text-slate-400 font-mono text-[10px] shrink-0">×</span>
+                  <input
+                    v-model.number="counts.c2k"
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    class="w-11 h-6 text-center font-mono font-bold text-xs bg-slate-50 hover:bg-slate-100 focus:bg-white border border-slate-300 focus:border-blue-500 rounded outline-none shrink-0 transition-colors"
+                    @focus="($event.target as HTMLInputElement).select()"
+                  />
+                  <span class="flex-1 text-right font-mono text-[10.5px] font-semibold text-slate-700 shrink-0">
+                    {{ formatRupiah(counts.c2k * 2000) }}
+                  </span>
+                </div>
+
+                <!-- Koin / Receh -->
+                <div class="flex items-center gap-1.5 py-1 px-1 border-b border-slate-100 hover:bg-slate-50 rounded transition-colors">
+                  <span class="w-14 text-right font-bold text-[11px] text-slate-600 shrink-0 flex items-center justify-end gap-1">
+                    <Coins :size="11" class="text-slate-400 shrink-0" /> Koin
+                  </span>
+                  <div class="flex items-center justify-end gap-1 flex-1">
+                    <span class="text-slate-400 font-mono text-[10px]">Rp</span>
+                    <input
+                      v-model.number="counts.cCoins"
+                      type="number"
+                      min="0"
+                      step="100"
+                      placeholder="0"
+                      class="w-20 h-6 text-right px-1.5 font-mono font-bold text-xs bg-slate-50 hover:bg-slate-100 focus:bg-white border border-slate-300 focus:border-blue-500 rounded outline-none transition-colors"
+                      @focus="($event.target as HTMLInputElement).select()"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <!-- 50k -->
-            <div class="flex items-center justify-between py-1 px-1 rounded hover:bg-gray-50 border-b border-gray-100">
-              <span class="text-[11px] font-bold text-blue-700 font-mono">50.000</span>
-              <div class="flex items-center gap-1">
-                <span class="text-[10px] text-gray-400 font-mono">×</span>
-                <input
-                  v-model.number="counts.c50k"
-                  type="number"
-                  min="0"
-                  placeholder="0"
-                  class="w-12 h-6 text-center font-mono font-bold text-xs bg-slate-50 hover:bg-slate-100 focus:bg-white border border-gray-300 focus:border-blue-500 rounded outline-none"
-                />
-              </div>
-              <span class="text-[10.5px] font-mono text-gray-700 font-semibold text-right min-w-[54px]">
-                {{ formatRupiah(counts.c50k * 50000) }}
-              </span>
-            </div>
-
-            <!-- 20k -->
-            <div class="flex items-center justify-between py-1 px-1 rounded hover:bg-gray-50 border-b border-gray-100">
-              <span class="text-[11px] font-bold text-emerald-700 font-mono">20.000</span>
-              <div class="flex items-center gap-1">
-                <span class="text-[10px] text-gray-400 font-mono">×</span>
-                <input
-                  v-model.number="counts.c20k"
-                  type="number"
-                  min="0"
-                  placeholder="0"
-                  class="w-12 h-6 text-center font-mono font-bold text-xs bg-slate-50 hover:bg-slate-100 focus:bg-white border border-gray-300 focus:border-blue-500 rounded outline-none"
-                />
-              </div>
-              <span class="text-[10.5px] font-mono text-gray-700 font-semibold text-right min-w-[54px]">
-                {{ formatRupiah(counts.c20k * 20000) }}
-              </span>
-            </div>
-
-            <!-- 10k -->
-            <div class="flex items-center justify-between py-1 px-1 rounded hover:bg-gray-50 border-b border-gray-100">
-              <span class="text-[11px] font-bold text-purple-700 font-mono">10.000</span>
-              <div class="flex items-center gap-1">
-                <span class="text-[10px] text-gray-400 font-mono">×</span>
-                <input
-                  v-model.number="counts.c10k"
-                  type="number"
-                  min="0"
-                  placeholder="0"
-                  class="w-12 h-6 text-center font-mono font-bold text-xs bg-slate-50 hover:bg-slate-100 focus:bg-white border border-gray-300 focus:border-blue-500 rounded outline-none"
-                />
-              </div>
-              <span class="text-[10.5px] font-mono text-gray-700 font-semibold text-right min-w-[54px]">
-                {{ formatRupiah(counts.c10k * 10000) }}
-              </span>
-            </div>
-
-            <!-- 5k -->
-            <div class="flex items-center justify-between py-1 px-1 rounded hover:bg-gray-50 border-b border-gray-100">
-              <span class="text-[11px] font-bold text-amber-700 font-mono">5.000</span>
-              <div class="flex items-center gap-1">
-                <span class="text-[10px] text-gray-400 font-mono">×</span>
-                <input
-                  v-model.number="counts.c5k"
-                  type="number"
-                  min="0"
-                  placeholder="0"
-                  class="w-12 h-6 text-center font-mono font-bold text-xs bg-slate-50 hover:bg-slate-100 focus:bg-white border border-gray-300 focus:border-blue-500 rounded outline-none"
-                />
-              </div>
-              <span class="text-[10.5px] font-mono text-gray-700 font-semibold text-right min-w-[54px]">
-                {{ formatRupiah(counts.c5k * 5000) }}
-              </span>
-            </div>
-
-            <!-- 2k -->
-            <div class="flex items-center justify-between py-1 px-1 rounded hover:bg-gray-50 border-b border-gray-100">
-              <span class="text-[11px] font-bold text-gray-700 font-mono">2.000</span>
-              <div class="flex items-center gap-1">
-                <span class="text-[10px] text-gray-400 font-mono">×</span>
-                <input
-                  v-model.number="counts.c2k"
-                  type="number"
-                  min="0"
-                  placeholder="0"
-                  class="w-12 h-6 text-center font-mono font-bold text-xs bg-slate-50 hover:bg-slate-100 focus:bg-white border border-gray-300 focus:border-blue-500 rounded outline-none"
-                />
-              </div>
-              <span class="text-[10.5px] font-mono text-gray-700 font-semibold text-right min-w-[54px]">
-                {{ formatRupiah(counts.c2k * 2000) }}
-              </span>
-            </div>
-
-            <!-- 1k -->
-            <div class="flex items-center justify-between py-1 px-1 rounded hover:bg-gray-50 border-b border-gray-100">
-              <span class="text-[11px] font-bold text-cyan-700 font-mono">1.000</span>
-              <div class="flex items-center gap-1">
-                <span class="text-[10px] text-gray-400 font-mono">×</span>
-                <input
-                  v-model.number="counts.c1k"
-                  type="number"
-                  min="0"
-                  placeholder="0"
-                  class="w-12 h-6 text-center font-mono font-bold text-xs bg-slate-50 hover:bg-slate-100 focus:bg-white border border-gray-300 focus:border-blue-500 rounded outline-none"
-                />
-              </div>
-              <span class="text-[10.5px] font-mono text-gray-700 font-semibold text-right min-w-[54px]">
-                {{ formatRupiah(counts.c1k * 1000) }}
-              </span>
-            </div>
-
-            <!-- Coins -->
-            <div class="flex items-center justify-between py-1 px-1 rounded hover:bg-gray-50 border-b border-gray-100">
-              <span class="text-[11px] font-bold text-slate-700 flex items-center gap-1">
-                <Coins :size="11" class="text-slate-500" /> Koin
-              </span>
-              <div class="flex items-center gap-1">
-                <span class="text-[10px] text-gray-400 font-mono">Rp</span>
-                <input
-                  v-model.number="counts.cCoins"
-                  type="number"
-                  min="0"
-                  step="100"
-                  placeholder="0"
-                  class="w-14 h-6 text-right px-1 font-mono font-bold text-xs bg-slate-50 hover:bg-slate-100 focus:bg-white border border-gray-300 focus:border-blue-500 rounded outline-none"
-                />
-              </div>
-              <span class="text-[10.5px] font-mono text-gray-700 font-semibold text-right min-w-[54px]">
-                {{ formatRupiah(counts.cCoins || 0) }}
-              </span>
+            <!-- Total Fisik Terhitung Ringkas -->
+            <div class="flex items-center justify-between pt-1.5 px-1 border-t border-slate-200 text-xs">
+              <span class="text-slate-500 font-semibold text-[11px]">Total Fisik Terhitung:</span>
+              <span class="font-mono font-black text-xs text-slate-900">Rp {{ formatRupiah(denominationTotal) }}</span>
             </div>
           </div>
 
