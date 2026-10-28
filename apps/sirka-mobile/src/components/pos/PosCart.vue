@@ -269,7 +269,6 @@ onUnmounted(() => {
       <!-- Left: Title & Count -->
       <div class="flex items-center gap-1.5 font-bold text-xs text-slate-800 shrink-0">
         <ShoppingCart :size="15" class="text-amber-600 shrink-0" />
-        <span class="truncate">Struk Kasir</span>
         <span
           class="px-1.5 py-0.2 rounded-full font-mono text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
           {{ posStore.cartItems.length }}
