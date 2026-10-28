@@ -44,7 +44,7 @@ const CloseShiftModal = defineAsyncComponent(() => import('../pos/CloseShiftModa
 const ShiftSummaryModal = defineAsyncComponent(() => import('../pos/ShiftSummaryModal.vue'));
 const WasteModal = defineAsyncComponent(() => import('../returns/WasteModal.vue'));
 const LicenseModal = defineAsyncComponent(() => import('../common/LicenseModal.vue'));
-const QuickBarcodeScannerModal = defineAsyncComponent(() => import('../common/QuickBarcodeScannerModal.vue'));
+import PosScannerPiP from '../pos/PosScannerPiP.vue';
 
 const posStore = usePosStore();
 const inventoryStore = useInventoryStore();
@@ -55,7 +55,6 @@ const licenseStore = useLicenseStore();
 const activeTab = ref<ModuleTab>('pos');
 const searchQuery = ref<string>('');
 const showMobileCartModal = ref(false);
-const showCameraScanner = ref(false);
 const activeModalTransaction = ref<any>(null);
 
 const tabTitles: Record<ModuleTab, string> = {
@@ -107,24 +106,6 @@ function handleShowReceipt() {
   }
 }
 
-function handleBarcodeScanned(code: string) {
-  showCameraScanner.value = false;
-  if (!code) return;
-
-  if (activeTab.value === 'pos') {
-    // Cari produk di inventori dan langsung tambahkan ke keranjang
-    const found = inventoryStore.products.find(
-      (p: Product) => p.code?.toLowerCase() === code.toLowerCase() || p.barcode?.toLowerCase() === code.toLowerCase()
-    );
-    if (found) {
-      posStore.addProductToCart(found);
-      return;
-    }
-  }
-
-  // Fallback: isi kotak pencarian dengan hasil scan
-  searchQuery.value = code;
-}
 
 onMounted(() => {
   licenseStore.init();
@@ -272,17 +253,11 @@ onMounted(() => {
       </div>
     </main>
 
-    <!-- Floating Quick Camera Barcode Scan Button (Hanya di Kasir/POS untuk scan barang ke keranjang) -->
-    <button
-      v-if="activeTab === 'pos'"
-      type="button"
-      @click="showCameraScanner = true"
-      class="fixed right-4 z-30 w-12 h-12 rounded-full bg-slate-900 text-white shadow-xl flex items-center justify-center hover:bg-slate-800 active:scale-95 transition-all cursor-pointer border-2 border-white/20"
-      :class="posStore.cartItems.length > 0 ? 'bottom-34' : 'bottom-20'"
-      title="Scan Barcode Kamera"
-    >
-      <Camera class="w-6 h-6 text-amber-400" />
-    </button>
+    <!-- Continuous Scanner Picture-in-Picture (Webcam/Kamera & Barcode Scanner) -->
+    <PosScannerPiP
+      :is-active="activeTab === 'pos' && !showMobileCartModal"
+      :is-mobile="true"
+    />
 
     <!-- 3. Mobile Bottom Navigation Bar -->
     <MobileBottomNav
@@ -315,12 +290,6 @@ onMounted(() => {
     <WasteModal />
 
     <LicenseModal />
-
-    <QuickBarcodeScannerModal
-      v-if="showCameraScanner"
-      @scanned="handleBarcodeScanned"
-      @close="showCameraScanner = false"
-    />
 
     <AppConfirmModal />
   </div>

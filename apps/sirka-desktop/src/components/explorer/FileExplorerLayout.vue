@@ -21,6 +21,7 @@ import { ChevronRight, ShoppingCart } from 'lucide-vue-next';
 // Primary POS View Modules (Loaded eagerly for rapid cashier responsiveness)
 import ProductCatalog from '../pos/ProductCatalog.vue';
 import PosCart from '../pos/PosCart.vue';
+import PosScannerPiP from '../pos/PosScannerPiP.vue';
 
 // Secondary View Modules (Lazy-loaded on tab activation)
 const PreOrderMatrix = defineAsyncComponent(() => import('../preorder/PreOrderMatrix.vue'));
@@ -375,6 +376,12 @@ onUnmounted(() => {
           >
             <PosCart @show-receipt="handleShowReceipt" @close="showCartDrawer = false" />
           </div>
+
+          <!-- Continuous Scanner Picture-in-Picture (Webcam & Hardware Barcode Scanner) -->
+          <PosScannerPiP
+            :is-active="activeTab === 'pos'"
+            :is-mobile="false"
+          />
 
           <!-- Mobile Floating Sticky Cart Bar (Trigger Bottom Sheet) -->
           <div
