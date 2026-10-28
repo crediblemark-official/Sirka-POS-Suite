@@ -232,14 +232,14 @@ function triggerDelete(direction = -1) {
               <span class="line-through text-slate-400 text-xs font-mono">
                 {{ formatRupiah(masterPrice) }}
               </span>
-              <span class="text-sm font-black text-rose-600 font-mono group-hover/price:underline">
+              <span class="text-xs sm:text-sm font-black text-rose-600 font-mono group-hover/price:underline">
                 {{ formatRupiah(item.sellPrice) }}
               </span>
             </template>
 
-            <!-- Normal: Warna kontras jelas & nominal terbaca -->
+            <!-- Normal: Warna kontras jelas & proporsional terhadap subtotal -->
             <template v-else>
-              <span class="text-sm font-black text-slate-900 font-mono group-hover/price:underline">
+              <span class="text-xs sm:text-sm font-bold text-slate-700 font-mono group-hover/price:underline">
                 {{ formatRupiah(item.sellPrice) }}
               </span>
             </template>
@@ -276,8 +276,8 @@ function triggerDelete(direction = -1) {
           </div>
         </div>
 
-        <!-- Kanan: Subtotal Nominal (Jelas, Tebal & Terbaca) -->
-        <span class="font-black font-mono text-slate-900 text-sm sm:text-base text-right shrink-0 min-w-[70px]">
+        <!-- Kanan: Subtotal Nominal (Angka Hasil Lebih Proporsional & Tegas) -->
+        <span class="font-black font-mono text-slate-950 text-base sm:text-lg text-right shrink-0 min-w-[75px] tracking-tight">
           {{ formatRupiah(item.subtotalSell) }}
         </span>
       </div>
