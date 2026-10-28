@@ -113,6 +113,20 @@ function onPointerMove(e: PointerEvent) {
   }
 }
 
+// Gesture Klik Ganda (Double-Tap) untuk Ubah Qty: Kiri (-) & Kanan (+)
+let lastTapTime = 0;
+let lastTapX = 0;
+const doubleTapSide = ref<'left' | 'right' | null>(null);
+let feedbackTimeout: any = null;
+
+function showDoubleTapFeedback(side: 'left' | 'right') {
+  doubleTapSide.value = side;
+  if (feedbackTimeout) clearTimeout(feedbackTimeout);
+  feedbackTimeout = setTimeout(() => {
+    doubleTapSide.value = null;
+  }, 450);
+}
+
 function onPointerUp(e: PointerEvent) {
   if (!isDragging.value) return;
   isDragging.value = false;
@@ -131,6 +145,31 @@ function onPointerUp(e: PointerEvent) {
     // Geser separuh: tahan terbuka untuk menampilkan tombol Hapus
     translateX.value = translateX.value > 0 ? 84 : -84;
   } else {
+    // Jika bukan geser horizontal dan pointer tidak bergeser jauh -> Deteksi Double Tap
+    if (!isHorizontal && Math.abs(currentX - startX) < 12) {
+      const now = Date.now();
+      const timeDiff = now - lastTapTime;
+      const distDiff = Math.abs(currentX - lastTapX);
+
+      if (timeDiff < 320 && distDiff < 45) {
+        // Double tap terdeteksi! Tentukan apakah klik di sisi kiri atau kanan kartu
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        const tapX = currentX - rect.left;
+        const isRightHalf = tapX > rect.width / 2;
+
+        if (isRightHalf) {
+          emit('update-qty', Number((props.item.qty + qtyIncrement()).toFixed(3)));
+          showDoubleTapFeedback('right');
+        } else {
+          emit('update-qty', Number(Math.max(0, props.item.qty - qtyDecrement()).toFixed(3)));
+          showDoubleTapFeedback('left');
+        }
+        lastTapTime = 0;
+      } else {
+        lastTapTime = now;
+        lastTapX = currentX;
+      }
+    }
     // Kembali ke posisi semula
     translateX.value = 0;
   }
@@ -179,9 +218,9 @@ function triggerDelete(direction = -1) {
       <span>Hapus</span>
     </div>
 
-    <!-- Foreground Content Card (Mengikuti gesture geser) -->
+    <!-- Foreground Content Card (Mengikuti gesture geser & double-tap) -->
     <div
-      class="relative z-10 bg-white px-3.5 py-2.5 transition-colors flex flex-col gap-1.5 cursor-grab active:cursor-grabbing"
+      class="relative z-10 bg-white px-3.5 py-2.5 transition-colors flex flex-col gap-1.5 cursor-grab active:cursor-grabbing overflow-hidden"
       :style="{
         transform: `translateX(${translateX}px)`,
         transition: isDragging ? 'none' : 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1)'
@@ -191,6 +230,43 @@ function triggerDelete(direction = -1) {
       @pointerup="onPointerUp"
       @pointercancel="onPointerCancel"
     >
+      <!-- Animasi Feedback Double-Tap Kiri (-1) -->
+      <transition
+        enter-active-class="transition duration-150 ease-out"
+        enter-from-class="opacity-0 scale-75"
+        enter-to-class="opacity-100 scale-100"
+        leave-active-class="transition duration-200 ease-in"
+        leave-from-class="opacity-100 scale-100"
+        leave-to-class="opacity-0 scale-90"
+      >
+        <div
+          v-if="doubleTapSide === 'left'"
+          class="absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-rose-500/20 to-transparent flex items-center justify-start pl-4 pointer-events-none z-20"
+        >
+          <span class="px-2 py-0.5 rounded-full bg-rose-600 text-white font-mono font-black text-xs shadow-md flex items-center gap-0.5">
+            -{{ qtyDecrement() }}
+          </span>
+        </div>
+      </transition>
+
+      <!-- Animasi Feedback Double-Tap Kanan (+1) -->
+      <transition
+        enter-active-class="transition duration-150 ease-out"
+        enter-from-class="opacity-0 scale-75"
+        enter-to-class="opacity-100 scale-100"
+        leave-active-class="transition duration-200 ease-in"
+        leave-from-class="opacity-100 scale-100"
+        leave-to-class="opacity-0 scale-90"
+      >
+        <div
+          v-if="doubleTapSide === 'right'"
+          class="absolute inset-y-0 right-0 w-1/3 bg-gradient-to-l from-emerald-500/20 to-transparent flex items-center justify-end pr-4 pointer-events-none z-20"
+        >
+          <span class="px-2 py-0.5 rounded-full bg-emerald-600 text-white font-mono font-black text-xs shadow-md flex items-center gap-0.5">
+            +{{ qtyIncrement() }}
+          </span>
+        </div>
+      </transition>
       <!-- Baris 1: Nama Barang (Satuan & Kategori setelah judul dihapus) -->
       <div class="flex items-center justify-between gap-2">
         <span class="font-bold text-slate-900 text-sm truncate" :title="item.name">
