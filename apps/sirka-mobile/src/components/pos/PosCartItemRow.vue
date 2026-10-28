@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from 'vue';
 import { CartItem } from '../../types';
 import { Trash2, Plus, Minus } from 'lucide-vue-next';
 import { formatRupiah } from '../../utils/formatters';
@@ -51,53 +52,179 @@ function handleQtyInputChange(e: Event) {
   const val = parseFloat(cleaned);
   emit('update-qty', isNaN(val) ? 1 : Math.max(0.001, val));
 }
+
+// Gesture Geser Kiri / Kanan untuk Hapus Item (Swipe-To-Delete)
+const translateX = ref(0);
+const isDragging = ref(false);
+let startX = 0;
+let startY = 0;
+let currentX = 0;
+let isHorizontal = false;
+
+function onPointerDown(e: PointerEvent) {
+  const target = e.target as HTMLElement;
+  // Jangan aktifkan gesture geser jika menekan tombol, input angka, atau dropdown
+  if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.closest('button')) {
+    return;
+  }
+  // Jika sedang terbuka, ketukan pada kartu akan menutupnya kembali
+  if (translateX.value !== 0) {
+    translateX.value = 0;
+    e.preventDefault();
+    return;
+  }
+  startX = e.clientX;
+  startY = e.clientY;
+  currentX = startX;
+  isDragging.value = true;
+  isHorizontal = false;
+}
+
+function onPointerMove(e: PointerEvent) {
+  if (!isDragging.value) return;
+  currentX = e.clientX;
+  const deltaX = currentX - startX;
+  const deltaY = e.clientY - startY;
+
+  if (!isHorizontal) {
+    // Jika gerakan dominan vertikal, batalkan gesture geser agar scrolling halaman mulus
+    if (Math.abs(deltaY) > 7 && Math.abs(deltaY) > Math.abs(deltaX)) {
+      isDragging.value = false;
+      translateX.value = 0;
+      return;
+    }
+    // Jika gerakan dominan horizontal, aktifkan gesture geser dan kunci pointer
+    if (Math.abs(deltaX) > 7 && Math.abs(deltaX) >= Math.abs(deltaY)) {
+      isHorizontal = true;
+      try {
+        (e.currentTarget as HTMLElement)?.setPointerCapture?.(e.pointerId);
+      } catch {}
+    }
+  }
+
+  if (isHorizontal) {
+    // Geser ke kiri (deltaX < 0) atau kanan (deltaX > 0) dengan peredam jika terlalu jauh
+    if (Math.abs(deltaX) > 130) {
+      const sign = deltaX > 0 ? 1 : -1;
+      translateX.value = sign * (130 + (Math.abs(deltaX) - 130) * 0.3);
+    } else {
+      translateX.value = deltaX;
+    }
+  }
+}
+
+function onPointerUp(e: PointerEvent) {
+  if (!isDragging.value) return;
+  isDragging.value = false;
+  try {
+    (e.currentTarget as HTMLElement)?.releasePointerCapture?.(e.pointerId);
+  } catch {}
+
+  const fullSwipeThreshold = 120;
+  const revealThreshold = 55;
+
+  if (Math.abs(translateX.value) >= fullSwipeThreshold) {
+    // Geser penuh: animasi keluar lalu hapus
+    const dir = translateX.value > 0 ? 1 : -1;
+    triggerDelete(dir);
+  } else if (Math.abs(translateX.value) >= revealThreshold) {
+    // Geser separuh: tahan terbuka untuk menampilkan tombol Hapus
+    translateX.value = translateX.value > 0 ? 84 : -84;
+  } else {
+    // Kembali ke posisi semula
+    translateX.value = 0;
+  }
+  isHorizontal = false;
+}
+
+function onPointerCancel() {
+  if (isDragging.value) {
+    isDragging.value = false;
+    translateX.value = 0;
+    isHorizontal = false;
+  }
+}
+
+function triggerDelete(direction = -1) {
+  translateX.value = direction * 450;
+  setTimeout(() => {
+    emit('remove');
+    translateX.value = 0;
+  }, 180);
+}
 </script>
 
 <template>
-  <div class="px-3.5 py-2.5 hover:bg-slate-50/80 transition-colors flex flex-col gap-1.5 border-b border-slate-100 last:border-b-0">
-    <!-- Baris 1: Nama Barang, Unit Selector, Kategori, & Tombol Hapus -->
-    <div class="flex items-center justify-between gap-2">
-      <div class="flex items-center gap-1.5 min-w-0 flex-1">
-        <span class="font-bold text-slate-900 text-sm truncate" :title="item.name">
-          {{ item.name }}
-        </span>
+  <div
+    class="relative overflow-hidden border-b border-slate-100 last:border-b-0 touch-pan-y select-none"
+    :class="translateX !== 0 ? 'bg-rose-600' : 'bg-white'"
+  >
+    <!-- Left Delete Action (Muncul saat geser ke KANAN) -->
+    <div
+      v-show="translateX > 0"
+      class="absolute inset-y-0 left-0 w-24 flex flex-col items-center justify-center gap-1 text-white font-bold text-xs cursor-pointer active:bg-rose-700 select-none z-0"
+      @click="triggerDelete(1)"
+    >
+      <Trash2 :size="18" />
+      <span>Hapus</span>
+    </div>
 
-        <!-- Unit Selector Pill (Dropdown jika produk mendukung konversi multi-satuan) -->
-        <div class="relative shrink-0">
-          <select
-            v-if="availableUnits.length > 1"
-            :value="item.unit"
-            class="px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded text-xs font-bold border-none outline-none cursor-pointer transition-colors"
-            title="Klik untuk ganti satuan kemasan"
-            @change="(e: any) => emit('change-unit', e.target.value)"
-          >
-            <option
-              v-for="u in availableUnits"
-              :key="u.unitName"
-              :value="u.unitName"
+    <!-- Right Delete Action (Muncul saat geser ke KIRI) -->
+    <div
+      v-show="translateX < 0"
+      class="absolute inset-y-0 right-0 w-24 flex flex-col items-center justify-center gap-1 text-white font-bold text-xs cursor-pointer active:bg-rose-700 select-none z-0"
+      @click="triggerDelete(-1)"
+    >
+      <Trash2 :size="18" />
+      <span>Hapus</span>
+    </div>
+
+    <!-- Foreground Content Card (Mengikuti gesture geser) -->
+    <div
+      class="relative z-10 bg-white px-3.5 py-2.5 transition-colors flex flex-col gap-1.5 cursor-grab active:cursor-grabbing"
+      :style="{
+        transform: `translateX(${translateX}px)`,
+        transition: isDragging ? 'none' : 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1)'
+      }"
+      @pointerdown="onPointerDown"
+      @pointermove="onPointerMove"
+      @pointerup="onPointerUp"
+      @pointercancel="onPointerCancel"
+    >
+      <!-- Baris 1: Nama Barang, Unit Selector, Kategori -->
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center gap-1.5 min-w-0 flex-1">
+          <span class="font-bold text-slate-900 text-sm truncate" :title="item.name">
+            {{ item.name }}
+          </span>
+
+          <!-- Unit Selector Pill (Dropdown jika produk mendukung konversi multi-satuan) -->
+          <div class="relative shrink-0">
+            <select
+              v-if="availableUnits.length > 1"
+              :value="item.unit"
+              class="px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded text-xs font-bold border-none outline-none cursor-pointer transition-colors"
+              title="Klik untuk ganti satuan kemasan"
+              @change="(e: any) => emit('change-unit', e.target.value)"
             >
-              {{ u.unitName }}
-            </option>
-          </select>
-          <span v-else class="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded text-[11px] font-bold uppercase font-mono">
-            {{ item.unit }}
+              <option
+                v-for="u in availableUnits"
+                :key="u.unitName"
+                :value="u.unitName"
+              >
+                {{ u.unitName }}
+              </option>
+            </select>
+            <span v-else class="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded text-[11px] font-bold uppercase font-mono">
+              {{ item.unit }}
+            </span>
+          </div>
+
+          <span class="truncate text-xs text-slate-400 shrink-0">
+            {{ item.category }}
           </span>
         </div>
-
-        <span class="truncate text-xs text-slate-400 shrink-0">
-          {{ item.category }}
-        </span>
       </div>
-
-      <button
-        type="button"
-        class="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer transition-colors shrink-0"
-        title="Hapus barang dari keranjang"
-        @click="emit('remove')"
-      >
-        <Trash2 :size="15" />
-      </button>
-    </div>
 
     <!-- Baris 2: Harga Jual Satuan (Kiri) & Qty + Subtotal (Kanan) -->
     <div class="flex items-center justify-between gap-2">
@@ -204,6 +331,7 @@ function handleQtyInputChange(e: Event) {
       >
         1 {{ item.unit.toLowerCase() }}
       </button>
+    </div>
     </div>
   </div>
 </template>
