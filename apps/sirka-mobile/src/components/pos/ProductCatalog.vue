@@ -429,102 +429,82 @@ defineExpose({
         description="Coba pilih kategori lain atau periksa kata kunci pencarian Anda"
       />
 
-      <!-- A. MODERN MOBILE GRID VIEW (Touch-Optimized Cards) -->
+      <!-- A. DESKTOP-STYLE BORDER GRID VIEW (Cukup dipisah garis & icon folder satuan/stok) -->
       <div
         v-else-if="currentViewMode === 'icons'"
-        class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5"
+        class="border border-slate-300 rounded-xl overflow-hidden shadow-2xs bg-white"
       >
-        <div
-          v-for="prod in filteredProducts"
-          :key="prod.id"
-          :data-product-id="prod.id"
-          class="bg-white rounded-2xl p-3 border border-slate-200/90 shadow-2xs flex flex-col justify-between transition-all cursor-pointer active:scale-[0.98] select-none relative overflow-hidden group hover:border-blue-400 hover:shadow-md"
-          :class="[
-            selectedProductId === prod.id ? 'ring-2 ring-blue-500 bg-blue-50/20' : ''
-          ]"
-          @click="handleAddProductDirect(prod)"
-        >
-          <!-- Top Row: Kategori & Stock Badge -->
-          <div class="flex items-center justify-between gap-1 mb-2">
-            <!-- Category Tag -->
-            <span
-              class="text-[9.5px] font-bold px-2 py-0.5 rounded-full truncate max-w-[90px]"
-              :style="{
-                backgroundColor: getProductTheme(prod).badgeBg || '#e2e8f0',
-                color: getProductTheme(prod).badgeText || '#334155'
-              }"
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 border-b border-r border-slate-200">
+          <div
+            v-for="prod in filteredProducts"
+            :key="prod.id"
+            :data-product-id="prod.id"
+            class="flex flex-col items-center justify-between p-2.5 sm:p-3 border-t border-l border-slate-200 cursor-pointer transition-all select-none relative overflow-hidden group active:scale-[0.97]"
+            :style="{
+              backgroundColor: selectedProductId === prod.id
+                ? (getProductTheme(prod).badgeBg || '#e2e8f0')
+                : (getProductTheme(prod).bgLightHex || getProductTheme(prod).badgeBg || '#ffffff')
+            }"
+            :class="[
+              selectedProductId === prod.id
+                ? 'ring-2 ring-inset ring-black/20 z-10 font-bold'
+                : 'hover:brightness-96 active:brightness-90'
+            ]"
+            @click="handleAddProductDirect(prod)"
+          >
+            <!-- In-Cart Quantity Indicator Badge (Top Right) -->
+            <div
+              v-if="getCartItemQty(prod.id) > 0"
+              class="absolute top-1 right-1 px-1.5 py-0.5 rounded-full bg-blue-600 text-white font-mono text-[9.5px] font-bold shadow-xs flex items-center gap-0.5 z-10 animate-scale-in"
+              :title="`${getCartItemQty(prod.id)} item di keranjang`"
             >
-              {{ prod.category }}
-            </span>
-
-            <!-- Stock Pill -->
-            <span
-              class="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md shrink-0 flex items-center gap-0.5"
-              :class="prod.stock <= 5
-                ? 'bg-rose-100 text-rose-700 border border-rose-200'
-                : 'bg-slate-100 text-slate-700 border border-slate-200'"
-              :title="`Sisa Stok: ${prod.stock} ${prod.unit}`"
-            >
-              <AlertCircle v-if="prod.stock <= 5" class="w-3 h-3 text-rose-600" />
-              <span>{{ prod.stock }} {{ prod.unit }}</span>
-            </span>
-          </div>
-
-          <!-- Middle: Product Name & Code -->
-          <div class="my-1 flex-1">
-            <h4 class="font-bold text-xs text-slate-900 leading-snug line-clamp-2">
-              {{ prod.name }}
-            </h4>
-            <span class="text-[10px] text-slate-400 font-mono block mt-0.5">
-              {{ prod.code }}
-            </span>
-          </div>
-
-          <!-- Bottom: Price & Quick Touch Action -->
-          <div class="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between gap-1">
-            <div class="flex flex-col">
-              <span class="text-[10px] text-slate-400 font-medium">Harga</span>
-              <span class="font-extrabold text-xs text-slate-900 font-mono">
-                Rp {{ formatRupiah(prod.lastSellPrice) }}
-              </span>
+              <Check :size="10" />
+              <span>{{ getCartItemQty(prod.id) }}</span>
             </div>
 
-            <!-- In-Cart Counter & Action Buttons -->
-            <div class="flex items-center gap-1">
-              <!-- Jika sudah ada di keranjang, tampilkan counter stepper -->
-              <template v-if="getCartItemQty(prod.id) > 0">
-                <button
-                  type="button"
-                  class="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 flex items-center justify-center cursor-pointer active:scale-90 transition-all"
-                  title="Kurangi dari keranjang"
-                  @click="handleReduceProductDirect(prod, $event)"
+            <!-- Graphic Icon with Stock in Top Tab & Unit in Center Label (Desktop Parity) -->
+            <div class="relative w-16 h-13 flex items-center justify-center mb-1.5 mt-0.5 group-hover:scale-105 transition-transform shrink-0">
+              <!-- Folder Body with Category Gradient -->
+              <div
+                class="w-14 h-11 rounded-lg shadow-2xs border flex flex-col justify-end p-1 transition-colors"
+                :style="{
+                  background: `linear-gradient(to bottom, ${getProductTheme(prod).gradientFrom}, ${getProductTheme(prod).gradientTo})`,
+                  borderColor: getProductTheme(prod).borderHex
+                }"
+              >
+                <!-- Center Unit Label inside Folder -->
+                <div
+                  class="h-5 rounded-xs flex items-center justify-center text-[10px] font-extrabold truncate px-1 transition-colors uppercase tracking-tight"
+                  :style="{
+                    backgroundColor: '#ffffff',
+                    color: getProductTheme(prod).badgeText
+                  }"
                 >
-                  <Minus class="w-3.5 h-3.5" />
-                </button>
-                <span class="w-6 text-center font-bold font-mono text-xs text-blue-600">
-                  {{ getCartItemQty(prod.id) }}
-                </span>
-                <button
-                  type="button"
-                  class="w-7 h-7 rounded-lg bg-blue-600 text-white hover:bg-blue-700 flex items-center justify-center cursor-pointer active:scale-90 transition-all shadow-xs"
-                  title="Tambah ke keranjang"
-                  @click="handleAddProductDirect(prod, $event)"
-                >
-                  <Plus class="w-3.5 h-3.5" />
-                </button>
-              </template>
+                  {{ prod.unit }}
+                </div>
+              </div>
 
-              <!-- Jika belum ada di keranjang, tombol + besar -->
-              <template v-else>
-                <button
-                  type="button"
-                  class="w-8 h-8 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-90 text-white flex items-center justify-center cursor-pointer transition-all shadow-sm"
-                  title="Tambah ke keranjang"
-                  @click="handleAddProductDirect(prod, $event)"
-                >
-                  <Plus class="w-4 h-4 font-bold" />
-                </button>
-              </template>
+              <!-- Top Tab with Stock Number -->
+              <div
+                class="absolute -top-1 left-2 min-w-7 px-1.5 h-4 rounded-t-sm border-t border-l border-r flex items-center justify-center text-[9px] font-bold font-mono tracking-tight shadow-2xs"
+                :class="prod.stock <= 5 ? 'bg-red-500 text-white border-red-600' : 'bg-white text-gray-800'"
+                :style="prod.stock > 5 ? { borderColor: getProductTheme(prod).borderHex } : {}"
+                title="Sisa Stok Barang"
+              >
+                {{ prod.stock }}
+              </div>
+            </div>
+
+            <!-- Product Name -->
+            <span class="text-xs font-bold text-center text-slate-900 line-clamp-2 leading-tight w-full mb-1">
+              {{ prod.name }}
+            </span>
+
+            <!-- Price Label at Bottom -->
+            <div class="mt-auto w-full flex justify-center items-center pt-0.5">
+              <span class="text-xs font-extrabold text-slate-900 font-mono">
+                Rp {{ formatRupiah(prod.lastSellPrice) }}
+              </span>
             </div>
           </div>
         </div>
