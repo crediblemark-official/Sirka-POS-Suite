@@ -276,15 +276,8 @@ onUnmounted(() => {
         </span>
       </div>
 
-      <!-- Right Actions: Parkir, Antrean, Tanggal, Close -->
+      <!-- Right Actions: Antrean Parkir, Tanggal, Close -->
       <div class="flex items-center gap-1.5 shrink-0">
-        <!-- Tombol Parkir / Hold Cart -->
-        <button v-if="posStore.cartItems.length > 0" type="button"
-          class="btn-parkir h-7 px-2 rounded-lg text-[10.5px] font-bold flex items-center gap-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs active:scale-95 cursor-pointer whitespace-nowrap transition-all shrink-0"
-          title="Tahan keranjang belanja saat ini untuk melayani pembeli lain" @click="handleHoldCart">
-          <Clock :size="11" class="text-amber-700" />
-          <span>Parkir</span>
-        </button>
 
         <!-- Tombol / Badge Antrean Parkir jika ada keranjang yang ditahan -->
         <button v-if="posStore.heldCarts.length > 0" type="button"
@@ -635,10 +628,30 @@ onUnmounted(() => {
       </div>
 
       <div class="flex items-center gap-2">
+        <!-- Tombol Reset Keranjang -->
         <button v-if="posStore.cartItems.length > 0"
-          class="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded font-semibold text-xs cursor-pointer border border-gray-300 transition-colors"
+          class="px-3 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded font-bold text-xs cursor-pointer border border-gray-300 transition-colors shrink-0 flex items-center justify-center"
           title="Reset Keranjang" @click="posStore.clearCart">
           Reset
+        </button>
+
+        <!-- Tombol Parkir / Hold Cart (Pindah ke bawah sebelah tombol Reset) -->
+        <button v-if="posStore.cartItems.length > 0" type="button"
+          class="btn-parkir px-3 py-2.5 rounded font-bold text-xs flex items-center justify-center gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs active:scale-95 cursor-pointer whitespace-nowrap transition-all shrink-0"
+          title="Tahan keranjang belanja saat ini untuk melayani pembeli lain" @click="handleHoldCart">
+          <Clock :size="13" class="text-amber-700" />
+          <span>Parkir</span>
+        </button>
+
+        <!-- Tombol / Badge Antrean Parkir jika ada keranjang yang ditahan -->
+        <button v-if="posStore.heldCarts.length > 0" type="button"
+          class="px-2.5 py-2.5 rounded text-xs font-bold flex items-center justify-center gap-1 bg-purple-600 hover:bg-purple-700 active:scale-95 text-white shadow-2xs cursor-pointer whitespace-nowrap transition-all shrink-0"
+          title="Buka daftar antrean yang sedang diparkir" @click="showHeldCartsModal = true">
+          <span>Antrean</span>
+          <span
+            class="w-4 h-4 rounded-full bg-white text-purple-900 text-[10px] flex items-center justify-center font-black">
+            {{ posStore.heldCarts.length }}
+          </span>
         </button>
 
         <!-- Tombol Bayar: Jika shift belum buka, mengarahkan untuk Buka Shift -->
