@@ -154,42 +154,42 @@ const totalPoints = computed(() => {
 const buyerMetrics = computed<MetricStatItem[]>(() => [
   {
     label: 'Total Pelanggan',
-    value: `${totalBuyers.value} Orang`,
+    value: totalBuyers.value,
     icon: Users,
     iconBoxClass: 'bg-blue-50 text-blue-700',
     valClass: 'text-gray-800'
   },
   {
     label: 'Langganan Grosir',
-    value: `${b2bCount.value} Mitra (B2B)`,
+    value: b2bCount.value,
     icon: Building,
     iconBoxClass: 'bg-indigo-50 text-indigo-700',
     valClass: 'text-indigo-800'
   },
   {
     label: 'Pelanggan Eceran',
-    value: `${b2cCount.value} Pembeli (B2C)`,
+    value: b2cCount.value,
     icon: ShoppingBag,
     iconBoxClass: 'bg-teal-50 text-teal-700',
     valClass: 'text-teal-800'
   },
   {
     label: 'Member Terdaftar',
-    value: `${memberBuyersCount.value} Kartu`,
+    value: memberBuyersCount.value,
     icon: CreditCard,
     iconBoxClass: 'bg-purple-50 text-purple-700',
     valClass: 'text-purple-800'
   },
   {
     label: 'Poin Loyalitas',
-    value: `${totalPoints.value} Poin`,
+    value: totalPoints.value.toLocaleString('id-ID'),
     icon: Coins,
     iconBoxClass: 'bg-amber-50 text-amber-700',
     valClass: 'text-amber-800'
   },
   {
     label: 'Database Pelanggan',
-    value: 'Siap Kasir POS',
+    value: 'Siap POS',
     icon: Sparkles,
     iconBoxClass: 'bg-emerald-50 text-emerald-700',
     valClass: 'text-emerald-800'

@@ -189,14 +189,14 @@ const uniquePoBuyersCount = computed(() => {
 const metricStats = computed<MetricStatItem[]>(() => [
   {
     label: 'Total Pesanan PO',
-    value: `${filteredSchedules.value.length} Pesanan`,
+    value: filteredSchedules.value.length,
     icon: FileText,
     iconBoxClass: 'bg-emerald-50 text-emerald-700',
     valClass: 'text-gray-800'
   },
   {
     label: 'Fisik Barang PO',
-    value: `${totalPoQty.value} Pcs`,
+    value: totalPoQty.value,
     icon: Boxes,
     iconBoxClass: 'bg-purple-50 text-purple-700',
     valClass: 'text-purple-800'
@@ -211,11 +211,6 @@ const metricStats = computed<MetricStatItem[]>(() => [
   {
     label: 'Estimasi Omzet PO',
     value: `Rp ${formatRupiah(totalPoSell.value)}`,
-    // BUG FIX: bila ada item PO yang produknya tidak ada di master, estimasi
-    // HPP/omzet PO tidak akurat — user perlu diberi tahu.
-    sublabel: unmatchedPoItems.value.length > 0
-      ? `${unmatchedPoItems.value.length} item tidak ada di master`
-      : undefined,
     icon: TrendingUp,
     iconBoxClass: unmatchedPoItems.value.length > 0 ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700',
     valClass: unmatchedPoItems.value.length > 0 ? 'text-rose-800' : 'text-amber-800'
@@ -225,15 +220,13 @@ const metricStats = computed<MetricStatItem[]>(() => [
     // BUG FIX: tanda +/- sebelumnya selalu "+" sehingga PO yang RUGI tampil
     // sebagai "+Rp -500.000" (salah baca).
     value: `${totalPoProfit.value >= 0 ? '+' : '-'}Rp ${formatRupiah(Math.abs(totalPoProfit.value))}`,
-    sublabel: `(${averagePoMargin.value >= 0 ? '+' : ''}${averagePoMargin.value}%)`,
     icon: Coins,
     iconBoxClass: totalPoProfit.value >= 0 ? 'bg-teal-50 text-teal-700' : 'bg-rose-50 text-rose-700',
-    valClass: totalPoProfit.value >= 0 ? 'text-teal-800' : 'text-rose-700',
-    sublabelClass: totalPoProfit.value >= 0 ? 'text-emerald-600 font-semibold font-mono' : 'text-rose-600 font-semibold font-mono'
+    valClass: totalPoProfit.value >= 0 ? 'text-teal-800' : 'text-rose-700'
   },
   {
     label: 'Pelanggan Pemesan',
-    value: `${uniquePoBuyersCount.value} Pelanggan`,
+    value: uniquePoBuyersCount.value,
     icon: Users,
     iconBoxClass: 'bg-indigo-50 text-indigo-700',
     valClass: 'text-indigo-800'

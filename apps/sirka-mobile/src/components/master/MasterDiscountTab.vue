@@ -121,47 +121,41 @@ const filteredDiscounts = computed(() => {
 const discountMetrics = computed<MetricStatItem[]>(() => [
   {
     label: 'Total Kupon Promo',
-    value: `${filteredDiscounts.value.length} Kupon`,
-    sublabel: 'Voucher Terdaftar',
+    value: filteredDiscounts.value.length,
     icon: Tag,
     iconBoxClass: 'bg-rose-50 text-rose-600'
   },
   {
     label: 'Kupon Aktif Kasir',
-    value: `${activeDiscountsCount.value} Aktif`,
-    sublabel: 'Siap Pakai POS',
+    value: activeDiscountsCount.value,
     icon: Sparkles,
     iconBoxClass: 'bg-emerald-50 text-emerald-600',
     valClass: 'text-emerald-700'
   },
   {
     label: 'Diskon Persen (%)',
-    value: `${percentCount.value} Kupon`,
-    sublabel: 'Potongan Persen',
+    value: percentCount.value,
     icon: Percent,
     iconBoxClass: 'bg-blue-50 text-blue-600',
     valClass: 'text-blue-700'
   },
   {
     label: 'Potongan Tetap (Rp)',
-    value: `${fixedCount.value} Kupon`,
-    sublabel: 'Nominal Langsung',
+    value: fixedCount.value,
     icon: DollarSign,
     iconBoxClass: 'bg-amber-50 text-amber-600',
     valClass: 'text-amber-800'
   },
   {
     label: 'Khusus Member',
-    value: `${memberCount.value} Kupon`,
-    sublabel: 'Pelanggan Loyal',
+    value: memberCount.value,
     icon: Users,
     iconBoxClass: 'bg-purple-50 text-purple-600',
     valClass: 'text-purple-800'
   },
   {
     label: 'Total Dipakai Kasir',
-    value: `${totalUsageCount.value} Transaksi`,
-    sublabel: 'Pemakaian Struk',
+    value: totalUsageCount.value,
     icon: Calculator,
     iconBoxClass: 'bg-teal-50 text-teal-600',
     valClass: 'text-teal-800'

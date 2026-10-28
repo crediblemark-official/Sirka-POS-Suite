@@ -244,7 +244,7 @@ const metricStats = computed<MetricStatItem[]>(() => {
   return [
     {
       label: 'Total Transaksi',
-      value: `${filteredTransactions.value.length} Nota`,
+      value: filteredTransactions.value.length,
       icon: FileText,
       iconBoxClass: 'bg-indigo-50 text-indigo-700',
       valClass: 'text-gray-800'
@@ -266,11 +266,9 @@ const metricStats = computed<MetricStatItem[]>(() => {
     {
       label: 'Untung Bersih (Laba)',
       value: `+Rp ${formatRupiah(totalProfit)}`,
-      sublabel: `(+${marginPct}%)`,
       icon: Coins,
       iconBoxClass: 'bg-teal-50 text-teal-700',
-      valClass: 'text-teal-800',
-      sublabelClass: 'text-emerald-600 font-semibold font-mono'
+      valClass: 'text-teal-800'
     },
     {
       label: 'Piutang / Bon Tempo',
@@ -281,7 +279,7 @@ const metricStats = computed<MetricStatItem[]>(() => {
     },
     {
       label: 'Pelanggan Aktif',
-      value: `${uniqueBuyers} Pembeli`,
+      value: uniqueBuyers,
       icon: Users,
       iconBoxClass: 'bg-purple-50 text-purple-700',
       valClass: 'text-purple-900'

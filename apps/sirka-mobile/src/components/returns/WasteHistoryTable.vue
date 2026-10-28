@@ -115,7 +115,7 @@ const busukLoss = computed(() =>
 const metricStats = computed<MetricStatItem[]>(() => [
   {
     label: 'Total Kasus Susut/Rusak',
-    value: `${totalItems.value} Catatan`,
+    value: totalItems.value,
     icon: Trash2,
     iconBoxClass: 'bg-amber-50 text-amber-700',
     valClass: 'text-gray-900 font-bold'

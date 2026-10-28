@@ -160,8 +160,7 @@ const totalStockCount = computed(() => {
 const stockSummary = computed(() => {
   if (stockQtyByUnit.value.length === 0 || totalStockCount.value === 0) {
     return {
-      primary: '0 Unit',
-      sublabel: undefined,
+      primary: '0',
       tooltip: 'Tidak ada stok fisik tercatat'
     };
   }
@@ -171,8 +170,7 @@ const stockSummary = computed(() => {
     stockQtyByUnit.value.map(s => `• ${formatRupiah(s.qty)} ${s.unit}`).join('\n');
 
   return {
-    primary: `${formatRupiah(totalStockCount.value)} Unit`,
-    sublabel: `(${unitCount} Satuan)`,
+    primary: formatRupiah(totalStockCount.value),
     tooltip
   };
 });
@@ -206,7 +204,7 @@ const categoriesCount = computed(() => {
 const metricStats = computed<MetricStatItem[]>(() => [
   {
     label: 'Total SKU Barang',
-    value: `${filteredProducts.value.length} SKU`,
+    value: filteredProducts.value.length,
     icon: Package,
     iconBoxClass: 'bg-purple-50 text-purple-700',
     valClass: 'text-gray-800'
@@ -214,12 +212,10 @@ const metricStats = computed<MetricStatItem[]>(() => [
   {
     label: 'Fisik Stok di Toko',
     value: stockSummary.value.primary,
-    sublabel: stockSummary.value.sublabel,
     tooltip: stockSummary.value.tooltip,
     icon: Boxes,
     iconBoxClass: 'bg-blue-50 text-blue-700',
-    valClass: 'text-blue-800',
-    sublabelClass: 'text-blue-700 bg-blue-100/70 px-1 py-0.5 rounded text-[10px] font-semibold'
+    valClass: 'text-blue-800'
   },
   {
     label: 'Nilai Aset Modal (HPP)',
@@ -239,15 +235,13 @@ const metricStats = computed<MetricStatItem[]>(() => [
     label: 'Potensi Margin Aset',
     // BUG FIX: tanda & warna harus mengikuti nilai sebenarnya (boleh negatif).
     value: `${totalAssetProfit.value >= 0 ? '+' : '-'}Rp ${formatRupiah(Math.abs(totalAssetProfit.value))}`,
-    sublabel: `(${averageAssetMargin.value >= 0 ? '+' : ''}${averageAssetMargin.value}%)`,
     icon: Coins,
     iconBoxClass: totalAssetProfit.value >= 0 ? 'bg-teal-50 text-teal-700' : 'bg-rose-50 text-rose-700',
-    valClass: totalAssetProfit.value >= 0 ? 'text-teal-800' : 'text-rose-700',
-    sublabelClass: totalAssetProfit.value >= 0 ? 'text-emerald-600 font-semibold font-mono' : 'text-rose-600 font-semibold font-mono'
+    valClass: totalAssetProfit.value >= 0 ? 'text-teal-800' : 'text-rose-700'
   },
   {
     label: 'Kategori / Supplier',
-    value: `${categoriesCount.value} Vendor`,
+    value: categoriesCount.value,
     icon: Truck,
     iconBoxClass: 'bg-rose-50 text-rose-700',
     valClass: 'text-rose-800'

@@ -121,7 +121,6 @@ const metricStats = computed<MetricStatItem[]>(() => [
   {
     label: 'Total Pelanggan',
     value: buyerStore.buyers.length,
-    sublabel: 'Database Toko',
     icon: Users,
     iconBoxClass: 'bg-blue-50 text-blue-600',
     valClass: 'text-gray-900',
@@ -129,34 +128,27 @@ const metricStats = computed<MetricStatItem[]>(() => [
   {
     label: 'Member Terdaftar',
     value: registeredMembersCount.value,
-    sublabel: 'Pegang Kartu',
     icon: CreditCard,
     iconBoxClass: 'bg-emerald-50 text-emerald-600',
     valClass: 'text-emerald-700',
-    sublabelClass: 'text-emerald-600 font-medium',
   },
   {
     label: 'Belum Berkartu',
     value: nonMemberCount.value,
-    sublabel: 'Pelanggan Reguler',
     icon: UserCheck,
     iconBoxClass: 'bg-rose-50 text-rose-600',
     valClass: 'text-rose-600',
-    sublabelClass: 'text-rose-500',
   },
   {
     label: 'Total Poin Beredar',
     value: totalPointsAccumulated.value.toLocaleString('id-ID'),
-    sublabel: 'Saldo Poin Member',
     icon: Coins,
     iconBoxClass: 'bg-amber-50 text-amber-600',
     valClass: 'text-amber-700',
-    sublabelClass: 'text-amber-600 font-medium',
   },
   {
     label: 'Akumulasi Belanja',
     value: formatRupiah(totalMemberSpend.value),
-    sublabel: 'Total Transaksi Member',
     icon: ShoppingBag,
     iconBoxClass: 'bg-purple-50 text-purple-600',
     valClass: 'text-purple-700',
@@ -164,11 +156,9 @@ const metricStats = computed<MetricStatItem[]>(() => [
   {
     label: 'Member VIP',
     value: goldCount.value + platinumCount.value,
-    sublabel: 'Tier Gold & Platinum',
     icon: Sparkles,
     iconBoxClass: 'bg-indigo-50 text-indigo-600',
     valClass: 'text-indigo-700',
-    sublabelClass: 'text-indigo-600',
   }
 ]);
 

@@ -70,28 +70,28 @@ const filteredUnits = computed(() => {
 const unitMetrics = computed<MetricStatItem[]>(() => [
   {
     label: 'Total Satuan Terdaftar',
-    value: `${unitStore.units.length} Satuan`,
+    value: unitStore.units.length,
     icon: Scale,
     iconBoxClass: 'bg-purple-50 text-purple-700',
     valClass: 'text-purple-900'
   },
   {
     label: 'Kemasan Grosir (Dus/Sak)',
-    value: `${unitStore.packagingUnits.length} Kemasan`,
+    value: unitStore.packagingUnits.length,
     icon: Package,
     iconBoxClass: 'bg-amber-50 text-amber-700',
     valClass: 'text-amber-800'
   },
   {
     label: 'Satuan Eceran Dasar',
-    value: `${unitStore.baseUnits.filter(u => u.category === 'BASE').length} Satuan`,
+    value: unitStore.baseUnits.filter(u => u.category === 'BASE').length,
     icon: Boxes,
     iconBoxClass: 'bg-emerald-50 text-emerald-700',
     valClass: 'text-emerald-800'
   },
   {
     label: 'Metrik Baku (KG/Liter)',
-    value: `${unitStore.metricUnits.length} Satuan`,
+    value: unitStore.metricUnits.length,
     icon: Layers,
     iconBoxClass: 'bg-blue-50 text-blue-700',
     valClass: 'text-blue-800'
@@ -351,7 +351,7 @@ const filteredMarkups = computed(() => {
 const vendorMetrics = computed<MetricStatItem[]>(() => [
   {
     label: 'Total Kategori',
-    value: `${totalVendors.value} Kelompok`,
+    value: totalVendors.value,
     icon: Palette,
     iconBoxClass: 'bg-rose-50 text-rose-700',
     valClass: 'text-gray-800'
@@ -372,7 +372,7 @@ const vendorMetrics = computed<MetricStatItem[]>(() => [
   },
   {
     label: 'Total SKU Terhubung',
-    value: `${totalConnectedSkus.value} Produk`,
+    value: totalConnectedSkus.value,
     icon: Boxes,
     iconBoxClass: 'bg-purple-50 text-purple-700',
     valClass: 'text-purple-800'

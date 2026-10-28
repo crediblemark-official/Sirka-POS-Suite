@@ -213,7 +213,6 @@ const metricStats = computed<MetricStatItem[]>(() => {
       {
         label: 'Total Penjualan Bersih',
         value: `Rp ${formatRupiah(netSales.value)}`,
-        sublabel: `${periodTransactions.value.length} Nota`,
         icon: TrendingUp,
         iconBoxClass: 'bg-blue-50 text-blue-700',
         valClass: 'text-blue-700'
@@ -228,11 +227,9 @@ const metricStats = computed<MetricStatItem[]>(() => {
       {
         label: 'Keuntungan Penjualan (Laba)',
         value: `+Rp ${formatRupiah(grossProfit.value)}`,
-        sublabel: `(+${marginPercent.value.toFixed(1)}%)`,
         icon: Coins,
         iconBoxClass: 'bg-teal-50 text-teal-700',
-        valClass: 'text-emerald-700',
-        sublabelClass: 'text-emerald-600 font-bold font-mono'
+        valClass: 'text-emerald-700'
       },
       {
         label: 'Perkiraan Pajak UMKM (0.5%)',
@@ -254,7 +251,6 @@ const metricStats = computed<MetricStatItem[]>(() => {
       {
         label: 'Kas Tunai (Laci)',
         value: `Rp ${formatRupiah(cashBalances.value.netCashDrawer)}`,
-        sublabel: 'Laci Kasir',
         tooltip: `Omzet Tunai: Rp ${formatRupiah(cashBalances.value.salesCash)} | Keluar: -Rp ${formatRupiah(cashBalances.value.expenseCash + cashBalances.value.transferOutCash)}`,
         icon: Wallet,
         iconBoxClass: 'bg-emerald-50 text-emerald-700',
@@ -263,7 +259,6 @@ const metricStats = computed<MetricStatItem[]>(() => {
       {
         label: 'Rekening Bank',
         value: `Rp ${formatRupiah(cashBalances.value.netBankBalance)}`,
-        sublabel: 'Bank Toko',
         tooltip: `Masuk: Rp ${formatRupiah(cashBalances.value.salesBank + cashBalances.value.transferInBank)} | Keluar: -Rp ${formatRupiah(cashBalances.value.purchasesCostBank + cashBalances.value.expenseBank)}`,
         icon: Building,
         iconBoxClass: 'bg-blue-50 text-blue-700',
@@ -272,7 +267,6 @@ const metricStats = computed<MetricStatItem[]>(() => {
       {
         label: 'Saldo QRIS',
         value: `Rp ${formatRupiah(cashBalances.value.pendingQrisSettlement)}`,
-        sublabel: 'Belum Cair',
         tooltip: `Total QRIS: Rp ${formatRupiah(cashBalances.value.salesQris)} | Sudah Cair: Rp ${formatRupiah(cashBalances.value.settledQrisToBank)}`,
         icon: QrCode,
         iconBoxClass: 'bg-purple-50 text-purple-700',
@@ -281,7 +275,6 @@ const metricStats = computed<MetricStatItem[]>(() => {
       {
         label: 'Kas Keluar (Kulakan)',
         value: `Rp ${formatRupiah(totalPurchasesCost.value + operationalExpenses.value)}`,
-        sublabel: `${purchaseStore.purchaseHistory.length} Faktur`,
         tooltip: `Kulakan: Rp ${formatRupiah(totalPurchasesCost.value)} | Beban: Rp ${formatRupiah(operationalExpenses.value)}`,
         icon: Truck,
         iconBoxClass: 'bg-amber-50 text-amber-700',
@@ -290,7 +283,6 @@ const metricStats = computed<MetricStatItem[]>(() => {
       {
         label: 'Arus Kas Bersih',
         value: `${netCashFlow.value >= 0 ? '+' : ''}Rp ${formatRupiah(netCashFlow.value)}`,
-        sublabel: 'Sisa Kas Bersih',
         tooltip: 'Total Inflow dikurangi Total Outflow',
         icon: ArrowLeftRight,
         iconBoxClass: netCashFlow.value >= 0 ? 'bg-teal-50 text-teal-700' : 'bg-red-50 text-red-700',
@@ -316,7 +308,6 @@ const metricStats = computed<MetricStatItem[]>(() => {
       {
         label: 'Modal Stok Barang Toko',
         value: `Rp ${formatRupiah(totalInventoryAssetValuation.value)}`,
-        sublabel: `${inventoryStore.products.length} SKU`,
         icon: PackageCheck,
         iconBoxClass: 'bg-blue-50 text-blue-700',
         valClass: 'text-blue-700'
@@ -341,7 +332,6 @@ const metricStats = computed<MetricStatItem[]>(() => {
       {
         label: 'Total Bon Belum Lunas',
         value: `Rp ${formatRupiah(totalReceivables.value)}`,
-        sublabel: `${agingReceivables.value.length} Nota Bon`,
         icon: Clock,
         iconBoxClass: 'bg-amber-50 text-amber-700',
         valClass: 'text-amber-800'
@@ -390,12 +380,10 @@ const metricStats = computed<MetricStatItem[]>(() => {
     return [
       {
         label: 'Total Riwayat Kerja Kasir',
-        value: `${shiftStore.shiftHistory.length} Sesi`,
-        sublabel: shiftStore.isShiftActive ? `1 Aktif (${shiftStore.currentShift?.cashierName})` : 'Shift Tutup',
+        value: shiftStore.shiftHistory.length,
         icon: UserCheck,
         iconBoxClass: 'bg-blue-50 text-blue-700',
-        valClass: 'text-blue-900',
-        sublabelClass: shiftStore.isShiftActive ? 'text-emerald-600 font-bold' : 'text-gray-500'
+        valClass: 'text-blue-900'
       },
       {
         label: 'Total Penjualan Tunai di Kasir',
@@ -407,7 +395,6 @@ const metricStats = computed<MetricStatItem[]>(() => {
       {
         label: 'Kecocokan Uang Laci (Pas)',
         value: `${balanceRate.toFixed(0)}%`,
-        sublabel: `${reconciledShifts.filter(s => (s.discrepancy || 0) === 0).length} dari ${reconciledShifts.length} Shift Cocok Pas`,
         icon: CheckCircle2,
         iconBoxClass: 'bg-teal-50 text-teal-700',
         valClass: 'text-teal-800'
@@ -415,11 +402,9 @@ const metricStats = computed<MetricStatItem[]>(() => {
       {
         label: 'Total Selisih Kas Laci',
         value: `${totalDiscrepancyAllShifts >= 0 ? '+' : ''}Rp ${formatRupiah(totalDiscrepancyAllShifts)}`,
-        sublabel: totalDiscrepancyAllShifts === 0 ? 'Kas Seimbang (Pas)' : totalDiscrepancyAllShifts < 0 ? 'Total Tekor Kas' : 'Total Kelebihan Kas',
         icon: AlertTriangle,
         iconBoxClass: totalDiscrepancyAllShifts === 0 ? 'bg-emerald-50 text-emerald-700' : totalDiscrepancyAllShifts < 0 ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700',
-        valClass: totalDiscrepancyAllShifts === 0 ? 'text-emerald-700' : totalDiscrepancyAllShifts < 0 ? 'text-rose-700 font-bold' : 'text-amber-700 font-bold',
-        sublabelClass: totalDiscrepancyAllShifts < 0 ? 'text-rose-600 font-semibold' : 'text-gray-500'
+        valClass: totalDiscrepancyAllShifts === 0 ? 'text-emerald-700' : totalDiscrepancyAllShifts < 0 ? 'text-rose-700 font-bold' : 'text-amber-700 font-bold'
       }
     ];
   } else {
@@ -428,7 +413,6 @@ const metricStats = computed<MetricStatItem[]>(() => {
       {
         label: 'Modal Macet di Barang Tidak Laku',
         value: `Rp ${formatRupiah(totalDeadStockCapital.value)}`,
-        sublabel: `${deadStockItems.value.length} Jenis Barang Macet`,
         icon: AlertTriangle,
         iconBoxClass: 'bg-amber-50 text-amber-700',
         valClass: 'text-amber-800 font-bold'
@@ -449,7 +433,7 @@ const metricStats = computed<MetricStatItem[]>(() => {
       },
       {
         label: 'Jumlah Nota Belanja',
-        value: `${periodTransactions.value.length} Nota`,
+        value: periodTransactions.value.length,
         icon: Receipt,
         iconBoxClass: 'bg-purple-50 text-purple-700',
         valClass: 'text-purple-800'
@@ -537,41 +521,12 @@ async function exportComprehensiveReport() {
 <template>
   <div class="flex flex-col h-full bg-[#f8f7f5] text-[#2e2b28] select-none text-xs overflow-hidden font-sans">
     <!-- 1. Mobile-First Top Header & Subtab Navigation -->
-    <div class="bg-[#f6f5f2] border-b border-gray-200 p-2.5 flex flex-col gap-2 shrink-0 select-none shadow-2xs">
-      <!-- Top Row: Title, Date Filter & Export Button -->
-      <div class="flex items-center justify-between gap-2">
-        <div class="flex items-center gap-2 min-w-0">
-          <div class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
-            <FileSpreadsheet :size="16" />
-          </div>
-          <div class="min-w-0 flex flex-col">
-            <span class="font-bold text-xs text-gray-900 truncate">Laporan Keuangan</span>
-            <span class="text-[10px] text-gray-500">P&L, Arus Kas, Neraca & Piutang</span>
-          </div>
-        </div>
-
-        <div class="flex items-center gap-1.5 shrink-0">
-          <!-- Reusable Modern Date Range Picker Popover -->
-          <DateRangePicker
-            v-model:start-date="customStartDate"
-            v-model:end-date="customEndDate"
-          />
-
-          <!-- Tombol Export Excel -->
-          <button
-            type="button"
-            @click="exportComprehensiveReport"
-            class="h-8 px-2.5 rounded-lg bg-white border border-gray-300 text-gray-800 hover:bg-gray-50 active:scale-95 font-bold text-xs flex items-center gap-1.5 shadow-2xs cursor-pointer transition-all"
-            title="Ekspor Laporan ke Excel (.xlsx)"
-          >
-            <Download :size="13" class="text-emerald-600" />
-            <span class="hidden xs:inline">Excel</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Bottom Row: Subtab Pills Horizontal Scroll -->
-      <div v-horizontal-scroll class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+    <div
+      v-horizontal-scroll
+      class="bg-[#f6f5f2] border-b border-gray-200 px-2.5 py-1.5 flex items-center justify-between gap-2 shrink-0 select-none shadow-2xs overflow-x-auto no-scrollbar"
+    >
+      <!-- Subtab Pills Horizontal Scroll -->
+      <div class="flex items-center gap-1.5 shrink-0">
         <button
           type="button"
           class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap shadow-2xs"
@@ -636,6 +591,26 @@ async function exportComprehensiveReport() {
           <UserCheck :size="12" />
           <span>Shift Kasir</span>
           <span v-if="shiftStore.isShiftActive" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        </button>
+      </div>
+
+      <!-- Action Tools: Date Filter & Export Button -->
+      <div class="flex items-center gap-1.5 shrink-0">
+        <!-- Reusable Modern Date Range Picker Popover -->
+        <DateRangePicker
+          v-model:start-date="customStartDate"
+          v-model:end-date="customEndDate"
+        />
+
+        <!-- Tombol Export Excel -->
+        <button
+          type="button"
+          @click="exportComprehensiveReport"
+          class="h-7.5 px-2.5 rounded-lg bg-white border border-gray-300 text-gray-800 hover:bg-gray-50 active:scale-95 font-bold text-xs flex items-center gap-1.5 shadow-2xs cursor-pointer transition-all"
+          title="Ekspor Laporan ke Excel (.xlsx)"
+        >
+          <Download :size="13" class="text-emerald-600" />
+          <span class="hidden xs:inline">Excel</span>
         </button>
       </div>
     </div>

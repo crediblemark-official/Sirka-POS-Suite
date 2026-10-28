@@ -80,14 +80,14 @@ const totalPurchasesNominal = computed(() => {
 const supplierMetrics = computed<MetricStatItem[]>(() => [
   {
     label: 'Total Supplier',
-    value: `${totalSuppliers.value} Mitra`,
+    value: totalSuppliers.value,
     icon: Truck,
     iconBoxClass: 'bg-rose-50 text-rose-700',
     valClass: 'text-gray-800'
   },
   {
     label: 'Faktur Kulakan Masuk',
-    value: `${totalPurchasesCount.value} Nota`,
+    value: totalPurchasesCount.value,
     icon: Receipt,
     iconBoxClass: 'bg-blue-50 text-blue-700',
     valClass: 'text-blue-800'

@@ -139,7 +139,7 @@ const restockCount = computed(() =>
 const metricStats = computed<MetricStatItem[]>(() => [
   {
     label: 'Total Kasus Retur',
-    value: `${totalRefundCount.value} Nota`,
+    value: totalRefundCount.value,
     icon: RotateCcw,
     iconBoxClass: 'bg-rose-50 text-rose-700',
     valClass: 'text-gray-900 font-bold'
@@ -167,7 +167,7 @@ const metricStats = computed<MetricStatItem[]>(() => [
   },
   {
     label: 'Barang Rusak vs Restock',
-    value: `${damagedCount.value} Rusak • ${restockCount.value} Masuk Rak`,
+    value: `${damagedCount.value} / ${restockCount.value}`,
     icon: Layers,
     iconBoxClass: 'bg-purple-50 text-purple-700',
     valClass: 'text-purple-800'

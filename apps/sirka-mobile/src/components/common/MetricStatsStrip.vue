@@ -55,13 +55,6 @@ defineProps<{
           :class="item.valClass || 'text-gray-900'"
         >
           <span class="truncate">{{ item.value }}</span>
-          <span
-            v-if="item.sublabel"
-            class="text-[10px] font-sans font-medium shrink-0"
-            :class="item.sublabelClass || 'text-gray-500'"
-          >
-            {{ item.sublabel }}
-          </span>
         </div>
       </div>
     </div>
