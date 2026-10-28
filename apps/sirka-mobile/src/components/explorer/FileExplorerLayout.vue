@@ -406,14 +406,22 @@ onUnmounted(() => {
             class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex flex-col justify-end animate-in fade-in duration-150"
           >
             <div class="bg-white w-full h-[94vh] rounded-t-2xl flex flex-col overflow-hidden shadow-2xl animate-in slide-in-from-bottom duration-200">
-              <div class="h-10 px-4 bg-slate-100 border-b border-slate-200 flex items-center justify-between shrink-0">
-                <span class="font-bold text-xs text-slate-800">Keranjang Kasir & Pembayaran</span>
-                <button
-                  @click="showMobileCartModal = false"
-                  class="text-xs font-bold text-slate-600 hover:text-slate-900 px-2.5 py-1 rounded-md bg-slate-200 hover:bg-slate-300 transition cursor-pointer"
-                >
-                  ✕ Tutup
-                </button>
+              <div class="h-10 px-3 bg-slate-100 border-b border-slate-200 flex items-center justify-between gap-1.5 shrink-0">
+                <span class="font-bold text-xs text-slate-800 truncate">Keranjang Kasir & Pembayaran</span>
+                <div class="flex items-center gap-1.5 shrink-0">
+                  <input
+                    v-model="posStore.transactionDate"
+                    type="date"
+                    class="h-7 w-[105px] bg-white border border-gray-300 rounded-lg px-1 text-[10px] font-mono text-slate-900 outline-none focus:border-blue-500 shadow-2xs"
+                    title="Pilih Tanggal Transaksi"
+                  />
+                  <button
+                    @click="showMobileCartModal = false"
+                    class="text-xs font-bold text-slate-600 hover:text-slate-900 px-2.5 py-1 rounded-md bg-slate-200 hover:bg-slate-300 transition cursor-pointer shrink-0"
+                  >
+                    ✕ Tutup
+                  </button>
+                </div>
               </div>
               <div class="flex-1 overflow-hidden flex flex-col">
                 <PosCart

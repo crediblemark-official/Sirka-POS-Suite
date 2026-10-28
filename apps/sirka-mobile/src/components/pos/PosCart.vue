@@ -264,44 +264,6 @@ onUnmounted(() => {
 <template>
   <div class="flex flex-col h-full text-xs select-none"
     style="background-color: var(--surface-body); color: var(--surface-text);">
-    <!-- 1. Top Bar: Title, Cart Count, Parkir, Tanggal, & Tutup -->
-    <div class="px-3 py-2 bg-[#f6f5f2] border-b border-[#e5e3de] flex items-center justify-between gap-1.5 shrink-0">
-      <!-- Left: Title & Count -->
-      <div class="flex items-center gap-1.5 font-bold text-xs text-slate-800 shrink-0">
-        <ShoppingCart :size="15" class="text-amber-600 shrink-0" />
-        <span
-          class="px-1.5 py-0.2 rounded-full font-mono text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
-          {{ posStore.cartItems.length }}
-        </span>
-      </div>
-
-      <!-- Right Actions: Antrean Parkir, Tanggal, Close -->
-      <div class="flex items-center gap-1.5 shrink-0">
-
-        <!-- Tombol / Badge Antrean Parkir jika ada keranjang yang ditahan -->
-        <button v-if="posStore.heldCarts.length > 0" type="button"
-          class="h-7 px-2 rounded-lg text-[10.5px] font-bold flex items-center gap-1 bg-purple-600 hover:bg-purple-700 active:scale-95 text-white shadow-2xs cursor-pointer whitespace-nowrap transition-all shrink-0"
-          title="Buka daftar antrean yang sedang diparkir" @click="showHeldCartsModal = true">
-          <span>Parkir</span>
-          <span
-            class="w-3.5 h-3.5 rounded-full bg-white text-purple-900 text-[9px] flex items-center justify-center font-black">
-            {{ posStore.heldCarts.length }}
-          </span>
-        </button>
-
-        <!-- Input Tanggal Transaksi -->
-        <input v-model="posStore.transactionDate" type="date"
-          class="h-7 w-[105px] bg-white border border-gray-300 rounded-lg px-1.5 text-[10.5px] font-mono text-slate-900 outline-none focus:border-blue-500 shadow-2xs"
-          title="Tanggal Transaksi" />
-
-        <!-- Tombol Tutup Keranjang -->
-        <button type="button"
-          class="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-200/60 rounded-lg cursor-pointer transition-colors shrink-0"
-          title="Tutup Keranjang Kasir" @click="emit('close')">
-          <X :size="15" />
-        </button>
-      </div>
-    </div>
 
     <!-- 2. Mode Switcher Bar: Segmented Pill (Clean icons, no double emojis) -->
     <div class="px-3 pt-2 pb-1 bg-[#fcfbfa]">

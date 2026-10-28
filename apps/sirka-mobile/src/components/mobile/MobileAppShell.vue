@@ -190,18 +190,26 @@ onMounted(() => {
           class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex flex-col justify-end animate-in fade-in duration-150"
         >
           <div class="bg-white w-full h-[92vh] rounded-t-2xl flex flex-col overflow-hidden shadow-2xl animate-in slide-in-from-bottom duration-200">
-            <div class="h-11 px-4 bg-slate-100 border-b border-slate-200 flex items-center justify-between shrink-0">
-              <div class="flex items-center gap-2">
-                <ShoppingCart class="w-4 h-4 text-blue-600" />
-                <span class="font-bold text-xs text-slate-800">Keranjang Kasir ({{ posStore.totalItemsCount }} Item)</span>
+            <div class="h-11 px-3 bg-slate-100 border-b border-slate-200 flex items-center justify-between gap-1.5 shrink-0">
+              <div class="flex items-center gap-1.5 min-w-0">
+                <ShoppingCart class="w-4 h-4 text-blue-600 shrink-0" />
+                <span class="font-bold text-xs text-slate-800 truncate">Keranjang Kasir ({{ posStore.totalItemsCount }} Item)</span>
               </div>
-              <button
-                type="button"
-                @click="showMobileCartModal = false"
-                class="text-xs font-bold text-slate-600 hover:text-slate-900 px-3 py-1 rounded-md bg-slate-200 hover:bg-slate-300 transition cursor-pointer"
-              >
-                ✕ Selesai
-              </button>
+              <div class="flex items-center gap-1.5 shrink-0">
+                <input
+                  v-model="posStore.transactionDate"
+                  type="date"
+                  class="h-7 w-[105px] bg-white border border-gray-300 rounded-lg px-1 text-[10px] font-mono text-slate-900 outline-none focus:border-blue-500 shadow-2xs"
+                  title="Pilih Tanggal Transaksi"
+                />
+                <button
+                  type="button"
+                  @click="showMobileCartModal = false"
+                  class="text-xs font-bold text-slate-600 hover:text-slate-900 px-2.5 py-1 rounded-md bg-slate-200 hover:bg-slate-300 transition cursor-pointer shrink-0"
+                >
+                  ✕ Selesai
+                </button>
+              </div>
             </div>
             <div class="flex-1 overflow-hidden flex flex-col">
               <PosCart
