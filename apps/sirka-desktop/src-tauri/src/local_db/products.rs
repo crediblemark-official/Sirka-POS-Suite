@@ -7,11 +7,17 @@ use crate::models::{CategoryMarkupRecord, ProductRecord, ProductUnitConversionRe
 // ---------------------------------------------------------
 pub fn local_get_products(conn: &Connection) -> SqliteResult<Vec<ProductRecord>> {
     let mut stmt = conn.prepare(
-        "SELECT id, code, name, category, unit, default_markup_percent, last_buy_price, last_sell_price, stock, barcode, notes, supplier, units, is_perishable FROM products ORDER BY name ASC",
+        "SELECT id, code, name, category, unit, default_markup_percent, last_buy_price, last_sell_price, stock, barcode, notes, supplier, units, is_perishable, product_type, tier_pricing, available_modifiers, service_duration_minutes FROM products ORDER BY name ASC",
     )?;
     let rows = stmt.query_map([], |row| {
         let units_json: Option<String> = row.get(12)?;
         let units: Option<Vec<ProductUnitConversionRecord>> = units_json
+            .as_deref()
+            .and_then(|raw| serde_json::from_str(raw).ok());
+        let tier_pricing: Option<serde_json::Value> = row.get::<_, Option<String>>(15)?
+            .as_deref()
+            .and_then(|raw| serde_json::from_str(raw).ok());
+        let available_modifiers: Option<Vec<String>> = row.get::<_, Option<String>>(16)?
             .as_deref()
             .and_then(|raw| serde_json::from_str(raw).ok());
         Ok(ProductRecord {
@@ -29,6 +35,10 @@ pub fn local_get_products(conn: &Connection) -> SqliteResult<Vec<ProductRecord>>
             supplier: row.get(11)?,
             units,
             is_perishable: Some(row.get::<_, i64>(13)? != 0),
+            product_type: row.get(14)?,
+            tier_pricing,
+            available_modifiers,
+            service_duration_minutes: row.get(17)?,
         })
     })?;
 
@@ -45,9 +55,26 @@ pub fn local_upsert_product(conn: &Connection, p: &ProductRecord) -> SqliteResul
         .as_ref()
         .and_then(|u| serde_json::to_string(u).ok());
     let is_perishable = if p.is_perishable.unwrap_or(false) { 1 } else { 0 };
+    let tier_pricing_json: Option<String> = p
+        .tier_pricing
+        .as_ref()
+        .and_then(|t| serde_json::to_string(t).ok());
+    let modifiers_json: Option<String> = p
+        .available_modifiers
+        .as_ref()
+        .and_then(|m| serde_json::to_string(m).ok());
+    let p_type = p.product_type.as_deref().unwrap_or("GOODS");
+
     conn.execute(
-        "INSERT INTO products (id, code, name, category, unit, default_markup_percent, last_buy_price, last_sell_price, stock, barcode, notes, supplier, units, is_perishable, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, datetime('now'))
+        "INSERT INTO products (
+            id, code, name, category, unit, default_markup_percent, last_buy_price, last_sell_price,
+            stock, barcode, notes, supplier, units, is_perishable,
+            product_type, tier_pricing, available_modifiers, service_duration_minutes, updated_at
+         ) VALUES (
+            ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8,
+            ?9, ?10, ?11, ?12, ?13, ?14,
+            ?15, ?16, ?17, ?18, datetime('now')
+         )
          ON CONFLICT (id) DO UPDATE SET
             code = excluded.code,
             name = excluded.name,
@@ -62,6 +89,10 @@ pub fn local_upsert_product(conn: &Connection, p: &ProductRecord) -> SqliteResul
             supplier = excluded.supplier,
             units = excluded.units,
             is_perishable = excluded.is_perishable,
+            product_type = excluded.product_type,
+            tier_pricing = excluded.tier_pricing,
+            available_modifiers = excluded.available_modifiers,
+            service_duration_minutes = excluded.service_duration_minutes,
             updated_at = datetime('now')",
         params![
             p.id,
@@ -78,6 +109,10 @@ pub fn local_upsert_product(conn: &Connection, p: &ProductRecord) -> SqliteResul
             p.supplier,
             units_json,
             is_perishable,
+            p_type,
+            tier_pricing_json,
+            modifiers_json,
+            p.service_duration_minutes.unwrap_or(0),
         ],
     )?;
     Ok(())

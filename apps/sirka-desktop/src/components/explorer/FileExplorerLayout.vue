@@ -16,12 +16,11 @@ import MobileHeaderBar from '../common/MobileHeaderBar.vue';
 import MobileBottomNav from '../common/MobileBottomNav.vue';
 import { useResponsive } from '../../composables/useResponsive';
 import { formatRupiah } from '../../utils/formatters';
-import { ChevronRight, ShoppingCart } from 'lucide-vue-next';
+import { ChevronRight, ShoppingCart, Camera } from 'lucide-vue-next';
 
 // Primary POS View Modules (Loaded eagerly for rapid cashier responsiveness)
 import ProductCatalog from '../pos/ProductCatalog.vue';
 import PosCart from '../pos/PosCart.vue';
-import PosScannerPiP from '../pos/PosScannerPiP.vue';
 
 // Secondary View Modules (Lazy-loaded on tab activation)
 const PreOrderMatrix = defineAsyncComponent(() => import('../preorder/PreOrderMatrix.vue'));
@@ -43,6 +42,10 @@ const ShiftSummaryModal = defineAsyncComponent(() => import('../pos/ShiftSummary
 const WasteModal = defineAsyncComponent(() => import('../returns/WasteModal.vue'));
 const LicenseModal = defineAsyncComponent(() => import('../common/LicenseModal.vue'));
 
+// PiP continuous scanner untuk scan barcode berturut-turut seperti kasir swalayan
+import PosScannerPiP from '../pos/PosScannerPiP.vue';
+
+
 import { useShiftStore } from '../../stores/shiftStore';
 import { useLicenseStore } from '../../stores/licenseStore';
 import { syncService } from '../../services/syncService';
@@ -52,6 +55,7 @@ const shiftStore = useShiftStore();
 const licenseStore = useLicenseStore();
 const { isMobile } = useResponsive();
 const showMobileCartModal = ref(false);
+const showPiPScanner = ref(false);
 
 
 // Setiap aplikasi baru dibuka: tidak ada tab aktif, dan default memunculkan Home
@@ -282,6 +286,13 @@ function handleGlobalKeydown(e: KeyboardEvent) {
     return;
   }
 
+  // Shortcut F4 atau Alt+C saat di POS: Buka/Tutup Scanner Kamera Kasir PiP (Kasir Swalayan)
+  if ((e.key === 'F4' || (e.altKey && (e.key === 'c' || e.key === 'C'))) && activeTab.value === 'pos') {
+    e.preventDefault();
+    showPiPScanner.value = !showPiPScanner.value;
+    return;
+  }
+
   // Shortcut F3, F2 or Ctrl+F: Focus search box instantly
   if (e.key === 'F3' || e.key === 'F2' || ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F'))) {
     e.preventDefault();
@@ -376,12 +387,6 @@ onUnmounted(() => {
           >
             <PosCart @show-receipt="handleShowReceipt" @close="showCartDrawer = false" />
           </div>
-
-          <!-- Continuous Scanner Picture-in-Picture (Webcam & Hardware Barcode Scanner) -->
-          <PosScannerPiP
-            :is-active="activeTab === 'pos'"
-            :is-mobile="false"
-          />
 
           <!-- Mobile Floating Sticky Cart Bar (Trigger Bottom Sheet) -->
           <div
@@ -499,6 +504,29 @@ onUnmounted(() => {
       :open-tab-ids="openTabIds"
       @navigate="openTab"
       @close-tab="closeTab"
+    />
+
+    <!-- Floating Camera Button for PiP Scanner (Scan produk berturut-turut) -->
+    <button
+      v-if="activeTab === 'pos'"
+      type="button"
+      @click="showPiPScanner = !showPiPScanner"
+      class="fixed z-40 w-11 h-11 rounded-full shadow-xl flex items-center justify-center active:scale-95 transition-all cursor-pointer border-2"
+      :class="[
+        isMobile ? 'right-4 bottom-20' : 'right-5 bottom-8',
+        showPiPScanner
+          ? 'bg-amber-500 text-slate-900 border-amber-300 hover:bg-amber-400'
+          : 'bg-slate-900 text-white border-white/20 hover:bg-slate-800'
+      ]"
+      :title="showPiPScanner ? 'Tutup Scanner Kamera' : 'Buka Scanner Kamera (Continuous)'"
+    >
+      <Camera class="w-5 h-5" :class="showPiPScanner ? 'text-slate-900' : 'text-amber-400'" />
+    </button>
+
+    <!-- PiP Continuous Barcode Scanner (Scan berturut-turut seperti kasir swalayan) -->
+    <PosScannerPiP
+      :is-open="showPiPScanner && activeTab === 'pos'"
+      @close="showPiPScanner = false"
     />
 
     <!-- Invoice Receipt Modal -->

@@ -28,7 +28,7 @@ pub struct StoreSettingRecord {
     pub value: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct ProductUnitConversionRecord {
     #[serde(default)]
     pub id: Option<String>,
@@ -42,7 +42,7 @@ pub struct ProductUnitConversionRecord {
     pub barcode: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct ProductRecord {
     pub id: String,
     pub code: String,
@@ -68,6 +68,18 @@ pub struct ProductRecord {
     /// Penanda barang mudah busuk (prioritas FEFO).
     #[serde(default, rename = "isPerishable")]
     pub is_perishable: Option<bool>,
+    /// Multi-mode: 'GOODS', 'SERVICE', 'FNB_MENU'
+    #[serde(default, rename = "productType")]
+    pub product_type: Option<String>,
+    /// Tier pricing grosir bertingkat
+    #[serde(default, rename = "tierPricing")]
+    pub tier_pricing: Option<serde_json::Value>,
+    /// Varian rasa / topping (F&B)
+    #[serde(default, rename = "availableModifiers")]
+    pub available_modifiers: Option<Vec<String>>,
+    /// Estimasi durasi pengerjaan jasa (menit)
+    #[serde(default, rename = "serviceDurationMinutes")]
+    pub service_duration_minutes: Option<i64>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -156,6 +168,17 @@ pub struct TransactionRecord {
     pub refund_status: Option<String>,
     #[serde(default, rename = "refundTotal")]
     pub refund_total: Option<f64>,
+    /// Multi-mode business fields (F&B Meja, Jasa Staf & Status)
+    #[serde(default, rename = "businessType")]
+    pub business_type: Option<String>,
+    #[serde(default, rename = "orderType")]
+    pub order_type: Option<String>,
+    #[serde(default, rename = "tableNo")]
+    pub table_no: Option<String>,
+    #[serde(default, rename = "staffName")]
+    pub staff_name: Option<String>,
+    #[serde(default, rename = "serviceStatus")]
+    pub service_status: Option<String>,
     #[serde(rename = "createdAt")]
     pub created_at: Option<String>,
 }

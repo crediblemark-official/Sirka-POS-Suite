@@ -1,12 +1,12 @@
 # Persistence regression tests
 
-Frontend: `bun test tests/persistence.test.ts`.
+Frontend: `bun test` (54 tests in persistence, deviceKey, license, and businessSuite).
 
 Backend: create a **fresh disposable PostgreSQL database** whose name starts with
 `kasir_citra_test_`, set `DATABASE_URL` to its connection string, then run:
 
 ```sh
-cargo test --manifest-path src-tauri/Cargo.toml --test persistence -- --ignored
+cargo test --manifest-path apps/sirka-desktop/src-tauri/Cargo.toml --test persistence -- --ignored
 ```
 
 Drop that disposable database after the run. The test rejects other database names

@@ -332,7 +332,7 @@ onUnmounted(() => {
         <div v-if="posStore.orderType === 'DINE_IN'" class="flex items-center gap-1 shrink-0">
           <span class="text-[10px] text-amber-900 font-bold">No.</span>
           <input v-model="posStore.tableNo" type="text" placeholder="Meja 01"
-            class="w-16 px-1.5 py-0.5 bg-white border border-amber-300 rounded text-xs font-bold text-center focus:outline-none focus:ring-1 focus:ring-amber-500" />
+            class="w-16 h-7 px-1.5 bg-white border border-amber-300 rounded text-xs font-bold text-center focus:outline-none focus:ring-1 focus:ring-amber-500" />
         </div>
       </div>
 
@@ -343,11 +343,11 @@ onUnmounted(() => {
           <Wrench :size="13" class="text-indigo-700 shrink-0" />
           <span class="font-bold text-[10.5px] text-indigo-950 shrink-0">Staf/Teknisi:</span>
           <input v-model="posStore.staffName" type="text" placeholder="Nama teknisi / staf..."
-            class="flex-1 min-w-[70px] px-1.5 py-0.5 bg-white border border-indigo-300 rounded text-[11px] focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+            class="flex-1 min-w-[70px] h-7 px-2 bg-white border border-indigo-300 rounded text-[11px] focus:outline-none focus:ring-1 focus:ring-indigo-500" />
         </div>
         <div v-if="settingsStore.businessFeatures.serviceStatus" class="flex items-center gap-1 shrink-0">
           <select v-model="posStore.serviceStatus"
-            class="px-1.5 py-0.5 bg-white border border-indigo-300 rounded text-[10.5px] font-bold text-indigo-900 focus:outline-none">
+            class="h-7 px-2 bg-white border border-indigo-300 rounded text-[11px] font-bold text-indigo-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer">
             <option value="QUEUED">Antre</option>
             <option value="IN_PROGRESS">Proses</option>
             <option value="DONE">Selesai</option>

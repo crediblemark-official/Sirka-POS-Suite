@@ -132,6 +132,33 @@ export const dbService = {
     });
   },
 
+  // Tiket dapur / bar thermal (KOT)
+  async generateKitchenTicketText(tx: Record<string, unknown>, storeName?: string, paperWidth?: string): Promise<string> {
+    return safeInvoke<string>('generate_kitchen_ticket_text', {
+      tx,
+      storeName: storeName || null,
+      paperWidth: paperWidth || null
+    }, () => {
+      const name = storeName || 'SIRKA';
+      const table = (tx as any).tableNo ? `Meja ${(tx as any).tableNo}` : ((tx as any).orderType || 'DINE IN');
+      const items = Array.isArray(tx.items) ? (tx.items as any[]).map((it, idx) => `${idx + 1}. ${it.name} (x${it.qty} ${it.unit})`).join('\n') : '';
+      return `================================\n        ${name}\n   *** TIKET DAPUR / BAR ***\n================================\nMeja: ${table}\nNo: ${tx.invoiceNo || tx.id}\n--------------------------------\n${items}\n================================\n`;
+    });
+  },
+
+  // Surat jalan pengiriman B2B (Delivery Order - DO)
+  async generateDeliveryOrderText(tx: Record<string, unknown>, storeName?: string, paperWidth?: string): Promise<string> {
+    return safeInvoke<string>('generate_delivery_order_text', {
+      tx,
+      storeName: storeName || null,
+      paperWidth: paperWidth || null
+    }, () => {
+      const name = storeName || 'SIRKA';
+      const items = Array.isArray(tx.items) ? (tx.items as any[]).map((it, idx) => `${idx + 1}. ${it.name} x ${it.qty} ${it.unit}`).join('\n') : '';
+      return `================================\n        ${name}\n     SURAT JALAN PENGIRIMAN\n================================\nNo. DO: DO-${tx.invoiceNo || tx.id}\nKepada: ${tx.buyer || 'Pelanggan'}\n--------------------------------\n${items}\n--------------------------------\nPengirim:        Penerima:\n(...........)    (...........)\n================================\n`;
+    });
+  },
+
   // Mengirim byte ESC/POS langsung ke Network Thermal Printer / Simulator (default 127.0.0.1:9100)
   async printToNetworkPrinter(text: string, address?: string): Promise<string> {
     return safeInvoke<string>('print_to_network_printer', {

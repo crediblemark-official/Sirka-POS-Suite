@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { Product, SupplierCategory, PurchaseReceipt, ProductUnitConversion } from '../../types';
+import { Product, SupplierCategory, PurchaseReceipt, ProductUnitConversion, ProductType, ProductTierPrice } from '../../types';
 import { useInventoryStore } from '../../stores/inventoryStore';
 import { useSupplierStore } from '../../stores/supplierStore';
 import { usePurchaseStore } from '../../stores/purchaseStore';
@@ -27,7 +27,11 @@ import {
   Barcode,
   Tag,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Layers,
+  Coins,
+  Wrench,
+  UtensilsCrossed
 } from 'lucide-vue-next';
 
 const props = defineProps<{
@@ -104,6 +108,10 @@ const productForm = ref<{
   hasMultiUnits: boolean;
   units: ProductUnitFormItem[];
   isPerishable: boolean;
+  productType: ProductType;
+  serviceDurationMinutes: number;
+  availableModifiers: string[];
+  tierPricing: ProductTierPrice[];
 }>({
   id: '',
   code: '',
@@ -119,8 +127,41 @@ const productForm = ref<{
   notes: '',
   hasMultiUnits: false,
   units: [],
-  isPerishable: false
+  isPerishable: false,
+  productType: 'GOODS',
+  serviceDurationMinutes: 30,
+  availableModifiers: [],
+  tierPricing: []
 });
+
+// Helper input modifiers (F&B)
+const newModifierInput = ref('');
+function addModifierTag() {
+  const val = newModifierInput.value.trim();
+  if (!val) return;
+  if (!productForm.value.availableModifiers.includes(val)) {
+    productForm.value.availableModifiers.push(val);
+  }
+  newModifierInput.value = '';
+}
+function removeModifierTag(index: number) {
+  productForm.value.availableModifiers.splice(index, 1);
+}
+
+// Helper tier pricing (Grosir bertingkat)
+function addTierPriceRow() {
+  const lastMin = productForm.value.tierPricing.length > 0
+    ? productForm.value.tierPricing[productForm.value.tierPricing.length - 1].minQty
+    : 10;
+  productForm.value.tierPricing.push({
+    minQty: lastMin + 10,
+    price: Math.max(0, Math.round((productForm.value.lastSellPrice || 0) * 0.95)),
+    label: `Grosir ${lastMin + 10} unit`
+  });
+}
+function removeTierPriceRow(index: number) {
+  productForm.value.tierPricing.splice(index, 1);
+}
 
 // State UI Progressive Disclosure untuk Kemudahan Pengguna Awam
 const showAdvancedSku = ref<boolean>(false);
@@ -217,7 +258,11 @@ function resetToNew(initialName = '') {
     notes: '',
     hasMultiUnits: false,
     units: [],
-    isPerishable: false
+    isPerishable: false,
+    productType: 'GOODS',
+    serviceDurationMinutes: 30,
+    availableModifiers: [],
+    tierPricing: []
   };
   qtyReceived.value = 0;
   // Produk baru wajib memasukkan stok awal kulakan
@@ -259,7 +304,11 @@ function loadProductData(prod: Product) {
     notes: prod.notes || '',
     hasMultiUnits: existingUnits.length > 0,
     units: existingUnits,
-    isPerishable: prod.isPerishable ?? false
+    isPerishable: prod.isPerishable ?? false,
+    productType: prod.productType || 'GOODS',
+    serviceDurationMinutes: prod.serviceDurationMinutes || 30,
+    availableModifiers: prod.availableModifiers && Array.isArray(prod.availableModifiers) ? [...prod.availableModifiers] : [],
+    tierPricing: prod.tierPricing && Array.isArray(prod.tierPricing) ? JSON.parse(JSON.stringify(prod.tierPricing)) : []
   };
   recalculateAllUnitFactors(productForm.value.units, productForm.value.unit);
   qtyReceived.value = 0;
@@ -409,16 +458,18 @@ async function handleSave() {
     const finalStock = isNew ? effectiveQty : Number((nowStock + effectiveQty).toFixed(4));
     const effectiveBuy = effectiveBaseBuyPrice.value;
 
-    // Validasi aturan bisnis: Barang baru terdaftar TIDAK BOLEH bersaldo stok 0
-    if (isNew && effectiveQty <= 0) {
-      alert('Produk baru wajib memiliki stok awal masuk (tidak boleh 0). Silakan masukkan jumlah stok kulakan.');
+    const isService = productForm.value.productType === 'SERVICE';
+
+    // Validasi aturan bisnis: Barang baru fisik terdaftar TIDAK BOLEH bersaldo stok 0
+    if (isNew && !isService && effectiveQty <= 0) {
+      alert('Produk baru fisik wajib memiliki stok awal masuk (tidak boleh 0). Silakan masukkan jumlah stok kulakan.');
       isSaving.value = false;
       return;
     }
 
     // BUG FIX: barang masuk tanpa harga modal akan membuat batch FIFO dengan
     // HPP Rp 0 sehingga laba penjualan reported jadi lebih besar dari kenyataan.
-    if (effectiveQty > 0 && effectiveBuy <= 0) {
+    if (!isService && effectiveQty > 0 && effectiveBuy <= 0) {
       alert('Harga beli (modal) wajib diisi untuk barang yang masuk, jika tidak HPP batch akan tersimpan Rp 0 dan laba penjualan jadi tidak akurat.');
       isSaving.value = false;
       return;
@@ -460,15 +511,23 @@ async function handleSave() {
       name: productForm.value.name.trim().toUpperCase(),
       category: productForm.value.category || 'Umum',
       supplier: productForm.value.supplier || resolveProductSupplier(productForm.value) || '',
-      unit: productForm.value.unit.trim().toUpperCase(),
+      unit: isService ? (productForm.value.unit.trim().toUpperCase() || 'SESI') : productForm.value.unit.trim().toUpperCase(),
       defaultMarkupPercent: productForm.value.defaultMarkupPercent || 20,
-      lastBuyPrice: effectiveBuy,
+      lastBuyPrice: isService ? 0 : effectiveBuy,
       lastSellPrice: sell,
-      stock: finalStock,
+      stock: isService ? 0 : finalStock,
       barcode: productForm.value.barcode?.trim() || undefined,
       notes: productForm.value.notes?.trim() || undefined,
       units: cleanUnits && cleanUnits.length > 0 ? cleanUnits : undefined,
-      isPerishable: productForm.value.isPerishable ?? false
+      isPerishable: isService ? false : (productForm.value.isPerishable ?? false),
+      productType: productForm.value.productType,
+      serviceDurationMinutes: isService ? (Number(productForm.value.serviceDurationMinutes) || 30) : undefined,
+      availableModifiers: productForm.value.productType === 'FNB_MENU' && productForm.value.availableModifiers.length > 0
+        ? [...productForm.value.availableModifiers]
+        : undefined,
+      tierPricing: productForm.value.tierPricing && productForm.value.tierPricing.length > 0
+        ? [...productForm.value.tierPricing].sort((a, b) => a.minQty - b.minQty)
+        : undefined
     };
 
     if (isNew) {
@@ -616,7 +675,7 @@ async function handleDelete() {
       !!productForm.name.trim() &&
       !!productForm.unit.trim() &&
       !!productForm.category &&
-      (!isExistingProduct ? (qtyReceived > 0 && effectiveBaseBuyPrice > 0) : true) &&
+      (!isExistingProduct ? (productForm.productType === 'SERVICE' || (qtyReceived > 0 && effectiveBaseBuyPrice > 0)) : true) &&
       !isSaving
     "
     :save-label="
@@ -689,6 +748,120 @@ async function handleDelete() {
         >
           + Buat Baru
         </button>
+      </div>
+    </div>
+
+    <!-- AREA 1.5: TIPE & KARAKTERISTIK PRODUK -->
+    <div class="space-y-2 p-3 bg-slate-50 border border-slate-200 rounded-lg shadow-2xs">
+      <div class="flex items-center justify-between">
+        <label class="text-[11px] font-bold text-gray-800 flex items-center gap-1.5">
+          <Layers :size="13" class="text-indigo-600" />
+          <span>TIPE PRODUK / LAYANAN</span>
+        </label>
+        <span class="text-[9.5px] font-bold px-1.5 py-0.2 rounded uppercase"
+          :class="{
+            'bg-emerald-100 text-emerald-800': productForm.productType === 'GOODS',
+            'bg-amber-100 text-amber-800': productForm.productType === 'FNB_MENU',
+            'bg-indigo-100 text-indigo-800': productForm.productType === 'SERVICE',
+          }"
+        >
+          {{ productForm.productType === 'GOODS' ? 'Barang Fisik' : productForm.productType === 'FNB_MENU' ? 'Menu Kuliner' : 'Jasa / Servis' }}
+        </span>
+      </div>
+
+      <!-- Selector 3 Tipe Produk -->
+      <div class="grid grid-cols-3 gap-1.5">
+        <button
+          type="button"
+          @click="productForm.productType = 'GOODS'"
+          class="px-2 py-1.5 rounded-md border text-center transition-all cursor-pointer flex flex-col items-center gap-0.5"
+          :class="productForm.productType === 'GOODS'
+            ? 'bg-emerald-50 border-emerald-500 text-emerald-800 ring-1 ring-emerald-300 font-bold'
+            : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'"
+        >
+          <span class="text-xs">📦</span>
+          <span class="text-[10px]">Barang Fisik</span>
+        </button>
+
+        <button
+          type="button"
+          @click="productForm.productType = 'FNB_MENU'"
+          class="px-2 py-1.5 rounded-md border text-center transition-all cursor-pointer flex flex-col items-center gap-0.5"
+          :class="productForm.productType === 'FNB_MENU'
+            ? 'bg-amber-50 border-amber-500 text-amber-800 ring-1 ring-amber-300 font-bold'
+            : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'"
+        >
+          <span class="text-xs">🍽️</span>
+          <span class="text-[10px]">Menu Kuliner</span>
+        </button>
+
+        <button
+          type="button"
+          @click="productForm.productType = 'SERVICE'; if (!productForm.unit) productForm.unit = 'SESI'"
+          class="px-2 py-1.5 rounded-md border text-center transition-all cursor-pointer flex flex-col items-center gap-0.5"
+          :class="productForm.productType === 'SERVICE'
+            ? 'bg-indigo-50 border-indigo-500 text-indigo-800 ring-1 ring-indigo-300 font-bold'
+            : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'"
+        >
+          <span class="text-xs">🔧</span>
+          <span class="text-[10px]">Jasa / Servis</span>
+        </button>
+      </div>
+
+      <!-- Detail Khusus Jasa -->
+      <div v-if="productForm.productType === 'SERVICE'" class="p-2 bg-indigo-50 border border-indigo-200 rounded text-[10.5px] text-indigo-950 flex items-center justify-between">
+        <span class="flex items-center gap-1 font-medium">
+          <Wrench :size="12" class="text-indigo-600" />
+          <span>Bebas potong stok gudang.</span>
+        </span>
+        <div class="flex items-center gap-1 shrink-0">
+          <span class="text-gray-500 font-bold">Durasi:</span>
+          <input
+            v-model.number="productForm.serviceDurationMinutes"
+            type="number"
+            min="5"
+            step="5"
+            class="w-14 px-1 py-0.5 bg-white border border-indigo-300 rounded text-center font-bold text-xs"
+          />
+          <span class="text-gray-500">mnt</span>
+        </div>
+      </div>
+
+      <!-- Detail Khusus F&B (Modifiers / Varian) -->
+      <div v-if="productForm.productType === 'FNB_MENU'" class="p-2 bg-amber-50 border border-amber-200 rounded text-[10.5px] space-y-1.5">
+        <div class="flex items-center justify-between font-bold text-amber-950">
+          <span class="flex items-center gap-1">
+            <UtensilsCrossed :size="12" class="text-amber-700" />
+            <span>Pilihan Varian / Topping (Modifiers):</span>
+          </span>
+          <span class="text-[9.5px] text-amber-700 font-normal">Tekan Enter untuk menambah</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <input
+            v-model="newModifierInput"
+            type="text"
+            placeholder="Contoh: Pedas Sedang, Less Sugar, Extra Keju..."
+            @keydown.enter.prevent="addModifierTag"
+            class="flex-1 px-2 py-1 bg-white border border-amber-300 rounded text-xs focus:ring-1 focus:ring-amber-500 outline-none"
+          />
+          <button
+            type="button"
+            @click="addModifierTag"
+            class="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded font-bold text-xs cursor-pointer shadow-2xs"
+          >
+            + Tambah
+          </button>
+        </div>
+        <div v-if="productForm.availableModifiers.length > 0" class="flex items-center gap-1 flex-wrap pt-1">
+          <span
+            v-for="(mod, mIdx) in productForm.availableModifiers"
+            :key="mIdx"
+            class="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-amber-300 text-amber-900 rounded-full font-medium text-[10px]"
+          >
+            <span>{{ mod }}</span>
+            <button type="button" @click="removeModifierTag(mIdx)" class="text-amber-600 hover:text-amber-900 font-bold ml-0.5 cursor-pointer">×</button>
+          </span>
+        </div>
       </div>
     </div>
 
@@ -908,10 +1081,85 @@ async function handleDelete() {
           </span>
         </div>
       </div>
+
+      <!-- Harga Grosir Bertingkat (Tier Quantity Pricing) -->
+      <div class="p-2.5 bg-blue-50/60 border border-blue-200 rounded-lg space-y-2">
+        <div class="flex items-center justify-between">
+          <label class="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
+            <Coins :size="12" class="text-blue-600" />
+            <span>HARGA GROSIR BERTINGKAT (TIER QUANTITY)</span>
+          </label>
+          <button
+            type="button"
+            @click="addTierPriceRow"
+            class="text-[10.5px] text-blue-700 hover:text-blue-900 font-bold cursor-pointer hover:underline"
+          >
+            + Tambah Tier
+          </button>
+        </div>
+
+        <div v-if="productForm.tierPricing.length === 0" class="text-[10px] text-slate-500 italic">
+          Belum ada harga grosir khusus kuantitas. Tambahkan jika harga otomatis turun saat pelanggan membeli banyak.
+        </div>
+
+        <div v-else class="space-y-1.5">
+          <div
+            v-for="(tier, tIdx) in productForm.tierPricing"
+            :key="tIdx"
+            class="flex items-center gap-1.5 bg-white p-1.5 border border-slate-200 rounded text-xs shadow-2xs"
+          >
+            <div class="flex items-center gap-1 shrink-0">
+              <span class="text-[10px] text-slate-500 font-bold">Min:</span>
+              <input
+                v-model.number="tier.minQty"
+                type="number"
+                min="2"
+                class="w-14 px-1 py-0.5 border border-slate-300 rounded text-center text-xs font-bold"
+              />
+            </div>
+
+            <div class="flex items-center gap-1 flex-1 min-w-[90px]">
+              <span class="text-[10px] text-slate-500 font-bold">Rp</span>
+              <input
+                v-model.number="tier.price"
+                type="number"
+                step="100"
+                class="w-full px-1.5 py-0.5 border border-slate-300 rounded text-xs font-mono font-bold text-blue-700"
+              />
+            </div>
+
+            <input
+              v-model="tier.label"
+              type="text"
+              placeholder="Ket (mis. 1 Dus)"
+              class="w-24 px-1.5 py-0.5 border border-slate-300 rounded text-[10.5px]"
+            />
+
+            <button
+              type="button"
+              @click="removeTierPriceRow(tIdx)"
+              class="text-rose-500 hover:text-rose-700 font-bold px-1 text-xs cursor-pointer"
+              title="Hapus tier"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <!-- AREA 4: KULAKAN & STOK BARANG (DESAIN BERSIH & SELARAS) -->
-    <div class="space-y-2 pb-4 border-b border-gray-200">
+    <!-- AREA 4: KULAKAN & STOK BARANG (Dihilangkan untuk produk Jasa) -->
+    <div v-if="productForm.productType === 'SERVICE'" class="p-3 bg-indigo-50/80 border border-indigo-200 rounded-lg text-xs text-indigo-950 flex items-start gap-2.5 shadow-2xs">
+      <Wrench :size="16" class="text-indigo-600 shrink-0 mt-0.5" />
+      <div>
+        <strong class="font-bold text-indigo-900 block text-[11.5px]">Item Jasa / Servis Tidak Membutuhkan Stok Fisik</strong>
+        <p class="text-[10.5px] text-indigo-700 mt-0.5 leading-relaxed">
+          Stok barang fisik dinonaktifkan. Kasir dapat menjual layanan ini kapan saja tanpa risiko stok gudang minus, dan data pengerjaan dapat diatribusikan ke teknisi/staf.
+        </p>
+      </div>
+    </div>
+
+    <div v-else class="space-y-2 pb-4 border-b border-gray-200">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-1.5 font-bold text-gray-800 text-xs">
           <Truck :size="13" class="text-purple-600" />

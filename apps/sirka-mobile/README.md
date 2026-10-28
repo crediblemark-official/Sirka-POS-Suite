@@ -50,13 +50,13 @@ Aplikasi ini dikelola terpisah di dalam direktori `mobile/` dan **tidak memuat k
 >
 > ```bash
 > # 1. Generate project Android (butuh Android SDK + NDK)
-> cd mobile && npx tauri android init
+> cd apps/sirka-mobile && bun run tauri android init
 >
 > # 2. Pasang plugin (idempoten, aman diulang)
 > node scripts/install-android-keystore.mjs
 >
 > # 3. Build APK
-> npx tauri android build --apk
+> bun run tauri android build --apk
 > ```
 >
 > Plugin memakai `KeyGenParameterSpec` (ECDSA P-256 di Android Keystore) +

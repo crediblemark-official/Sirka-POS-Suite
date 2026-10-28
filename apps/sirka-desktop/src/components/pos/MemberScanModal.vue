@@ -17,15 +17,12 @@ import { Buyer } from '../../types';
 import { useBuyerStore } from '../../stores/buyerStore';
 import { useModalLock } from '../../composables/useModalLock';
 
+// BUG FIX: register modal-lock agar shortcut global (mis. Enter pada
+// ProductCatalog) tidak menambah produk ke keranjang saat modal terbuka.
+
 const props = defineProps<{
   isOpen: boolean;
 }>();
-
-// BUG FIX: register modal-lock agar shortcut global (mis. Enter pada
-// ProductCatalog) tidak menambah produk ke keranjang saat modal terbuka,
-// dan scanner PiP otomatis melepas webcam agar tidak tabrakan di Linux.
-const modalLock = useModalLock();
-modalLock.bind(() => props.isOpen);
 
 const emit = defineEmits<{
   (e: 'close'): void;
@@ -128,13 +125,8 @@ watch(
       }
 
       if (hasWebcam) {
-        // Beri jeda 150ms agar stream kamera background (PosScannerPiP)
-        // telah melepaskan handle /dev/video0 di Linux secara tuntas
-        setTimeout(async () => {
-          if (props.isOpen) {
-            await startWebcamScanner();
-          }
-        }, 150);
+        // Jika ada webcam terdeteksi, buka kamera langsung secara otomatis!
+        await startWebcamScanner();
       } else {
         // Jika tidak ada webcam, langsung fokuskan kursor ke input tembak barcode / keyboard
         setTimeout(() => {
@@ -187,11 +179,9 @@ async function startWebcamScanner() {
 
     mediaStream = stream;
     if (videoRef.value) {
-      const video = videoRef.value;
-      video.srcObject = stream;
-      video.setAttribute('playsinline', 'true');
-      video.muted = true;
-      video.play().catch(() => {});
+      videoRef.value.srcObject = stream;
+      videoRef.value.setAttribute('playsinline', 'true');
+      await videoRef.value.play();
       startScanLoop();
       setTimeout(() => {
         scanInputRef.value?.focus();
@@ -437,11 +427,10 @@ bindModalLock(() => props.isOpen);
             <!-- Native HTML5 Video Element -->
             <video
               ref="videoRef"
-              autoplay
-              playsinline
-              muted
               class="w-full h-full object-cover transition-transform duration-200"
               :class="isMirrored ? '-scale-x-100' : ''"
+              playsinline
+              muted
             ></video>
 
             <!-- Live Status Badge & Frame Counter -->

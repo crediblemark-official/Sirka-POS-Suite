@@ -19,7 +19,11 @@ import { execSync } from 'node:child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const MOBILE_DIR = resolve(__dirname, '..');
-const ROOT_DIR = resolve(MOBILE_DIR, '..');
+const ROOT_DIR = [
+  resolve(MOBILE_DIR, '../..'),
+  resolve(MOBILE_DIR, '..'),
+  process.cwd()
+].find(dir => existsSync(join(dir, 'certs', 'sirka-release.keystore'))) || resolve(MOBILE_DIR, '../..');
 
 const KEYSTORE_PATH = join(ROOT_DIR, 'certs', 'sirka-release.keystore');
 const KEYSTORE_PASS = 'Sirka2026!';

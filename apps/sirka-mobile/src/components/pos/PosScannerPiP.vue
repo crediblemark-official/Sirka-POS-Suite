@@ -1,906 +1,1065 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
-import {
-  MultiFormatReader,
-  BarcodeFormat,
-  DecodeHintType,
-  BinaryBitmap,
-  HybridBinarizer,
-  GlobalHistogramBinarizer,
-  HTMLCanvasElementLuminanceSource,
-  NotFoundException
-} from '@zxing/library';
-import { usePosStore } from '../../stores/posStore';
+import { ref, watch, nextTick, onMounted, onUnmounted, computed } from 'vue';
+import { BrowserMultiFormatReader, BarcodeFormat, DecodeHintType } from '@zxing/library';
+import jsQR from 'jsqr';
 import { useInventoryStore } from '../../stores/inventoryStore';
-import { isAnyModalOpen } from '../../composables/useModalLock';
-import { formatRupiah } from '../../utils/formatters';
-import type { Product } from '@sirka/shared-types';
+import { usePosStore } from '../../stores/posStore';
+import type { Product } from '../../types';
 import {
-  Camera,
   CameraOff,
+  X,
   Minimize2,
   Maximize2,
-  RefreshCw,
-  Power,
-  CheckCircle2,
+  FlipHorizontal,
+  Check,
   AlertCircle,
-  AlertTriangle,
+  ScanLine,
   Volume2,
   VolumeX,
-  Zap,
-  ScanLine
+  SwitchCamera,
+  ShoppingCart,
+  Trash2
 } from 'lucide-vue-next';
 
-// BUG FIX: Patch @zxing/library v0.23.0 bug di mana NotFoundException memicu console.warn banjir ribuan baris
-(MultiFormatReader.prototype as any).decodeInternal = function (this: any, image: any) {
-  if (!this.readers) throw new NotFoundException('No readers configured');
-  for (const reader of this.readers) {
-    try {
-      return reader.decode(image, this.hints);
-    } catch {
-      continue;
+const props = defineProps<{
+  isOpen: boolean;
+}>();
+
+const emit = defineEmits<{
+  (e: 'close'): void;
+}>();
+
+const inventoryStore = useInventoryStore();
+const posStore = usePosStore();
+
+// Scanner state
+const videoRef = ref<HTMLVideoElement | null>(null);
+const isCameraActive = ref(false);
+const cameraError = ref('');
+const isMirrored = ref(false);
+const isMinimized = ref(false);
+const soundEnabled = ref(true);
+const scanFramesCount = ref(0);
+
+// Camera devices
+const videoDevices = ref<MediaDeviceInfo[]>([]);
+const selectedDeviceId = ref<string>('');
+
+// Continuous scan tracking
+const lastScannedCode = ref('');
+const lastScanTime = ref(0);
+const scanCooldownMs = 1200; // 1.2 detik cooldown hanya untuk barcode yang persis sama
+export interface ScanHistoryItem {
+  code: string;
+  name: string;
+  price: number;
+  unitName: string;
+  cartQty: number;
+  time: number;
+  status: 'ok' | 'notfound';
+}
+const scanHistory = ref<ScanHistoryItem[]>([]);
+const totalScanned = ref(0);
+
+// Multi-engine scanner internals
+let mediaStream: MediaStream | null = null;
+let animationFrameId: number | null = null;
+let scanCanvas: HTMLCanvasElement | null = null;
+let scanCtx: CanvasRenderingContext2D | null = null;
+let scratchCanvas: HTMLCanvasElement | null = null;
+let scratchCtx: CanvasRenderingContext2D | null = null;
+let isProcessingFrame = false;
+
+// 1. Native BarcodeDetector (hardware accelerated)
+let nativeDetector: any = null;
+if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
+  try {
+    nativeDetector = new (window as any).BarcodeDetector({
+      formats: ['qr_code', 'ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'itf', 'data_matrix']
+    });
+  } catch (e) {
+    console.warn('[PosScannerPiP] BarcodeDetector init failed:', e);
+  }
+}
+
+// 2. ZXing Reader for 1D retail barcodes & 2D codes
+const zxingHints = new Map<DecodeHintType, any>();
+zxingHints.set(DecodeHintType.POSSIBLE_FORMATS, [
+  BarcodeFormat.QR_CODE,
+  BarcodeFormat.EAN_13,
+  BarcodeFormat.EAN_8,
+  BarcodeFormat.CODE_128,
+  BarcodeFormat.CODE_39,
+  BarcodeFormat.UPC_A,
+  BarcodeFormat.UPC_E,
+  BarcodeFormat.ITF,
+  BarcodeFormat.DATA_MATRIX
+]);
+zxingHints.set(DecodeHintType.TRY_HARDER, true);
+const zxingReader = new BrowserMultiFormatReader(zxingHints);
+
+// Feedback animation
+const flashStatus = ref<'ok' | 'notfound' | null>(null);
+let flashTimeout: ReturnType<typeof setTimeout> | null = null;
+
+function playScanSound(success: boolean = true) {
+  if (!soundEnabled.value) return;
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+
+    if (success) {
+      // Kasir swalayan chime: high crisp beep (950 Hz)
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(950, ctx.currentTime);
+      gain.gain.setValueAtTime(0.18, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.09);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.09);
+    } else {
+      // Error chime: double low beep (320 Hz)
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(320, ctx.currentTime);
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.2);
+    }
+  } catch {
+    // Ignore audio error
+  }
+}
+
+interface ScanResult {
+  product: Product;
+  unitName?: string;
+}
+
+function lookupByBarcode(code: string): ScanResult | undefined {
+  const key = code.trim();
+  if (!key) return undefined;
+  const prods = inventoryStore.products;
+
+  // 1. Exact match pada barcode produk atau kode SKU
+  for (const p of prods) {
+    const pBarcode = (p.barcode || '').trim();
+    const pCode = (p.code || '').trim().toUpperCase();
+    if (pBarcode === key || pCode === key.toUpperCase()) {
+      return { product: p };
+    }
+    // Cek barcode satuan bertingkat (misal scan barcode kardus DUS)
+    if (p.units && Array.isArray(p.units)) {
+      const matchUnit = p.units.find(u => (u.barcode || '').trim() === key);
+      if (matchUnit) {
+        return { product: p, unitName: matchUnit.unitName };
+      }
     }
   }
-  throw new NotFoundException('No barcode found');
-};
 
-const props = withDefaults(
-  defineProps<{
-    isActive?: boolean;
-    isMobile?: boolean;
-  }>(),
-  {
-    isActive: true,
-    isMobile: true
+  // 2. Normalisasi awalan nol (UPC-A 12 digit vs EAN-13 13 digit)
+  const keyWithoutZero = key.replace(/^0+/, '');
+  const keyWithZero = '0' + key;
+  for (const p of prods) {
+    const pBarcode = (p.barcode || '').trim();
+    if (pBarcode && (pBarcode === keyWithoutZero || pBarcode === keyWithZero)) {
+      return { product: p };
+    }
+    if (p.units && Array.isArray(p.units)) {
+      const matchUnit = p.units.find(u => {
+        const uBarcode = (u.barcode || '').trim();
+        return uBarcode && (uBarcode === keyWithoutZero || uBarcode === keyWithZero);
+      });
+      if (matchUnit) {
+        return { product: p, unitName: matchUnit.unitName };
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function handleScannedCode(rawCode: string) {
+  const code = rawCode.trim();
+  if (!code) return;
+
+  const now = Date.now();
+
+  // Cooldown HANYA berlaku bila barcode sama persis discan berturut-turut dalam jeda singkat
+  if (code === lastScannedCode.value && (now - lastScanTime.value) < scanCooldownMs) {
+    return;
+  }
+
+  lastScannedCode.value = code;
+  lastScanTime.value = now;
+  totalScanned.value++;
+
+  const match = lookupByBarcode(code);
+  if (match) {
+    posStore.addProductToCart(match.product, 1, match.unitName);
+
+    // Ambil info qty terkini di keranjang
+    const cartItem = posStore.cartItems.find(
+      ci => ci.productId === match.product.id && (match.unitName ? ci.unit === match.unitName : true)
+    );
+    const cartQty = cartItem ? cartItem.qty : 1;
+    const sellPrice = match.unitName
+      ? (match.product.units?.find(u => u.unitName === match.unitName)?.sellPrice ?? match.product.lastSellPrice)
+      : match.product.lastSellPrice;
+
+    playScanSound(true);
+    showFlash('ok');
+    scanHistory.value.unshift({
+      code,
+      name: match.product.name,
+      price: sellPrice,
+      unitName: match.unitName || match.product.unit || 'pcs',
+      cartQty,
+      time: now,
+      status: 'ok'
+    });
+  } else {
+    playScanSound(false);
+    showFlash('notfound');
+    scanHistory.value.unshift({
+      code,
+      name: `Barcode "${code}" belum terdaftar`,
+      price: 0,
+      unitName: '',
+      cartQty: 0,
+      time: now,
+      status: 'notfound'
+    });
+  }
+
+  if (scanHistory.value.length > 20) {
+    scanHistory.value = scanHistory.value.slice(0, 20);
+  }
+}
+
+function showFlash(status: 'ok' | 'notfound') {
+  if (flashTimeout) clearTimeout(flashTimeout);
+  flashStatus.value = status;
+  flashTimeout = setTimeout(() => {
+    flashStatus.value = null;
+  }, 1000);
+}
+
+const latestScan = computed(() => scanHistory.value[0] || null);
+
+// ─── Camera Lifecycle & Devices ───
+
+async function enumerateCameras() {
+  try {
+    if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      videoDevices.value = devices.filter(d => d.kind === 'videoinput');
+    }
+  } catch (err) {
+    console.warn('[PosScannerPiP] Gagal mendeteksi daftar webcam:', err);
+  }
+}
+
+async function switchCamera() {
+  if (videoDevices.value.length < 2) return;
+  const currentIdx = videoDevices.value.findIndex(d => d.deviceId === selectedDeviceId.value);
+  const nextIdx = (currentIdx + 1) % videoDevices.value.length;
+  selectedDeviceId.value = videoDevices.value[nextIdx].deviceId;
+  stopWebcamScanner();
+  await startWebcamScanner();
+}
+
+watch(
+  () => props.isOpen,
+  async (open) => {
+    if (open) {
+      await enumerateCameras();
+      await startWebcamScanner();
+    } else {
+      stopWebcamScanner();
+    }
   }
 );
 
-const emit = defineEmits<{
-  (e: 'scan-success', product: Product): void;
-  (e: 'scan-not-found', code: string): void;
-}>();
+async function startWebcamScanner() {
+  cameraError.value = '';
+  isCameraActive.value = true;
+  scanFramesCount.value = 0;
+  await nextTick();
 
-const posStore = usePosStore();
-const inventoryStore = useInventoryStore();
-
-// Native Video Reference
-const videoRef = ref<HTMLVideoElement | null>(null);
-
-// State
-const isCameraEnabled = ref(localStorage.getItem('sirka_scanner_camera_enabled') !== 'false');
-const isMinimized = ref(localStorage.getItem('sirka_scanner_pip_minimized') === 'true');
-const isSoundEnabled = ref(localStorage.getItem('sirka_scanner_sound_enabled') !== 'false');
-
-// Kamera Depan (User) vs Belakang (Environment) di Mobile
-const savedFacing = (localStorage.getItem('sirka_scanner_facing_mode') as 'user' | 'environment') || 'environment';
-const facingMode = ref<'user' | 'environment'>(savedFacing);
-// Mirror otomatis: Kamera depan (selfie) SELALU mirror, kamera belakang normal
-const isMirrored = ref(facingMode.value === 'user');
-
-const isTorchOn = ref(false);
-const isTorchAvailable = ref(false);
-
-const isScanning = ref(false);
-const isStarting = ref(false);
-const errorMessage = ref('');
-const availableCameras = ref<Array<{ id: string; label: string }>>([]);
-const selectedCameraId = ref<string>('');
-const isSuccessFlashing = ref(false);
-const isErrorFlashing = ref(false);
-
-const recentScan = ref<{
-  success: boolean;
-  name: string;
-  code: string;
-  price: number;
-  unit?: string;
-  time: number;
-} | null>(null);
-
-let zxingReader: MultiFormatReader | null = null;
-let nativeBarcodeDetector: any = null;
-let scanCanvas: HTMLCanvasElement | null = null;
-let scanCtx: CanvasRenderingContext2D | null = null;
-let scanIntervalId: any = null;
-let isScanBusy = false;
-let currentStream: MediaStream | null = null;
-let lastScannedCode = '';
-let lastScannedAt = 0;
-let clearLastCodeTimer: any = null;
-let recentScanTimer: any = null;
-
-// Hardware Barcode Scanner Keyboard Wedge Listener (OTG scanner / Bluetooth Barcode)
-let barcodeBuffer = '';
-let lastKeyTime = 0;
-
-// Format Barcode Retail yang didukung (Format 1D upfront agar respon kilat)
-const barcodeHints = new Map<DecodeHintType, any>();
-barcodeHints.set(DecodeHintType.POSSIBLE_FORMATS, [
-  BarcodeFormat.EAN_13,
-  BarcodeFormat.EAN_8,
-  BarcodeFormat.UPC_A,
-  BarcodeFormat.UPC_E,
-  BarcodeFormat.CODE_128,
-  BarcodeFormat.CODE_39,
-  BarcodeFormat.CODE_93,
-  BarcodeFormat.QR_CODE
-]);
-
-function playAudioChime(type: 'success' | 'error' = 'success') {
-  if (!isSoundEnabled.value) return;
   try {
-    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioContextClass) return;
-    const audioCtx = new AudioContextClass();
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-
-    if (type === 'success') {
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(987.77, audioCtx.currentTime);
-      gain.gain.setValueAtTime(0.18, audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
-      osc.start();
-      osc.stop(audioCtx.currentTime + 0.08);
-    } else {
-      const now = audioCtx.currentTime;
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(240, now);
-      gain.gain.setValueAtTime(0.25, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.11);
-      osc.start(now);
-      osc.stop(now + 0.11);
-
-      const osc2 = audioCtx.createOscillator();
-      const gain2 = audioCtx.createGain();
-      osc2.connect(gain2);
-      gain2.connect(audioCtx.destination);
-      osc2.type = 'sawtooth';
-      osc2.frequency.setValueAtTime(180, now + 0.13);
-      gain2.gain.setValueAtTime(0.25, now + 0.13);
-      gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.28);
-      osc2.start(now + 0.13);
-      osc2.stop(now + 0.28);
-    }
-  } catch {
-    // Audio autoplay block ignore
-  }
-}
-
-function processBarcode(rawCode: string) {
-  const code = (rawCode || '').trim();
-  if (!code) return;
-
-  const prods = inventoryStore.products;
-
-  // 1. Match product barcode
-  let found = prods.find(p => (p.barcode || '').trim().toLowerCase() === code.toLowerCase());
-  let foundUnit: string | undefined;
-
-  // 2. Match packaging unit barcode (e.g. DUS / RENCENG)
-  if (!found) {
-    for (const p of prods) {
-      const u = (p.units || []).find(unit => (unit.barcode || '').trim().toLowerCase() === code.toLowerCase());
-      if (u) {
-        found = p;
-        foundUnit = u.unitName;
-        break;
-      }
-    }
-  }
-
-  // 3. Match SKU / Code
-  if (!found) {
-    found = prods.find(p => (p.code || '').trim().toLowerCase() === code.toLowerCase());
-  }
-
-  // 4. Match ID
-  if (!found) {
-    found = prods.find(p => p.id === code);
-  }
-
-  if (found) {
-    playAudioChime('success');
-    isSuccessFlashing.value = true;
-    setTimeout(() => {
-      isSuccessFlashing.value = false;
-    }, 450);
-
-    if (foundUnit) {
-      posStore.addProductToCart(found, 1, foundUnit);
-    } else {
-      posStore.addProductToCart(found, 1);
-    }
-
-    const price = foundUnit
-      ? ((found.units || []).find((u: any) => u.unitName === foundUnit)?.sellPrice || found.lastSellPrice || 0)
-      : (found.lastSellPrice || 0);
-
-    recentScan.value = {
-      success: true,
-      name: found.name,
-      code,
-      price,
-      unit: foundUnit,
-      time: Date.now()
+    const constraints: MediaStreamConstraints = {
+      video: selectedDeviceId.value
+        ? { deviceId: { exact: selectedDeviceId.value }, width: { ideal: 1280 }, height: { ideal: 720 } }
+        : { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false
     };
 
-    emit('scan-success', found);
-  } else {
-    playAudioChime('error');
-    isErrorFlashing.value = true;
-    setTimeout(() => {
-      isErrorFlashing.value = false;
-    }, 600);
-
-    recentScan.value = {
-      success: false,
-      name: 'Produk Tidak Ditemukan',
-      code,
-      price: 0,
-      time: Date.now()
-    };
-    emit('scan-not-found', code);
-  }
-
-  if (recentScanTimer) clearTimeout(recentScanTimer);
-  recentScanTimer = setTimeout(() => {
-    recentScan.value = null;
-  }, 4000);
-}
-
-function handleCodeDetected(rawCode: string) {
-  const code = (rawCode || '').trim();
-  if (!code) return;
-
-  const now = Date.now();
-  // Anti-double scan cooldown (1.0 detik untuk produk yang sama persis, tanpa jeda jika produk berbeda)
-  if (code === lastScannedCode && now - lastScannedAt < 1000) {
-    return;
-  }
-
-  lastScannedCode = code;
-  lastScannedAt = now;
-
-  if (clearLastCodeTimer) clearTimeout(clearLastCodeTimer);
-  clearLastCodeTimer = setTimeout(() => {
-    lastScannedCode = '';
-  }, 1800);
-
-  processBarcode(code);
-}
-
-// Hardware Barcode Scanner listener (USB / Bluetooth Keyboard Wedge di Android / Tablet)
-function handleGlobalKeydown(e: KeyboardEvent) {
-  if (!props.isActive) return;
-
-  const target = e.target as HTMLElement | null;
-  const isInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA');
-
-  const now = Date.now();
-  const timeDiff = now - lastKeyTime;
-  lastKeyTime = now;
-
-  if (e.key === 'Enter') {
-    if (barcodeBuffer.length >= 3 && timeDiff < 90) {
-      const scannedCode = barcodeBuffer.trim();
-      barcodeBuffer = '';
-      if (isInput) {
-        (target as HTMLInputElement).value = '';
-        target.blur();
-      }
-      e.preventDefault();
-      e.stopPropagation();
-      handleCodeDetected(scannedCode);
-    } else {
-      barcodeBuffer = '';
-    }
-    return;
-  }
-
-  if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
-    if (timeDiff > 90) {
-      barcodeBuffer = e.key;
-    } else {
-      barcodeBuffer += e.key;
-    }
-  }
-}
-
-async function initializeCameras() {
-  try {
-    errorMessage.value = '';
-    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.enumerateDevices) return;
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const videoDevices = devices
-      .filter(d => d.kind === 'videoinput')
-      .map(d => ({ id: d.deviceId, label: d.label || 'Kamera' }));
-
-    if (videoDevices.length > 0) {
-      availableCameras.value = videoDevices;
-    } else {
-      errorMessage.value = 'Tidak ada perangkat kamera terdeteksi.';
-    }
-  } catch (err: any) {
-    console.warn('Gagal membaca daftar kamera mobile:', err);
-  }
-}
-
-function initReaders() {
-  if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
+    let stream: MediaStream;
     try {
-      nativeBarcodeDetector = new (window as any).BarcodeDetector({
-        formats: [
-          'ean_13',
-          'ean_8',
-          'upc_a',
-          'upc_e',
-          'code_128',
-          'code_39',
-          'code_93',
-          'qr_code'
-        ]
-      });
+      stream = await navigator.mediaDevices.getUserMedia(constraints);
     } catch {
-      nativeBarcodeDetector = null;
+      // Fallback: coba kamera default apa saja
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false
+        });
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      }
     }
-  }
 
-  if (!zxingReader) {
-    zxingReader = new MultiFormatReader();
-    zxingReader.setHints(barcodeHints);
-  }
+    mediaStream = stream;
+    if (videoRef.value) {
+      videoRef.value.srcObject = stream;
+      videoRef.value.setAttribute('playsinline', 'true');
+      await videoRef.value.play();
+      startScanLoop();
+    }
 
-  if (!scanCanvas) {
-    scanCanvas = document.createElement('canvas');
-    scanCtx = scanCanvas.getContext('2d', { willReadFrequently: true });
+    // Perbarui daftar kamera setelah izin webcam aktif
+    await enumerateCameras();
+  } catch (err: any) {
+    const msg = String(err?.message || err || '');
+    if (msg.includes('NotAllowedError') || msg.includes('PermissionDenied')) {
+      cameraError.value = 'Izin kamera ditolak. Periksa pengaturan sistem.';
+    } else if (msg.includes('NotFoundError') || msg.includes('DevicesNotFound')) {
+      cameraError.value = 'Tidak ada webcam yang terdeteksi di perangkat ini.';
+    } else {
+      cameraError.value = err?.message || 'Gagal mengakses webcam.';
+    }
+    isCameraActive.value = false;
   }
 }
 
 function startScanLoop() {
-  stopScanLoop();
-  initReaders();
+  if (!scanCanvas) {
+    scanCanvas = document.createElement('canvas');
+    scanCtx = scanCanvas.getContext('2d', { willReadFrequently: true });
+  }
+  if (!scratchCanvas) {
+    scratchCanvas = document.createElement('canvas');
+    scratchCtx = scratchCanvas.getContext('2d', { willReadFrequently: true });
+  }
 
-  // Scan loop 60ms (~16 fps)
-  scanIntervalId = setInterval(async () => {
-    if (isScanBusy || !isScanning.value) return;
-    const video = videoRef.value;
-    if (!video || video.paused || video.ended || video.videoWidth === 0) return;
+  let lastScan = 0;
 
-    isScanBusy = true;
+  const tick = async () => {
+    if (!isCameraActive.value) return;
+
     try {
-      // 1. Native Hardware BarcodeDetector (Sangat cepat & akurat di Android WebView)
-      if (nativeBarcodeDetector) {
-        try {
-          const detected = await nativeBarcodeDetector.detect(video);
-          if (detected && detected.length > 0) {
-            const raw = detected[0].rawValue?.trim();
-            if (raw) {
-              handleCodeDetected(raw);
-              return;
+      const video = videoRef.value;
+      if (video && video.videoWidth > 0 && !video.paused && !isProcessingFrame) {
+        const now = performance.now();
+        if (now - lastScan >= 45) { // ~22 fps
+          lastScan = now;
+          isProcessingFrame = true;
+          scanFramesCount.value++;
+
+          let decodedCode: string | null = null;
+
+          // 1. Mesin Utama: BarcodeDetector bawaan (hardware accelerated)
+          if (nativeDetector) {
+            try {
+              const barcodes = await nativeDetector.detect(video);
+              if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+                decodedCode = barcodes[0].rawValue;
+              }
+            } catch {
+              // fallback ke ZXing
             }
           }
-        } catch {
-          // fallback ke zxing jika native error di frame tertentu
-        }
-      }
 
-      // 2. ZXing Reader Fallback
-      if (zxingReader && scanCanvas && scanCtx) {
-        const targetWidth = Math.min(800, video.videoWidth);
-        const scale = targetWidth / video.videoWidth;
-        const targetHeight = Math.floor(video.videoHeight * scale);
+          // 2. Mesin Kedua: ZXing BrowserMultiFormatReader langsung pada video element (1D retail barcodes + 2D)
+          if (!decodedCode && video) {
+            try {
+              const zxRes = zxingReader.decode(video);
+              if (zxRes && zxRes.getText()) {
+                decodedCode = zxRes.getText();
+              }
+            } catch {
+              // NotFoundException wajar tiap frame jika barcode belum tepat di depan kamera
+            }
+          }
 
-        scanCanvas.width = targetWidth;
-        scanCanvas.height = targetHeight;
-        scanCtx.drawImage(video, 0, 0, targetWidth, targetHeight);
+          // 3. Mesin Ketiga: jsQR spesialis QR code
+          if (!decodedCode && scanCtx && scanCanvas) {
+            const targetWidth = Math.min(720, video.videoWidth);
+            const scale = targetWidth / video.videoWidth;
+            const targetHeight = Math.floor(video.videoHeight * scale);
 
-        const luminanceSource = new HTMLCanvasElementLuminanceSource(scanCanvas);
-        let result: any = null;
+            scanCanvas.width = targetWidth;
+            scanCanvas.height = targetHeight;
+            scanCtx.drawImage(video, 0, 0, targetWidth, targetHeight);
 
-        // Coba 1: HybridBinarizer
-        try {
-          const bitmap = new BinaryBitmap(new HybridBinarizer(luminanceSource));
-          result = zxingReader.decodeWithState(bitmap);
-        } catch {
-          // Coba 2: GlobalHistogramBinarizer (ampuh untuk barcode 1D di berbagai kondisi cahaya)
-          try {
-            const bitmap = new BinaryBitmap(new GlobalHistogramBinarizer(luminanceSource));
-            result = zxingReader.decodeWithState(bitmap);
-          } catch {
-            // Frame tanpa barcode (senyap)
+            try {
+              const imgData = scanCtx.getImageData(0, 0, targetWidth, targetHeight);
+              const qrRes = jsQR(imgData.data, targetWidth, targetHeight, {
+                inversionAttempts: 'attemptBoth'
+              });
+              if (qrRes && qrRes.data) {
+                decodedCode = qrRes.data;
+              }
+            } catch {
+              // Ignore
+            }
+
+            // 4. Jika mode cermin aktif dan belum terdeteksi, coba balik frame di scratch canvas
+            if (!decodedCode && isMirrored.value && scratchCtx && scratchCanvas) {
+              try {
+                scratchCanvas.width = targetWidth;
+                scratchCanvas.height = targetHeight;
+                scratchCtx.save();
+                scratchCtx.translate(targetWidth, 0);
+                scratchCtx.scale(-1, 1);
+                scratchCtx.drawImage(scanCanvas, 0, 0);
+                scratchCtx.restore();
+
+                const flippedData = scratchCtx.getImageData(0, 0, targetWidth, targetHeight);
+                const flippedQr = jsQR(flippedData.data, targetWidth, targetHeight, {
+                  inversionAttempts: 'attemptBoth'
+                });
+                if (flippedQr && flippedQr.data) {
+                  decodedCode = flippedQr.data;
+                }
+              } catch {
+                // Ignore
+              }
+            }
+          }
+
+          if (decodedCode) {
+            handleScannedCode(decodedCode);
           }
         }
-
-        if (result && result.getText()) {
-          const text = result.getText().trim();
-          if (text) {
-            handleCodeDetected(text);
-          }
-        }
       }
-    } catch {
-      // error frame senyap
+    } catch (err) {
+      console.warn('[PosScannerPiP] frame error:', err);
     } finally {
-      if (zxingReader) {
-        try { zxingReader.reset(); } catch {}
+      isProcessingFrame = false;
+      if (isCameraActive.value) {
+        animationFrameId = requestAnimationFrame(tick);
       }
-      isScanBusy = false;
     }
-  }, 60);
+  };
+
+  animationFrameId = requestAnimationFrame(tick);
 }
 
-function stopScanLoop() {
-  if (scanIntervalId) {
-    clearInterval(scanIntervalId);
-    scanIntervalId = null;
+function stopWebcamScanner() {
+  if (animationFrameId !== null) {
+    cancelAnimationFrame(animationFrameId);
+    animationFrameId = null;
   }
-  isScanBusy = false;
+  if (mediaStream) {
+    mediaStream.getTracks().forEach(t => t.stop());
+    mediaStream = null;
+  }
+  if (videoRef.value) {
+    videoRef.value.srcObject = null;
+  }
+  isCameraActive.value = false;
+  cameraError.value = '';
 }
 
-async function startCameraScanner() {
-  if (isStarting.value || isScanning.value || !isCameraEnabled.value || !props.isActive || isAnyModalOpen.value) return;
-
-  isStarting.value = true;
-  errorMessage.value = '';
-
-  await nextTick();
-  if (!videoRef.value) {
-    isStarting.value = false;
-    return;
-  }
-
-  try {
-    initReaders();
-
-    const videoConstraints: MediaTrackConstraints = {
-      width: { ideal: 1280 },
-      height: { ideal: 720 }
-    };
-
-    if (selectedCameraId.value) {
-      videoConstraints.deviceId = { exact: selectedCameraId.value };
-    } else {
-      videoConstraints.facingMode = { ideal: facingMode.value };
-    }
-
-    let stream: MediaStream;
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: videoConstraints,
-        audio: false
-      });
-    } catch {
-      // Fallback tanpa resolusi spesifik
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: facingMode.value } },
-        audio: false
-      });
-    }
-
-    // CRITICAL: Jika modal dibuka atau scanner dinonaktifkan saat getUserMedia sedang menunggu,
-    // segera hentikan stream ini agar tidak memblokir hardware kamera!
-    if (isAnyModalOpen.value || !isCameraEnabled.value || !props.isActive) {
-      stream.getTracks().forEach(t => {
-        try { t.stop(); } catch {}
-      });
-      isStarting.value = false;
-      isScanning.value = false;
-      return;
-    }
-
-    currentStream = stream;
-
-    // Pasang stream ke video native
-    if (videoRef.value) {
-      const video = videoRef.value;
-      video.srcObject = stream;
-      video.setAttribute('playsinline', 'true');
-      video.muted = true;
-      video.play().catch(() => {});
-    }
-
-    isScanning.value = true;
-    checkTorchSupport();
-
-    // Coba aktifkan continuous autofocus jika hardware kamera mendukungnya
-    try {
-      const track = stream.getVideoTracks()?.[0];
-      if (track) {
-        const capabilities = (track as any).getCapabilities?.();
-        if (capabilities?.focusMode?.includes('continuous')) {
-          await (track as any).applyConstraints?.({
-            advanced: [{ focusMode: 'continuous' }]
-          });
-        }
-      }
-    } catch {
-      // Focus opsional
-    }
-
-    startScanLoop();
-  } catch (err: any) {
-    console.error('Gagal mengakses video kamera mobile:', err);
-    errorMessage.value = 'Gagal mengakses video kamera.';
-    isScanning.value = false;
-  } finally {
-    isStarting.value = false;
-  }
-}
-
-async function stopCameraScanner() {
-  isStarting.value = false;
-  isScanning.value = false;
-  isTorchOn.value = false;
-  isTorchAvailable.value = false;
-  stopScanLoop();
-
-  try {
-    if (currentStream) {
-      currentStream.getTracks().forEach(t => {
-        try { t.stop(); } catch {}
-      });
-      currentStream = null;
-    }
-    if (videoRef.value) {
-      videoRef.value.srcObject = null;
-    }
-  } catch (err) {
-    console.warn('Cleanup error saat stop mobile scanner:', err);
-  }
-}
-
-function checkTorchSupport() {
-  if (!currentStream) {
-    isTorchAvailable.value = false;
-    return;
-  }
-  try {
-    const track = currentStream.getVideoTracks()?.[0];
-    const capabilities = (track as any)?.getCapabilities?.();
-    isTorchAvailable.value = !!capabilities?.torch;
-  } catch {
-    isTorchAvailable.value = false;
-  }
-}
-
-async function toggleTorch() {
-  if (!currentStream || !isTorchAvailable.value) return;
-  try {
-    const track = currentStream.getVideoTracks()?.[0];
-    if (track) {
-      isTorchOn.value = !isTorchOn.value;
-      await (track as any).applyConstraints({
-        advanced: [{ torch: isTorchOn.value }]
-      });
-    }
-  } catch (err) {
-    console.warn('Torch error:', err);
-  }
-}
-
-async function flipCameraMobile() {
-  if (isStarting.value) return;
-
-  const nextMode = facingMode.value === 'environment' ? 'user' : 'environment';
-  facingMode.value = nextMode;
-  localStorage.setItem('sirka_scanner_facing_mode', nextMode);
-
-  // Kamera depan (selfie/webcam) otomatis mirror cermin, kamera belakang normal
-  isMirrored.value = (nextMode === 'user');
-  selectedCameraId.value = '';
-
-  await stopCameraScanner();
-  await startCameraScanner();
-}
-
-function togglePower() {
-  isCameraEnabled.value = !isCameraEnabled.value;
-  localStorage.setItem('sirka_scanner_camera_enabled', isCameraEnabled.value ? 'true' : 'false');
-  if (isCameraEnabled.value) {
-    startCameraScanner();
-  } else {
-    stopCameraScanner();
-  }
+function handleClose() {
+  stopWebcamScanner();
+  emit('close');
 }
 
 function toggleMinimize() {
   isMinimized.value = !isMinimized.value;
-  localStorage.setItem('sirka_scanner_pip_minimized', isMinimized.value ? 'true' : 'false');
 }
 
-function toggleSound() {
-  isSoundEnabled.value = !isSoundEnabled.value;
-  localStorage.setItem('sirka_scanner_sound_enabled', isSoundEnabled.value ? 'true' : 'false');
+function clearHistory() {
+  scanHistory.value = [];
 }
 
-// Koordinasi Kamera dengan Modal (seperti Scan Kartu Member)
-watch(isAnyModalOpen, async (modalOpen) => {
-  if (modalOpen) {
-    // Bebaskan kamera saat modal scan member aktif
-    await stopCameraScanner();
-  } else if (props.isActive && isCameraEnabled.value) {
-    // Ambil kembali kamera saat modal selesai dengan jeda 150ms agar device dilepas
-    setTimeout(async () => {
-      if (!isAnyModalOpen.value && props.isActive && isCameraEnabled.value) {
-        await startCameraScanner();
-      }
-    }, 150);
+function formatRupiah(val: number) {
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    maximumFractionDigits: 0
+  }).format(val);
+}
+
+onMounted(() => {
+  if (props.isOpen) {
+    startWebcamScanner();
   }
 });
 
-watch(
-  () => props.isActive,
-  async (active) => {
-    if (active && isCameraEnabled.value && !isAnyModalOpen.value) {
-      await startCameraScanner();
-    } else {
-      await stopCameraScanner();
-    }
-  }
-);
-
-onMounted(async () => {
-  window.addEventListener('keydown', handleGlobalKeydown, true);
-  await initializeCameras();
-  if (props.isActive && isCameraEnabled.value && !isAnyModalOpen.value) {
-    await startCameraScanner();
-  }
-});
-
-onUnmounted(async () => {
-  window.removeEventListener('keydown', handleGlobalKeydown, true);
-  if (clearLastCodeTimer) clearTimeout(clearLastCodeTimer);
-  if (recentScanTimer) clearTimeout(recentScanTimer);
-  await stopCameraScanner();
+onUnmounted(() => {
+  stopWebcamScanner();
+  if (flashTimeout) clearTimeout(flashTimeout);
 });
 </script>
 
 <template>
-  <div class="pointer-events-none select-none">
-    <!-- 1. MINIMIZED STATE: Floating Compact Square Button -->
-    <div
-      v-if="isMinimized"
-      class="fixed z-40 pointer-events-auto transition-all animate-in fade-in duration-200"
-      :class="isMobile ? 'bottom-20 right-4' : 'bottom-4 left-4'"
-    >
-      <button
-        type="button"
-        @click="toggleMinimize"
-        class="group flex items-center gap-2 px-3 py-2 bg-slate-900/95 hover:bg-slate-800 text-white shadow-2xl border border-white/20 backdrop-blur-md cursor-pointer transition-all active:scale-95"
-        title="Klik untuk membuka Mini Viewfinder Scanner Kamera"
-      >
-        <div class="relative flex items-center justify-center">
-          <Camera :size="16" class="text-amber-400 group-hover:scale-110 transition-transform" />
-          <span
-            v-if="isScanning"
-            class="absolute -top-1 -right-1 w-2 h-2 bg-emerald-400 ring-1 ring-slate-900 animate-pulse"
-          ></span>
-        </div>
-        <span class="text-xs font-bold font-mono tracking-tight text-slate-100 pr-1">
-          {{ isScanning ? 'Scanner Aktif' : 'Scanner Siap' }}
+  <!-- PiP Floating Scanner Widget (Mobile) -->
+  <div
+    v-if="isOpen"
+    class="pos-scanner-pip-mobile"
+    :class="{
+      'pip-minimized': isMinimized,
+      'pip-expanded': !isMinimized
+    }"
+  >
+    <!-- Header Bar -->
+    <div class="pip-header">
+      <div class="pip-header-left">
+        <ScanLine :size="13" class="text-amber-400 animate-pulse shrink-0" />
+        <span class="pip-header-title">Scanner Kasir</span>
+        <span v-if="totalScanned > 0" class="pip-scan-count">
+          {{ totalScanned }}
         </span>
-        <Maximize2 :size="13" class="text-slate-400 group-hover:text-white transition-colors" />
-      </button>
+      </div>
+      <div class="pip-header-actions">
+        <!-- Switch Camera Button (hanya tampil jika > 1 kamera) -->
+        <button
+          v-if="videoDevices.length > 1"
+          type="button"
+          class="pip-action-btn"
+          title="Ganti Kamera"
+          @click="switchCamera"
+        >
+          <SwitchCamera :size="12" />
+        </button>
+
+        <!-- Toggle Sound -->
+        <button
+          type="button"
+          class="pip-action-btn"
+          :class="{ 'text-amber-400': soundEnabled }"
+          :title="soundEnabled ? 'Matikan Suara Beep' : 'Nyalakan Suara Beep'"
+          @click="soundEnabled = !soundEnabled"
+        >
+          <Volume2 v-if="soundEnabled" :size="12" />
+          <VolumeX v-else :size="12" />
+        </button>
+
+        <!-- Flip/Mirror -->
+        <button
+          type="button"
+          class="pip-action-btn"
+          :title="isMirrored ? 'Normal' : 'Cermin'"
+          @click="isMirrored = !isMirrored"
+        >
+          <FlipHorizontal :size="12" />
+        </button>
+
+        <!-- Minimize/Maximize -->
+        <button
+          type="button"
+          class="pip-action-btn"
+          :title="isMinimized ? 'Perbesar' : 'Perkecil'"
+          @click="toggleMinimize"
+        >
+          <Maximize2 v-if="isMinimized" :size="12" />
+          <Minimize2 v-else :size="12" />
+        </button>
+
+        <!-- Close -->
+        <button
+          type="button"
+          class="pip-action-btn pip-close-btn"
+          title="Tutup Scanner"
+          @click="handleClose"
+        >
+          <X :size="12" />
+        </button>
+      </div>
     </div>
 
-    <!-- 2. EXPANDED STATE: Modern Mini Picture-in-Picture Viewfinder (No Rounding) -->
+    <!-- Camera Feed (collapsed if minimized) -->
+    <div v-show="!isMinimized" class="pip-camera-container">
+      <video
+        ref="videoRef"
+        class="pip-video"
+        :class="{ 'pip-mirrored': isMirrored }"
+        playsinline
+        muted
+      ></video>
+
+      <!-- Viewfinder Box -->
+      <div class="pip-viewfinder">
+        <div class="pip-corner pip-corner-tl"></div>
+        <div class="pip-corner pip-corner-tr"></div>
+        <div class="pip-corner pip-corner-bl"></div>
+        <div class="pip-corner pip-corner-br"></div>
+        <!-- Laser Sweep Animation -->
+        <div class="pip-laser"></div>
+      </div>
+
+      <!-- Flash Overlay on Scan -->
+      <div
+        v-if="flashStatus"
+        class="pip-flash"
+        :class="{
+          'pip-flash-ok': flashStatus === 'ok',
+          'pip-flash-fail': flashStatus === 'notfound'
+        }"
+      >
+        <div class="pip-flash-badge">
+          <Check v-if="flashStatus === 'ok'" :size="20" class="text-white" />
+          <AlertCircle v-else :size="20" class="text-white" />
+        </div>
+      </div>
+
+      <!-- Camera Error -->
+      <div v-if="cameraError" class="pip-error-overlay">
+        <CameraOff :size="20" class="text-rose-400" />
+        <span class="text-[9px] text-rose-200 font-medium text-center leading-tight">{{ cameraError }}</span>
+        <button
+          type="button"
+          class="pip-retry-btn"
+          @click="startWebcamScanner"
+        >
+          Coba Lagi
+        </button>
+      </div>
+
+      <!-- Status Badge -->
+      <div v-if="isCameraActive && !cameraError" class="pip-status-badge">
+        <span class="pip-status-dot"></span>
+        <span class="text-[8.5px] font-bold text-emerald-300">AUTO SCAN</span>
+      </div>
+    </div>
+
+    <!-- Latest Scan Result (always visible, even minimized) -->
     <div
-      v-show="!isMinimized"
-      class="fixed z-40 pointer-events-auto transition-all animate-in fade-in zoom-in-95 duration-200 border border-slate-700"
-      :class="[
-        isMobile ? 'bottom-20 right-3' : 'bottom-4 left-4',
-        isErrorFlashing
-          ? 'ring-4 ring-rose-500 shadow-[0_0_35px_rgba(244,63,94,0.95)] animate-glitch'
-          : isSuccessFlashing
-            ? 'ring-4 ring-emerald-400/80 shadow-[0_0_25px_rgba(16,185,129,0.5)]'
-            : 'shadow-2xl'
-      ]"
-      style="width: 220px; border-radius: 0; overflow: hidden; background: #0f172a;"
+      v-if="latestScan"
+      class="pip-latest-result"
+      :class="latestScan.status === 'ok' ? 'pip-result-ok' : 'pip-result-fail'"
     >
-      <!-- PiP Header Bar -->
-      <div class="px-2.5 py-1.5 bg-slate-900 border-b border-slate-800 flex items-center justify-between text-white shrink-0">
-        <!-- Status Indicator -->
-        <div class="flex items-center gap-1.5">
+      <div class="pip-result-icon">
+        <Check v-if="latestScan.status === 'ok'" :size="11" />
+        <AlertCircle v-else :size="11" />
+      </div>
+      <div class="pip-result-text">
+        <div class="flex items-center gap-1 justify-between">
+          <span class="pip-result-name">{{ latestScan.name }}</span>
           <span
-            class="w-2 h-2 transition-colors"
-            :class="isScanning ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'"
-          ></span>
-          <span class="text-[11px] font-bold text-slate-200">
-            {{ isScanning ? 'Auto Scan' : 'Scanner' }}
+            v-if="latestScan.status === 'ok' && latestScan.cartQty > 0"
+            class="pip-cart-badge"
+          >
+            <ShoppingCart :size="8" />
+            {{ latestScan.cartQty }}
           </span>
         </div>
-
-        <!-- Header Actions: Torch, Switch Cam, Sound, Minimize, Power -->
-        <div class="flex items-center gap-1">
-          <!-- Torch / Senter Toggle (if available) -->
-          <button
-            v-if="isTorchAvailable"
-            type="button"
-            class="p-1 text-slate-400 hover:text-amber-300 hover:bg-slate-800 transition"
-            :title="isTorchOn ? 'Matikan Lampu Senter' : 'Nyalakan Lampu Senter'"
-            @click="toggleTorch"
-          >
-            <Zap :size="13" :class="{ 'text-amber-400 fill-amber-400': isTorchOn }" />
-          </button>
-
-          <!-- Tombol Flip Kamera Depan + Belakang di Mobile -->
-          <button
-            type="button"
-            class="px-1.5 py-0.5 bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition flex items-center gap-1 cursor-pointer active:scale-95 border border-slate-700/60"
-            :title="facingMode === 'user' ? 'Kamera Depan Aktif (Cermin) - Klik untuk beralih ke Kamera Belakang' : 'Kamera Belakang Aktif - Klik untuk beralih ke Kamera Depan (Cermin)'"
-            @click="flipCameraMobile"
-          >
-            <RefreshCw :size="11" :class="facingMode === 'user' ? 'text-amber-400 rotate-180' : 'text-emerald-400'" class="transition-transform duration-300 shrink-0" />
-            <span class="text-[9px] font-bold font-mono text-slate-200">
-              {{ facingMode === 'user' ? 'Depan' : 'Belakang' }}
-            </span>
-          </button>
-
-          <!-- Sound Toggle -->
-          <button
-            type="button"
-            class="p-1 text-slate-400 hover:text-white hover:bg-slate-800 transition"
-            :title="isSoundEnabled ? 'Matikan Bunyi Beep' : 'Nyalakan Bunyi Beep'"
-            @click="toggleSound"
-          >
-            <Volume2 v-if="isSoundEnabled" :size="12" class="text-emerald-400" />
-            <VolumeX v-else :size="12" class="text-rose-400" />
-          </button>
-
-          <!-- Power On / Off Camera Stream -->
-          <button
-            type="button"
-            class="p-1 text-slate-400 hover:text-white hover:bg-slate-800 transition"
-            :title="isCameraEnabled ? 'Jeda Kamera (Hemat Baterai)' : 'Aktifkan Kamera'"
-            @click="togglePower"
-          >
-            <Power :size="12" :class="isCameraEnabled ? 'text-emerald-400' : 'text-slate-500'" />
-          </button>
-
-          <!-- Minimize Button -->
-          <button
-            type="button"
-            class="p-1 text-slate-400 hover:text-white hover:bg-slate-800 transition"
-            title="Kecilkan ke Ikon Mengambang"
-            @click="toggleMinimize"
-          >
-            <Minimize2 :size="12" />
-          </button>
+        <div class="flex items-center gap-1.5 text-[8.5px] text-slate-400">
+          <span v-if="latestScan.status === 'ok' && latestScan.price > 0" class="text-emerald-400 font-bold">
+            {{ formatRupiah(latestScan.price) }}
+          </span>
+          <span class="pip-result-code truncate">{{ latestScan.code }}</span>
         </div>
       </div>
+    </div>
 
-      <!-- Live Video Viewfinder -->
-      <div class="relative w-full h-[150px] bg-black overflow-hidden flex items-center justify-center">
-        <!-- Native Video Element (Reliable across all WebViews) -->
-        <video
-          ref="videoRef"
-          autoplay
-          playsinline
-          muted
-          class="w-full h-full object-cover transition-transform"
-          :class="{ 'mirror-feed': isMirrored }"
-        ></video>
-
-        <!-- Red Glitch Overlay on Error Scan -->
-        <div
-          v-if="isErrorFlashing"
-          class="absolute inset-0 z-30 pointer-events-none bg-rose-600/40 backdrop-blur-[1px] flex items-center justify-center animate-glitch"
+    <!-- Scan History (only when expanded and history > 1) -->
+    <div v-if="!isMinimized && scanHistory.length > 1" class="pip-history">
+      <div class="pip-history-header">
+        <span>Riwayat Scan</span>
+        <button
+          type="button"
+          class="text-[8.5px] text-slate-400 hover:text-rose-400 flex items-center gap-0.5"
+          @click="clearHistory"
         >
-          <div class="px-2.5 py-1 bg-rose-950/95 border border-rose-400 text-rose-200 text-[10.5px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-2xl animate-pulse">
-            <AlertTriangle :size="15" class="text-rose-400 shrink-0" />
-            <span>BARCODE TIDAK ADA</span>
-          </div>
-        </div>
-
-        <!-- Laser Scanning Animation Bar (Active when camera is running) -->
-        <div v-if="isScanning" class="absolute inset-0 pointer-events-none flex flex-col justify-between py-3 px-4">
-          <!-- Viewfinder Corner Guides (Sharp square brackets) -->
-          <div class="flex justify-between">
-            <span class="w-3 h-3 border-t-2 border-l-2 border-amber-400/90"></span>
-            <span class="w-3 h-3 border-t-2 border-r-2 border-amber-400/90"></span>
-          </div>
-          <!-- Laser Beam Line -->
-          <div class="w-full h-0.5 bg-gradient-to-r from-transparent via-amber-400 to-transparent shadow-[0_0_10px_#f59e0b] animate-pulse"></div>
-          <div class="flex justify-between">
-            <span class="w-3 h-3 border-b-2 border-l-2 border-amber-400/90"></span>
-            <span class="w-3 h-3 border-b-2 border-r-2 border-amber-400/90"></span>
-          </div>
-        </div>
-
-        <!-- State: Camera Turned Off (Power Saving) -->
-        <div
-          v-if="!isCameraEnabled"
-          class="absolute inset-0 bg-slate-950/95 flex flex-col items-center justify-center gap-1.5 p-3 text-center text-white"
-        >
-          <CameraOff :size="24" class="text-slate-500 mb-1" />
-          <span class="text-[11px] font-bold text-slate-300">Kamera Dinonaktifkan</span>
-          <p class="text-[9.5px] text-slate-400">Scanner barcode Bluetooth/USB tetap siap membaca.</p>
-          <button
-            type="button"
-            @click="togglePower"
-            class="mt-1 px-3 py-1 bg-amber-600 hover:bg-amber-500 text-white font-bold text-[10.5px] cursor-pointer shadow-xs active:scale-95"
-          >
-            Nyalakan Kamera
-          </button>
-        </div>
-
-        <!-- State: Error / No Permission -->
-        <div
-          v-else-if="errorMessage && !isScanning"
-          class="absolute inset-0 bg-slate-950/95 flex flex-col items-center justify-center gap-1 p-2.5 text-center text-white"
-        >
-          <AlertCircle :size="20" class="text-rose-400" />
-          <span class="text-[10px] font-bold text-rose-300 line-clamp-2 leading-tight">{{ errorMessage }}</span>
-          <button
-            type="button"
-            @click="startCameraScanner"
-            class="mt-1 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-white font-bold text-[10px] cursor-pointer border border-slate-700"
-          >
-            Coba Lagi
-          </button>
-        </div>
-
-        <!-- Real-time Scan Notification Badge / Feedback -->
-        <div
-          v-if="recentScan"
-          class="absolute bottom-1.5 inset-x-1.5 z-20 pointer-events-none animate-in fade-in slide-in-from-bottom-2 duration-150"
-        >
-          <div
-            v-if="recentScan.success"
-            class="px-2.5 py-1.5 bg-emerald-600/95 border border-emerald-400 text-white shadow-lg backdrop-blur-xs flex items-center justify-between text-xs"
-          >
-            <div class="min-w-0 mr-1.5">
-              <div class="font-bold truncate text-[11px] leading-tight">+1 {{ recentScan.name }}</div>
-              <div class="text-[9.5px] opacity-90 font-mono">
-                {{ recentScan.unit ? `${recentScan.unit} • ` : '' }}Rp {{ formatRupiah(recentScan.price) }}
-              </div>
-            </div>
-            <CheckCircle2 :size="16" class="text-emerald-200 shrink-0" />
-          </div>
-          <div
-            v-else
-            class="px-2.5 py-1.5 bg-rose-600/95 border border-rose-400 text-white shadow-lg backdrop-blur-xs flex items-center justify-between text-xs"
-          >
-            <div class="min-w-0 mr-1.5">
-              <div class="font-bold text-[10.5px] leading-tight">Belum Ada di Master</div>
-              <div class="text-[9.5px] opacity-90 font-mono truncate">{{ recentScan.code }}</div>
-            </div>
-            <AlertCircle :size="16" class="text-rose-200 shrink-0" />
-          </div>
-        </div>
+          <Trash2 :size="8.5" /> Bersihkan
+        </button>
       </div>
-
-      <!-- PiP Footer Guide Bar -->
-      <div class="px-2.5 py-1 bg-slate-900/90 border-t border-slate-800 flex items-center justify-between text-[9.5px] text-slate-400 font-mono">
-        <span class="truncate">Arahkan barcode ke kamera</span>
-        <ScanLine :size="12" class="text-amber-400 shrink-0" />
+      <div class="pip-history-scroll">
+        <div
+          v-for="(item, idx) in scanHistory.slice(1, 5)"
+          :key="idx"
+          class="pip-history-item"
+          :class="item.status === 'ok' ? 'text-slate-300' : 'text-rose-400'"
+        >
+          <span class="pip-history-dot" :class="item.status === 'ok' ? 'bg-emerald-400' : 'bg-rose-400'"></span>
+          <span class="truncate flex-1">{{ item.name }}</span>
+          <span v-if="item.status === 'ok' && item.price > 0" class="text-[8px] font-mono text-emerald-300">
+            {{ formatRupiah(item.price) }}
+          </span>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-video {
-  border-radius: 0 !important;
+.pos-scanner-pip-mobile {
+  position: fixed;
+  z-index: 45;
+  bottom: 5.5rem;
+  right: 0.75rem;
+  width: 235px;
+  background: #0f172a;
+  border-radius: 14px;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: pipMobileSlideIn 0.3s ease-out;
 }
 
-.mirror-feed {
-  transform: scaleX(-1) !important;
+.pip-minimized {
+  width: 200px;
 }
 
-@keyframes glitch-shake {
-  0% { transform: translate(0, 0) scale(1); }
-  20% { transform: translate(-4px, 2px) scale(1.02); }
-  40% { transform: translate(4px, -2px) scale(0.98); }
-  60% { transform: translate(-3px, -1px) scale(1.01); }
-  80% { transform: translate(3px, 1px) scale(1); }
-  100% { transform: translate(0, 0) scale(1); }
+.pip-expanded {
+  width: 235px;
 }
 
-.animate-glitch {
-  animation: glitch-shake 0.35s ease-in-out;
+@keyframes pipMobileSlideIn {
+  from { opacity: 0; transform: translateY(20px) scale(0.9); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Header */
+.pip-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 8px;
+  background: linear-gradient(135deg, #1e293b, #312e81);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+.pip-header-left {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.pip-header-title {
+  font-size: 10px;
+  font-weight: 800;
+  color: #f1f5f9;
+  white-space: nowrap;
+}
+
+.pip-scan-count {
+  font-size: 8.5px;
+  font-weight: 700;
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.15);
+  padding: 1px 4px;
+  border-radius: 5px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.pip-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  flex-shrink: 0;
+}
+
+.pip-action-btn {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.pip-action-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #f1f5f9;
+}
+
+.pip-close-btn:hover {
+  background: rgba(239, 68, 68, 0.25);
+  color: #fca5a5;
+}
+
+/* Camera Container */
+.pip-camera-container {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: #000;
+  overflow: hidden;
+}
+
+.pip-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.2s;
+}
+
+.pip-mirrored {
+  transform: scaleX(-1);
+}
+
+/* Viewfinder */
+.pip-viewfinder {
+  position: absolute;
+  inset: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.pip-corner {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+}
+
+.pip-corner-tl { top: 0; left: 0; border-top: 2px solid #fbbf24; border-left: 2px solid #fbbf24; border-radius: 5px 0 0 0; }
+.pip-corner-tr { top: 0; right: 0; border-top: 2px solid #fbbf24; border-right: 2px solid #fbbf24; border-radius: 0 5px 0 0; }
+.pip-corner-bl { bottom: 0; left: 0; border-bottom: 2px solid #fbbf24; border-left: 2px solid #fbbf24; border-radius: 0 0 0 5px; }
+.pip-corner-br { bottom: 0; right: 0; border-bottom: 2px solid #fbbf24; border-right: 2px solid #fbbf24; border-radius: 0 0 5px 0; }
+
+.pip-laser {
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 0%, #fbbf24 35%, #fbbf24 65%, transparent 100%);
+  box-shadow: 0 0 8px #fbbf24, 0 0 3px #fbbf24;
+  animation: laserSweep 1.6s ease-in-out infinite alternate;
+}
+
+@keyframes laserSweep {
+  0% { transform: translateY(-40px); opacity: 0.3; }
+  50% { opacity: 1; }
+  100% { transform: translateY(40px); opacity: 0.3; }
+}
+
+/* Flash feedback overlay */
+.pip-flash {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: flashPulse 0.35s ease-out;
+  pointer-events: none;
+}
+
+.pip-flash-ok {
+  background: rgba(16, 185, 129, 0.4);
+}
+
+.pip-flash-fail {
+  background: rgba(239, 68, 68, 0.45);
+}
+
+.pip-flash-badge {
+  padding: 6px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.4);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+@keyframes flashPulse {
+  0% { opacity: 0; transform: scale(0.85); }
+  40% { opacity: 1; transform: scale(1.05); }
+  100% { opacity: 0.8; transform: scale(1); }
+}
+
+/* Camera Error */
+.pip-error-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.95);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 10px;
+}
+
+.pip-retry-btn {
+  padding: 3px 10px;
+  background: #fbbf24;
+  color: #0f172a;
+  border: none;
+  border-radius: 6px;
+  font-size: 9px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.pip-retry-btn:hover {
+  background: #f59e0b;
+}
+
+/* Status Badge */
+.pip-status-badge {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 5px;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.pip-status-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #34d399;
+  animation: pulse 1.8s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* Latest Result */
+.pip-latest-result {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  animation: resultSlideIn 0.2s ease-out;
+}
+
+.pip-result-ok {
+  background: rgba(16, 185, 129, 0.12);
+}
+
+.pip-result-fail {
+  background: rgba(239, 68, 68, 0.12);
+}
+
+@keyframes resultSlideIn {
+  from { opacity: 0; transform: translateX(-6px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.pip-result-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.pip-result-ok .pip-result-icon {
+  background: rgba(16, 185, 129, 0.25);
+  color: #34d399;
+}
+
+.pip-result-fail .pip-result-icon {
+  background: rgba(239, 68, 68, 0.25);
+  color: #f87171;
+}
+
+.pip-result-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.pip-result-name {
+  font-size: 10px;
+  font-weight: 700;
+  color: #f1f5f9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pip-cart-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 8.5px;
+  font-weight: 800;
+  background: #10b981;
+  color: #ffffff;
+  padding: 1px 4px;
+  border-radius: 5px;
+  flex-shrink: 0;
+}
+
+.pip-result-code {
+  font-size: 8.5px;
+  font-weight: 600;
+  color: #94a3b8;
+  font-family: monospace;
+}
+
+/* History List */
+.pip-history {
+  padding: 3px 8px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.pip-history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 8.5px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 0 3px;
+}
+
+.pip-history-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 70px;
+  overflow-y: auto;
+}
+
+.pip-history-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9px;
+  font-weight: 500;
+  padding: 1.5px 0;
+}
+
+.pip-history-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 </style>

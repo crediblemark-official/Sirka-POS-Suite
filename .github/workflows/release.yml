@@ -1,4 +1,4 @@
-name: "Release Sirka (Linux, macOS, Windows)"
+name: "Release Sirka Desktop (Windows)"
 
 on:
   push:
@@ -13,31 +13,19 @@ on:
         default: false
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-desktop-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  publish-tauri:
+  publish-tauri-windows:
+    name: Build & Release Windows Desktop (.exe & .msi)
     permissions:
       contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: 'macos-latest'
-            args: '--target aarch64-apple-darwin'
-          - platform: 'macos-latest'
-            args: '--target x86_64-apple-darwin'
-          - platform: 'ubuntu-22.04'
-            args: ''
-          - platform: 'windows-latest'
-            args: ''
-
-    runs-on: ${{ matrix.platform }}
+    runs-on: windows-latest
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       # 1. Setup Bun runtime
       - name: Setup Bun
@@ -48,8 +36,6 @@ jobs:
       # 2. Setup Rust toolchain
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       # 2.1 Install cargo-tauri CLI binary
       - name: Install Tauri CLI
@@ -61,28 +47,14 @@ jobs:
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: './src-tauri -> target'
+          workspaces: './apps/sirka-desktop/src-tauri -> target'
 
-      # 4. Install Linux system libraries (WebKit2GTK 4.1 for Tauri v2, AppIndicator, RSVG, FUSE)
-      - name: Install Linux dependencies
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            librsvg2-dev \
-            patchelf \
-            libayatana-appindicator3-dev \
-            libssl-dev \
-            libfuse2
-
-      # 5. Install frontend dependencies
+      # 4. Install monorepo frontend dependencies
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile
 
-      # 5.1 Import Windows Code Signing Certificate (on windows-latest)
+      # 5. Import Windows Code Signing Certificate
       - name: Import Windows Code Signing Certificate
-        if: matrix.platform == 'windows-latest'
         shell: pwsh
         run: |
           $pfxPath = "${{ github.workspace }}/certs/Sirka_CodeSigning.pfx"
@@ -92,6 +64,8 @@ jobs:
             Import-PfxCertificate -FilePath $pfxPath -CertStoreLocation Cert:\CurrentUser\My -Password (ConvertTo-SecureString -String $certPass -AsPlainText -Force)
             Import-PfxCertificate -FilePath $pfxPath -CertStoreLocation Cert:\LocalMachine\Root -Password (ConvertTo-SecureString -String $certPass -AsPlainText -Force)
             Write-Host "Certificate imported successfully."
+          } else {
+            Write-Warning "Certificate file not found at $pfxPath"
           }
 
       # 6. Build Tauri application & publish to GitHub Releases
@@ -105,18 +79,16 @@ jobs:
           VITE_TERTAUT_API_KEY: ${{ secrets.VITE_TERTAUT_PUBLISHABLE_KEY }}
           VITE_TERTAUT_BASE_URL: ${{ secrets.VITE_TERTAUT_BASE_URL || 'https://tertaut.com' }}
         with:
+          projectPath: apps/sirka-desktop
           tagName: v__VERSION__
           releaseName: 'Sirka v__VERSION__'
           releaseBody: |
             ### 📦 Sirka v__VERSION__
 
-            Build otomatis multi-platform menggunakan GitHub Actions untuk:
-            - 🪟 **Windows**: Installer `.msi` dan `.exe` (NSIS)
-            - 🍎 **macOS**: `.dmg` (Apple Silicon `aarch64` & Intel `x86_64`)
-            - 🐧 **Linux**: `.deb` dan `.AppImage`
+            Build otomatis menggunakan GitHub Actions:
+            - 🪟 **Windows Desktop**: Installer `.exe` (NSIS) dan `.msi`
             - 📱 **Android**: `.apk` (Sirka Owner Mobile)
 
-            Silakan unduh file instalasi di bawah sesuai dengan sistem operasi perangkat Anda.
+            Silakan unduh file instalasi di bawah sesuai perangkat Anda.
           releaseDraft: ${{ github.event.inputs.release_draft || false }}
           prerelease: false
-          args: ${{ matrix.args }}

@@ -132,6 +132,32 @@ export const dbService = {
     });
   },
 
+  // Tiket Pesanan Dapur / Bar (KOT) tanpa harga finansial
+  async generateKitchenTicketText(tx: Record<string, unknown>, storeName?: string, paperWidth?: string): Promise<string> {
+    return safeInvoke<string>('generate_kitchen_ticket_text', {
+      tx,
+      storeName: storeName || null,
+      paperWidth: paperWidth || null
+    }, () => {
+      const name = storeName || 'SIRKA POS';
+      const table = String(tx.tableNo || tx.buyer || 'Meja Walk-in');
+      return `================================\n        ${name}\n*** TIKET DAPUR / BAR ***\n================================\nMeja: ${table}\nNo: ${tx.invoiceNo || tx.id}\n--------------------------------\nPESANAN MENU\n--------------------------------\n-- Mohon Diproses Segera --\n`;
+    });
+  },
+
+  // Surat Jalan Pengiriman (Delivery Order - DO) untuk B2B
+  async generateDeliveryOrderText(tx: Record<string, unknown>, storeName?: string, paperWidth?: string): Promise<string> {
+    return safeInvoke<string>('generate_delivery_order_text', {
+      tx,
+      storeName: storeName || null,
+      paperWidth: paperWidth || null
+    }, () => {
+      const name = storeName || 'SIRKA POS';
+      const buyer = String(tx.buyer || 'Pelanggan');
+      return `================================\n        ${name}\nSURAT JALAN PENGIRIMAN\n================================\nNo. DO: DO-${tx.invoiceNo || tx.id}\nPenerima: ${buyer}\n--------------------------------\nPengirim:          Penerima:\n(...............)  (...............)\n`;
+    });
+  },
+
   // Mengirim byte ESC/POS langsung ke Network Thermal Printer / Simulator (default 127.0.0.1:9100)
   async printToNetworkPrinter(text: string, address?: string): Promise<string> {
     return safeInvoke<string>('print_to_network_printer', {

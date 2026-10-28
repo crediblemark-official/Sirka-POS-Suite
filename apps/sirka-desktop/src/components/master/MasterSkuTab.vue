@@ -510,7 +510,14 @@ function handleDblClick(prod: Product) {
             @dblclick="handleDblClick(prod)"
           >
             <td class="font-mono text-gray-600 font-bold truncate whitespace-nowrap" :title="prod.code">{{ prod.code }}</td>
-            <td class="font-semibold text-gray-900 truncate" :title="prod.name">{{ prod.name }}</td>
+            <td class="font-semibold text-gray-900 truncate" :title="prod.name">
+              <div class="flex items-center gap-1.5 truncate">
+                <span v-if="prod.productType === 'SERVICE'" class="px-1.5 py-0.2 bg-indigo-100 text-indigo-800 rounded text-[9.5px] font-bold shrink-0">🔧 JASA</span>
+                <span v-else-if="prod.productType === 'FNB_MENU'" class="px-1.5 py-0.2 bg-amber-100 text-amber-800 rounded text-[9.5px] font-bold shrink-0">🍽️ MENU</span>
+                <span class="truncate">{{ prod.name }}</span>
+                <span v-if="prod.tierPricing && prod.tierPricing.length > 0" class="text-[9px] px-1 bg-blue-100 text-blue-800 rounded font-bold shrink-0" title="Ada harga grosir bertingkat">Tier</span>
+              </div>
+            </td>
             <td class="truncate" :title="prod.category">
               <span class="px-2 py-0.5 bg-purple-50 text-purple-700 rounded text-[11px] font-medium border border-purple-200 truncate block">
                 {{ prod.category }}
@@ -534,6 +541,14 @@ function handleDblClick(prod: Product) {
             <!-- Stok Fisik dengan Indikator Status -->
             <td class="text-center font-mono font-bold whitespace-nowrap">
               <span
+                v-if="prod.productType === 'SERVICE'"
+                class="px-2 py-0.5 rounded-full text-[10px] font-bold inline-block bg-indigo-50 text-indigo-700 border border-indigo-200"
+                title="Layanan Jasa (Bebas Stok Fisik Gudang)"
+              >
+                ∞ JASA
+              </span>
+              <span
+                v-else
                 class="px-2 py-0.5 rounded-full text-[11px] font-bold inline-block"
                 :class="
                   prod.stock === 0

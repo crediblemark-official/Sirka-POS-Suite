@@ -10,7 +10,8 @@ use crate::models::TransactionRecord;
 pub fn local_get_transactions(conn: &Connection) -> SqliteResult<Vec<TransactionRecord>> {
     let mut stmt = conn.prepare(
         "SELECT id, invoice_no, date, buyer, items, total_buy, total_sell, total_profit, profit_percent, payment_status, payment_method, customer_type, notes, discount_amount, discount_code, points_used, points_discount, points_earned, final_total, is_pre_order, pic_name, created_at,
-                is_split_payment, cash_amount, non_cash_amount, non_cash_method, change_amount, infaq_amount, shift_id, refund_status, refund_total
+                is_split_payment, cash_amount, non_cash_amount, non_cash_method, change_amount, infaq_amount, shift_id, refund_status, refund_total,
+                business_type, order_type, table_no, staff_name, service_status
          FROM transactions ORDER BY created_at DESC",
     )?;
     let rows = stmt.query_map([], |row| {
@@ -50,6 +51,11 @@ pub fn local_get_transactions(conn: &Connection) -> SqliteResult<Vec<Transaction
             shift_id: row.get(28)?,
             refund_status: row.get(29)?,
             refund_total: row.get(30)?,
+            business_type: row.get(31)?,
+            order_type: row.get(32)?,
+            table_no: row.get(33)?,
+            staff_name: row.get(34)?,
+            service_status: row.get(35)?,
         })
     })?;
     let mut list = Vec::new();
@@ -77,13 +83,15 @@ pub fn local_create_transaction(
             discount_amount, discount_code, points_used, points_discount, points_earned, final_total,
             is_pre_order, pic_name, created_at,
             is_split_payment, cash_amount, non_cash_amount, non_cash_method, change_amount,
-            infaq_amount, shift_id, refund_status, refund_total
+            infaq_amount, shift_id, refund_status, refund_total,
+            business_type, order_type, table_no, staff_name, service_status
         ) VALUES (
             ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8,
             ?9, ?10, ?11, ?12, ?13,
             ?14, ?15, ?16, ?17, ?18, ?19,
             ?20, ?21, datetime('now'),
-            ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30
+            ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30,
+            ?31, ?32, ?33, ?34, ?35
         )",
         params![
             tx.id,
@@ -97,7 +105,7 @@ pub fn local_create_transaction(
             tx.profit_percent,
             tx.payment_status,
             tx.payment_method,
-            tx.customer_type,
+            tx.customer_type.as_deref().unwrap_or("B2C"),
             tx.notes,
             tx.discount_amount.unwrap_or(0.0),
             tx.discount_code,
@@ -116,12 +124,22 @@ pub fn local_create_transaction(
             tx.shift_id,
             tx.refund_status,
             tx.refund_total.unwrap_or(0.0),
+            tx.business_type,
+            tx.order_type,
+            tx.table_no,
+            tx.staff_name,
+            tx.service_status,
         ],
     )?;
 
-    // Kurangi stok barang
+    // Kurangi stok barang (kecuali produk tipe SERVICE)
     if let Some(items) = tx.items.as_array() {
         for item in items {
+            let ptype = item.get("productType").and_then(Value::as_str);
+            if ptype == Some("SERVICE") {
+                // Layanan/Jasa tidak memotong stok barang fisik
+                continue;
+            }
             let pid = item.get("productId").and_then(Value::as_str);
             let qty = item.get("qty").and_then(Value::as_f64);
             let price = item.get("sellPrice").and_then(Value::as_f64);

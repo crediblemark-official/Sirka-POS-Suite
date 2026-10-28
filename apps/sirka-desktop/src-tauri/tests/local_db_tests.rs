@@ -41,6 +41,7 @@ fn test_product_and_markup_workflow() {
         notes: None,
         units: None,
         is_perishable: None,
+        ..Default::default()
     };
     local_upsert_product(&conn, &p).unwrap();
     let products = local_get_products(&conn).unwrap();
@@ -68,6 +69,7 @@ fn test_transaction_stock_deduction_and_rollback() {
         notes: None,
         units: None,
         is_perishable: None,
+        ..Default::default()
     };
     local_upsert_product(&conn, &p).unwrap();
 
@@ -121,6 +123,7 @@ fn test_transaction_stock_deduction_and_rollback() {
         shift_id: None,
         refund_status: Some("NONE".into()),
         refund_total: Some(0.0),
+        ..Default::default()
     };
 
     // 1. Create transaction -> Stock berkurang dari 10 menjadi 7
@@ -180,6 +183,7 @@ fn test_purchase_receipt_update_stock_rollback() {
         notes: None,
         units: None,
         is_perishable: None,
+        ..Default::default()
     };
     local_upsert_product(&conn, &p).unwrap();
 
@@ -289,6 +293,7 @@ fn test_discount_usage_count_on_transaction() {
         shift_id: None,
         refund_status: Some("NONE".into()),
         refund_total: Some(0.0),
+        ..Default::default()
     };
 
     // Create tx -> usage_count bertambah 1
@@ -532,6 +537,7 @@ fn test_transaction_deducts_base_unit_quantity() {
         notes: None,
         units: None,
         is_perishable: None,
+        ..Default::default()
     };
     local_upsert_product(&conn, &p).unwrap();
 
@@ -576,6 +582,7 @@ fn test_transaction_deducts_base_unit_quantity() {
         shift_id: None,
         refund_status: Some("NONE".into()),
         refund_total: Some(0.0),
+        ..Default::default()
     };
     local_create_transaction(&mut conn, &tx, None).unwrap();
 
@@ -623,6 +630,7 @@ fn test_multi_unit_and_category_color_persistence() {
             barcode: Some("8997001".into()),
         }]),
         is_perishable: Some(true),
+        ..Default::default()
     };
     local_upsert_product(&conn, &p).unwrap();
 
@@ -657,6 +665,7 @@ fn test_purchase_receipt_uses_base_qty_for_stock() {
         notes: None,
         units: None,
         is_perishable: None,
+        ..Default::default()
     };
     local_upsert_product(&conn, &p).unwrap();
 
@@ -720,6 +729,7 @@ fn test_transaction_keeps_split_and_shift_fields() {
         notes: None,
         units: None,
         is_perishable: None,
+        ..Default::default()
     };
     local_upsert_product(&conn, &p).unwrap();
 
@@ -758,6 +768,7 @@ fn test_transaction_keeps_split_and_shift_fields() {
         shift_id: Some("shift-abc".into()),
         refund_status: Some("NONE".into()),
         refund_total: Some(0.0),
+        ..Default::default()
     };
     local_create_transaction(&mut conn, &tx, None).unwrap();
 
@@ -824,3 +835,80 @@ fn test_get_database_url_loads_env() {
         "DATABASE_URL harus berupa URL postgres yang valid"
     );
 }
+
+#[test]
+fn test_multi_mode_service_no_stock_deduction_and_persistence() {
+    let mut conn = setup_test_conn();
+    // 1. Tambah produk JASA (SERVICE)
+    let srv = ProductRecord {
+        id: "srv-ganti-oli".into(),
+        code: "SRV-01".into(),
+        name: "Jasa Ganti Oli Mesin".into(),
+        category: "JASA".into(),
+        unit: "LAYANAN".into(),
+        default_markup_percent: 0.0,
+        last_buy_price: 0.0,
+        last_sell_price: 35000.0,
+        stock: 0.0,
+        product_type: Some("SERVICE".into()),
+        service_duration_minutes: Some(30),
+        tier_pricing: Some(json!([
+            { "minQty": 5, "price": 30000.0 }
+        ])),
+        available_modifiers: Some(vec!["Engine Flush".into(), "Cek Rem".into()]),
+        ..Default::default()
+    };
+    local_upsert_product(&conn, &srv).unwrap();
+
+    let prods = local_get_products(&conn).unwrap();
+    let saved_srv = prods.iter().find(|p| p.id == "srv-ganti-oli").unwrap();
+    assert_eq!(saved_srv.product_type.as_deref(), Some("SERVICE"));
+    assert_eq!(saved_srv.service_duration_minutes, Some(30));
+    assert!(saved_srv.tier_pricing.is_some());
+    assert_eq!(saved_srv.available_modifiers.as_ref().unwrap().len(), 2);
+
+    // 2. Transaksi JASA -> Stok TIDAK berkurang (tetap 0.0, tidak menjadi -1.0)
+    let tx = TransactionRecord {
+        id: "tx-srv-01".into(),
+        invoice_no: "INV-SRV-001".into(),
+        date: "2026-10-28".into(),
+        buyer: "Pelanggan Bengkel".into(),
+        items: json!([
+            {
+                "productId": "srv-ganti-oli",
+                "productType": "SERVICE",
+                "qty": 1.0,
+                "baseQty": 1.0,
+                "sellPrice": 35000.0,
+                "buyPrice": 0.0
+            }
+        ]),
+        total_buy: 0.0,
+        total_sell: 35000.0,
+        total_profit: 35000.0,
+        profit_percent: 100.0,
+        payment_status: "LUNAS".into(),
+        payment_method: "Tunai / Kas".into(),
+        business_type: Some("SERVICE".into()),
+        order_type: Some("WALK_IN".into()),
+        table_no: None,
+        staff_name: Some("Mekanik Anton".into()),
+        service_status: Some("COMPLETED".into()),
+        ..Default::default()
+    };
+
+    local_create_transaction(&mut conn, &tx, None).unwrap();
+
+    // Verifikasi stok produk SERVICE tetap 0.0
+    let prods_after = local_get_products(&conn).unwrap();
+    let srv_after = prods_after.iter().find(|p| p.id == "srv-ganti-oli").unwrap();
+    assert_eq!(srv_after.stock, 0.0, "Produk tipe SERVICE tidak boleh memotong stok fisik!");
+
+    // Verifikasi transaksi menyimpan staffName, orderType, serviceStatus
+    let txs = local_get_transactions(&conn).unwrap();
+    let saved_tx = txs.iter().find(|t| t.id == "tx-srv-01").unwrap();
+    assert_eq!(saved_tx.business_type.as_deref(), Some("SERVICE"));
+    assert_eq!(saved_tx.staff_name.as_deref(), Some("Mekanik Anton"));
+    assert_eq!(saved_tx.service_status.as_deref(), Some("COMPLETED"));
+}
+

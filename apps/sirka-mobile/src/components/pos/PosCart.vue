@@ -404,7 +404,7 @@ onUnmounted(() => {
             <input v-model="posStore.staffName" type="text" placeholder="Nama teknisi / staf..."
               class="flex-1 min-w-[70px] h-7 px-2 bg-white border border-slate-300 rounded-lg text-[11px] outline-none focus:border-indigo-500 shadow-2xs" />
             <select v-if="settingsStore.businessFeatures.serviceStatus" v-model="posStore.serviceStatus"
-              class="h-7 px-1.5 bg-white border border-slate-300 rounded-lg text-[10.5px] font-bold text-slate-800 outline-none focus:border-indigo-500 shrink-0 shadow-2xs">
+              class="h-7 px-2 bg-white border border-slate-300 rounded-lg text-[11px] font-bold text-slate-800 outline-none focus:border-indigo-500 shrink-0 shadow-2xs cursor-pointer">
               <option value="QUEUED">Antre</option>
               <option value="IN_PROGRESS">Proses</option>
               <option value="DONE">Selesai</option>

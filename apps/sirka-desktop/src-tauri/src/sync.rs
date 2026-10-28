@@ -242,6 +242,7 @@ async fn pull_master_data_from_cloud(pg: &mut tokio_postgres::Client) -> Result<
                 supplier: r.get(11),
                 units,
                 is_perishable: Some(r.get::<_, Option<bool>>(13).unwrap_or(false)),
+                ..Default::default()
             };
             let _ = local_upsert_product(&conn, &p);
         }
@@ -405,6 +406,7 @@ async fn pull_history_from_cloud(pg: &mut tokio_postgres::Client) -> Result<(), 
                 shift_id: r.get(28),
                 refund_status: r.get(29),
                 refund_total: r.get(30),
+                ..Default::default()
             };
             let _ = local_save_transaction_direct(&conn, &tx_record);
         }

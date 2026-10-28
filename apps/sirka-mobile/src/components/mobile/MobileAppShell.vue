@@ -44,6 +44,9 @@ const CloseShiftModal = defineAsyncComponent(() => import('../pos/CloseShiftModa
 const ShiftSummaryModal = defineAsyncComponent(() => import('../pos/ShiftSummaryModal.vue'));
 const WasteModal = defineAsyncComponent(() => import('../returns/WasteModal.vue'));
 const LicenseModal = defineAsyncComponent(() => import('../common/LicenseModal.vue'));
+const QuickBarcodeScannerModal = defineAsyncComponent(() => import('../common/QuickBarcodeScannerModal.vue'));
+
+// PiP continuous scanner untuk scan barcode berturut-turut seperti kasir swalayan
 import PosScannerPiP from '../pos/PosScannerPiP.vue';
 
 const posStore = usePosStore();
@@ -55,6 +58,8 @@ const licenseStore = useLicenseStore();
 const activeTab = ref<ModuleTab>('pos');
 const searchQuery = ref<string>('');
 const showMobileCartModal = ref(false);
+const showCameraScanner = ref(false);
+const showPiPScanner = ref(false);
 const activeModalTransaction = ref<any>(null);
 
 const tabTitles: Record<ModuleTab, string> = {
@@ -106,6 +111,24 @@ function handleShowReceipt() {
   }
 }
 
+function handleBarcodeScanned(code: string) {
+  showCameraScanner.value = false;
+  if (!code) return;
+
+  if (activeTab.value === 'pos') {
+    // Cari produk di inventori dan langsung tambahkan ke keranjang
+    const found = inventoryStore.products.find(
+      (p: Product) => p.code?.toLowerCase() === code.toLowerCase() || p.barcode?.toLowerCase() === code.toLowerCase()
+    );
+    if (found) {
+      posStore.addProductToCart(found);
+      return;
+    }
+  }
+
+  // Fallback: isi kotak pencarian dengan hasil scan
+  searchQuery.value = code;
+}
 
 onMounted(() => {
   licenseStore.init();
@@ -253,10 +276,27 @@ onMounted(() => {
       </div>
     </main>
 
-    <!-- Continuous Scanner Picture-in-Picture (Webcam/Kamera & Barcode Scanner) -->
+    <!-- Floating Quick Camera Barcode Scan Button (Hanya di Kasir/POS untuk scan barang ke keranjang) -->
+    <button
+      v-if="activeTab === 'pos'"
+      type="button"
+      @click="showPiPScanner = !showPiPScanner"
+      class="fixed right-4 z-30 w-12 h-12 rounded-full shadow-xl flex items-center justify-center active:scale-95 transition-all cursor-pointer border-2"
+      :class="[
+        posStore.cartItems.length > 0 ? 'bottom-34' : 'bottom-20',
+        showPiPScanner
+          ? 'bg-amber-500 text-slate-900 border-amber-300 hover:bg-amber-400'
+          : 'bg-slate-900 text-white border-white/20 hover:bg-slate-800'
+      ]"
+      :title="showPiPScanner ? 'Tutup Scanner Kamera' : 'Buka Scanner Kamera (Continuous)'"
+    >
+      <Camera class="w-6 h-6" :class="showPiPScanner ? 'text-slate-900' : 'text-amber-400'" />
+    </button>
+
+    <!-- PiP Continuous Barcode Scanner (Scan berturut-turut seperti kasir swalayan) -->
     <PosScannerPiP
-      :is-active="activeTab === 'pos' && !showMobileCartModal"
-      :is-mobile="true"
+      :is-open="showPiPScanner && activeTab === 'pos'"
+      @close="showPiPScanner = false"
     />
 
     <!-- 3. Mobile Bottom Navigation Bar -->
@@ -290,6 +330,12 @@ onMounted(() => {
     <WasteModal />
 
     <LicenseModal />
+
+    <QuickBarcodeScannerModal
+      v-if="showCameraScanner"
+      @scanned="handleBarcodeScanned"
+      @close="showCameraScanner = false"
+    />
 
     <AppConfirmModal />
   </div>

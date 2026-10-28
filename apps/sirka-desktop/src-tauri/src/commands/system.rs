@@ -563,6 +563,30 @@ pub fn generate_receipt_text(
         out.push_str(&row("PIC", get_str("picName").as_str(), width));
         out.push('\n');
     }
+
+    // Multi-mode: F&B Table / Order Type
+    let order_type = get_str("orderType");
+    let table_no = get_str("tableNo");
+    if !table_no.is_empty() {
+        let label = if !order_type.is_empty() && order_type != "STANDARD" {
+            format!("{} ({})", table_no, order_type)
+        } else {
+            table_no
+        };
+        out.push_str(&row("Meja/Pesanan", &label, width));
+        out.push('\n');
+    } else if !order_type.is_empty() && order_type != "STANDARD" {
+        out.push_str(&row("Tipe Pesanan", &order_type, width));
+        out.push('\n');
+    }
+
+    // Multi-mode: Service Staff
+    let staff_name = get_str("staffName");
+    if !staff_name.is_empty() {
+        out.push_str(&row("Staf/Teknisi", &staff_name, width));
+        out.push('\n');
+    }
+
     out.push_str(&dashes);
     out.push('\n');
 
@@ -586,6 +610,20 @@ pub fn generate_receipt_text(
             // Sekarang 3 desimal dengan trailing zero dibuang.
             let qty_txt = format_qty(qty);
             out.push_str(&format!("{}. {}\n", idx + 1, name));
+            if let Some(mods) = it.get("modifiers").or_else(|| it.get("selectedModifiers")).and_then(|v| v.as_array()) {
+                let mod_strs: Vec<String> = mods
+                    .iter()
+                    .filter_map(|m| m.as_str().map(|s| s.to_string()))
+                    .collect();
+                if !mod_strs.is_empty() {
+                    out.push_str(&format!("   * {}\n", mod_strs.join(", ")));
+                }
+            }
+            if let Some(item_notes) = it.get("itemNotes").or_else(|| it.get("notes")).and_then(|v| v.as_str()) {
+                if !item_notes.trim().is_empty() {
+                    out.push_str(&format!("   Catatan: {}\n", item_notes.trim()));
+                }
+            }
             out.push_str(&row(
                 &format!("  {} {} x {}", qty_txt, unit, fmt_rp(price)),
                 &fmt_rp(subtotal),
@@ -693,6 +731,318 @@ pub fn generate_receipt_text(
             width = half
         ));
     }
+
+    Ok(out)
+}
+
+/// Menghasilkan tiket pesanan dapur / bar (Kitchen Order Ticket - KOT)
+/// Tanpa harga uang, menonjolkan meja, waktu, menu, varian, dan catatan.
+#[tauri::command]
+pub fn generate_kitchen_ticket_text(
+    tx: serde_json::Value,
+    store_name: Option<String>,
+    paper_width: Option<String>,
+) -> Result<String, String> {
+    if !tx.is_object() {
+        return Err("Data transaksi tidak valid".into());
+    }
+
+    let paper_setting = {
+        let conn = crate::local_db::get_conn().lock().unwrap();
+        conn.query_row(
+            "SELECT value FROM store_settings WHERE key = 'receipt_paper_width'",
+            [],
+            |r| r.get::<_, String>(0),
+        ).ok()
+    };
+
+    let width = match paper_width.as_deref() {
+        Some("80mm") => 42usize,
+        Some("58mm") => 32usize,
+        _ => {
+            if paper_setting.as_deref() == Some("80mm") { 42usize } else { 32usize }
+        }
+    };
+    let dashes = "-".repeat(width);
+    let equals = "=".repeat(width);
+
+    let get_str = |key: &str| -> String {
+        tx.get(key)
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string()
+    };
+
+    fn truncate(text: &str, max: usize) -> String {
+        let count = text.chars().count();
+        if count <= max {
+            return text.to_string();
+        }
+        if max <= 1 {
+            return "…".to_string();
+        }
+        let mut s: String = text.chars().take(max - 1).collect();
+        s.push('…');
+        s
+    }
+    fn row(left: &str, right: &str, width: usize) -> String {
+        let right = truncate(right, width);
+        let right_len = right.chars().count();
+        let left = truncate(left, width.saturating_sub(right_len + 1));
+        let l_len = left.chars().count();
+        let r_len = right.chars().count();
+        if l_len + r_len + 1 >= width {
+            format!("{}\n{:>width$}", left, right, width = width)
+        } else {
+            let spaces = " ".repeat(width - l_len - r_len);
+            format!("{}{}{}", left, spaces, right)
+        }
+    }
+    let center = |text: &str| -> String {
+        let text = truncate(text, width);
+        let len = text.chars().count();
+        let pad = if len < width { (width - len) / 2 } else { 0 };
+        format!("{}{}", " ".repeat(pad), text)
+    };
+
+    let store = store_name
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| "SIRKA".to_string())
+        .to_uppercase();
+
+    let mut out = String::new();
+    out.push_str(&center(&store));
+    out.push('\n');
+    out.push_str(&center("*** TIKET DAPUR / BAR ***"));
+    out.push('\n');
+    out.push_str(&equals);
+    out.push('\n');
+
+    let table_no = get_str("tableNo");
+    let order_type = get_str("orderType");
+    let table_label = if !table_no.is_empty() {
+        if !order_type.is_empty() && order_type != "STANDARD" {
+            format!("{} [{}]", table_no, order_type)
+        } else {
+            table_no
+        }
+    } else if !order_type.is_empty() && order_type != "STANDARD" {
+        order_type
+    } else {
+        "DINE IN".to_string()
+    };
+
+    out.push_str(&row("Meja / Pesanan", &table_label, width));
+    out.push('\n');
+    out.push_str(&row("No. Nota", &get_str("invoiceNo"), width));
+    out.push('\n');
+    out.push_str(&row("Tanggal", &get_str("date"), width));
+    out.push('\n');
+    if !get_str("buyer").is_empty() {
+        out.push_str(&row("Pelanggan", &get_str("buyer"), width));
+        out.push('\n');
+    }
+    out.push_str(&dashes);
+    out.push('\n');
+    out.push_str(&center("PESANAN MENU"));
+    out.push('\n');
+    out.push_str(&dashes);
+    out.push('\n');
+
+    let mut total_qty = 0.0;
+    let mut total_items = 0usize;
+    if let Some(items) = tx.get("items").and_then(|v| v.as_array()) {
+        for (idx, it) in items.iter().enumerate() {
+            total_items += 1;
+            let name = it.get("name").and_then(|v| v.as_str()).unwrap_or("?");
+            let qty = it.get("qty").and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let unit = it.get("unit").and_then(|v| v.as_str()).unwrap_or("");
+            total_qty += qty;
+            let qty_txt = format_qty(qty);
+
+            out.push_str(&format!("{}. {} (x{} {})\n", idx + 1, name, qty_txt, unit));
+            if let Some(mods) = it.get("modifiers").or_else(|| it.get("selectedModifiers")).and_then(|v| v.as_array()) {
+                let mod_strs: Vec<String> = mods
+                    .iter()
+                    .filter_map(|m| m.as_str().map(|s| s.to_string()))
+                    .collect();
+                if !mod_strs.is_empty() {
+                    out.push_str(&format!("   >> {}\n", mod_strs.join(", ")));
+                }
+            }
+            if let Some(item_notes) = it.get("itemNotes").or_else(|| it.get("notes")).and_then(|v| v.as_str()) {
+                if !item_notes.trim().is_empty() {
+                    out.push_str(&format!("   Catatan: {}\n", item_notes.trim()));
+                }
+            }
+        }
+    }
+
+    out.push_str(&dashes);
+    out.push('\n');
+    out.push_str(&row(
+        &format!("Total: {} Menu", total_items),
+        &format!("{} Unit", format_qty(total_qty)),
+        width,
+    ));
+    out.push('\n');
+
+    let notes = get_str("notes");
+    if !notes.trim().is_empty() {
+        out.push_str(&format!("Catatan: {}\n", notes.trim()));
+    }
+    out.push_str(&equals);
+    out.push('\n');
+    out.push_str(&center("-- Mohon Diproses Segera --"));
+    out.push('\n');
+
+    Ok(out)
+}
+
+/// Menghasilkan Surat Jalan Pengiriman (Delivery Order - DO) untuk distribusi B2B
+/// Menampilkan rincian fisik barang, kuantitas satuan tanpa harga, dan tanda tangan supir & penerima.
+#[tauri::command]
+pub fn generate_delivery_order_text(
+    tx: serde_json::Value,
+    store_name: Option<String>,
+    paper_width: Option<String>,
+) -> Result<String, String> {
+    if !tx.is_object() {
+        return Err("Data transaksi tidak valid".into());
+    }
+
+    let paper_setting = {
+        let conn = crate::local_db::get_conn().lock().unwrap();
+        conn.query_row(
+            "SELECT value FROM store_settings WHERE key = 'receipt_paper_width'",
+            [],
+            |r| r.get::<_, String>(0),
+        ).ok()
+    };
+
+    let width = match paper_width.as_deref() {
+        Some("80mm") => 42usize,
+        Some("58mm") => 32usize,
+        _ => {
+            if paper_setting.as_deref() == Some("80mm") { 42usize } else { 32usize }
+        }
+    };
+    let dashes = "-".repeat(width);
+    let equals = "=".repeat(width);
+
+    let get_str = |key: &str| -> String {
+        tx.get(key)
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string()
+    };
+
+    fn truncate(text: &str, max: usize) -> String {
+        let count = text.chars().count();
+        if count <= max {
+            return text.to_string();
+        }
+        if max <= 1 {
+            return "…".to_string();
+        }
+        let mut s: String = text.chars().take(max - 1).collect();
+        s.push('…');
+        s
+    }
+    fn row(left: &str, right: &str, width: usize) -> String {
+        let right = truncate(right, width);
+        let right_len = right.chars().count();
+        let left = truncate(left, width.saturating_sub(right_len + 1));
+        let l_len = left.chars().count();
+        let r_len = right.chars().count();
+        if l_len + r_len + 1 >= width {
+            format!("{}\n{:>width$}", left, right, width = width)
+        } else {
+            let spaces = " ".repeat(width - l_len - r_len);
+            format!("{}{}{}", left, spaces, right)
+        }
+    }
+    let center = |text: &str| -> String {
+        let text = truncate(text, width);
+        let len = text.chars().count();
+        let pad = if len < width { (width - len) / 2 } else { 0 };
+        format!("{}{}", " ".repeat(pad), text)
+    };
+
+    let store = store_name
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| "SIRKA".to_string())
+        .to_uppercase();
+
+    let mut out = String::new();
+    out.push_str(&center(&store));
+    out.push('\n');
+    out.push_str(&center("SURAT JALAN PENGIRIMAN"));
+    out.push('\n');
+    out.push_str(&center("(DELIVERY ORDER)"));
+    out.push('\n');
+    out.push_str(&equals);
+    out.push('\n');
+
+    let invoice_no = get_str("invoiceNo");
+    let do_no = format!("DO-{}", invoice_no);
+    out.push_str(&row("No. DO", &do_no, width));
+    out.push('\n');
+    out.push_str(&row("No. Faktur", &invoice_no, width));
+    out.push('\n');
+    out.push_str(&row("Tanggal Kirim", &get_str("date"), width));
+    out.push('\n');
+    out.push_str(&row("Penerima", &get_str("buyer"), width));
+    out.push('\n');
+    if !get_str("picName").is_empty() {
+        out.push_str(&row("PIC Penerima", &get_str("picName"), width));
+        out.push('\n');
+    }
+
+    out.push_str(&dashes);
+    out.push('\n');
+    out.push_str(&center("RINCIAN FISIK BARANG"));
+    out.push('\n');
+    out.push_str(&dashes);
+    out.push('\n');
+
+    let mut total_items = 0usize;
+    if let Some(items) = tx.get("items").and_then(|v| v.as_array()) {
+        for (idx, it) in items.iter().enumerate() {
+            total_items += 1;
+            let name = it.get("name").and_then(|v| v.as_str()).unwrap_or("?");
+            let qty = it.get("qty").and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let unit = it.get("unit").and_then(|v| v.as_str()).unwrap_or("");
+            let qty_txt = format_qty(qty);
+
+            out.push_str(&format!("{}. {}\n", idx + 1, name));
+            out.push_str(&row("   Jumlah Kirim", &format!("{} {}", qty_txt, unit), width));
+            out.push('\n');
+        }
+    }
+
+    out.push_str(&dashes);
+    out.push('\n');
+    out.push_str(&row("Total Macam", &format!("{} Jenis Barang", total_items), width));
+    out.push('\n');
+    out.push_str(&dashes);
+    out.push('\n');
+    out.push_str("Perhatian: Harap periksa fisik barang saat diterima.\n\n");
+
+    let half = width / 2;
+    out.push_str(&format!(
+        "{:<width$}{:<width$}\n",
+        "Pengirim / Supir:",
+        "Penerima Toko:",
+        width = half
+    ));
+    out.push_str("\n\n");
+    out.push_str(&format!(
+        "{:<width$}{:<width$}\n",
+        "(...............)",
+        "(...............)",
+        width = half
+    ));
 
     Ok(out)
 }

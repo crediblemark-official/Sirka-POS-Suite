@@ -105,6 +105,8 @@ pub fn run() {
             // 1. Hardware & System
             save_export_file,
             generate_receipt_text,
+            generate_kitchen_ticket_text,
+            generate_delivery_order_text,
             print_to_network_printer,
             get_bluetooth_devices,
             print_to_bluetooth_printer,
