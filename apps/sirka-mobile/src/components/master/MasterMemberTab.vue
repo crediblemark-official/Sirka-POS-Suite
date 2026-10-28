@@ -367,8 +367,8 @@ function openRulesDrawer() {
             </div>
           </div>
 
-          <!-- Bottom Row: Marketplace-Style Filter Drawer Trigger & Active Filter Chips -->
-          <div v-horizontal-scroll class="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
+          <!-- Bottom Row: Marketplace-Style Filter Drawer Trigger & Quick Filter Pills -->
+          <div v-horizontal-scroll class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
             <!-- Marketplace Filter Drawer Trigger Button -->
             <button
               type="button"
@@ -388,41 +388,11 @@ function openRulesDrawer() {
               </span>
             </button>
 
-            <!-- Active Filter Chip: Tier / Status Member -->
-            <div
-              v-if="memberTierFilter !== 'ALL'"
-              class="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold bg-amber-50 text-amber-900 border border-amber-200 rounded-lg shrink-0 whitespace-nowrap"
-            >
-              <span>Tier: <strong>{{ memberTierFilter === 'UNREGISTERED' ? 'Belum Member' : (memberTierFilter === 'EVERYONE' ? 'Semua Pelanggan' : memberTierFilter) }}</strong></span>
-              <button
-                type="button"
-                class="p-0.5 hover:bg-amber-200 rounded-full cursor-pointer ml-0.5"
-                @click="memberTierFilter = 'ALL'"
-              >
-                <X :size="11" />
-              </button>
-            </div>
-
-            <!-- Active Filter Chip: Segmentasi Pasar -->
-            <div
-              v-if="memberMarketFilter !== 'ALL'"
-              class="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold bg-indigo-50 text-indigo-800 border border-indigo-200 rounded-lg shrink-0 whitespace-nowrap"
-            >
-              <span>Pasar: <strong>{{ memberMarketFilter === 'B2B' ? 'Grosir B2B' : 'Eceran B2C' }}</strong></span>
-              <button
-                type="button"
-                class="p-0.5 hover:bg-indigo-200 rounded-full cursor-pointer ml-0.5"
-                @click="memberMarketFilter = 'ALL'"
-              >
-                <X :size="11" />
-              </button>
-            </div>
-
             <!-- Reset Button jika ada filter aktif -->
             <button
               v-if="activeFiltersCount > 0"
               type="button"
-              class="flex items-center gap-1 px-2 py-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg cursor-pointer transition-colors shrink-0 whitespace-nowrap"
+              class="flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg cursor-pointer transition-colors shrink-0 whitespace-nowrap"
               title="Hapus semua filter"
               @click="resetAllFilters"
             >
@@ -432,11 +402,135 @@ function openRulesDrawer() {
 
             <div class="h-4 w-px bg-gray-300 shrink-0"></div>
 
+            <!-- Quick Filter Pill: Semua Member -->
+            <button
+              type="button"
+              class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all shrink-0 select-none flex items-center gap-1.5 shadow-2xs"
+              :class="memberTierFilter === 'ALL' && memberMarketFilter === 'ALL'
+                ? 'bg-amber-600 text-white font-bold'
+                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+              @click="resetAllFilters"
+            >
+              <span>Semua Member</span>
+              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="memberTierFilter === 'ALL' && memberMarketFilter === 'ALL' ? 'bg-amber-700 text-white' : 'bg-gray-200 text-gray-700'">
+                {{ buyerStore.memberBuyers.length }}
+              </span>
+            </button>
+
+            <!-- Quick Filter Pill: Regular -->
+            <button
+              type="button"
+              class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all shrink-0 select-none flex items-center gap-1.5 shadow-2xs"
+              :class="memberTierFilter === 'REGULAR'
+                ? 'bg-slate-700 text-white font-bold'
+                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+              @click="memberTierFilter = memberTierFilter === 'REGULAR' ? 'ALL' : 'REGULAR'"
+            >
+              <span>Regular</span>
+              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="memberTierFilter === 'REGULAR' ? 'bg-slate-800 text-white' : 'bg-gray-200 text-gray-700'">
+                {{ regularCount }}
+              </span>
+            </button>
+
+            <!-- Quick Filter Pill: Silver -->
+            <button
+              type="button"
+              class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all shrink-0 select-none flex items-center gap-1.5 shadow-2xs"
+              :class="memberTierFilter === 'SILVER'
+                ? 'bg-blue-600 text-white font-bold'
+                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+              @click="memberTierFilter = memberTierFilter === 'SILVER' ? 'ALL' : 'SILVER'"
+            >
+              <span>Silver</span>
+              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="memberTierFilter === 'SILVER' ? 'bg-blue-700 text-white' : 'bg-blue-50 text-blue-700 border border-blue-200'">
+                {{ silverCount }}
+              </span>
+            </button>
+
+            <!-- Quick Filter Pill: Gold -->
+            <button
+              type="button"
+              class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all shrink-0 select-none flex items-center gap-1.5 shadow-2xs"
+              :class="memberTierFilter === 'GOLD'
+                ? 'bg-amber-500 text-slate-950 font-bold'
+                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+              @click="memberTierFilter = memberTierFilter === 'GOLD' ? 'ALL' : 'GOLD'"
+            >
+              <span>Gold</span>
+              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="memberTierFilter === 'GOLD' ? 'bg-amber-600 text-slate-950' : 'bg-amber-50 text-amber-900 border border-amber-200'">
+                {{ goldCount }}
+              </span>
+            </button>
+
+            <!-- Quick Filter Pill: Platinum -->
+            <button
+              type="button"
+              class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all shrink-0 select-none flex items-center gap-1.5 shadow-2xs"
+              :class="memberTierFilter === 'PLATINUM'
+                ? 'bg-purple-700 text-white font-bold'
+                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+              @click="memberTierFilter = memberTierFilter === 'PLATINUM' ? 'ALL' : 'PLATINUM'"
+            >
+              <span>Platinum</span>
+              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="memberTierFilter === 'PLATINUM' ? 'bg-purple-800 text-white' : 'bg-purple-50 text-purple-700 border border-purple-200'">
+                {{ platinumCount }}
+              </span>
+            </button>
+
+            <!-- Quick Filter Pill: Belum Punya Member -->
+            <button
+              type="button"
+              class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all shrink-0 select-none flex items-center gap-1.5 shadow-2xs"
+              :class="memberTierFilter === 'UNREGISTERED'
+                ? 'bg-rose-600 text-white font-bold'
+                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+              @click="memberTierFilter = memberTierFilter === 'UNREGISTERED' ? 'ALL' : 'UNREGISTERED'"
+            >
+              <span>Belum Member</span>
+              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="memberTierFilter === 'UNREGISTERED' ? 'bg-rose-700 text-white' : 'bg-rose-50 text-rose-700 border border-rose-200'">
+                {{ nonMemberCount }}
+              </span>
+            </button>
+
+            <!-- Quick Filter Pill: Grosir B2B -->
+            <button
+              type="button"
+              class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all shrink-0 select-none flex items-center gap-1.5 shadow-2xs"
+              :class="memberMarketFilter === 'B2B'
+                ? 'bg-indigo-600 text-white font-bold'
+                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+              @click="memberMarketFilter = memberMarketFilter === 'B2B' ? 'ALL' : 'B2B'"
+            >
+              <Building :size="11" />
+              <span>Grosir</span>
+              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="memberMarketFilter === 'B2B' ? 'bg-indigo-700 text-white' : 'bg-indigo-50 text-indigo-700 border border-indigo-200'">
+                {{ b2bCount }}
+              </span>
+            </button>
+
+            <!-- Quick Filter Pill: Eceran B2C -->
+            <button
+              type="button"
+              class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all shrink-0 select-none flex items-center gap-1.5 shadow-2xs"
+              :class="memberMarketFilter === 'B2C'
+                ? 'bg-teal-600 text-white font-bold'
+                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+              @click="memberMarketFilter = memberMarketFilter === 'B2C' ? 'ALL' : 'B2C'"
+            >
+              <UserCheck :size="11" />
+              <span>Eceran</span>
+              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="memberMarketFilter === 'B2C' ? 'bg-teal-700 text-white' : 'bg-teal-50 text-teal-700 border border-teal-200'">
+                {{ b2cCount }}
+              </span>
+            </button>
+
+            <div class="h-4 w-px bg-gray-300 shrink-0"></div>
+
             <!-- Tombol Aturan Poin -->
             <button
               type="button"
               @click="openRulesDrawer"
-              class="flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-lg border cursor-pointer transition-colors shrink-0 bg-white hover:bg-amber-50 text-amber-800 border-amber-300 shadow-2xs whitespace-nowrap"
+              class="flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg border cursor-pointer transition-colors shrink-0 bg-white hover:bg-amber-50 text-amber-800 border-amber-300 shadow-2xs whitespace-nowrap"
               title="Atur rasio poin belanja & diskon tier"
             >
               <Sparkles :size="12" class="text-amber-500" />

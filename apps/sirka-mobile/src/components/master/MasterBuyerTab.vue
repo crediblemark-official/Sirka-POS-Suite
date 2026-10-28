@@ -448,8 +448,8 @@ defineExpose({
             </button>
           </div>
 
-          <!-- Bottom Row: Marketplace-Style Filter Drawer Trigger & Active Filter Chips -->
-          <div v-horizontal-scroll class="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
+          <!-- Bottom Row: Marketplace-Style Filter Drawer Trigger & Quick Filter Pills -->
+          <div v-horizontal-scroll class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
             <!-- Marketplace Filter Drawer Trigger Button -->
             <button
               type="button"
@@ -469,46 +469,93 @@ defineExpose({
               </span>
             </button>
 
-            <!-- Active Filter Chip: Segmentasi Pasar -->
-            <div
-              v-if="localFilter !== 'ALL'"
-              class="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold bg-indigo-50 text-indigo-800 border border-indigo-200 rounded-lg shrink-0 whitespace-nowrap"
-            >
-              <span>Pasar: <strong>{{ localFilter === 'B2B' ? 'Grosir (B2B)' : 'Eceran (B2C)' }}</strong></span>
-              <button
-                type="button"
-                class="p-0.5 hover:bg-indigo-200 rounded-full cursor-pointer ml-0.5"
-                @click="localFilter = 'ALL'"
-              >
-                <X :size="11" />
-              </button>
-            </div>
-
-            <!-- Active Filter Chip: Status Member -->
-            <div
-              v-if="memberFilter !== 'ALL'"
-              class="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold bg-purple-50 text-purple-800 border border-purple-200 rounded-lg shrink-0 whitespace-nowrap"
-            >
-              <span>Status: <strong>{{ memberFilter === 'MEMBER' ? 'Punya Member' : 'Bukan Member' }}</strong></span>
-              <button
-                type="button"
-                class="p-0.5 hover:bg-purple-200 rounded-full cursor-pointer ml-0.5"
-                @click="memberFilter = 'ALL'"
-              >
-                <X :size="11" />
-              </button>
-            </div>
-
             <!-- Reset Button jika ada filter aktif -->
             <button
               v-if="activeFiltersCount > 0"
               type="button"
-              class="flex items-center gap-1 px-2 py-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg cursor-pointer transition-colors shrink-0 whitespace-nowrap"
+              class="flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg cursor-pointer transition-colors shrink-0 whitespace-nowrap"
               title="Hapus semua filter"
               @click="resetAllFilters"
             >
               <RotateCcw :size="11" />
               <span>Reset</span>
+            </button>
+
+            <div class="h-4 w-px bg-gray-300 shrink-0"></div>
+
+            <!-- Quick Filter Pill: Semua Pelanggan -->
+            <button
+              type="button"
+              class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all shrink-0 select-none flex items-center gap-1.5 shadow-2xs"
+              :class="localFilter === 'ALL' && memberFilter === 'ALL'
+                ? 'bg-indigo-600 text-white font-bold'
+                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+              @click="resetAllFilters"
+            >
+              <span>Semua</span>
+              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="localFilter === 'ALL' && memberFilter === 'ALL' ? 'bg-indigo-700 text-white' : 'bg-gray-200 text-gray-700'">
+                {{ totalBuyers }}
+              </span>
+            </button>
+
+            <!-- Quick Filter Pill: Grosir B2B -->
+            <button
+              type="button"
+              class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all shrink-0 select-none flex items-center gap-1.5 shadow-2xs"
+              :class="localFilter === 'B2B'
+                ? 'bg-indigo-600 text-white font-bold'
+                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+              @click="localFilter = localFilter === 'B2B' ? 'ALL' : 'B2B'"
+            >
+              <Building :size="11" />
+              <span>Grosir (B2B)</span>
+              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="localFilter === 'B2B' ? 'bg-indigo-700 text-white' : 'bg-indigo-50 text-indigo-700 border border-indigo-200'">
+                {{ b2bCount }}
+              </span>
+            </button>
+
+            <!-- Quick Filter Pill: Eceran B2C -->
+            <button
+              type="button"
+              class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all shrink-0 select-none flex items-center gap-1.5 shadow-2xs"
+              :class="localFilter === 'B2C'
+                ? 'bg-teal-600 text-white font-bold'
+                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+              @click="localFilter = localFilter === 'B2C' ? 'ALL' : 'B2C'"
+            >
+              <ShoppingBag :size="11" />
+              <span>Eceran (B2C)</span>
+              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="localFilter === 'B2C' ? 'bg-teal-700 text-white' : 'bg-teal-50 text-teal-700 border border-teal-200'">
+                {{ b2cCount }}
+              </span>
+            </button>
+
+            <!-- Quick Filter Pill: Member Saja -->
+            <button
+              type="button"
+              class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all shrink-0 select-none flex items-center gap-1.5 shadow-2xs"
+              :class="memberFilter === 'MEMBER'
+                ? 'bg-purple-600 text-white font-bold'
+                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+              @click="memberFilter = memberFilter === 'MEMBER' ? 'ALL' : 'MEMBER'"
+            >
+              <CreditCard :size="11" />
+              <span>Punya Member</span>
+              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="memberFilter === 'MEMBER' ? 'bg-purple-700 text-white' : 'bg-purple-50 text-purple-700 border border-purple-200'">
+                {{ memberBuyersCount }}
+              </span>
+            </button>
+
+            <!-- Quick Filter Pill: Bukan Member -->
+            <button
+              type="button"
+              class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all shrink-0 select-none flex items-center gap-1.5 shadow-2xs"
+              :class="memberFilter === 'NON_MEMBER'
+                ? 'bg-rose-600 text-white font-bold'
+                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+              @click="memberFilter = memberFilter === 'NON_MEMBER' ? 'ALL' : 'NON_MEMBER'"
+            >
+              <span>Bukan Member</span>
             </button>
 
             <span v-if="props.searchQuery" class="text-[10.5px] text-gray-600 bg-gray-200/80 px-2 py-0.5 rounded-md font-medium shrink-0 whitespace-nowrap ml-auto">

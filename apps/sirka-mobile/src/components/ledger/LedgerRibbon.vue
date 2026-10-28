@@ -160,52 +160,126 @@ function onBuyerChange(val: string | number) {
         </span>
       </button>
 
-      <!-- Active Filter Chip: Status -->
-      <div
-        v-if="filterStatus !== 'Semua'"
-        class="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg shrink-0 whitespace-nowrap"
+      <!-- Tombol Reset Filter jika ada filter aktif -->
+      <button
+        v-if="hasActiveFilter"
+        type="button"
+        class="flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg cursor-pointer transition-colors shrink-0 whitespace-nowrap"
+        title="Reset semua filter"
+        @click="emit('reset-filters')"
       >
-        <span>Status: <strong>{{ filterStatus }}</strong></span>
-        <button
-          type="button"
-          class="p-0.5 hover:bg-emerald-200 rounded-full cursor-pointer ml-0.5"
-          @click="emit('update:filterStatus', 'Semua')"
-        >
-          <X :size="11" />
-        </button>
-      </div>
+        <RotateCcw :size="11" />
+        <span>Reset</span>
+      </button>
 
-      <!-- Active Filter Chip: Metode -->
-      <div
-        v-if="filterMethod && filterMethod !== 'Semua'"
-        class="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold bg-blue-50 text-blue-800 border border-blue-200 rounded-lg shrink-0 whitespace-nowrap"
+      <div class="h-4 w-px bg-gray-300 shrink-0"></div>
+
+      <!-- Quick Filter Pill: Semua Transaksi -->
+      <button
+        type="button"
+        class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all shrink-0 select-none shadow-2xs"
+        :class="filterStatus === 'Semua' && (!filterMethod || filterMethod === 'Semua') && filterMarket === 'Semua'
+          ? 'bg-indigo-600 text-white font-bold'
+          : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+        @click="emit('reset-filters')"
       >
-        <span>Metode: <strong>{{ filterMethod }}</strong></span>
-        <button
-          type="button"
-          class="p-0.5 hover:bg-blue-200 rounded-full cursor-pointer ml-0.5"
-          @click="emit('update:filterMethod', 'Semua')"
-        >
-          <X :size="11" />
-        </button>
-      </div>
+        Semua Nota
+      </button>
 
-      <!-- Active Filter Chip: Pasar -->
-      <div
-        v-if="filterMarket !== 'Semua'"
-        class="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold bg-purple-50 text-purple-800 border border-purple-200 rounded-lg shrink-0 whitespace-nowrap"
+      <!-- Quick Filter Pill: Lunas -->
+      <button
+        type="button"
+        class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all shrink-0 select-none shadow-2xs"
+        :class="filterStatus === 'LUNAS'
+          ? 'bg-emerald-600 text-white font-bold'
+          : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+        @click="emit('update:filterStatus', filterStatus === 'LUNAS' ? 'Semua' : 'LUNAS')"
       >
-        <span>Pasar: <strong>{{ filterMarket }}</strong></span>
-        <button
-          type="button"
-          class="p-0.5 hover:bg-purple-200 rounded-full cursor-pointer ml-0.5"
-          @click="emit('update:filterMarket', 'Semua')"
-        >
-          <X :size="11" />
-        </button>
-      </div>
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block mr-1"></span>
+        <span>Lunas</span>
+        <span class="text-[10px] ml-1 opacity-80">({{ lunasCount }})</span>
+      </button>
 
-      <!-- Active Filter Chip: Pelanggan -->
+      <!-- Quick Filter Pill: Tempo -->
+      <button
+        type="button"
+        class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all shrink-0 select-none shadow-2xs"
+        :class="filterStatus === 'TEMPO'
+          ? 'bg-amber-500 text-slate-950 font-bold'
+          : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+        @click="emit('update:filterStatus', filterStatus === 'TEMPO' ? 'Semua' : 'TEMPO')"
+      >
+        <span class="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block mr-1"></span>
+        <span>Tempo (Piutang)</span>
+        <span class="text-[10px] ml-1 opacity-80">({{ tempoCount }})</span>
+      </button>
+
+      <!-- Quick Filter Pill: Tunai -->
+      <button
+        type="button"
+        class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all shrink-0 select-none shadow-2xs"
+        :class="filterMethod === 'TUNAI'
+          ? 'bg-teal-600 text-white font-bold'
+          : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+        @click="emit('update:filterMethod', filterMethod === 'TUNAI' ? 'Semua' : 'TUNAI')"
+      >
+        <span>Tunai</span>
+        <span class="text-[10px] ml-1 opacity-80">({{ tunaiCount || 0 }})</span>
+      </button>
+
+      <!-- Quick Filter Pill: QRIS -->
+      <button
+        type="button"
+        class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all shrink-0 select-none shadow-2xs"
+        :class="filterMethod === 'QRIS'
+          ? 'bg-rose-600 text-white font-bold'
+          : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+        @click="emit('update:filterMethod', filterMethod === 'QRIS' ? 'Semua' : 'QRIS')"
+      >
+        <span>QRIS</span>
+        <span class="text-[10px] ml-1 opacity-80">({{ qrisCount }})</span>
+      </button>
+
+      <!-- Quick Filter Pill: Transfer Bank -->
+      <button
+        type="button"
+        class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all shrink-0 select-none shadow-2xs"
+        :class="filterMethod === 'TRANSFER'
+          ? 'bg-blue-600 text-white font-bold'
+          : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+        @click="emit('update:filterMethod', filterMethod === 'TRANSFER' ? 'Semua' : 'TRANSFER')"
+      >
+        <span>Transfer Bank</span>
+        <span class="text-[10px] ml-1 opacity-80">({{ transferCount }})</span>
+      </button>
+
+      <!-- Quick Filter Pill: Grosir B2B -->
+      <button
+        type="button"
+        class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all shrink-0 select-none shadow-2xs"
+        :class="filterMarket === 'B2B'
+          ? 'bg-indigo-600 text-white font-bold'
+          : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+        @click="emit('update:filterMarket', filterMarket === 'B2B' ? 'Semua' : 'B2B')"
+      >
+        <span>Grosir (B2B)</span>
+        <span class="text-[10px] ml-1 opacity-80">({{ b2bCount }})</span>
+      </button>
+
+      <!-- Quick Filter Pill: Eceran B2C -->
+      <button
+        type="button"
+        class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all shrink-0 select-none shadow-2xs"
+        :class="filterMarket === 'B2C'
+          ? 'bg-purple-600 text-white font-bold'
+          : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+        @click="emit('update:filterMarket', filterMarket === 'B2C' ? 'Semua' : 'B2C')"
+      >
+        <span>Eceran (B2C)</span>
+        <span class="text-[10px] ml-1 opacity-80">({{ b2cCount }})</span>
+      </button>
+
+      <!-- Active Filter Chip: Pelanggan (jika dipilih dari Drawer) -->
       <div
         v-if="filterBuyer !== 'Semua'"
         class="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 rounded-lg shrink-0 whitespace-nowrap"
@@ -220,7 +294,7 @@ function onBuyerChange(val: string | number) {
         </button>
       </div>
 
-      <!-- Active Filter Chip: Tanggal -->
+      <!-- Active Filter Chip: Tanggal (jika dipilih dari Drawer) -->
       <div
         v-if="filterStartDate || filterEndDate"
         class="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold bg-indigo-50 text-indigo-800 border border-indigo-200 rounded-lg shrink-0 whitespace-nowrap"
@@ -234,18 +308,6 @@ function onBuyerChange(val: string | number) {
           <X :size="11" />
         </button>
       </div>
-
-      <!-- Tombol Reset Filter jika ada filter aktif -->
-      <button
-        v-if="hasActiveFilter"
-        type="button"
-        class="flex items-center gap-1 px-2 py-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg cursor-pointer transition-colors shrink-0 whitespace-nowrap"
-        title="Reset semua filter"
-        @click="emit('reset-filters')"
-      >
-        <RotateCcw :size="11" />
-        <span>Reset Filter</span>
-      </button>
     </div>
 
     <!-- Marketplace Filter Drawer Component untuk Buku Kas -->

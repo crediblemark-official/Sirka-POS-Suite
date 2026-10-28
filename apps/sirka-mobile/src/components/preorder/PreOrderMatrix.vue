@@ -54,6 +54,7 @@ const selectedBuyer = ref<BuyerName | 'Semua'>('Semua');
 const localSearchQuery = ref<string>('');
 
 const days = ['Semua', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+const daysList = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'] as const;
 const buyers = computed(() => ['Semua', ...buyerStore.buyers.map(b => b.name)]);
 
 function getDayCount(d: string) {
@@ -337,8 +338,8 @@ function handleOpenAddPo() {
             </button>
           </div>
 
-          <!-- Bottom Row: Marketplace-Style Filter Drawer Trigger & Active Filter Chips -->
-          <div v-horizontal-scroll class="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
+          <!-- Bottom Row: Marketplace-Style Filter Drawer Trigger & Quick Day Pills -->
+          <div v-horizontal-scroll class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
             <!-- Tombol Trigger Filter Drawer -->
             <button
               type="button"
@@ -358,22 +359,47 @@ function handleOpenAddPo() {
               </span>
             </button>
 
-            <!-- Active Filter Chip: Hari -->
-            <div
-              v-if="selectedDay !== 'Semua'"
-              class="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg shrink-0 whitespace-nowrap"
+            <!-- Tombol Reset Filter jika ada filter aktif -->
+            <button
+              v-if="hasActiveFilter"
+              type="button"
+              class="flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg cursor-pointer transition-colors shadow-2xs shrink-0 whitespace-nowrap"
+              title="Reset semua filter"
+              @click="resetFilters"
             >
-              <span>Hari: <strong>{{ selectedDay }}</strong></span>
-              <button
-                type="button"
-                class="p-0.5 hover:bg-emerald-200 rounded-full cursor-pointer ml-0.5"
-                @click="selectedDay = 'Semua'"
-              >
-                <X :size="11" />
-              </button>
-            </div>
+              <RotateCcw :size="11" />
+              <span>Reset</span>
+            </button>
 
-            <!-- Active Filter Chip: Pelanggan -->
+            <div class="h-4 w-px bg-gray-300 shrink-0"></div>
+
+            <!-- Quick Day Pill: Semua Hari -->
+            <button
+              type="button"
+              class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all shrink-0 select-none shadow-2xs"
+              :class="selectedDay === 'Semua' && selectedBuyer === 'Semua'
+                ? 'bg-emerald-600 text-white font-bold'
+                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+              @click="resetFilters"
+            >
+              Semua Hari
+            </button>
+
+            <!-- Quick Day Pills: Hari per Hari -->
+            <button
+              v-for="d in daysList"
+              :key="d"
+              type="button"
+              class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all shrink-0 select-none shadow-2xs"
+              :class="selectedDay === d
+                ? 'bg-emerald-600 text-white font-bold'
+                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+              @click="selectedDay = selectedDay === d ? 'Semua' : d"
+            >
+              {{ d }}
+            </button>
+
+            <!-- Active Chip: Pelanggan (jika ada terpilih dari Drawer) -->
             <div
               v-if="selectedBuyer !== 'Semua'"
               class="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold bg-blue-50 text-blue-800 border border-blue-200 rounded-lg shrink-0 whitespace-nowrap"
@@ -387,18 +413,6 @@ function handleOpenAddPo() {
                 <X :size="11" />
               </button>
             </div>
-
-            <!-- Tombol Reset Filter jika ada filter aktif -->
-            <button
-              v-if="hasActiveFilter"
-              type="button"
-              class="flex items-center gap-1 px-2 py-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg cursor-pointer transition-colors shadow-2xs shrink-0 whitespace-nowrap"
-              title="Reset semua filter"
-              @click="resetFilters"
-            >
-              <RotateCcw :size="11" />
-              <span>Reset</span>
-            </button>
 
             <span v-if="props.searchQuery" class="text-[10.5px] text-gray-600 bg-gray-200/80 px-2 py-0.5 rounded-md font-medium shrink-0 whitespace-nowrap ml-auto">
               Cari: "<strong class="text-gray-900">{{ props.searchQuery }}</strong>"

@@ -345,8 +345,8 @@ function handleDblClick(prod: Product) {
         </button>
       </div>
 
-      <!-- Bottom Row: Marketplace-Style Filter Drawer Trigger & Quick Action Buttons -->
-      <div v-horizontal-scroll class="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
+      <!-- Bottom Row: Marketplace-Style Filter Drawer Trigger, Quick Stock Pills & Action Buttons -->
+      <div v-horizontal-scroll class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
         <!-- Marketplace Filter Drawer Trigger Button -->
         <button
           type="button"
@@ -366,7 +366,58 @@ function handleDblClick(prod: Product) {
           </span>
         </button>
 
-        <!-- Active Filter Chip: Kategori -->
+        <!-- Reset Button jika ada filter aktif -->
+        <button
+          v-if="activeFiltersCount > 0"
+          type="button"
+          class="flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg cursor-pointer transition-colors shrink-0 whitespace-nowrap"
+          title="Hapus semua filter"
+          @click="resetAllFilters"
+        >
+          <RotateCcw :size="11" />
+          <span>Reset</span>
+        </button>
+
+        <div class="h-4 w-px bg-gray-300 shrink-0"></div>
+
+        <!-- Quick Pill: Semua Stok -->
+        <button
+          type="button"
+          class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all shrink-0 select-none shadow-2xs"
+          :class="selectedStockStatus === 'Semua' && selectedCategory === 'Semua' && selectedSupplier === 'Semua'
+            ? 'bg-purple-600 text-white font-bold'
+            : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+          @click="resetAllFilters"
+        >
+          Semua SKU
+        </button>
+
+        <!-- Quick Pill: Stok Kritis (≤ 5) -->
+        <button
+          type="button"
+          class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all shrink-0 select-none shadow-2xs"
+          :class="selectedStockStatus === 'Kritis'
+            ? 'bg-rose-600 text-white font-bold'
+            : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+          @click="selectedStockStatus = selectedStockStatus === 'Kritis' ? 'Semua' : 'Kritis'"
+        >
+          <span class="w-1.5 h-1.5 rounded-full bg-rose-400 inline-block mr-1"></span>
+          <span>Stok Kritis</span>
+        </button>
+
+        <!-- Quick Pill: Stok Habis -->
+        <button
+          type="button"
+          class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all shrink-0 select-none shadow-2xs"
+          :class="selectedStockStatus === 'Habis'
+            ? 'bg-gray-800 text-white font-bold'
+            : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+          @click="selectedStockStatus = selectedStockStatus === 'Habis' ? 'Semua' : 'Habis'"
+        >
+          <span>Stok Habis</span>
+        </button>
+
+        <!-- Active Filter Chip: Kategori (jika dipilih dari Drawer) -->
         <div
           v-if="selectedCategory !== 'Semua'"
           class="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold bg-purple-50 text-purple-800 border border-purple-200 rounded-lg shrink-0 whitespace-nowrap"
@@ -381,7 +432,7 @@ function handleDblClick(prod: Product) {
           </button>
         </div>
 
-        <!-- Active Filter Chip: Supplier -->
+        <!-- Active Filter Chip: Supplier (jika dipilih dari Drawer) -->
         <div
           v-if="selectedSupplier !== 'Semua'"
           class="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold bg-blue-50 text-blue-800 border border-blue-200 rounded-lg shrink-0 whitespace-nowrap"
@@ -395,33 +446,6 @@ function handleDblClick(prod: Product) {
             <X :size="11" />
           </button>
         </div>
-
-        <!-- Active Filter Chip: Stok -->
-        <div
-          v-if="selectedStockStatus !== 'Semua'"
-          class="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 rounded-lg shrink-0 whitespace-nowrap"
-        >
-          <span>Stok: <strong>{{ selectedStockStatus }}</strong></span>
-          <button
-            type="button"
-            class="p-0.5 hover:bg-amber-200 rounded-full cursor-pointer ml-0.5"
-            @click="selectedStockStatus = 'Semua'"
-          >
-            <X :size="11" />
-          </button>
-        </div>
-
-        <!-- Reset Button jika ada filter aktif -->
-        <button
-          v-if="activeFiltersCount > 0"
-          type="button"
-          class="flex items-center gap-1 px-2 py-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg cursor-pointer transition-colors shrink-0 whitespace-nowrap"
-          title="Hapus semua filter"
-          @click="resetAllFilters"
-        >
-          <RotateCcw :size="11" />
-          <span>Reset</span>
-        </button>
 
         <div class="h-4 w-px bg-gray-300 shrink-0"></div>
 

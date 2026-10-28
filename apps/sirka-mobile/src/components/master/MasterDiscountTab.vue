@@ -358,8 +358,8 @@ function handleKeyDown(e: KeyboardEvent) {
             </button>
           </div>
 
-          <!-- Bottom Row: Marketplace-Style Filter Drawer Trigger & Active Filter Chips -->
-          <div v-horizontal-scroll class="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
+          <!-- Bottom Row: Marketplace-Style Filter Drawer Trigger & Quick Filter Pills -->
+          <div v-horizontal-scroll class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
             <!-- Marketplace Filter Drawer Trigger Button -->
             <button
               type="button"
@@ -379,56 +379,11 @@ function handleKeyDown(e: KeyboardEvent) {
               </span>
             </button>
 
-            <!-- Active Filter Chip: Status -->
-            <div
-              v-if="filterStatus !== 'ALL'"
-              class="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold bg-rose-50 text-rose-800 border border-rose-200 rounded-lg shrink-0 whitespace-nowrap"
-            >
-              <span>Status: <strong>{{ filterStatus === 'ACTIVE' ? 'Aktif' : 'Nonaktif' }}</strong></span>
-              <button
-                type="button"
-                class="p-0.5 hover:bg-rose-200 rounded-full cursor-pointer ml-0.5"
-                @click="filterStatus = 'ALL'"
-              >
-                <X :size="11" />
-              </button>
-            </div>
-
-            <!-- Active Filter Chip: Tipe -->
-            <div
-              v-if="filterType !== 'ALL'"
-              class="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold bg-blue-50 text-blue-800 border border-blue-200 rounded-lg shrink-0 whitespace-nowrap"
-            >
-              <span>Tipe: <strong>{{ filterType === 'PERCENT' ? 'Persen (%)' : 'Tetap (Rp)' }}</strong></span>
-              <button
-                type="button"
-                class="p-0.5 hover:bg-blue-200 rounded-full cursor-pointer ml-0.5"
-                @click="filterType = 'ALL'"
-              >
-                <X :size="11" />
-              </button>
-            </div>
-
-            <!-- Active Filter Chip: Target Sasaran -->
-            <div
-              v-if="filterScope !== 'ALL'"
-              class="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold bg-purple-50 text-purple-800 border border-purple-200 rounded-lg shrink-0 whitespace-nowrap"
-            >
-              <span>Target: <strong>{{ filterScope === 'MEMBER' ? 'Member' : (filterScope === 'B2B' ? 'Grosir B2B' : 'Eceran B2C') }}</strong></span>
-              <button
-                type="button"
-                class="p-0.5 hover:bg-purple-200 rounded-full cursor-pointer ml-0.5"
-                @click="filterScope = 'ALL'"
-              >
-                <X :size="11" />
-              </button>
-            </div>
-
             <!-- Reset Button jika ada filter aktif -->
             <button
               v-if="activeFiltersCount > 0"
               type="button"
-              class="flex items-center gap-1 px-2 py-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg cursor-pointer transition-colors shrink-0 whitespace-nowrap"
+              class="flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg cursor-pointer transition-colors shrink-0 whitespace-nowrap"
               title="Hapus semua filter"
               @click="resetAllFilters"
             >
@@ -438,10 +393,135 @@ function handleKeyDown(e: KeyboardEvent) {
 
             <div class="h-4 w-px bg-gray-300 shrink-0"></div>
 
+            <!-- Quick Filter Pill: Semua Diskon -->
+            <button
+              type="button"
+              class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all shrink-0 select-none flex items-center gap-1.5 shadow-2xs"
+              :class="filterStatus === 'ALL' && filterType === 'ALL' && filterScope === 'ALL'
+                ? 'bg-rose-600 text-white font-bold'
+                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+              @click="resetAllFilters"
+            >
+              <span>Semua</span>
+              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="filterStatus === 'ALL' && filterType === 'ALL' && filterScope === 'ALL' ? 'bg-rose-700 text-white' : 'bg-gray-200 text-gray-700'">
+                {{ discountStore.discounts.length }}
+              </span>
+            </button>
+
+            <!-- Quick Filter Pill: Aktif -->
+            <button
+              type="button"
+              class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all shrink-0 select-none flex items-center gap-1.5 shadow-2xs"
+              :class="filterStatus === 'ACTIVE'
+                ? 'bg-emerald-600 text-white font-bold'
+                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+              @click="filterStatus = filterStatus === 'ACTIVE' ? 'ALL' : 'ACTIVE'"
+            >
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span>
+              <span>Aktif</span>
+              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="filterStatus === 'ACTIVE' ? 'bg-emerald-700 text-white' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'">
+                {{ activeDiscountsCount }}
+              </span>
+            </button>
+
+            <!-- Quick Filter Pill: Nonaktif -->
+            <button
+              type="button"
+              class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all shrink-0 select-none flex items-center gap-1.5 shadow-2xs"
+              :class="filterStatus === 'INACTIVE'
+                ? 'bg-gray-700 text-white font-bold'
+                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+              @click="filterStatus = filterStatus === 'INACTIVE' ? 'ALL' : 'INACTIVE'"
+            >
+              <span>Nonaktif</span>
+            </button>
+
+            <!-- Quick Filter Pill: Persen (%) -->
+            <button
+              type="button"
+              class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all shrink-0 select-none flex items-center gap-1.5 shadow-2xs"
+              :class="filterType === 'PERCENT'
+                ? 'bg-blue-600 text-white font-bold'
+                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+              @click="filterType = filterType === 'PERCENT' ? 'ALL' : 'PERCENT'"
+            >
+              <Percent :size="11" />
+              <span>Persen (%)</span>
+              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="filterType === 'PERCENT' ? 'bg-blue-700 text-white' : 'bg-blue-50 text-blue-700 border border-blue-200'">
+                {{ percentCount }}
+              </span>
+            </button>
+
+            <!-- Quick Filter Pill: Tetap (Rp) -->
+            <button
+              type="button"
+              class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all shrink-0 select-none flex items-center gap-1.5 shadow-2xs"
+              :class="filterType === 'FIXED'
+                ? 'bg-amber-600 text-white font-bold'
+                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+              @click="filterType = filterType === 'FIXED' ? 'ALL' : 'FIXED'"
+            >
+              <DollarSign :size="11" />
+              <span>Tetap (Rp)</span>
+              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="filterType === 'FIXED' ? 'bg-amber-700 text-white' : 'bg-amber-50 text-amber-700 border border-amber-200'">
+                {{ fixedCount }}
+              </span>
+            </button>
+
+            <!-- Quick Filter Pill: Khusus Member -->
+            <button
+              type="button"
+              class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all shrink-0 select-none flex items-center gap-1.5 shadow-2xs"
+              :class="filterScope === 'MEMBER'
+                ? 'bg-purple-600 text-white font-bold'
+                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+              @click="filterScope = filterScope === 'MEMBER' ? 'ALL' : 'MEMBER'"
+            >
+              <Users :size="11" />
+              <span>Member</span>
+              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="filterScope === 'MEMBER' ? 'bg-purple-700 text-white' : 'bg-purple-50 text-purple-700 border border-purple-200'">
+                {{ memberCount }}
+              </span>
+            </button>
+
+            <!-- Quick Filter Pill: Grosir B2B -->
+            <button
+              type="button"
+              class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all shrink-0 select-none flex items-center gap-1.5 shadow-2xs"
+              :class="filterScope === 'B2B'
+                ? 'bg-indigo-600 text-white font-bold'
+                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+              @click="filterScope = filterScope === 'B2B' ? 'ALL' : 'B2B'"
+            >
+              <Building :size="11" />
+              <span>Grosir B2B</span>
+              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="filterScope === 'B2B' ? 'bg-indigo-700 text-white' : 'bg-indigo-50 text-indigo-700 border border-indigo-200'">
+                {{ b2bCount }}
+              </span>
+            </button>
+
+            <!-- Quick Filter Pill: Eceran B2C -->
+            <button
+              type="button"
+              class="px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all shrink-0 select-none flex items-center gap-1.5 shadow-2xs"
+              :class="filterScope === 'B2C'
+                ? 'bg-teal-600 text-white font-bold'
+                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'"
+              @click="filterScope = filterScope === 'B2C' ? 'ALL' : 'B2C'"
+            >
+              <UserCheck :size="11" />
+              <span>Eceran B2C</span>
+              <span class="text-[10px] px-1 rounded-full font-mono font-bold" :class="filterScope === 'B2C' ? 'bg-teal-700 text-white' : 'bg-teal-50 text-teal-700 border border-teal-200'">
+                {{ b2cCount }}
+              </span>
+            </button>
+
+            <div class="h-4 w-px bg-gray-300 shrink-0"></div>
+
             <!-- Toggle Expand All Rows -->
             <button
               type="button"
-              class="flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-lg border cursor-pointer transition-colors shrink-0 bg-white hover:bg-gray-100 text-gray-700 border-gray-300 shadow-2xs whitespace-nowrap"
+              class="flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg border cursor-pointer transition-colors shrink-0 bg-white hover:bg-gray-100 text-gray-700 border-gray-300 shadow-2xs whitespace-nowrap"
               @click="toggleExpandAll"
             >
               <component :is="isAllExpanded ? ChevronsDownUp : ChevronsUpDown" :size="12" />
