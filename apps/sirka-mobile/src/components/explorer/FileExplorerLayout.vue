@@ -337,9 +337,10 @@ onUnmounted(() => {
       />
     </template>
 
-    <!-- Mobile Header Bar (Mobile / Android) -->
+    <!-- Mobile Header Bar (Mobile / Android) - Hanya muncul di Menu Kasir -->
     <template v-else>
       <MobileHeaderBar
+        v-if="activeTab === 'pos'"
         :active-tab-title="tabTitles[activeTab] || 'Kasir'"
         v-model:search-query="searchQuery"
         @open-shift-modal="shiftStore.showOpenShiftModal = true"
