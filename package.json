@@ -23,7 +23,11 @@
     "test:rust": "cargo test --manifest-path apps/sirka-desktop/src-tauri/Cargo.toml",
     "test:all": "bun test && cargo test --manifest-path apps/sirka-desktop/src-tauri/Cargo.toml",
     "worker:dev": "cd worker && bun run dev",
-    "worker:deploy": "cd worker && bun run deploy"
+    "worker:deploy": "cd worker && bun run deploy",
+    "license:list": "bun run scripts/tertaut-s2s.ts list",
+    "license:issue": "bun run scripts/tertaut-s2s.ts issue",
+    "license:revoke": "bun run scripts/tertaut-s2s.ts revoke",
+    "license:release": "bun run scripts/tertaut-s2s.ts release"
   },
   "dependencies": {
     "@sirka/shared-types": "workspace:*",
