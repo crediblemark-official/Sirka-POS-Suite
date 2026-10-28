@@ -330,35 +330,41 @@ async function startCameraScanner() {
       });
     }
 
-    const cameraConfig: MediaTrackConstraints = selectedCameraId.value
-      ? {
-          deviceId: { exact: selectedCameraId.value },
-          width: { ideal: 1280, min: 640 },
-          height: { ideal: 720, min: 480 },
-          frameRate: { ideal: 30, min: 24 }
-        }
-      : {
-          facingMode: 'environment',
-          width: { ideal: 1280, min: 640 },
-          height: { ideal: 720, min: 480 },
-          frameRate: { ideal: 30, min: 24 }
-        };
+    const cameraIdOrConfig = selectedCameraId.value
+      ? selectedCameraId.value
+      : { facingMode: 'environment' };
 
     // Sensitif & Cepat: fps 26, scan seluruh area (tanpa qrbox membatasi), disableFlip true cegah lag cpu
-    await scannerInstance.start(
-      cameraConfig,
-      {
-        fps: 26,
-        aspectRatio: 1.333333,
-        disableFlip: true
-      },
-      (decodedText: string) => {
-        handleCodeDetected(decodedText);
-      },
-      () => {
-        // Frame parse error: ignore continuous frames
-      }
-    );
+    try {
+      await scannerInstance.start(
+        cameraIdOrConfig,
+        {
+          fps: 26,
+          aspectRatio: 1.333333,
+          disableFlip: true
+        },
+        (decodedText: string) => {
+          handleCodeDetected(decodedText);
+        },
+        () => {
+          // Frame parse error: ignore continuous frames
+        }
+      );
+    } catch (primaryErr) {
+      console.warn('Gagal start dengan ID webcam, mencoba fallback facingMode:', primaryErr);
+      await scannerInstance.start(
+        { facingMode: 'environment' },
+        {
+          fps: 26,
+          aspectRatio: 1.333333,
+          disableFlip: true
+        },
+        (decodedText: string) => {
+          handleCodeDetected(decodedText);
+        },
+        () => {}
+      );
+    }
 
     isScanning.value = true;
     checkTorchSupport();
@@ -488,7 +494,7 @@ onUnmounted(async () => {
 
 <template>
   <div class="pointer-events-none select-none">
-    <!-- 1. MINIMIZED STATE: Floating Compact Capsule Button -->
+    <!-- 1. MINIMIZED STATE: Floating Compact Square Button -->
     <div
       v-if="isMinimized"
       class="fixed bottom-4 left-4 z-40 pointer-events-auto transition-all animate-in fade-in duration-200"
@@ -496,14 +502,14 @@ onUnmounted(async () => {
       <button
         type="button"
         @click="toggleMinimize"
-        class="group flex items-center gap-2 px-3 py-2 rounded-full bg-slate-900/95 hover:bg-slate-800 text-white shadow-2xl border border-white/20 backdrop-blur-md cursor-pointer transition-all active:scale-95"
+        class="group flex items-center gap-2 px-3 py-2 bg-slate-900/95 hover:bg-slate-800 text-white shadow-2xl border border-white/20 backdrop-blur-md cursor-pointer transition-all active:scale-95"
         title="Klik untuk membuka Mini Viewfinder Webcam / Scanner Barcode"
       >
         <div class="relative flex items-center justify-center">
           <Camera :size="16" class="text-amber-400 group-hover:scale-110 transition-transform" />
           <span
             v-if="isScanning"
-            class="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-slate-900 animate-pulse"
+            class="absolute -top-1 -right-1 w-2 h-2 bg-emerald-400 ring-1 ring-slate-900 animate-pulse"
           ></span>
         </div>
         <span class="text-xs font-bold font-mono tracking-tight text-slate-100 pr-1">
@@ -513,25 +519,25 @@ onUnmounted(async () => {
       </button>
     </div>
 
-    <!-- 2. EXPANDED STATE: Modern Mini Picture-in-Picture Viewfinder -->
+    <!-- 2. EXPANDED STATE: Modern Mini Picture-in-Picture Viewfinder (No Rounding) -->
     <div
       v-show="!isMinimized"
-      class="fixed bottom-4 left-4 z-40 pointer-events-auto transition-all animate-in fade-in zoom-in-95 duration-200"
+      class="fixed bottom-4 left-4 z-40 pointer-events-auto transition-all animate-in fade-in zoom-in-95 duration-200 border border-slate-700"
       :class="[
         isErrorFlashing
           ? 'ring-4 ring-rose-500 shadow-[0_0_35px_rgba(244,63,94,0.95)] animate-glitch'
           : isSuccessFlashing
             ? 'ring-4 ring-emerald-400/80 shadow-[0_0_25px_rgba(16,185,129,0.5)]'
-            : 'ring-1 ring-slate-700/80 shadow-2xl'
+            : 'shadow-2xl'
       ]"
-      style="width: 240px; border-radius: 1rem; overflow: hidden; background: #0f172a;"
+      style="width: 240px; border-radius: 0; overflow: hidden; background: #0f172a;"
     >
       <!-- PiP Header Bar -->
       <div class="px-2.5 py-1.5 bg-slate-900 border-b border-slate-800 flex items-center justify-between text-white shrink-0">
         <!-- Status Indicator -->
         <div class="flex items-center gap-1.5">
           <span
-            class="w-2 h-2 rounded-full transition-colors"
+            class="w-2 h-2 transition-colors"
             :class="isScanning ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'"
           ></span>
           <span class="text-[11px] font-bold text-slate-200">
@@ -545,7 +551,7 @@ onUnmounted(async () => {
           <button
             v-if="isTorchAvailable"
             type="button"
-            class="p-1 rounded text-slate-400 hover:text-amber-300 hover:bg-slate-800 transition"
+            class="p-1 text-slate-400 hover:text-amber-300 hover:bg-slate-800 transition"
             :title="isTorchOn ? 'Matikan Lampu' : 'Nyalakan Lampu'"
             @click="toggleTorch"
           >
@@ -556,7 +562,7 @@ onUnmounted(async () => {
           <button
             v-if="availableCameras.length > 1"
             type="button"
-            class="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition"
+            class="p-1 text-slate-400 hover:text-white hover:bg-slate-800 transition"
             title="Ganti Perangkat Webcam"
             @click="switchCamera"
           >
@@ -566,7 +572,7 @@ onUnmounted(async () => {
           <!-- Sound Toggle -->
           <button
             type="button"
-            class="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition"
+            class="p-1 text-slate-400 hover:text-white hover:bg-slate-800 transition"
             :title="isSoundEnabled ? 'Matikan Bunyi Beep' : 'Nyalakan Bunyi Beep'"
             @click="toggleSound"
           >
@@ -577,7 +583,7 @@ onUnmounted(async () => {
           <!-- Power On / Off Camera Stream -->
           <button
             type="button"
-            class="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition"
+            class="p-1 text-slate-400 hover:text-white hover:bg-slate-800 transition"
             :title="isCameraEnabled ? 'Jeda Webcam (Hemat Daya)' : 'Aktifkan Webcam'"
             @click="togglePower"
           >
@@ -587,7 +593,7 @@ onUnmounted(async () => {
           <!-- Minimize Button -->
           <button
             type="button"
-            class="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition"
+            class="p-1 text-slate-400 hover:text-white hover:bg-slate-800 transition"
             title="Kecilkan ke Ikon Mengambang"
             @click="toggleMinimize"
           >
@@ -606,7 +612,7 @@ onUnmounted(async () => {
           v-if="isErrorFlashing"
           class="absolute inset-0 z-30 pointer-events-none bg-rose-600/40 backdrop-blur-[1px] flex items-center justify-center animate-glitch"
         >
-          <div class="px-2.5 py-1 rounded-lg bg-rose-950/95 border border-rose-400 text-rose-200 text-[10.5px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-2xl animate-pulse">
+          <div class="px-2.5 py-1 bg-rose-950/95 border border-rose-400 text-rose-200 text-[10.5px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-2xl animate-pulse">
             <AlertTriangle :size="15" class="text-rose-400 shrink-0" />
             <span>BARCODE TIDAK ADA</span>
           </div>
@@ -614,16 +620,16 @@ onUnmounted(async () => {
 
         <!-- Laser Scanning Animation Bar (Active when camera is running) -->
         <div v-if="isScanning" class="absolute inset-0 pointer-events-none flex flex-col justify-between py-3 px-4">
-          <!-- Viewfinder Corner Guides -->
+          <!-- Viewfinder Corner Guides (Sharp square brackets) -->
           <div class="flex justify-between">
-            <span class="w-3.5 h-3.5 border-t-2 border-l-2 border-amber-400/90 rounded-tl-sm"></span>
-            <span class="w-3.5 h-3.5 border-t-2 border-r-2 border-amber-400/90 rounded-tr-sm"></span>
+            <span class="w-3.5 h-3.5 border-t-2 border-l-2 border-amber-400/90"></span>
+            <span class="w-3.5 h-3.5 border-t-2 border-r-2 border-amber-400/90"></span>
           </div>
           <!-- Laser Beam Line -->
           <div class="w-full h-0.5 bg-gradient-to-r from-transparent via-amber-400 to-transparent shadow-[0_0_10px_#f59e0b] animate-pulse"></div>
           <div class="flex justify-between">
-            <span class="w-3.5 h-3.5 border-b-2 border-l-2 border-amber-400/90 rounded-bl-sm"></span>
-            <span class="w-3.5 h-3.5 border-b-2 border-r-2 border-amber-400/90 rounded-br-sm"></span>
+            <span class="w-3.5 h-3.5 border-b-2 border-l-2 border-amber-400/90"></span>
+            <span class="w-3.5 h-3.5 border-b-2 border-r-2 border-amber-400/90"></span>
           </div>
         </div>
 
@@ -638,7 +644,7 @@ onUnmounted(async () => {
           <button
             type="button"
             @click="togglePower"
-            class="mt-1 px-3 py-1 rounded bg-amber-600 hover:bg-amber-500 text-white font-bold text-[10.5px] cursor-pointer shadow-xs active:scale-95"
+            class="mt-1 px-3 py-1 bg-amber-600 hover:bg-amber-500 text-white font-bold text-[10.5px] cursor-pointer shadow-xs active:scale-95"
           >
             Nyalakan Webcam
           </button>
@@ -654,7 +660,7 @@ onUnmounted(async () => {
           <button
             type="button"
             @click="startCameraScanner"
-            class="mt-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-white font-bold text-[10px] cursor-pointer"
+            class="mt-1 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-white font-bold text-[10px] cursor-pointer border border-slate-700"
           >
             Coba Lagi
           </button>
@@ -667,7 +673,7 @@ onUnmounted(async () => {
         >
           <div
             v-if="recentScan.success"
-            class="px-2.5 py-1.5 rounded-lg bg-emerald-600/95 border border-emerald-400 text-white shadow-lg backdrop-blur-xs flex items-center justify-between text-xs"
+            class="px-2.5 py-1.5 bg-emerald-600/95 border border-emerald-400 text-white shadow-lg backdrop-blur-xs flex items-center justify-between text-xs"
           >
             <div class="min-w-0 mr-1.5">
               <div class="font-bold truncate text-[11px] leading-tight">+1 {{ recentScan.name }}</div>
@@ -679,7 +685,7 @@ onUnmounted(async () => {
           </div>
           <div
             v-else
-            class="px-2.5 py-1.5 rounded-lg bg-rose-600/95 border border-rose-400 text-white shadow-lg backdrop-blur-xs flex items-center justify-between text-xs"
+            class="px-2.5 py-1.5 bg-rose-600/95 border border-rose-400 text-white shadow-lg backdrop-blur-xs flex items-center justify-between text-xs"
           >
             <div class="min-w-0 mr-1.5">
               <div class="font-bold text-[10.5px] leading-tight">Belum Ada di Master</div>
