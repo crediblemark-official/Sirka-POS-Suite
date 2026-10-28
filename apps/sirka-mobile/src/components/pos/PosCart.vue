@@ -263,268 +263,268 @@ onUnmounted(() => {
 
 <template>
   <div class="flex flex-col h-full text-xs select-none" style="background-color: var(--surface-body); color: var(--surface-text);">
-    <!-- Top Buyer & Date Header Bar -->
-    <div class="p-2.5 border-b flex flex-col gap-2" style="background-color: var(--surface-ribbon); border-color: var(--surface-ribbon-border);">
-      <!-- Top Title & Close Button -->
-      <div class="flex items-center justify-between pb-0.5">
-        <div class="flex items-center gap-1.5 font-bold text-xs" style="color: var(--surface-text);">
-          <ShoppingCart :size="14" class="text-amber-600" />
-          <span>Struk & Keranjang Kasir</span>
-          <span class="px-1.5 py-0.2 rounded-full font-mono text-[10px] font-bold" style="background-color: var(--surface-tab-bar);">
-            {{ posStore.cartItems.length }}
+    <!-- 1. Top Bar: Title, Cart Count, Parkir, Tanggal, & Tutup -->
+    <div class="px-3 py-2 bg-[#f6f5f2] border-b border-[#e5e3de] flex items-center justify-between gap-1.5 shrink-0">
+      <!-- Left: Title & Count -->
+      <div class="flex items-center gap-1.5 font-bold text-xs text-slate-800 shrink-0">
+        <ShoppingCart :size="15" class="text-amber-600 shrink-0" />
+        <span class="truncate">Struk Kasir</span>
+        <span class="px-1.5 py-0.2 rounded-full font-mono text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+          {{ posStore.cartItems.length }}
+        </span>
+      </div>
+
+      <!-- Right Actions: Parkir, Antrean, Tanggal, Close -->
+      <div class="flex items-center gap-1.5 shrink-0">
+        <!-- Tombol Parkir / Hold Cart -->
+        <button
+          v-if="posStore.cartItems.length > 0"
+          type="button"
+          class="btn-parkir h-7 px-2 rounded-lg text-[10.5px] font-bold flex items-center gap-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs active:scale-95 cursor-pointer whitespace-nowrap transition-all shrink-0"
+          title="Tahan keranjang belanja saat ini untuk melayani pembeli lain"
+          @click="handleHoldCart"
+        >
+          <Clock :size="11" class="text-amber-700" />
+          <span>Parkir</span>
+        </button>
+
+        <!-- Tombol / Badge Antrean Parkir jika ada keranjang yang ditahan -->
+        <button
+          v-if="posStore.heldCarts.length > 0"
+          type="button"
+          class="h-7 px-2 rounded-lg text-[10.5px] font-bold flex items-center gap-1 bg-purple-600 hover:bg-purple-700 active:scale-95 text-white shadow-2xs cursor-pointer whitespace-nowrap transition-all shrink-0"
+          title="Buka daftar antrean yang sedang diparkir"
+          @click="showHeldCartsModal = true"
+        >
+          <span>Parkir</span>
+          <span class="w-3.5 h-3.5 rounded-full bg-white text-purple-900 text-[9px] flex items-center justify-center font-black">
+            {{ posStore.heldCarts.length }}
           </span>
-        </div>
+        </button>
+
+        <!-- Input Tanggal Transaksi -->
+        <input
+          v-model="posStore.transactionDate"
+          type="date"
+          class="h-7 w-[105px] bg-white border border-gray-300 rounded-lg px-1.5 text-[10.5px] font-mono text-slate-900 outline-none focus:border-blue-500 shadow-2xs"
+          title="Tanggal Transaksi"
+        />
+
+        <!-- Tombol Tutup Keranjang -->
         <button
           type="button"
-          class="p-1 text-gray-400 hover:text-gray-100 hover:bg-black/10 dark:hover:bg-white/10 rounded cursor-pointer transition-colors"
+          class="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-200/60 rounded-lg cursor-pointer transition-colors shrink-0"
           title="Tutup Keranjang Kasir"
           @click="emit('close')"
         >
-          <X :size="14" />
+          <X :size="15" />
         </button>
       </div>
+    </div>
 
-      <!-- Mode Switcher: B2B Grosir vs B2C Eceran -->
-      <div class="flex items-center p-0.5 rounded border shadow-inner" style="background-color: var(--surface-tab-bar); border-color: var(--surface-tab-border);">
+    <!-- 2. Mode Switcher Bar: Segmented Pill (Clean icons, no double emojis) -->
+    <div class="px-3 pt-2 pb-1 bg-[#fcfbfa]">
+      <div class="p-0.5 bg-slate-200/80 rounded-xl flex items-center text-xs shadow-inner border border-slate-200">
         <button
           type="button"
-          class="pos-mode-switch-btn flex-1 flex items-center justify-center gap-1.5 py-1 px-2 rounded text-[11px] font-bold cursor-pointer transition-all"
-          :class="posStore.saleMode === 'B2B' ? 'active bg-white text-indigo-700 shadow-xs' : 'text-gray-600 hover:text-gray-900'"
+          class="pos-mode-switch-btn flex-1 py-1.5 px-2 rounded-lg flex items-center justify-center gap-1.5 text-[11px] font-bold cursor-pointer transition-all"
+          :class="posStore.saleMode === 'B2B'
+            ? 'active bg-white text-indigo-700 shadow-xs ring-1 ring-black/5'
+            : 'text-slate-600 hover:text-slate-900'"
           title="Mode Grosir / B2B"
           @click="posStore.setSaleMode('B2B')"
         >
-          <Building :size="13" />
-          <span>🏢 Grosir (B2B)</span>
+          <Building :size="13" class="shrink-0" />
+          <span>Grosir (B2B)</span>
         </button>
         <button
           type="button"
-          class="pos-mode-switch-btn flex-1 flex items-center justify-center gap-1.5 py-1 px-2 rounded text-[11px] font-bold cursor-pointer transition-all"
-          :class="posStore.saleMode === 'B2C' ? 'active bg-white text-teal-700 shadow-xs' : 'text-gray-600 hover:text-gray-900'"
+          class="pos-mode-switch-btn flex-1 py-1.5 px-2 rounded-lg flex items-center justify-center gap-1.5 text-[11px] font-bold cursor-pointer transition-all"
+          :class="posStore.saleMode === 'B2C'
+            ? 'active bg-white text-teal-700 shadow-xs ring-1 ring-black/5'
+            : 'text-slate-600 hover:text-slate-900'"
           title="Mode Eceran / Retail"
           @click="posStore.setSaleMode('B2C')"
         >
-          <ShoppingBag :size="13" />
-          <span>🛒 Eceran (B2C)</span>
+          <ShoppingBag :size="13" class="shrink-0" />
+          <span>Eceran (B2C)</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 3. Buyer & Member Bar (Inline SearchableSelect + Quick Scan Button) -->
+    <div class="px-3 py-1.5 bg-[#fcfbfa] space-y-1.5">
+      <div class="flex items-center gap-1.5">
+        <div class="flex-1 min-w-0">
+          <SearchableSelect
+            ref="buyerSelectRef"
+            v-model="posStore.selectedBuyer"
+            :options="buyerOptions"
+            :placeholder="posStore.saleMode === 'B2B' ? 'Cari Pembeli Grosir...' : 'Cari Pelanggan Eceran...'"
+            :search-placeholder="posStore.saleMode === 'B2B' ? 'Ketik nama / kode...' : 'Ketik nama / no. HP...'"
+            hotkey=""
+            allow-create
+            @create="handleOpenCreateBuyerModal"
+          >
+            <template #icon>
+              <Building v-if="posStore.saleMode === 'B2B'" :size="13" class="text-indigo-600 shrink-0" />
+              <ShoppingBag v-else :size="13" class="text-teal-600 shrink-0" />
+            </template>
+          </SearchableSelect>
+        </div>
+
+        <!-- Tombol Aksi Scan Kartu Member (Kompak & Elegan) -->
+        <button
+          type="button"
+          class="h-8 px-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-bold text-[11px] cursor-pointer shadow-xs transition-all flex items-center gap-1 shrink-0"
+          title="Scan Barcode / QR / Nomor Kartu Member"
+          @click="showScanMemberModal = true"
+        >
+          <QrCode :size="13" />
+          <span class="whitespace-nowrap">Scan Member</span>
         </button>
       </div>
 
-      <!-- F&B Order Type & Table Bar (Muncul bila mode F&B / Universal aktif) -->
+      <!-- Member Information Compact Pill (Aktif Hanya Jika Kartu Di-scan) -->
       <div
-        v-if="settingsStore.businessFeatures.tableManagement"
-        class="flex items-center gap-1.5 p-2 bg-amber-50/80 border border-amber-200 rounded-lg text-xs"
+        v-if="posStore.isMember"
+        class="px-2.5 py-1.5 bg-amber-50/90 border border-amber-300 rounded-lg flex items-center justify-between text-[11px] animate-in fade-in duration-150"
       >
-        <div class="flex items-center gap-1 shrink-0">
-          <UtensilsCrossed :size="13" class="text-amber-700" />
-          <span class="font-bold text-[10.5px] text-amber-950">Pesanan:</span>
-        </div>
-        <div class="flex items-center gap-1 flex-1">
-          <button
-            type="button"
-            @click="posStore.orderType = 'DINE_IN'"
-            class="px-2 py-0.5 rounded text-[10.5px] font-semibold cursor-pointer transition-all"
-            :class="posStore.orderType === 'DINE_IN' ? 'bg-amber-600 text-white shadow-2xs font-bold' : 'bg-white text-slate-700 hover:bg-amber-100/70 border border-amber-200'"
+        <div class="flex items-center gap-1.5 font-bold text-amber-950 truncate">
+          <CreditCard :size="12" class="text-amber-600 shrink-0" />
+          <span class="font-mono text-[10.5px]">{{ posStore.selectedBuyerData?.memberCardNo }}</span>
+          <span
+            class="px-1.5 py-0.2 rounded text-[8.5px] uppercase font-black tracking-wider"
+            :class="{
+              'bg-slate-200 text-slate-800': posStore.memberTier === 'REGULAR',
+              'bg-slate-300 text-slate-900 border border-slate-400': posStore.memberTier === 'SILVER',
+              'bg-amber-400 text-amber-950 shadow-2xs': posStore.memberTier === 'GOLD',
+              'bg-purple-900 text-purple-100': posStore.memberTier === 'PLATINUM'
+            }"
           >
-            🍽 Meja
-          </button>
-          <button
-            type="button"
-            @click="posStore.orderType = 'TAKEAWAY'"
-            class="px-2 py-0.5 rounded text-[10.5px] font-semibold cursor-pointer transition-all"
-            :class="posStore.orderType === 'TAKEAWAY' ? 'bg-amber-600 text-white shadow-2xs font-bold' : 'bg-white text-slate-700 hover:bg-amber-100/70 border border-amber-200'"
-          >
-            🥡 Bungkus
-          </button>
-          <button
-            type="button"
-            @click="posStore.orderType = 'DELIVERY'"
-            class="px-2 py-0.5 rounded text-[10.5px] font-semibold cursor-pointer transition-all"
-            :class="posStore.orderType === 'DELIVERY' ? 'bg-amber-600 text-white shadow-2xs font-bold' : 'bg-white text-slate-700 hover:bg-amber-100/70 border border-amber-200'"
-          >
-            🛵 Antar
-          </button>
-        </div>
-        <div v-if="posStore.orderType === 'DINE_IN'" class="flex items-center gap-1 shrink-0">
-          <span class="text-[10px] text-amber-900 font-bold">No.</span>
-          <input
-            v-model="posStore.tableNo"
-            type="text"
-            placeholder="Meja 01"
-            class="w-16 px-1.5 py-0.5 bg-white border border-amber-300 rounded text-xs font-bold text-center focus:outline-none focus:ring-1 focus:ring-amber-500"
-          />
-        </div>
-      </div>
-
-      <!-- Service Staff & Service Status Bar (Muncul bila mode Jasa / Universal aktif) -->
-      <div
-        v-if="settingsStore.businessFeatures.serviceStaff"
-        class="flex items-center justify-between gap-1.5 p-2 bg-indigo-50/80 border border-indigo-200 rounded-lg text-xs"
-      >
-        <div class="flex items-center gap-1.5 min-w-0 flex-1">
-          <Wrench :size="13" class="text-indigo-700 shrink-0" />
-          <span class="font-bold text-[10.5px] text-indigo-950 shrink-0">Staf/Teknisi:</span>
-          <input
-            v-model="posStore.staffName"
-            type="text"
-            placeholder="Nama teknisi / staf..."
-            class="flex-1 min-w-[70px] px-1.5 py-0.5 bg-white border border-indigo-300 rounded text-[11px] focus:outline-none focus:ring-1 focus:ring-indigo-500"
-          />
-        </div>
-        <div v-if="settingsStore.businessFeatures.serviceStatus" class="flex items-center gap-1 shrink-0">
-          <select
-            v-model="posStore.serviceStatus"
-            class="px-1.5 py-0.5 bg-white border border-indigo-300 rounded text-[10.5px] font-bold text-indigo-900 focus:outline-none"
-          >
-            <option value="QUEUED">Antre</option>
-            <option value="IN_PROGRESS">Proses</option>
-            <option value="DONE">Selesai</option>
-            <option value="COLLECTED">Diambil</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- Buyer Selection Bar (Search and Select + Fast Keyboard Shortcuts) -->
-      <div class="flex flex-col gap-2 bg-white p-2.5 rounded border border-[#dedbd6] shadow-2xs">
-        <div class="flex items-center justify-between gap-1">
-          <div class="flex items-center gap-1.5 font-bold text-[10.5px] text-slate-800 uppercase tracking-wider">
-            <Building v-if="posStore.saleMode === 'B2B'" :size="12" class="text-indigo-600" />
-            <ShoppingBag v-else :size="12" class="text-teal-600" />
-            <span>{{ posStore.saleMode === 'B2B' ? 'Pembeli Grosir / B2B' : 'Pembeli / Pelanggan Eceran' }}</span>
-          </div>
-
-          <!-- Tombol Aksi Scan Kartu Member -->
-          <button
-            type="button"
-            class="flex items-center gap-1 px-2.5 py-0.5 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[10.5px] cursor-pointer shadow-xs transition-all active:scale-95"
-            title="Scan Barcode / QR / Nomor Kartu Member"
-            @click="showScanMemberModal = true"
-          >
-            <QrCode :size="12" />
-            <span>Scan Member</span>
-          </button>
-        </div>
-
-        <!-- Search & Select Combobox with Auto-Create on Enter -->
-        <SearchableSelect
-          ref="buyerSelectRef"
-          v-model="posStore.selectedBuyer"
-          :options="buyerOptions"
-          :placeholder="posStore.saleMode === 'B2B' ? 'Cari / Pilih Pembeli...' : 'Cari / Pilih Pelanggan...'"
-          :search-placeholder="posStore.saleMode === 'B2B' ? 'Ketik nama pembeli atau kode...' : 'Ketik nama / no. telepon...'"
-          hotkey=""
-          allow-create
-          @create="handleOpenCreateBuyerModal"
-        >
-          <template #icon>
-            <Building v-if="posStore.saleMode === 'B2B'" :size="13" class="text-indigo-600 shrink-0" />
-            <ShoppingBag v-else :size="13" class="text-teal-600 shrink-0" />
-          </template>
-        </SearchableSelect>
-
-        <!-- Member Information Compact Pill (Aktif Hanya Jika Kartu Di-scan) -->
-        <div
-          v-if="posStore.isMember"
-          class="mt-1 px-2.5 py-1.5 bg-amber-50/90 border border-amber-300 rounded flex items-center justify-between text-[11px] animate-in fade-in duration-150"
-        >
-          <div class="flex items-center gap-1.5 font-bold text-amber-950 truncate">
-            <CreditCard :size="12" class="text-amber-600 shrink-0" />
-            <span class="font-mono text-[10.5px]">{{ posStore.selectedBuyerData?.memberCardNo }}</span>
-            <span
-              class="px-1.5 py-0.2 rounded text-[8.5px] uppercase font-black tracking-wider"
-              :class="{
-                'bg-slate-200 text-slate-800': posStore.memberTier === 'REGULAR',
-                'bg-slate-300 text-slate-900 border border-slate-400': posStore.memberTier === 'SILVER',
-                'bg-amber-400 text-amber-950 shadow-2xs': posStore.memberTier === 'GOLD',
-                'bg-purple-900 text-purple-100': posStore.memberTier === 'PLATINUM'
-              }"
-            >
-              {{ posStore.memberTier }}
-            </span>
-            <span class="text-amber-800 font-mono font-semibold">({{ posStore.memberPoints }} Poin)</span>
-          </div>
-
-          <div class="flex items-center gap-1.5 shrink-0">
-            <!-- Tukar Poin Quick Action -->
-            <button
-              v-if="posStore.memberPoints > 0 && posStore.cartItems.length > 0"
-              type="button"
-              class="px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-all flex items-center gap-1"
-              :class="posStore.pointsToRedeem > 0 ? 'bg-amber-600 text-white shadow-2xs' : 'bg-white text-amber-800 hover:bg-amber-100 border border-amber-300'"
-              @click="toggleRedeemPoints"
-            >
-              <Coins :size="11" />
-              <span>{{ posStore.pointsToRedeem > 0 ? `Batal (${posStore.pointsToRedeem} P)` : 'Tukar Poin' }}</span>
-            </button>
-
-            <!-- Lepas / Batal Member Button -->
-            <button
-              type="button"
-              class="p-0.5 text-gray-400 hover:text-rose-600 rounded cursor-pointer transition-colors"
-              title="Lepas Kartu Member (Batal Member untuk Transaksi Ini)"
-              @click="unlinkMember"
-            >
-              <X :size="13" />
-            </button>
-          </div>
-        </div>
-
-        <!-- Indikator Kartu Belum Di-scan -->
-        <div
-          v-else-if="posStore.selectedBuyerData?.memberCardNo && !posStore.isMember"
-          class="mt-1 px-2.5 py-1 bg-slate-50 border border-dashed border-slate-300 rounded flex items-center justify-between text-[10.5px] text-slate-500 animate-in fade-in duration-100"
-        >
-          <div class="flex items-center gap-1.5 truncate">
-            <CreditCard :size="12" class="text-slate-400 shrink-0" />
-            <span>Member: <strong class="font-mono text-slate-700">{{ posStore.selectedBuyerData.memberCardNo }}</strong></span>
-          </div>
-          <span class="text-[9.5px] text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded font-semibold shrink-0">
-            Belum Scan
+            {{ posStore.memberTier }}
           </span>
+          <span class="text-amber-800 font-mono font-semibold">({{ posStore.memberPoints }} Poin)</span>
         </div>
 
+        <div class="flex items-center gap-1.5 shrink-0">
+          <!-- Tukar Poin Quick Action -->
+          <button
+            v-if="posStore.memberPoints > 0 && posStore.cartItems.length > 0"
+            type="button"
+            class="px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-all flex items-center gap-1"
+            :class="posStore.pointsToRedeem > 0 ? 'bg-amber-600 text-white shadow-2xs' : 'bg-white text-amber-800 hover:bg-amber-100 border border-amber-300'"
+            @click="toggleRedeemPoints"
+          >
+            <Coins :size="11" />
+            <span>{{ posStore.pointsToRedeem > 0 ? `Batal (${posStore.pointsToRedeem} P)` : 'Tukar Poin' }}</span>
+          </button>
+
+          <!-- Lepas / Batal Member Button -->
+          <button
+            type="button"
+            class="p-0.5 text-gray-400 hover:text-rose-600 rounded cursor-pointer transition-colors"
+            title="Lepas Kartu Member (Batal Member untuk Transaksi Ini)"
+            @click="unlinkMember"
+          >
+            <X :size="13" />
+          </button>
+        </div>
       </div>
 
-      <div class="flex items-center justify-between gap-1.5 pt-0.5">
-        <!-- Judul Ringkas & Rapi (Satu baris, no-wrap) -->
-        <div class="flex items-center gap-1.5 font-bold text-xs shrink-0 whitespace-nowrap" style="color: var(--surface-text, #1e293b);">
-          <Receipt :size="14" class="text-amber-500 shrink-0" />
-          <span>Struk Kasir</span>
+      <!-- Indikator Kartu Belum Di-scan -->
+      <div
+        v-else-if="posStore.selectedBuyerData?.memberCardNo && !posStore.isMember"
+        class="px-2.5 py-1 bg-slate-50 border border-dashed border-slate-300 rounded-lg flex items-center justify-between text-[10.5px] text-slate-500 animate-in fade-in duration-100"
+      >
+        <div class="flex items-center gap-1.5 truncate">
+          <CreditCard :size="12" class="text-slate-400 shrink-0" />
+          <span>Member: <strong class="font-mono text-slate-700">{{ posStore.selectedBuyerData.memberCardNo }}</strong></span>
+        </div>
+        <span class="text-[9.5px] text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded font-semibold shrink-0">
+          Belum Scan
+        </span>
+      </div>
+    </div>
+
+    <!-- 4. Contextual Details: F&B Table & Service Staff (Sleek Unified Bar) -->
+    <div
+      v-if="settingsStore.businessFeatures.tableManagement || settingsStore.businessFeatures.serviceStaff"
+      class="px-3 pb-2 pt-0.5 bg-[#fcfbfa]"
+    >
+      <div class="p-2 bg-slate-100/80 border border-slate-200/90 rounded-xl space-y-2 text-xs">
+        <!-- F&B Order Type & Table Bar (Muncul bila mode F&B / Universal aktif) -->
+        <div
+          v-if="settingsStore.businessFeatures.tableManagement"
+          class="flex items-center gap-1.5"
+        >
+          <div class="flex items-center gap-1 shrink-0 text-slate-700 font-bold text-[10.5px]">
+            <UtensilsCrossed :size="12" class="text-amber-600" />
+            <span>Pesanan:</span>
+          </div>
+          <div class="flex items-center gap-1 flex-1">
+            <button
+              type="button"
+              @click="posStore.orderType = 'DINE_IN'"
+              class="flex-1 py-1 px-1.5 rounded-lg text-[10.5px] font-bold text-center cursor-pointer transition-all"
+              :class="posStore.orderType === 'DINE_IN' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'"
+            >
+              🍽 Meja
+            </button>
+            <button
+              type="button"
+              @click="posStore.orderType = 'TAKEAWAY'"
+              class="flex-1 py-1 px-1.5 rounded-lg text-[10.5px] font-bold text-center cursor-pointer transition-all"
+              :class="posStore.orderType === 'TAKEAWAY' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'"
+            >
+              🥡 Bungkus
+            </button>
+            <button
+              type="button"
+              @click="posStore.orderType = 'DELIVERY'"
+              class="flex-1 py-1 px-1.5 rounded-lg text-[10.5px] font-bold text-center cursor-pointer transition-all"
+              :class="posStore.orderType === 'DELIVERY' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'"
+            >
+              🛵 Antar
+            </button>
+          </div>
+          <div v-if="posStore.orderType === 'DINE_IN'" class="flex items-center gap-1 shrink-0">
+            <input
+              v-model="posStore.tableNo"
+              type="text"
+              placeholder="No. Meja"
+              class="w-16 h-7 px-1.5 bg-white border border-slate-300 rounded-lg text-[11px] font-bold text-center outline-none focus:border-amber-500 shadow-2xs"
+            />
+          </div>
         </div>
 
-        <!-- Tombol Aksi Parkir & Tanggal -->
-        <div class="flex items-center gap-1.5 shrink-0">
-          <!-- Tombol Parkir / Hold Cart -->
-          <button
-            v-if="posStore.cartItems.length > 0"
-            type="button"
-            class="btn-parkir px-2 py-0.5 rounded text-[10.5px] font-bold flex items-center gap-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs active:scale-95 cursor-pointer whitespace-nowrap transition-all"
-            title="Tahan keranjang belanja saat ini untuk melayani pembeli lain"
-            @click="handleHoldCart"
-          >
-            <Clock :size="11" class="text-amber-700" />
-            <span>Parkir</span>
-          </button>
-
-          <!-- Tombol / Badge Antrean Parkir jika ada keranjang yang ditahan -->
-          <button
-            v-if="posStore.heldCarts.length > 0"
-            type="button"
-            class="px-2 py-0.5 rounded text-[10.5px] font-bold flex items-center gap-1 bg-purple-600 hover:bg-purple-700 active:scale-95 text-white shadow-2xs cursor-pointer whitespace-nowrap transition-all"
-            title="Buka daftar antrean yang sedang diparkir"
-            @click="showHeldCartsModal = true"
-          >
-            <span>Parkir</span>
-            <span class="w-3.5 h-3.5 rounded-full bg-white text-purple-900 text-[9.5px] flex items-center justify-center font-black">
-              {{ posStore.heldCarts.length }}
-            </span>
-          </button>
-
-          <!-- Input Tanggal Transaksi (Ukuran proporsional, tidak terpotong) -->
-          <input
-            v-model="posStore.transactionDate"
-            type="date"
-            class="w-[115px] bg-white border border-gray-300 rounded px-1.5 py-0.5 text-[11px] font-mono text-slate-900 outline-none focus:border-blue-500 shadow-2xs"
-            title="Tanggal Transaksi"
-          />
+        <!-- Service Staff & Service Status Bar (Muncul bila mode Jasa / Universal aktif) -->
+        <div
+          v-if="settingsStore.businessFeatures.serviceStaff"
+          class="flex items-center gap-1.5"
+        >
+          <div class="flex items-center gap-1 shrink-0 text-slate-700 font-bold text-[10.5px]">
+            <Wrench :size="12" class="text-indigo-600 shrink-0" />
+            <span>Staf/Teknisi:</span>
+          </div>
+          <div class="flex items-center gap-1.5 flex-1 min-w-0">
+            <input
+              v-model="posStore.staffName"
+              type="text"
+              placeholder="Nama teknisi / staf..."
+              class="flex-1 min-w-[70px] h-7 px-2 bg-white border border-slate-300 rounded-lg text-[11px] outline-none focus:border-indigo-500 shadow-2xs"
+            />
+            <select
+              v-if="settingsStore.businessFeatures.serviceStatus"
+              v-model="posStore.serviceStatus"
+              class="h-7 px-1.5 bg-white border border-slate-300 rounded-lg text-[10.5px] font-bold text-slate-800 outline-none focus:border-indigo-500 shrink-0 shadow-2xs"
+            >
+              <option value="QUEUED">Antre</option>
+              <option value="IN_PROGRESS">Proses</option>
+              <option value="DONE">Selesai</option>
+              <option value="COLLECTED">Diambil</option>
+            </select>
+          </div>
         </div>
       </div>
     </div>
