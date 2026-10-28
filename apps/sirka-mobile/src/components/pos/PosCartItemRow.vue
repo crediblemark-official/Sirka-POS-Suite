@@ -191,38 +191,29 @@ function triggerDelete(direction = -1) {
       @pointerup="onPointerUp"
       @pointercancel="onPointerCancel"
     >
-      <!-- Baris 1: Nama Barang, Unit Selector, Kategori -->
+      <!-- Baris 1: Nama Barang & Multi-Unit Selector (Hanya jika opsi multi-satuan tersedia) -->
       <div class="flex items-center justify-between gap-2">
         <div class="flex items-center gap-1.5 min-w-0 flex-1">
           <span class="font-bold text-slate-900 text-sm truncate" :title="item.name">
             {{ item.name }}
           </span>
 
-          <!-- Unit Selector Pill (Dropdown jika produk mendukung konversi multi-satuan) -->
-          <div class="relative shrink-0">
-            <select
-              v-if="availableUnits.length > 1"
-              :value="item.unit"
-              class="px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded text-xs font-bold border-none outline-none cursor-pointer transition-colors"
-              title="Klik untuk ganti satuan kemasan"
-              @change="(e: any) => emit('change-unit', e.target.value)"
+          <!-- Dropdown multi-satuan jika produk memiliki lebih dari 1 satuan kemasan -->
+          <select
+            v-if="availableUnits.length > 1"
+            :value="item.unit"
+            class="px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded text-xs font-bold border-none outline-none cursor-pointer transition-colors shrink-0"
+            title="Klik untuk ganti satuan kemasan"
+            @change="(e: any) => emit('change-unit', e.target.value)"
+          >
+            <option
+              v-for="u in availableUnits"
+              :key="u.unitName"
+              :value="u.unitName"
             >
-              <option
-                v-for="u in availableUnits"
-                :key="u.unitName"
-                :value="u.unitName"
-              >
-                {{ u.unitName }}
-              </option>
-            </select>
-            <span v-else class="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded text-[11px] font-bold uppercase font-mono">
-              {{ item.unit }}
-            </span>
-          </div>
-
-          <span class="truncate text-xs text-slate-400 shrink-0">
-            {{ item.category }}
-          </span>
+              {{ u.unitName }}
+            </option>
+          </select>
         </div>
       </div>
 
@@ -244,7 +235,6 @@ function triggerDelete(direction = -1) {
               <span class="text-sm font-black text-rose-600 font-mono group-hover/price:underline">
                 {{ formatRupiah(item.sellPrice) }}
               </span>
-              <span class="text-xs text-slate-500 font-semibold uppercase font-mono">/ {{ item.unit }}</span>
             </template>
 
             <!-- Normal: Warna kontras jelas & nominal terbaca -->
@@ -252,7 +242,6 @@ function triggerDelete(direction = -1) {
               <span class="text-sm font-black text-slate-900 font-mono group-hover/price:underline">
                 {{ formatRupiah(item.sellPrice) }}
               </span>
-              <span class="text-xs text-slate-500 font-semibold uppercase font-mono">/ {{ item.unit }}</span>
             </template>
           </div>
 
