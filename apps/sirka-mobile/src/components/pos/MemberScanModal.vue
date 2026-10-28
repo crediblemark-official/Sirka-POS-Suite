@@ -191,23 +191,7 @@ async function startWebcamScanner() {
       video.srcObject = stream;
       video.setAttribute('playsinline', 'true');
       video.muted = true;
-
-      if (video.readyState < 1) {
-        await new Promise<void>((resolve) => {
-          const onLoaded = () => {
-            video.removeEventListener('loadedmetadata', onLoaded);
-            resolve();
-          };
-          video.addEventListener('loadedmetadata', onLoaded, { once: true });
-          setTimeout(onLoaded, 500);
-        });
-      }
-
-      try {
-        await video.play();
-      } catch (e: any) {
-        if (e?.name !== 'AbortError') console.warn('Webcam play error:', e);
-      }
+      video.play().catch(() => {});
       startScanLoop();
       setTimeout(() => {
         scanInputRef.value?.focus();
@@ -456,10 +440,11 @@ bindModalLock(() => props.isOpen);
             <!-- Native HTML5 Video Element -->
             <video
               ref="videoRef"
-              class="w-full h-full object-cover transition-transform duration-200"
-              :class="isMirrored ? '-scale-x-100' : ''"
+              autoplay
               playsinline
               muted
+              class="w-full h-full object-cover transition-transform duration-200"
+              :class="isMirrored ? '-scale-x-100' : ''"
             ></video>
 
             <!-- Live Status Badge & Frame Counter -->

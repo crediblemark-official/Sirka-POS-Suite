@@ -480,34 +480,26 @@ async function startCameraScanner() {
       });
     }
 
+    // CRITICAL: Jika modal dibuka atau scanner dinonaktifkan saat getUserMedia sedang menunggu,
+    // segera hentikan stream ini agar tidak memblokir hardware kamera!
+    if (isAnyModalOpen.value || !isCameraEnabled.value || !props.isActive) {
+      stream.getTracks().forEach(t => {
+        try { t.stop(); } catch {}
+      });
+      isStarting.value = false;
+      isScanning.value = false;
+      return;
+    }
+
     currentStream = stream;
 
-    // Pasang stream ke video native tanpa autoplay ganda
+    // Pasang stream ke video native
     if (videoRef.value) {
       const video = videoRef.value;
       video.srcObject = stream;
       video.setAttribute('playsinline', 'true');
       video.muted = true;
-
-      // Tunggu hingga metadata video siap agar pemutaran tidak di-abort browser
-      if (video.readyState < 1) {
-        await new Promise<void>((resolve) => {
-          const onLoaded = () => {
-            video.removeEventListener('loadedmetadata', onLoaded);
-            resolve();
-          };
-          video.addEventListener('loadedmetadata', onLoaded, { once: true });
-          setTimeout(onLoaded, 500);
-        });
-      }
-
-      try {
-        await video.play();
-      } catch (playErr: any) {
-        if (playErr?.name !== 'AbortError') {
-          console.warn('Mobile video play caught:', playErr);
-        }
-      }
+      video.play().catch(() => {});
     }
 
     isScanning.value = true;
@@ -539,10 +531,17 @@ async function startCameraScanner() {
 }
 
 async function stopCameraScanner() {
+  isStarting.value = false;
+  isScanning.value = false;
+  isTorchOn.value = false;
+  isTorchAvailable.value = false;
+  stopScanLoop();
+
   try {
-    stopScanLoop();
     if (currentStream) {
-      currentStream.getTracks().forEach(t => t.stop());
+      currentStream.getTracks().forEach(t => {
+        try { t.stop(); } catch {}
+      });
       currentStream = null;
     }
     if (videoRef.value) {
@@ -550,10 +549,6 @@ async function stopCameraScanner() {
     }
   } catch (err) {
     console.warn('Cleanup error saat stop mobile scanner:', err);
-  } finally {
-    isScanning.value = false;
-    isTorchOn.value = false;
-    isTorchAvailable.value = false;
   }
 }
 
@@ -782,6 +777,7 @@ onUnmounted(async () => {
         <!-- Native Video Element (Reliable across all WebViews) -->
         <video
           ref="videoRef"
+          autoplay
           playsinline
           muted
           class="w-full h-full object-cover transition-transform"
