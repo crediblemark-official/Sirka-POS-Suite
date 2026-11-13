@@ -6,8 +6,8 @@ import { useBatchStore } from './batchStore';
 import { dbService } from '../services/dbService';
 import { syncService } from '../services/syncService';
 
-const STORAGE_KEY_MOVEMENTS = 'kasir_citra_stock_movements_v1';
-const STORAGE_KEY_ADJUSTMENTS = 'kasir_citra_stock_adjustments_v1';
+const STORAGE_KEY_MOVEMENTS = 'sirka_pos_stock_movements_v1';
+const STORAGE_KEY_ADJUSTMENTS = 'sirka_pos_stock_adjustments_v1';
 
 /**
  * BUG FIX: helper parsing localStorage yang aman.

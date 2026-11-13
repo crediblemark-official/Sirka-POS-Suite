@@ -78,7 +78,7 @@ export const SURFACE_PRESETS: SurfacePreset[] = [
 export const THEME_PRESETS: ThemePreset[] = [
   {
     id: 'blue',
-    name: 'Citra Classic Blue',
+    name: 'Sirka Classic Blue',
     primary: '#2563eb',
     description: 'Biru profesional default sistem kasir POS',
     category: 'Standard'
@@ -163,7 +163,7 @@ export function hexToRgb(hex: string): RGB {
   }
   const num = parseInt(cleanHex, 16);
   if (isNaN(num)) {
-    return { r: 37, g: 99, b: 235 }; // Fallback to Citra blue
+    return { r: 37, g: 99, b: 235 }; // Fallback to Sirka blue
   }
   return {
     r: (num >> 16) & 255,

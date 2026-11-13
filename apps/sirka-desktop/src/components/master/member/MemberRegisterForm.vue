@@ -237,7 +237,7 @@ async function handleSaveRegisterMember() {
               type="text"
               required
               class="w-full bg-white border border-gray-300 rounded px-2.5 py-1.5 text-xs font-bold outline-none focus:border-amber-500"
-              placeholder="Contoh: Toko Citra Abadi / Ibu Ratna"
+              placeholder="Contoh: Toko Sirka Abadi / Ibu Ratna"
             />
           </div>
 

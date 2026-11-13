@@ -26,9 +26,9 @@ if (typeof window !== 'undefined') {
 }
 
 export function useStoreProfile() {
-  const storeName = computed(() => rawSettings.value.store_name || 'Taruna Bhakti');
+  const storeName = computed(() => rawSettings.value.store_name || 'Sirka POS Suite');
   const storeTagline = computed(() => rawSettings.value.store_tagline || 'Distribusi B2B & Hub Pengadaan');
-  const storeCode = computed(() => rawSettings.value.store_code || 'TB');
+  const storeCode = computed(() => rawSettings.value.store_code || 'SRK');
   const primaryColor = computed(() => rawSettings.value.primary_color || '#2563eb');
   const storeLogo = computed(() => rawSettings.value.store_logo || '');
 

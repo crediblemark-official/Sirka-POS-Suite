@@ -66,8 +66,8 @@ shiftsRoute.get('/shifts', async (c) => {
         SELECT
           id,
           cashier_name as "cashierName",
-          to_char(start_time AT TIME ZONE 'Asia/Jakarta', 'YYYY-MM-DD"T"HH24:MI:SS') as "startTime",
-          to_char(end_time AT TIME ZONE 'Asia/Jakarta', 'YYYY-MM-DD"T"HH24:MI:SS') as "endTime",
+          to_char(start_time AT TIME ZONE 'Asia/Jakarta', 'YYYY-MM-DD"T"HH24:MI:SS"+07:00"') as "startTime",
+          to_char(end_time AT TIME ZONE 'Asia/Jakarta', 'YYYY-MM-DD"T"HH24:MI:SS"+07:00"') as "endTime",
           starting_cash::float8 as "startingCash",
           cash_sales::float8 as "cashSales",
           non_cash_sales::float8 as "nonCashSales",

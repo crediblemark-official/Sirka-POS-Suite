@@ -21,7 +21,7 @@ import {
 import type { TertautApiConfig } from '@sirka/shared-types';
 import { safeParse } from '@sirka/shared-utils';
 
-const CONFIG_STORAGE_KEY = 'kasir_citra_tertaut_config_v1';
+const CONFIG_STORAGE_KEY = 'sirka_pos_tertaut_config_v1';
 
 function normalizeBaseUrl(rawUrl?: string): string {
   let url = (rawUrl || 'https://tertaut.com').trim().replace(/\/+$/, '');

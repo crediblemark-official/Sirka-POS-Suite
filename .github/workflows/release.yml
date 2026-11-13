@@ -85,10 +85,73 @@ jobs:
           releaseBody: |
             ### 📦 Sirka v__VERSION__
 
-            Build otomatis menggunakan GitHub Actions:
-            - 🪟 **Windows Desktop**: Installer `.exe` (NSIS) dan `.msi`
-            - 📱 **Android**: `.apk` (`Sirka_POS_<versi>.apk` & `Sirka_Owner_<versi>.apk`)
+            Pilih dan unduh file sesuai perangkat Anda di bagian **Assets** di bawah:
+            - 🪟 **Laptop / PC Windows (Kasir)**: File `.exe` atau `.msi`
+            - 📱 **HP Android Kasir**: `Sirka_POS_<versi>.apk`
+            - 📱 **HP Android Pemilik / Owner**: `Sirka_Owner_<versi>.apk`
+            - ☁️ **Paket Cloud & Worker**: `sirka-owner-worker-deploy.zip` + `PANDUAN_SETUP_CLOUD.md`
 
-            Silakan unduh file instalasi di bawah sesuai perangkat Anda.
+            ---
+
+            ### ☁️ Panduan Mudah Setup Cloud (Untuk Pemula / Non-Teknis)
+
+            Agar data kasir dan HP Owner bisa sinkron lewat internet, Anda hanya perlu memilih **salah satu** dari 2 cara berikut:
+
+            #### Cara 1 (Paling Mudah — Tanpa Cloudflare Worker)
+            *Cocok jika Anda memakai Windows `.exe` dan Android `.apk` tanpa ingin repot perintah terminal.*
+            1. Daftar database gratis di **https://neon.tech**, lalu buat 1 project baru.
+            2. Unduh `sirka-owner-worker-deploy.zip`, buka file `db/schema.sql` pakai Notepad, lalu **Copy-Paste** seluruh isinya ke menu **SQL Editor** di Neon dan klik **Run**.
+            3. Salin alamat database (`postgresql://...`) dari dashboard Neon.
+            4. Tempel alamat `postgresql://...` tersebut di **Pengaturan Server** pada **Sirka POS**, dan langsung tempel alamat yang sama di tab **Setelan** pada **Sirka Owner Mobile (APK)**.
+
+            #### Cara 2 (Pakai Cloudflare Worker — Akses Web & Lebih Stabil)
+            *Cocok jika ingin pantau laporan lewat browser atau menjaga password database tidak disimpan di HP.*
+            1. Selesaikan langkah 1–3 pada **Cara 1** di atas, lalu install **Node.js (LTS)** dari **https://nodejs.org** dan buat akun gratis di **https://dash.cloudflare.com**.
+            2. Ekstrak `sirka-owner-worker-deploy.zip`, buka folder `worker`, lalu buka Terminal / CMD di dalam folder tersebut.
+            3. Jalankan perintah berikut satu per satu:
+               ```bash
+               npm install
+               npx wrangler login
+               npx wrangler secret put DATABASE_URL
+               npx wrangler secret put OWNER_SECRET_KEY
+               npm run deploy
+               ```
+            4. Salin URL `https://sirka-owner-api.<subdomain>.workers.dev` yang muncul ke tab **Setelan** di **Sirka Owner Mobile** beserta password `OWNER_SECRET_KEY` yang Anda buat.
+
+            📖 Panduan lengkap bergambar/langkah detail tersedia di file **`PANDUAN_SETUP_CLOUD.md`** pada daftar file di bawah.
           releaseDraft: ${{ github.event.inputs.release_draft || false }}
           prerelease: false
+
+      # 7. Paketkan kode deploy Cloudflare Worker, skema DB & panduan non-teknis lalu upload ke Release
+      - name: Package & Upload Cloudflare Worker Deploy Kit
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $stageDir = "${{ runner.temp }}/sirka-worker-bundle"
+          if (Test-Path $stageDir) { Remove-Item -Recurse -Force $stageDir }
+          New-Item -ItemType Directory -Path "$stageDir/worker" | Out-Null
+          New-Item -ItemType Directory -Path "$stageDir/db" | Out-Null
+
+          Copy-Item -Recurse -Path "worker/src" -Destination "$stageDir/worker/src"
+          foreach ($f in @("package.json", "tsconfig.json", "wrangler.toml", "README.md", "bun.lock")) {
+            if (Test-Path "worker/$f") {
+              Copy-Item -Path "worker/$f" -Destination "$stageDir/worker/$f"
+            }
+          }
+          foreach ($d in @("schema.sql", "migrations.sql")) {
+            if (Test-Path "db/$d") {
+              Copy-Item -Path "db/$d" -Destination "$stageDir/db/$d"
+            }
+          }
+          Copy-Item -Path "worker/README.md" -Destination "$stageDir/PANDUAN_SETUP_CLOUD.md"
+
+          $zipPath = "${{ github.workspace }}/sirka-owner-worker-deploy.zip"
+          $guidePath = "${{ github.workspace }}/PANDUAN_SETUP_CLOUD.md"
+          if (Test-Path $zipPath) { Remove-Item -Force $zipPath }
+          Compress-Archive -Path "$stageDir/*" -DestinationPath $zipPath
+          Copy-Item -Path "worker/README.md" -Destination $guidePath -Force
+
+          $tauriConf = Get-Content "apps/sirka-desktop/src-tauri/tauri.conf.json" | ConvertFrom-Json
+          $tagName = if ("${{ github.ref }}".StartsWith("refs/tags/")) { "${{ github.ref_name }}" } else { "v$($tauriConf.version)" }
+          gh release upload $tagName $zipPath $guidePath --clobber

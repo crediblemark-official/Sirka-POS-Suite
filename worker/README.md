@@ -1,102 +1,91 @@
-# Sirka Owner API (Cloudflare Worker)
+# Panduan Mudah Menghubungkan Sirka POS & Sirka Owner ke Cloud (Untuk Pemula / Non-Teknis)
 
-Backend REST API serverless yang aman dan cepat untuk melayani aplikasi Android Owner dari PostgreSQL cloud.
+Panduan ini membantu Anda menghubungkan **Sirka POS (Kasir)** dan **Sirka Owner (HP Pemilik)** agar data penjualan, stok, dan laporan keuangan otomatis sinkron lewat internet.
 
----
-
-## Fitur
-1. **Keamanan:**
-   * Kredensial PostgreSQL **hanya** disimpan sebagai Cloudflare Secret (`wrangler secret put DATABASE_URL`) — tidak pernah ditulis literal di source code, `wrangler.toml`, maupun README.
-   * ⚠️ **PENTING**: Kredensial database produksi pernah bocor ke dalam riwayat repository ini (termasuk di dalam binary APK). **Password database wajib dirotasi** di sisi provider sebelum aplikasi dipakai ulang. Lihat `../.env.example` untuk format nilainya.
-   * Proteksi token **AKTIF**: setiap request ke `/api/*` wajib menyertakan `Authorization: Bearer <OWNER_SECRET_KEY>`. Bandingkan token secara *constant-time*. Lihat bagian "Autentikasi" di bawah.
-2. **Koneksi Tahan Banting (Stateless HTTP/HTTPS):**
-   * Menggunakan HTTP REST API yang tahan terhadap perubahan jaringan seluler HP (4G/5G/Wi-Fi).
-3. **Endpoint Lengkap:**
-   * `GET /api/financial-report?period=today|week|month|year`: Laporan Laba Rugi & Arus Kas.
-   * `GET /api/inventory-valuation`: Valuasi Modal Tertanam Persediaan Barang (41 produk riil).
-   * `GET /api/sales`: Buku Nota & Piutang Tempo Pelanggan.
-   * `GET /api/purchases`: Riwayat Kulakan Supplier.
-   * `GET /api/shifts`: Rekap shift kasir & rekonsiliasi kas laci.
-   * `GET /api/analytics/*`: Modul analisis bisnis.
-   * `POST /api/test-connection`: Uji status koneksi ke PostgreSQL.
-   * `POST /api/shifts`: Sinkronisasi shift kasir dari aplikasi kasir.
+> **Kabar baik:** Anda **tidak harus** jago coding. Pilih saja salah satu dari 2 cara di bawah ini.
 
 ---
 
-## Autentikasi
+## Cara 1: Paling Mudah — Langsung Pakai Database Gratis (Tanpa Cloudflare Worker)
 
-**Sudah DITEGAKKAN.** Setiap request ke `/api/*` wajib menyertakan token:
+**Cocok untuk:** Anda yang memakai aplikasi **Windows (`.exe`)** dan **Android APK (`Sirka_POS.apk` & `Sirka_Owner.apk`)** dan ingin cara tercepat tanpa ribet terminal/perintah teks.
 
-```
-Authorization: Bearer <OWNER_SECRET_KEY>
-```
+### Langkah 1: Buat Database Gratis di Neon
+1. Buka website **https://neon.tech** di browser, lalu daftar akun gratis (bisa login dengan Google).
+2. Setelah masuk, klik **Create Project** (buat proyek baru, beri nama misalnya `toko-saya`).
+3. Di menu sebelah kiri, klik **SQL Editor**.
+4. Buka file `db/schema.sql` (dari dalam file ZIP rilis) menggunakan Notepad, salin (**Ctrl+A** lalu **Ctrl+C**) seluruh isinya, tempel (**Ctrl+V**) ke kolom **SQL Editor** di Neon, lalu klik tombol **Run**.
+   *(Langkah ini hanya dilakukan 1 kali saja untuk menyiapkan tabel database toko Anda.)*
 
-Alternatif: header `x-owner-pin: <OWNER_SECRET_KEY>`.
+### Langkah 2: Salin Alamat Database
+1. Kembali ke halaman **Dashboard** Neon Anda.
+2. Cari kotak bertuliskan **Connection String** (atau klik tombol **Connect**).
+3. Salin alamatnya yang berawalan `postgresql://...` (pastikan password ikut tersalin, bukan masih bertuliskan `***`).
 
-Perbandingan token memakai *constant-time comparison* sehingga tidak bisa
-ditebak lewat timing attack. Tanpa header yang benar, Worker membalas **401**
-dengan pesan yang jelas.
+### Langkah 3: Tempel ke Aplikasi Sirka
+1. **Di Aplikasi Kasir (`Sirka POS`):**
+   Buka menu **Pengaturan Server / Database Cloud** → tempel alamat `postgresql://...` tadi → klik **Simpan**.
+2. **Di Aplikasi Owner (`Sirka Owner Mobile` APK):**
+   Buka tab **Setelan** → pada kolom **URL Cloudflare Worker atau PostgreSQL**, langsung tempel alamat `postgresql://...` yang sama → klik **Uji Koneksi Server** → klik **Simpan**.
 
-Bila `OWNER_SECRET_KEY` **tidak** diset, proteksi dimatikan (mode pengembangan)
-dan aplikasi mobile menampilkan peringatan "Proteksi token belum aktif".
-
-### Mengaktifkan proteksi
-
-```bash
-cd worker
-bun x wrangler secret put OWNER_SECRET_KEY
-```
-
-Lalu masukkan token yang sama di aplikasi:
-- **Mobile**: tab *Setelan* → field **Token Akses Worker**
-- **Desktop (kasir)**: *Branding & Toko* → field **Token Akses Worker**
-
-> Catatan: token disimpan **hanya di perangkat** (localStorage), tidak pernah
-> ikut ter-sinkron ke database cloud.
+Selesai! Data kasir dan HP Owner sudah terhubung.
 
 ---
 
-## Cara Menjalankan Secara Lokal (Development)
+## Cara 2: Pakai Cloudflare Worker (Untuk Akses Web & Koneksi HP Lebih Stabil)
 
-```bash
-cd worker
+**Cocok untuk:** Anda yang ingin memantau laporan lewat browser web, atau ingin koneksi HP tetap stabil meski sinyal berganti-ganti, serta ingin password database tidak disimpan di HP.
 
-# 1. Buat file .dev.vars (sudah di-ignore git) berisi kredensial lokal:
-echo 'DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/DATABASE' > .dev.vars
+### Persiapan Awal (Cukup 1 Kali)
+1. Selesaikan **Langkah 1 & Langkah 2** pada **Cara 1** di atas terlebih dahulu (Anda tetap butuh alamat `postgresql://...` dari Neon/Supabase).
+2. Pasang **Node.js** di laptop/PC Anda: unduh dari **https://nodejs.org** (pilih tombol **LTS**), lalu install seperti biasa (*Next → Next → Finish*).
+3. Buat akun gratis di **https://dash.cloudflare.com**.
+4. Ekstrak file `sirka-owner-worker-deploy.zip` dari halaman rilis GitHub ke sebuah folder, misalnya di `Desktop`.
 
-# 2. Jalankan
-bun run dev
-```
+### Langkah Upload ke Cloudflare
+1. Buka folder hasil ekstrak tadi, lalu masuk ke dalam folder **`worker`**.
+2. Klik kanan di area kosong dalam folder `worker`, lalu pilih **Open in Terminal** (atau di Windows ketik `cmd` pada kolom alamat folder lalu tekan **Enter**).
+3. Ketik perintah berikut satu per satu (tekan **Enter** setiap selesai mengetik 1 baris):
 
-Worker akan berjalan di `http://localhost:8787`.
+   **a. Unduh kelengkapan sistem (tunggu hingga selesai):**
+   ```bash
+   npm install
+   ```
+
+   **b. Login ke akun Cloudflare Anda:**
+   ```bash
+   npx wrangler login
+   ```
+   *(Browser akan terbuka otomatis. Klik tombol **Allow** / Izinkan, lalu kembali ke layar terminal.)*
+
+   **c. Masukkan alamat database Neon Anda:**
+   ```bash
+   npx wrangler secret put DATABASE_URL
+   ```
+   *(Saat muncul tulisan `Enter a secret value:`, klik kanan untuk menempel alamat `postgresql://...` Anda, lalu tekan **Enter**. Karakter memang tidak terlihat di layar demi keamanan.)*
+
+   **d. Buat password akses untuk HP Owner (bebas Anda tentukan sendiri):**
+   ```bash
+   npx wrangler secret put OWNER_SECRET_KEY
+   ```
+   *(Ketik password rahasia Anda, misalnya `TokoBerkah2026`, lalu tekan **Enter**. Catat password ini baik-baik.)*
+
+   **e. Aktifkan server ke internet:**
+   ```bash
+   npm run deploy
+   ```
+   *(Di bagian akhir akan muncul alamat website Anda, contohnya:*
+   `https://sirka-owner-api.namaanda.workers.dev`*)*
+
+### Hubungkan ke Aplikasi Sirka Owner
+1. Buka **Sirka Owner Mobile** → masuk ke tab **Setelan**.
+2. Pada kolom **URL Cloudflare Worker atau PostgreSQL**, masukkan alamat `https://sirka-owner-api.namaanda.workers.dev` yang muncul tadi.
+3. Pada kolom **Token Akses Worker (`OWNER_SECRET_KEY`)**, masukkan password rahasia yang Anda buat di langkah **d**.
+4. Klik **Uji Koneksi Server** → jika berhasil, klik **Simpan**.
 
 ---
 
-## Cara Deploy ke Cloudflare (Gratis)
-
-### 1. Login ke Akun Cloudflare
-```bash
-cd worker
-bun x wrangler login
-```
-*(Browser akan terbuka untuk konfirmasi otorisasi akun Cloudflare Anda.)*
-
-### 2. Set Secret Database URL (Sangat Aman)
-```bash
-bun x wrangler secret put DATABASE_URL
-```
-Masukkan connection string PostgreSQL Anda saat diminta, contoh:
-`postgresql://USER:PASSWORD@HOST:PORT/DATABASE`
-
-### 3. Deploy ke Internet
-```bash
-bun run deploy
-```
-Wrangler akan memberikan URL publik HTTPS gratis, misalnya:
-`https://sirka-owner-api.[subdomain-anda].workers.dev`
-
----
-
-## Menghubungkan ke Aplikasi Mobile (Android)
-Buka aplikasi mobile di HP atau browser pada tab **Setelan**, lalu masukkan URL Cloudflare Worker yang didapatkan:
-`https://sirka-owner-api.[subdomain-anda].workers.dev`
+## Ringkasan Masalah Umum
+- **Tulisan "URL Server belum diatur"**: Buka tab **Setelan** di Sirka Owner, pastikan kolom URL sudah diisi dan tombol **Simpan** sudah diklik.
+- **Error `401 Akses ditolak`**: Password di kolom **Token Akses Worker** belum sama dengan `OWNER_SECRET_KEY` yang Anda ketik saat deploy.
+- **Data belum muncul setelah baru isi `schema.sql`**: Pastikan aplikasi kasir (`Sirka POS`) sudah diisi URL database yang sama dan sudah melakukan minimal 1 kali sinkronisasi/transaksi.

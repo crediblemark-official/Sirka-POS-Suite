@@ -5,7 +5,7 @@ import { dbService } from '../services/dbService';
 import { syncService } from '../services/syncService';
 import { safeParse } from '../utils/storage';
 
-const STORAGE_KEY_PREORDERS = 'kasir_citra_preorders_v2';
+const STORAGE_KEY_PREORDERS = 'sirka_pos_preorders_v2';
 
 export const usePreOrderStore = defineStore('preOrder', () => {
   const showPreOrderSidebar = ref(false);

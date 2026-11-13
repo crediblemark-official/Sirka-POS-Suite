@@ -1,5 +1,5 @@
 /**
- * Utility untuk manajemen warna kategori produk di Kasir-Citra
+ * Utility untuk manajemen warna kategori produk di Sirka POS Suite
  */
 
 export interface CategoryColorTheme {

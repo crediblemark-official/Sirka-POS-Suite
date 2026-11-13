@@ -1,11 +1,11 @@
 -- ============================================================
--- Laporan Pembelian per Item — Kasir Citra
+-- Laporan Pembelian per Item — Sirka POS Suite
 -- ============================================================
 -- BUG-017 FIX: data item purchase receipt kini tersimpan di tabel
 -- ternormalisasi `purchase_receipt_items`, sehingga bisa di-query
 -- per item langsung dari SQL (tidak perlu parse kolom JSONB).
 --
--- Jalankan: psql -h 127.0.0.1 -p 5434 -U kasir_citra_user -d kasir_citra_db -f db/reports_purchase.sql
+-- Jalankan: psql -h 127.0.0.1 -p 5434 -U sirka_pos_user -d sirka_pos_db -f db/reports_purchase.sql
 -- ============================================================
 
 

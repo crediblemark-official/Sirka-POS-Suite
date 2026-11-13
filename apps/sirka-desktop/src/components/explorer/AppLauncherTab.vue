@@ -93,7 +93,7 @@ export interface ShortcutItem extends ShortcutDef {
   y: number;
 }
 
-const STORAGE_KEY = 'kasir_citra_desktop_free_positions_v3';
+const STORAGE_KEY = 'sirka_pos_desktop_free_positions_v3';
 
 // Inisialisasi state tanpa JSON.stringify agar reference komponen icon tidak hilang
 const shortcuts = ref<ShortcutItem[]>(

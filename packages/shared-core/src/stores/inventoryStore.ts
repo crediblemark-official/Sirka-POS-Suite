@@ -6,8 +6,8 @@ import { syncService } from '../services/syncService';
 import { safeParse } from '@sirka/shared-utils';
 import { resolveProductSupplier } from '@sirka/shared-utils';
 
-const STORAGE_KEY_PRODUCTS = 'kasir_citra_products_v1';
-const STORAGE_KEY_MARKUPS = 'kasir_citra_markups_v1';
+const STORAGE_KEY_PRODUCTS = 'sirka_pos_products_v1';
+const STORAGE_KEY_MARKUPS = 'sirka_pos_markups_v1';
 
 export const useInventoryStore = defineStore('inventory', () => {
   const showProductSidebar = ref(false);

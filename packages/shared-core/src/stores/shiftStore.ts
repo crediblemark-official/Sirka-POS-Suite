@@ -2,9 +2,12 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { CashierShift } from '@sirka/shared-types';
 import { syncService } from '../services/syncService';
+import { dbService } from '../services/dbService';
+import { safeParse } from '@sirka/shared-utils';
 
-const STORAGE_KEY_CURRENT_SHIFT = 'kasir_citra_current_shift_v1';
-const STORAGE_KEY_SHIFT_HISTORY = 'kasir_citra_shift_history_v1';
+const STORAGE_KEY_CURRENT_SHIFT = 'sirka_pos_current_shift_v1';
+const STORAGE_KEY_SHIFT_HISTORY = 'sirka_pos_shift_history_v1';
+const SETTING_KEY_SHIFT_HISTORY = 'shift_history_cache';
 
 export const useShiftStore = defineStore('shift', () => {
   const currentShift = ref<CashierShift | null>(null);
@@ -71,9 +74,23 @@ export const useShiftStore = defineStore('shift', () => {
     }
   }
 
-  // Muat riwayat shift lokal desktop
+  // Muat riwayat shift lokal & gabungkan dengan riwayat shift dari database/cloud
   async function fetchShiftsFromApi() {
     loadLocal();
+    try {
+      const settings = await dbService.getSettings();
+      const raw = settings?.find(s => s.key === SETTING_KEY_SHIFT_HISTORY)?.value;
+      if (!raw) return;
+      const remote = safeParse<CashierShift[]>(raw, [], 'ShiftStore');
+      if (Array.isArray(remote) && remote.length > 0) {
+        const remoteIds = new Set(remote.map(s => s.id));
+        const localOnly = shiftHistory.value.filter(s => s && s.id && !remoteIds.has(s.id));
+        shiftHistory.value = [...remote, ...localOnly];
+        saveLocal();
+      }
+    } catch {
+      // Offline: tetap gunakan cache lokal
+    }
   }
 
   // Open Shift
@@ -227,8 +244,12 @@ export const useShiftStore = defineStore('shift', () => {
     showCloseShiftModal.value = false;
     showShiftSummaryModal.value = true;
 
-    // Background sync to Cloudflare
+    // Background sync to PostgreSQL Cloud & shift history cache
     syncShiftToCloud(closed);
+    const historyPayload = JSON.stringify(shiftHistory.value.slice(0, 100));
+    dbService.updateSetting(SETTING_KEY_SHIFT_HISTORY, historyPayload).catch(() => {
+      syncService.enqueue('UPDATE_SETTING', { key: SETTING_KEY_SHIFT_HISTORY, value: historyPayload });
+    });
 
     return closed;
   }

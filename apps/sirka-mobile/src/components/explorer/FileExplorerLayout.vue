@@ -295,8 +295,8 @@ function handleGlobalKeydown(e: KeyboardEvent) {
 
 onMounted(() => {
   // Bersihkan cache tab sesi sebelumnya agar aplikasi baru dibuka selalu bersih di Home tanpa tab aktif
-  localStorage.removeItem('kasir_citra_open_tabs_v1');
-  localStorage.removeItem('kasir_citra_active_tab_v1');
+  localStorage.removeItem('sirka_pos_open_tabs_v1');
+  localStorage.removeItem('sirka_pos_active_tab_v1');
   openTabIds.value = [];
   activeTab.value = 'home';
   window.addEventListener('keydown', handleGlobalKeydown);

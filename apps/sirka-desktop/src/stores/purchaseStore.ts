@@ -9,7 +9,7 @@ import { useBatchStore } from './batchStore';
 import { useSupplierStore } from './supplierStore';
 import { useStockMovementStore } from './stockMovementStore';
 
-const STORAGE_KEY_PURCHASES = 'kasir_citra_purchases_v1';
+const STORAGE_KEY_PURCHASES = 'sirka_pos_purchases_v1';
 
 /** BUG FIX: JSON.parse tanpa try/catch membuat 1 nilai korup mematikan boot aplikasi. */
 function safeParse<T>(raw: string | null, fallback: T): T {

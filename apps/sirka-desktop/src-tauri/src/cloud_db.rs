@@ -54,14 +54,16 @@ pub async fn pg_create_transaction(
                 discount_amount, discount_code, points_used, points_discount, points_earned, final_total,
                 is_pre_order, pic_name, created_at,
                 is_split_payment, cash_amount, non_cash_amount, non_cash_method,
-                change_amount, infaq_amount, shift_id, refund_status, refund_total
+                change_amount, infaq_amount, shift_id, refund_status, refund_total,
+                business_type, order_type, table_no, staff_name, service_status
              )
              VALUES (
                 $1, $2, $3::text::date, $4, $5, $6::float8, $7::float8, $8::float8,
                 $9::float8, $10, $11, $12, $13,
                 $14::float8, $15, $16::float8, $17::float8, $18::float8, $19::float8,
                 $20, $21, NOW(),
-                $22, $23::float8, $24::float8, $25, $26::float8, $27::float8, $28, $29, $30::float8
+                $22, $23::float8, $24::float8, $25, $26::float8, $27::float8, $28, $29, $30::float8,
+                $31, $32, $33, $34, $35
              )",
             &[
                 &tx.id,
@@ -94,6 +96,11 @@ pub async fn pg_create_transaction(
                 &tx.shift_id,
                 &refund_status,
                 &refund_total,
+                &tx.business_type,
+                &tx.order_type,
+                &tx.table_no,
+                &tx.staff_name,
+                &tx.service_status,
             ],
         )
         .await
@@ -302,11 +309,21 @@ pub async fn pg_upsert_product(product: ProductRecord) -> Result<String, String>
         .as_ref()
         .and_then(|u| serde_json::to_string(u).ok());
     let is_perishable = product.is_perishable.unwrap_or(false);
+    let product_type = product.product_type.as_deref().unwrap_or("GOODS");
+    let tier_pricing_json: Option<String> = product
+        .tier_pricing
+        .as_ref()
+        .and_then(|t| serde_json::to_string(t).ok());
+    let modifiers_json: Option<String> = product
+        .available_modifiers
+        .as_ref()
+        .and_then(|m| serde_json::to_string(m).ok());
+    let service_duration_minutes = product.service_duration_minutes.unwrap_or(0) as i32;
 
     client
         .execute(
-            "INSERT INTO products (id, code, name, category, unit, default_markup_percent, last_buy_price, last_sell_price, stock, notes, barcode, units, is_perishable, supplier, updated_at)
-             VALUES ($1, $2, $3, $4, $5, $6::float8::numeric, $7::float8::numeric, $8::float8::numeric, $9::float8::numeric, $10, $11, $12::text::jsonb, $13, $14, NOW())
+            "INSERT INTO products (id, code, name, category, unit, default_markup_percent, last_buy_price, last_sell_price, stock, notes, barcode, units, is_perishable, supplier, product_type, tier_pricing, available_modifiers, service_duration_minutes, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6::float8::numeric, $7::float8::numeric, $8::float8::numeric, $9::float8::numeric, $10, $11, $12::text::jsonb, $13, $14, $15, $16::text::jsonb, $17::text::jsonb, $18, NOW())
              ON CONFLICT (id) DO UPDATE SET
                code = EXCLUDED.code,
                name = EXCLUDED.name,
@@ -321,6 +338,10 @@ pub async fn pg_upsert_product(product: ProductRecord) -> Result<String, String>
                units = COALESCE(EXCLUDED.units, products.units),
                is_perishable = EXCLUDED.is_perishable,
                supplier = EXCLUDED.supplier,
+               product_type = EXCLUDED.product_type,
+               tier_pricing = COALESCE(EXCLUDED.tier_pricing, products.tier_pricing),
+               available_modifiers = COALESCE(EXCLUDED.available_modifiers, products.available_modifiers),
+               service_duration_minutes = EXCLUDED.service_duration_minutes,
                updated_at = NOW()",
             &[
                 &id,
@@ -337,6 +358,10 @@ pub async fn pg_upsert_product(product: ProductRecord) -> Result<String, String>
                 &units_json,
                 &is_perishable,
                 &product.supplier,
+                &product_type,
+                &tier_pricing_json,
+                &modifiers_json,
+                &service_duration_minutes,
             ],
         )
         .await

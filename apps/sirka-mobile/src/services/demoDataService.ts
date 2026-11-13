@@ -57,22 +57,22 @@ export const demoDataService = {
     if (!isTauri()) {
       // MODE WEB BROWSER: Simpan langsung ke localStorage untuk performa instan tanpa IPC
       if (payload.categoryMarkups && Array.isArray(payload.categoryMarkups)) {
-        localStorage.setItem('kasir_citra_markups_v1', JSON.stringify(payload.categoryMarkups));
+        localStorage.setItem('sirka_pos_markups_v1', JSON.stringify(payload.categoryMarkups));
       }
       if (payload.products && Array.isArray(payload.products)) {
-        localStorage.setItem('kasir_citra_products_v1', JSON.stringify(payload.products));
+        localStorage.setItem('sirka_pos_products_v1', JSON.stringify(payload.products));
       }
       if (payload.buyers && Array.isArray(payload.buyers)) {
-        localStorage.setItem('kasir_citra_buyers_v3', JSON.stringify(payload.buyers));
+        localStorage.setItem('sirka_pos_buyers_v3', JSON.stringify(payload.buyers));
       }
       if (payload.discounts && Array.isArray(payload.discounts)) {
-        localStorage.setItem('kasir_citra_discounts_v1', JSON.stringify(payload.discounts));
+        localStorage.setItem('sirka_pos_discounts_v1', JSON.stringify(payload.discounts));
       }
       if (payload.preOrders && Array.isArray(payload.preOrders)) {
-        localStorage.setItem('kasir_citra_preorders_v2', JSON.stringify(payload.preOrders));
+        localStorage.setItem('sirka_pos_preorders_v2', JSON.stringify(payload.preOrders));
       }
       if (payload.suppliers && Array.isArray(payload.suppliers)) {
-        localStorage.setItem('kasir_citra_suppliers_v1', JSON.stringify(payload.suppliers));
+        localStorage.setItem('sirka_pos_suppliers_v1', JSON.stringify(payload.suppliers));
       }
     } else {
       // MODE TAURI: Tulis ke backend database lokal SQLite / PostgreSQL
@@ -115,12 +115,12 @@ export const demoDataService = {
       if (payload.suppliers && Array.isArray(payload.suppliers)) {
         const supplierStore = useSupplierStore();
         supplierStore.suppliers = [...payload.suppliers];
-        localStorage.setItem('kasir_citra_suppliers_v1', JSON.stringify(supplierStore.suppliers));
+        localStorage.setItem('sirka_pos_suppliers_v1', JSON.stringify(supplierStore.suppliers));
       }
     }
 
     // Tandai bahwa demo data telah dimuat
-    localStorage.setItem('kasir_citra_demo_loaded_v1', 'true');
+    localStorage.setItem('sirka_pos_demo_loaded_v1', 'true');
 
     // Refresh seluruh state store Pinia
     await this.refreshAllStores();
@@ -142,26 +142,26 @@ export const demoDataService = {
 
     // 2. Bersihkan seluruh localStorage
     const keysToRemove = [
-      'kasir_citra_products_v1',
-      'kasir_citra_markups_v1',
-      'kasir_citra_buyers_v3',
-      'kasir_citra_loyalty_settings_v1',
-      'kasir_citra_discounts_v1',
-      'kasir_citra_ledger_v1',
-      'kasir_citra_preorders_v2',
-      'kasir_citra_purchases_v1',
-      'kasir_citra_held_carts_v1',
-      'kasir_citra_suppliers_v1',
-      'kasir_citra_units_v1',
-      'kasir_citra_stock_movements_v1',
-      'kasir_citra_stock_adjustments_v1',
-      'kasir_citra_batches_v1',
-      'kasir_citra_refunds_v1',
-      'kasir_citra_waste_v1',
-      'kasir_citra_settings_v1',
-      'kasir_citra_current_shift_v1',
-      'kasir_citra_shift_history_v1',
-      'kasir_citra_demo_loaded_v1'
+      'sirka_pos_products_v1',
+      'sirka_pos_markups_v1',
+      'sirka_pos_buyers_v3',
+      'sirka_pos_loyalty_settings_v1',
+      'sirka_pos_discounts_v1',
+      'sirka_pos_ledger_v1',
+      'sirka_pos_preorders_v2',
+      'sirka_pos_purchases_v1',
+      'sirka_pos_held_carts_v1',
+      'sirka_pos_suppliers_v1',
+      'sirka_pos_units_v1',
+      'sirka_pos_stock_movements_v1',
+      'sirka_pos_stock_adjustments_v1',
+      'sirka_pos_batches_v1',
+      'sirka_pos_refunds_v1',
+      'sirka_pos_waste_v1',
+      'sirka_pos_settings_v1',
+      'sirka_pos_current_shift_v1',
+      'sirka_pos_shift_history_v1',
+      'sirka_pos_demo_loaded_v1'
     ];
     for (const k of keysToRemove) {
       localStorage.removeItem(k);

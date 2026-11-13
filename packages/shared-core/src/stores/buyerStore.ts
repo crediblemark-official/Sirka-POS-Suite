@@ -6,8 +6,8 @@ import { syncService } from '../services/syncService';
 import { useSettingsStore } from './settingsStore';
 import { localTodayStr } from '@sirka/shared-utils';
 
-const STORAGE_KEY_BUYERS = 'kasir_citra_buyers_v3';
-const STORAGE_KEY_LOYALTY = 'kasir_citra_loyalty_settings_v1';
+const STORAGE_KEY_BUYERS = 'sirka_pos_buyers_v3';
+const STORAGE_KEY_LOYALTY = 'sirka_pos_loyalty_settings_v1';
 
 /** BUG FIX: JSON.parse tanpa try/catch membuat 1 nilai korup mematikan boot aplikasi. */
 function safeParse<T>(raw: string | null, fallback: T): T {

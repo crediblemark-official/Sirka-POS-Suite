@@ -75,17 +75,17 @@ export const dbService = {
   // 1. PRODUCTS & INVENTORY
   async getProducts(): Promise<Product[]> {
     return safeInvoke<Product[]>('db_get_products', undefined, () =>
-      getLocal<Product[]>('kasir_citra_products_v1', [])
+      getLocal<Product[]>('sirka_pos_products_v1', [])
     );
   },
 
   async upsertProduct(product: Product): Promise<string> {
     return safeInvoke<string>('db_upsert_product', { product }, () => {
-      const list = getLocal<Product[]>('kasir_citra_products_v1', []);
+      const list = getLocal<Product[]>('sirka_pos_products_v1', []);
       const idx = list.findIndex(p => p.id === product.id);
       if (idx >= 0) list[idx] = product;
       else list.push(product);
-      setLocal('kasir_citra_products_v1', list);
+      setLocal('sirka_pos_products_v1', list);
       return product.id;
     });
   },
@@ -102,21 +102,21 @@ export const dbService = {
       buyPrice,
       sellPrice
     }, () => {
-      const list = getLocal<Product[]>('kasir_citra_products_v1', []);
+      const list = getLocal<Product[]>('sirka_pos_products_v1', []);
       const prod = list.find(p => p.id === productId);
       if (prod) {
         prod.stock += addedStock;
         if (buyPrice > 0) prod.lastBuyPrice = buyPrice;
         if (sellPrice > 0) prod.lastSellPrice = sellPrice;
-        setLocal('kasir_citra_products_v1', list);
+        setLocal('sirka_pos_products_v1', list);
       }
     });
   },
 
   async deleteProduct(productId: string): Promise<void> {
     return safeInvoke('db_delete_product', { productId }, () => {
-      const list = getLocal<Product[]>('kasir_citra_products_v1', []).filter(p => p.id !== productId);
-      setLocal('kasir_citra_products_v1', list);
+      const list = getLocal<Product[]>('sirka_pos_products_v1', []).filter(p => p.id !== productId);
+      setLocal('sirka_pos_products_v1', list);
     });
   },
 
@@ -214,17 +214,17 @@ export const dbService = {
   // 2. CATEGORIES / VENDORS & MARKUPS
   async getMarkups(): Promise<CategoryMarkupSetting[]> {
     return safeInvoke<CategoryMarkupSetting[]>('db_get_markups', undefined, () =>
-      getLocal<CategoryMarkupSetting[]>('kasir_citra_markups_v1', [])
+      getLocal<CategoryMarkupSetting[]>('sirka_pos_markups_v1', [])
     );
   },
 
   async updateMarkup(category: string, markupPercent: number): Promise<void> {
     return safeInvoke('db_update_markup', { category, markupPercent }, () => {
-      const list = getLocal<CategoryMarkupSetting[]>('kasir_citra_markups_v1', []);
+      const list = getLocal<CategoryMarkupSetting[]>('sirka_pos_markups_v1', []);
       const item = list.find(c => c.category === category);
       if (item) {
         item.defaultMarkupPercent = markupPercent;
-        setLocal('kasir_citra_markups_v1', list);
+        setLocal('sirka_pos_markups_v1', list);
       }
     });
   },
@@ -241,7 +241,7 @@ export const dbService = {
       description: description || null,
       color: color || null
     }, () => {
-      const list = getLocal<CategoryMarkupSetting[]>('kasir_citra_markups_v1', []);
+      const list = getLocal<CategoryMarkupSetting[]>('sirka_pos_markups_v1', []);
       const idx = list.findIndex(c => c.category === category);
       const entry: CategoryMarkupSetting = {
         category: category as any,
@@ -251,7 +251,7 @@ export const dbService = {
       };
       if (idx >= 0) list[idx] = entry;
       else list.push(entry);
-      setLocal('kasir_citra_markups_v1', list);
+      setLocal('sirka_pos_markups_v1', list);
     });
   },
 
@@ -267,7 +267,7 @@ export const dbService = {
       description: description || null,
       color: color || null
     }, () => {
-      const list = getLocal<CategoryMarkupSetting[]>('kasir_citra_markups_v1', []);
+      const list = getLocal<CategoryMarkupSetting[]>('sirka_pos_markups_v1', []);
       const idx = list.findIndex(c => c.category === category);
       const entry: CategoryMarkupSetting = {
         category: category as any,
@@ -277,74 +277,74 @@ export const dbService = {
       };
       if (idx >= 0) list[idx] = entry;
       else list.push(entry);
-      setLocal('kasir_citra_markups_v1', list);
+      setLocal('sirka_pos_markups_v1', list);
     });
   },
 
   async deleteMarkup(category: string): Promise<void> {
     return safeInvoke('db_delete_markup', { category }, () => {
-      const list = getLocal<CategoryMarkupSetting[]>('kasir_citra_markups_v1', []).filter(c => c.category !== category);
-      setLocal('kasir_citra_markups_v1', list);
+      const list = getLocal<CategoryMarkupSetting[]>('sirka_pos_markups_v1', []).filter(c => c.category !== category);
+      setLocal('sirka_pos_markups_v1', list);
     });
   },
 
   // 3. BUYERS / CUSTOMERS & LOYALTY
   async getBuyers(): Promise<Buyer[]> {
     return safeInvoke<Buyer[]>('db_get_buyers', undefined, () =>
-      getLocal<Buyer[]>('kasir_citra_buyers_v3', [])
+      getLocal<Buyer[]>('sirka_pos_buyers_v3', [])
     );
   },
 
   async upsertBuyer(buyer: Buyer): Promise<string> {
     return safeInvoke<string>('db_upsert_buyer', { buyer }, () => {
-      const list = getLocal<Buyer[]>('kasir_citra_buyers_v3', []);
+      const list = getLocal<Buyer[]>('sirka_pos_buyers_v3', []);
       const idx = list.findIndex(b => b.id === buyer.id);
       if (idx >= 0) list[idx] = buyer;
       else list.push(buyer);
-      setLocal('kasir_citra_buyers_v3', list);
+      setLocal('sirka_pos_buyers_v3', list);
       return buyer.id;
     });
   },
 
   async deleteBuyer(id: string): Promise<void> {
     return safeInvoke('db_delete_buyer', { id }, () => {
-      const list = getLocal<Buyer[]>('kasir_citra_buyers_v3', []).filter(b => b.id !== id);
-      setLocal('kasir_citra_buyers_v3', list);
+      const list = getLocal<Buyer[]>('sirka_pos_buyers_v3', []).filter(b => b.id !== id);
+      setLocal('sirka_pos_buyers_v3', list);
     });
   },
 
   // 4. DISCOUNTS & PROMO VOUCHERS
   async getDiscounts(): Promise<Discount[]> {
     return safeInvoke<Discount[]>('db_get_discounts', undefined, () =>
-      getLocal<Discount[]>('kasir_citra_discounts_v1', [])
+      getLocal<Discount[]>('sirka_pos_discounts_v1', [])
     );
   },
 
   async upsertDiscount(discount: Discount): Promise<string> {
     return safeInvoke<string>('db_upsert_discount', { discount }, () => {
-      const list = getLocal<Discount[]>('kasir_citra_discounts_v1', []);
+      const list = getLocal<Discount[]>('sirka_pos_discounts_v1', []);
       const idx = list.findIndex(d => d.id === discount.id);
       if (idx >= 0) list[idx] = discount;
       else list.push(discount);
-      setLocal('kasir_citra_discounts_v1', list);
+      setLocal('sirka_pos_discounts_v1', list);
       return discount.id;
     });
   },
 
   async deleteDiscount(id: string): Promise<void> {
     return safeInvoke('db_delete_discount', { id }, () => {
-      const list = getLocal<Discount[]>('kasir_citra_discounts_v1', []).filter(d => d.id !== id);
-      setLocal('kasir_citra_discounts_v1', list);
+      const list = getLocal<Discount[]>('sirka_pos_discounts_v1', []).filter(d => d.id !== id);
+      setLocal('sirka_pos_discounts_v1', list);
     });
   },
 
   async toggleDiscount(id: string, isActive: boolean): Promise<void> {
     return safeInvoke('db_toggle_discount', { id, isActive }, () => {
-      const list = getLocal<Discount[]>('kasir_citra_discounts_v1', []);
+      const list = getLocal<Discount[]>('sirka_pos_discounts_v1', []);
       const item = list.find(d => d.id === id);
       if (item) {
         item.isActive = isActive;
-        setLocal('kasir_citra_discounts_v1', list);
+        setLocal('sirka_pos_discounts_v1', list);
       }
     });
   },
@@ -352,7 +352,7 @@ export const dbService = {
   // 5. WHITE-LABEL STORE SETTINGS & BRANDING
   async getSettings(): Promise<StoreSetting[]> {
     return safeInvoke<StoreSetting[]>('db_get_settings', undefined, () => {
-      const raw = getLocal<any>('kasir_citra_settings_v1', []);
+      const raw = getLocal<any>('sirka_pos_settings_v1', []);
       if (Array.isArray(raw)) return raw;
       if (raw && typeof raw === 'object') {
         return Object.entries(raw).map(([key, value]) => ({ key, value: String(value) }));
@@ -363,17 +363,17 @@ export const dbService = {
 
   async updateSetting(key: string, value: string): Promise<void> {
     return safeInvoke('db_update_setting', { key, value }, () => {
-      const raw = getLocal<any>('kasir_citra_settings_v1', {});
+      const raw = getLocal<any>('sirka_pos_settings_v1', {});
       if (Array.isArray(raw)) {
         const idx = raw.findIndex((s: any) => s && s.key === key);
         if (idx >= 0) raw[idx].value = value;
         else raw.push({ key, value });
-        setLocal('kasir_citra_settings_v1', raw);
+        setLocal('sirka_pos_settings_v1', raw);
       } else if (raw && typeof raw === 'object') {
         raw[key] = value;
-        setLocal('kasir_citra_settings_v1', raw);
+        setLocal('sirka_pos_settings_v1', raw);
       } else {
-        setLocal('kasir_citra_settings_v1', { [key]: value });
+        setLocal('sirka_pos_settings_v1', { [key]: value });
       }
     });
   },
@@ -381,93 +381,93 @@ export const dbService = {
   // 6. TRANSACTIONS / LEDGER
   async getTransactions(): Promise<Transaction[]> {
     return safeInvoke<Transaction[]>('db_get_transactions', undefined, () =>
-      getLocal<Transaction[]>('kasir_citra_ledger_v1', [])
+      getLocal<Transaction[]>('sirka_pos_ledger_v1', [])
     );
   },
 
   async createTransaction(tx: Transaction, memberId?: string): Promise<string> {
     return safeInvoke<string>('db_create_transaction', { tx, memberId: memberId || null }, () => {
-      const list = getLocal<Transaction[]>('kasir_citra_ledger_v1', []);
+      const list = getLocal<Transaction[]>('sirka_pos_ledger_v1', []);
       list.unshift(tx);
-      setLocal('kasir_citra_ledger_v1', list);
+      setLocal('sirka_pos_ledger_v1', list);
       return tx.id;
     });
   },
 
   async updateTransactionStatus(id: string, paymentStatus: 'LUNAS' | 'TEMPO'): Promise<void> {
     return safeInvoke('db_update_transaction_status', { id, paymentStatus }, () => {
-      const list = getLocal<Transaction[]>('kasir_citra_ledger_v1', []);
+      const list = getLocal<Transaction[]>('sirka_pos_ledger_v1', []);
       const tx = list.find(t => t.id === id);
       if (tx) {
         tx.paymentStatus = paymentStatus;
-        setLocal('kasir_citra_ledger_v1', list);
+        setLocal('sirka_pos_ledger_v1', list);
       }
     });
   },
 
   async deleteTransaction(id: string): Promise<void> {
     return safeInvoke('db_delete_transaction', { id }, () => {
-      const list = getLocal<Transaction[]>('kasir_citra_ledger_v1', []).filter(t => t.id !== id);
-      setLocal('kasir_citra_ledger_v1', list);
+      const list = getLocal<Transaction[]>('sirka_pos_ledger_v1', []).filter(t => t.id !== id);
+      setLocal('sirka_pos_ledger_v1', list);
     });
   },
 
   async deletePreOrder(id: string): Promise<void> {
     return safeInvoke('db_delete_preorder', { id }, () => {
-      const list = getLocal<PreOrderSchedule[]>('kasir_citra_preorders_v2', []).filter(p => p.id !== id);
-      setLocal('kasir_citra_preorders_v2', list);
+      const list = getLocal<PreOrderSchedule[]>('sirka_pos_preorders_v2', []).filter(p => p.id !== id);
+      setLocal('sirka_pos_preorders_v2', list);
     });
   },
 
   async getPurchases(): Promise<PurchaseReceipt[]> {
     return safeInvoke<PurchaseReceipt[]>('db_get_purchases', undefined, () =>
-      getLocal<PurchaseReceipt[]>('kasir_citra_purchases_v1', [])
+      getLocal<PurchaseReceipt[]>('sirka_pos_purchases_v1', [])
     );
   },
 
   async savePurchase(receipt: PurchaseReceipt): Promise<void> {
     return safeInvoke('db_save_purchase', { receipt }, () => {
-      const list = getLocal<PurchaseReceipt[]>('kasir_citra_purchases_v1', []);
+      const list = getLocal<PurchaseReceipt[]>('sirka_pos_purchases_v1', []);
       const idx = list.findIndex(p => p.id === receipt.id);
       if (idx >= 0) list[idx] = receipt;
       else list.push(receipt);
-      setLocal('kasir_citra_purchases_v1', list);
+      setLocal('sirka_pos_purchases_v1', list);
     });
   },
 
   async deletePurchase(id: string): Promise<void> {
     return safeInvoke('db_delete_purchase', { id }, () => {
-      const list = getLocal<PurchaseReceipt[]>('kasir_citra_purchases_v1', []).filter(p => p.id !== id);
-      setLocal('kasir_citra_purchases_v1', list);
+      const list = getLocal<PurchaseReceipt[]>('sirka_pos_purchases_v1', []).filter(p => p.id !== id);
+      setLocal('sirka_pos_purchases_v1', list);
     });
   },
 
   async importPurchases(receipts: PurchaseReceipt[]): Promise<void> {
     return safeInvoke('db_import_purchases', { receipts }, () => {
-      const list = getLocal<PurchaseReceipt[]>('kasir_citra_purchases_v1', []);
+      const list = getLocal<PurchaseReceipt[]>('sirka_pos_purchases_v1', []);
       for (const r of receipts) {
         const idx = list.findIndex(p => p.id === r.id);
         if (idx >= 0) list[idx] = r;
         else list.push(r);
       }
-      setLocal('kasir_citra_purchases_v1', list);
+      setLocal('sirka_pos_purchases_v1', list);
     });
   },
 
   // 7. PRE-ORDERS
   async getPreOrders(): Promise<PreOrderSchedule[]> {
     return safeInvoke<PreOrderSchedule[]>('db_get_preorders', undefined, () =>
-      getLocal<PreOrderSchedule[]>('kasir_citra_preorders_v2', [])
+      getLocal<PreOrderSchedule[]>('sirka_pos_preorders_v2', [])
     );
   },
 
   async savePreOrder(record: PreOrderSchedule): Promise<string> {
     return safeInvoke<string>('db_save_preorder', { record }, () => {
-      const list = getLocal<PreOrderSchedule[]>('kasir_citra_preorders_v2', []);
+      const list = getLocal<PreOrderSchedule[]>('sirka_pos_preorders_v2', []);
       const idx = list.findIndex(p => p.id === record.id);
       if (idx >= 0) list[idx] = record;
       else list.push(record);
-      setLocal('kasir_citra_preorders_v2', list);
+      setLocal('sirka_pos_preorders_v2', list);
       return record.id;
     });
   },
@@ -551,9 +551,9 @@ export const dbService = {
 
   async getServerConfig(): Promise<ServerConfig> {
     return safeInvoke<ServerConfig>('db_get_server_config', undefined, () => ({
-      databaseUrl: getLocal('kasir_citra_database_url', null),
-      workerUrl: getLocal('kasir_citra_worker_url', null),
-      workerToken: getLocal('kasir_citra_owner_api_token', null),
+      databaseUrl: getLocal('sirka_pos_database_url', null),
+      workerUrl: getLocal('sirka_pos_worker_url', null),
+      workerToken: getLocal('sirka_pos_owner_api_token', null),
       isOnline: false,
       pendingCount: 0,
       lastSyncAt: null,
@@ -574,9 +574,9 @@ export const dbService = {
         workerToken: config.workerToken ?? null
       },
       () => {
-        setLocal('kasir_citra_database_url', config.databaseUrl ?? null);
-        setLocal('kasir_citra_worker_url', config.workerUrl ?? null);
-        setLocal('kasir_citra_owner_api_token', config.workerToken ?? null);
+        setLocal('sirka_pos_database_url', config.databaseUrl ?? null);
+        setLocal('sirka_pos_worker_url', config.workerUrl ?? null);
+        setLocal('sirka_pos_owner_api_token', config.workerToken ?? null);
         return {
           databaseUrl: config.databaseUrl ?? null,
           workerUrl: config.workerUrl ?? null,

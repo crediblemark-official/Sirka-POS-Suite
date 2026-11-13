@@ -155,7 +155,7 @@ Agar aplikasi terasa **compact, cepat, dan tidak ribet (minim form input)** laya
 
 * **Arsitektur Dual Database:** SQLite lokal berfitur WAL dan tabel antrean outbox menjamin kasir tetap dapat bertransaksi lancar saat internet mati.
 * **Sinkronisasi Dua Arah Otomatis:** Push dan pull data otomatis ke PostgreSQL Cloud SumoBase (`port 6432`) dengan resolusi konflik deterministik.
-* **Fresh Install & Data Demo Terpisah:** Sistem beroperasi default dalam kondisi bersih (*fresh* murni tanpa data hardcoded). Tersedia berkas eksternal [`public/demo-data.json`](file:///media/rasyiqi/7653717A1C07B131/Kasir-Citra/public/demo-data.json) untuk memuat data demo percontohan secara on-demand, serta tombol reset total ke kondisi awal.
+* **Fresh Install & Data Demo Terpisah:** Sistem beroperasi default dalam kondisi bersih (*fresh* murni tanpa data hardcoded). Tersedia berkas eksternal [`public/demo-data.json`](file:///media/rasyiqi/7653717A1C07B131/Sirka POS Suite/public/demo-data.json) untuk memuat data demo percontohan secara on-demand, serta tombol reset total ke kondisi awal.
 
 ## 6. Alur Kerja End-to-End Pengguna di Aplikasi (User Journey)
 
@@ -180,7 +180,7 @@ Agar aplikasi terasa **compact, cepat, dan tidak ribet (minim form input)** laya
 
 ## 7. Catatan Audit Implementasi (Gap Analysis vs Kode Aktual)
 
-**Status:** Ditambahkan pada v2.2 — hasil audit fitur (tanggal audit: 19 Oktober 2026) membandingkan requirement dokumen ini dengan implementasi aktual (Tauri 2 + Vue 3 + Pinia + Rust/PostgreSQL). Semua referensi file:line mengikuti struktur repo Kasir-Citra.
+**Status:** Ditambahkan pada v2.2 — hasil audit fitur (tanggal audit: 19 Oktober 2026) membandingkan requirement dokumen ini dengan implementasi aktual (Tauri 2 + Vue 3 + Pinia + Rust/PostgreSQL). Semua referensi file:line mengikuti struktur repo Sirka POS Suite.
 
 ### 7.1. Fitur Sudah Lengkap
 

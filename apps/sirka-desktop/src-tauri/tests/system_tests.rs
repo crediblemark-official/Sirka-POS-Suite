@@ -47,7 +47,7 @@ fn receipt_b2c_is_achievable_without_tanda_terima() {
 
 #[test]
 fn receipt_supports_80mm_width() {
-    let out = generate_receipt_text(sample_b2b_tx(), Some("CITRA POS".into()), Some("80mm".into())).unwrap();
+    let out = generate_receipt_text(sample_b2b_tx(), Some("SIRKA POS".into()), Some("80mm".into())).unwrap();
     assert!(out.contains("=".repeat(42).as_str()));
 }
 

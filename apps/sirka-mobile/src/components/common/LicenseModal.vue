@@ -555,7 +555,7 @@ onUnmounted(() => {
               <input
                 v-model="configAppId"
                 type="text"
-                placeholder="app_kasir_citra"
+                placeholder="app_sirka_pos"
                 class="w-full px-3 py-1.5 rounded-md border border-gray-300 bg-white text-gray-900 font-mono text-xs focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
               />
             </div>

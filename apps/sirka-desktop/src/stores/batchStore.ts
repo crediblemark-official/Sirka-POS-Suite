@@ -3,8 +3,11 @@ import { ref } from 'vue';
 import { ProductBatch, BatchDeduction, Product } from '../types';
 import { useInventoryStore } from './inventoryStore';
 import { localTodayStr } from '../utils/formatters';
+import { dbService } from '../services/dbService';
+import { syncService } from '../services/syncService';
 
-const STORAGE_KEY_BATCHES = 'kasir_citra_batches_v1';
+const STORAGE_KEY_BATCHES = 'sirka_pos_batches_v1';
+const SETTING_KEY_BATCHES = 'product_batches';
 
 /** BUG FIX: JSON.parse tanpa try/catch membuat 1 nilai korup mematikan boot aplikasi. */
 function safeParse<T>(raw: string | null, fallback: T): T {
@@ -25,9 +28,38 @@ export const useBatchStore = defineStore('batch', () => {
   const saved = localStorage.getItem(STORAGE_KEY_BATCHES);
   const batches = ref<ProductBatch[]>(safeParse<ProductBatch[]>(saved, []));
 
-  function saveLocal() {
+  let isFetchingFromDb = false;
+
+  function saveLocal(skipCloudSync = false) {
     localStorage.setItem(STORAGE_KEY_BATCHES, JSON.stringify(batches.value));
+    if (!skipCloudSync && !isFetchingFromDb) {
+      const payload = JSON.stringify(batches.value);
+      dbService.updateSetting(SETTING_KEY_BATCHES, payload).catch(() => {
+        syncService.enqueue('UPDATE_SETTING', { key: SETTING_KEY_BATCHES, value: payload });
+      });
+    }
   }
+
+  async function fetchFromDb() {
+    try {
+      const settings = await dbService.getSettings();
+      const raw = settings?.find(s => s.key === SETTING_KEY_BATCHES)?.value;
+      if (!raw) return;
+      const remote = safeParse<ProductBatch[]>(raw, []);
+      if (Array.isArray(remote) && remote.length > 0) {
+        isFetchingFromDb = true;
+        const remoteIds = new Set(remote.map(b => b.id));
+        const localOnly = batches.value.filter(b => b && b.id && !remoteIds.has(b.id));
+        batches.value = [...remote, ...localOnly];
+        saveLocal(true);
+        isFetchingFromDb = false;
+      }
+    } catch {
+      isFetchingFromDb = false;
+    }
+  }
+
+  fetchFromDb();
 
   /**
    * Inisialisasi batch awal untuk produk yang sudah memiliki stok namun belum ada riwayat batch
@@ -35,10 +67,13 @@ export const useBatchStore = defineStore('batch', () => {
   function initBatchesForExistingProducts() {
     let hasNew = false;
     for (const prod of inventoryStore.products) {
-      const existing = batches.value.filter(b => b.productId === prod.id && b.remainingQty > 0);
+      const initId = `batch-init-${prod.id}`;
+      const existing = batches.value.filter(
+        b => b.productId === prod.id && (b.remainingQty > 0 || b.id === initId)
+      );
       if (existing.length === 0 && prod.stock > 0) {
         const initialBatch: ProductBatch = {
-          id: `batch-init-${prod.id}`,
+          id: initId,
           productId: prod.id,
           batchNo: `BATCH-AWAL-${prod.code}`,
           initialQty: prod.stock,
@@ -312,6 +347,7 @@ export const useBatchStore = defineStore('batch', () => {
     deductProductWaste,
     syncStockWithBatches,
     removeBatchesForReceipt,
-    saveLocal
+    saveLocal,
+    fetchFromDb
   };
 });

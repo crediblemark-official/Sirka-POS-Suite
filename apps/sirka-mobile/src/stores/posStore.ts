@@ -53,7 +53,7 @@ export const usePosStore = defineStore('pos', () => {
   const serviceStatus = ref<ServiceStatus>('QUEUED');
 
   // Fitur Parkir / Tahan Keranjang (Hold & Recall Cart - F6)
-  const STORAGE_KEY_HELD_CARTS = 'kasir_citra_held_carts_v1';
+  const STORAGE_KEY_HELD_CARTS = 'sirka_pos_held_carts_v1';
   const savedHeldCarts = localStorage.getItem(STORAGE_KEY_HELD_CARTS);
   const heldCarts = ref<HeldCart[]>(safeParse<HeldCart[]>(savedHeldCarts, [], 'PosStore'));
 
@@ -145,6 +145,16 @@ export const usePosStore = defineStore('pos', () => {
         const matched = sortedTiers.find(t => item.qty >= t.minQty);
         if (matched) {
           item.sellPrice = matched.price * (item.conversionFactor || 1);
+        } else {
+          const avail = getAvailableUnitsForProduct(prod);
+          const unitDef = avail.find(u => u.unitName.toUpperCase() === item.unit.toUpperCase());
+          if (unitDef?.price && unitDef.price > 0) {
+            item.sellPrice = unitDef.price;
+          } else {
+            const markup = prod.defaultMarkupPercent || inventoryStore.getCategoryMarkup(prod.category);
+            const baseSell = prod.lastSellPrice || Math.round((prod.lastBuyPrice || 0) * (100 + markup) / 100);
+            item.sellPrice = Math.round(baseSell * (item.conversionFactor || 1));
+          }
         }
       }
     }
@@ -433,11 +443,10 @@ export const usePosStore = defineStore('pos', () => {
     tableNo.value = '';
     staffName.value = '';
     serviceStatus.value = 'QUEUED';
-    // BUG FIX: status & metode bayar harus di-reset. Kalau tidak, penjualan
-    // berikutnya diam-diam mewarisi "TEMPO" / "Transfer Bank" dari penjualan
-    // sebelumnya sehingga klasifikasi piutang & rekonsiliasi kas jadi salah.
+    // BUG FIX: status & metode bayar harus di-reset sesuai mode penjualan aktif.
+    // Kalau selalu dipaksa 'Transfer Bank', kasir B2C diam-diam berubah dari 'Tunai / Kas'.
     paymentStatus.value = 'LUNAS';
-    paymentMethod.value = 'Transfer Bank';
+    paymentMethod.value = saleMode.value === 'B2C' ? 'Tunai / Kas' : 'Transfer Bank';
   }
 
   // Logika Parkir / Tahan Keranjang (Hold & Recall Cart - F6)
@@ -483,9 +492,9 @@ export const usePosStore = defineStore('pos', () => {
     cartItems.value = safeClone(held.items, []);
     selectedBuyer.value = held.buyer;
     saleMode.value = held.saleMode;
-    if (held.orderType) orderType.value = held.orderType;
-    if (held.tableNo) tableNo.value = held.tableNo;
-    if (held.staffName) staffName.value = held.staffName;
+    orderType.value = held.orderType || 'STANDARD';
+    tableNo.value = held.tableNo || '';
+    staffName.value = held.staffName || '';
 
     heldCarts.value.splice(idx, 1);
     saveHeldCartsLocal();
@@ -575,11 +584,13 @@ export const usePosStore = defineStore('pos', () => {
         const defaultMarkup = inventoryStore.getCategoryMarkup(poi.category);
         const newItem: CartItem = {
           id: `cart-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-          productId: `temp-${Date.now()}`,
+          productId: `temp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
           code: 'PO-ITEM',
           name: poi.productName,
           category: poi.category,
           unit: poi.unit,
+          baseUnit: poi.unit,
+          conversionFactor: 1,
           qty: poi.qty,
           buyPrice: 0,
           markupPercent: defaultMarkup,
@@ -727,7 +738,8 @@ export const usePosStore = defineStore('pos', () => {
     const change = isCashTransaction && cashTendered.value > 0
       ? Math.max(0, cashTendered.value - (isSplit ? splitCashAmount.value : finalSale))
       : 0;
-    const netChange = Math.max(0, change - infaqAmount.value);
+    const appliedInfaq = isCashTransaction ? Math.min(infaqAmount.value, change) : 0;
+    const netChange = Math.max(0, change - appliedInfaq);
 
     const tx: Transaction = {
       id: `tx-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
@@ -740,13 +752,13 @@ export const usePosStore = defineStore('pos', () => {
       totalProfit: totalProfit.value,
       profitPercent: profitPercent.value,
       paymentStatus: paymentStatus.value,
-      paymentMethod: isSplit ? 'Tunai / Kas' : paymentMethod.value,
+      paymentMethod: isSplit ? (splitCashAmount.value > 0 ? 'Tunai / Kas' : splitNonCashMethod.value) : paymentMethod.value,
       isSplitPayment: isSplit,
       cashAmount: isSplit ? splitCashAmount.value : (paymentMethod.value === 'Tunai / Kas' ? finalSale : undefined),
       nonCashAmount: isSplit ? splitNonCashAmount.value : undefined,
       nonCashMethod: isSplit ? splitNonCashMethod.value : undefined,
       changeAmount: netChange,
-      infaqAmount: infaqAmount.value > 0 ? infaqAmount.value : undefined,
+      infaqAmount: appliedInfaq > 0 ? appliedInfaq : undefined,
       customerType: saleMode.value,
       isPreOrder: isPreOrder.value,
       picName: picName.value.trim() || undefined,
@@ -767,56 +779,62 @@ export const usePosStore = defineStore('pos', () => {
       createdAt: new Date().toISOString(),
     };
 
-    // 1. Eksekusi Deduksi FIFO / FEFO murni untuk setiap item transaksi
-    let computedTotalBuy = 0;
-    for (const item of tx.items) {
-      const prod = inventoryStore.products.find(p => p.id === item.productId);
-      const qtyToDeduct = item.baseQty || (item.qty * (item.conversionFactor || 1));
-      if (prod) {
-        if (prod.productType === 'SERVICE' || item.productType === 'SERVICE') {
-          // Layanan / Service tidak memiliki batch fisik atau stok gudang
-          item.batchDeductions = [];
-          item.subtotalBuy = Math.round((item.baseQty || item.qty) * item.buyPrice);
-          item.profit = item.subtotalSell - item.subtotalBuy;
-          computedTotalBuy += item.subtotalBuy;
-        } else {
-          const fifoResult = batchStore.deductFifoFefo(prod, qtyToDeduct);
-          item.batchDeductions = fifoResult.deductions;
-          item.buyPrice = fifoResult.effectiveAverageBuyPrice;
-          item.subtotalBuy = Math.round(fifoResult.totalHpp);
-          item.profit = item.subtotalSell - item.subtotalBuy;
-          computedTotalBuy += item.subtotalBuy;
-
-          // Kurangi stok fisik master lewat action resmi inventoryStore (Enkapsulasi)
-          const updatedSellPrice = (item.sellPrice > 0 && (!item.conversionFactor || item.conversionFactor === 1))
-            ? item.sellPrice
-            : undefined;
-          const deductResult = inventoryStore.deductStock(prod.id, qtyToDeduct, updatedSellPrice);
-
-          const movementStore = useStockMovementStore();
-          movementStore.recordMovement({
-            product: prod,
-            type: 'PENJUALAN',
-            refNo: tx.invoiceNo,
-            qtyChange: -qtyToDeduct,
-            stockBefore: deductResult ? deductResult.stockBefore : prod.stock,
-            stockAfter: deductResult ? deductResult.stockAfter : prod.stock,
-            costPrice: item.buyPrice,
-            notes: `Terjual di Kasir (${tx.paymentMethod}${isSplit ? ' + ' + splitNonCashMethod.value : ''})`,
-            operator: shiftStore.currentShift?.cashierName || 'Kasir'
-          });
-        }
-      } else {
-        computedTotalBuy += item.subtotalBuy;
-      }
-    }
-
-    tx.totalBuy = computedTotalBuy;
-    tx.totalProfit = (tx.finalTotal ?? tx.totalSell) - tx.totalBuy;
-    tx.profitPercent = tx.totalBuy > 0 ? Number(((tx.totalProfit / tx.totalBuy) * 100).toFixed(1)) : 0;
-
     isCheckingOut.value = true;
+    const deductedStockSnapshots: Array<{ productId: string; qty: number; batchDeductions: NonNullable<CartItem['batchDeductions']> }> = [];
     try {
+      // 1. Eksekusi Deduksi FIFO / FEFO murni untuk setiap item transaksi
+      let computedTotalBuy = 0;
+      for (const item of tx.items) {
+        const prod = inventoryStore.products.find(p => p.id === item.productId);
+        const qtyToDeduct = item.baseQty || (item.qty * (item.conversionFactor || 1));
+        if (prod) {
+          if (prod.productType === 'SERVICE' || item.productType === 'SERVICE') {
+            // Layanan / Service tidak memiliki batch fisik atau stok gudang
+            item.batchDeductions = [];
+            item.subtotalBuy = Math.round((item.baseQty || item.qty) * item.buyPrice);
+            item.profit = item.subtotalSell - item.subtotalBuy;
+            computedTotalBuy += item.subtotalBuy;
+          } else {
+            const fifoResult = batchStore.deductFifoFefo(prod, qtyToDeduct);
+            item.batchDeductions = fifoResult.deductions;
+            item.buyPrice = fifoResult.effectiveAverageBuyPrice;
+            item.subtotalBuy = Math.round(fifoResult.totalHpp);
+            item.profit = item.subtotalSell - item.subtotalBuy;
+            computedTotalBuy += item.subtotalBuy;
+
+            // Kurangi stok fisik master lewat action resmi inventoryStore (Enkapsulasi)
+            const updatedSellPrice = (item.sellPrice > 0 && (!item.conversionFactor || item.conversionFactor === 1))
+              ? item.sellPrice
+              : undefined;
+            const deductResult = inventoryStore.deductStock(prod.id, qtyToDeduct, updatedSellPrice);
+            deductedStockSnapshots.push({
+              productId: prod.id,
+              qty: qtyToDeduct,
+              batchDeductions: fifoResult.deductions
+            });
+
+            const movementStore = useStockMovementStore();
+            movementStore.recordMovement({
+              product: prod,
+              type: 'PENJUALAN',
+              refNo: tx.invoiceNo,
+              qtyChange: -qtyToDeduct,
+              stockBefore: deductResult ? deductResult.stockBefore : prod.stock,
+              stockAfter: deductResult ? deductResult.stockAfter : prod.stock,
+              costPrice: item.buyPrice,
+              notes: `Terjual di Kasir (${tx.paymentMethod}${isSplit ? ' + ' + splitNonCashMethod.value : ''})`,
+              operator: shiftStore.currentShift?.cashierName || 'Kasir'
+            });
+          }
+        } else {
+          computedTotalBuy += item.subtotalBuy;
+        }
+      }
+
+      tx.totalBuy = computedTotalBuy;
+      tx.totalProfit = (tx.finalTotal ?? tx.totalSell) - tx.totalBuy;
+      tx.profitPercent = tx.totalBuy > 0 ? Number(((tx.totalProfit / tx.totalBuy) * 100).toFixed(1)) : 0;
+
       await ledgerStore.addTransaction(tx, isMember.value ? selectedBuyerData.value?.id : undefined);
 
       // Local-First: Catat akumulasi penjualan ke Shift Kasir aktif.
@@ -837,8 +855,8 @@ export const usePosStore = defineStore('pos', () => {
       }
 
       // Jika ada alokasi infaq dari sisa kembalian receh kasir, catat kas masuk
-      if (infaqAmount.value > 0) {
-        shiftStore.recordCashInflow(infaqAmount.value, `Infaq kembalian nota ${tx.invoiceNo}`, 'INFAQ');
+      if (appliedInfaq > 0) {
+        shiftStore.recordCashInflow(appliedInfaq, `Infaq kembalian nota ${tx.invoiceNo}`, 'INFAQ');
       }
 
       inventoryStore.saveLocal();
@@ -853,6 +871,13 @@ export const usePosStore = defineStore('pos', () => {
         );
       }
     } catch (error) {
+      // Rollback stok & batch FIFO di memori bila pencatatan transaksi gagal
+      for (const snap of deductedStockSnapshots) {
+        if (snap.batchDeductions.length > 0) {
+          batchStore.restoreBatchDeductions(snap.batchDeductions);
+        }
+        inventoryStore.restoreStock(snap.productId, snap.qty);
+      }
       isCheckingOut.value = false;
       throw error;
     }

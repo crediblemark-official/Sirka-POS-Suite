@@ -813,7 +813,7 @@ async function handleSaveAll() {
               <div class="flex items-center gap-1.5 ml-auto">
                 <button type="button"
                   class="w-5 h-5 rounded-full bg-[#2563eb] border border-white shadow-xs cursor-pointer hover:scale-110 transition-transform"
-                  title="Citra Blue" @click="onHexTextInput('#2563eb')"></button>
+                  title="Sirka Blue" @click="onHexTextInput('#2563eb')"></button>
                 <button type="button"
                   class="w-5 h-5 rounded-full bg-[#059669] border border-white shadow-xs cursor-pointer hover:scale-110 transition-transform"
                   title="Emerald Green" @click="onHexTextInput('#059669')"></button>

@@ -1,6 +1,6 @@
--- Migrasi Kasir Citra (idempotent — aman dijalankan berulang kali)
+-- Migrasi Sirka POS Suite (idempotent — aman dijalankan berulang kali)
 -- Otomatis dieksekusi aplikasi saat startup (src-tauri/src/lib.rs::ensure_migrations).
--- Bila perlu dijalankan manual: psql -h 127.0.0.1 -p 5434 -U kasir_citra_user -d kasir_citra_db -f db/migrations.sql
+-- Bila perlu dijalankan manual: psql -h 127.0.0.1 -p 5434 -U sirka_pos_user -d sirka_pos_db -f db/migrations.sql
 --
 -- PENTING (urutan): file ini dieksekusi dengan `batch_execute` yang bersifat
 -- ATOMIK — satu statement gagal maka SELURUH batch dibatalkan dan migrasi
@@ -32,6 +32,18 @@ ALTER TABLE products ADD COLUMN IF NOT EXISTS is_perishable BOOLEAN DEFAULT FALS
 -- Kolom supplier pada produk barang dagangan
 ALTER TABLE products ADD COLUMN IF NOT EXISTS supplier VARCHAR(100);
 CREATE INDEX IF NOT EXISTS idx_products_supplier ON products(supplier);
+
+-- Multi-mode bisnis (F&B, Jasa/Service, Grosir Bertingkat)
+ALTER TABLE products ADD COLUMN IF NOT EXISTS product_type VARCHAR(20) DEFAULT 'GOODS';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS tier_pricing JSONB;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS available_modifiers JSONB;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS service_duration_minutes INTEGER DEFAULT 0;
+
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS business_type VARCHAR(30);
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS order_type VARCHAR(30);
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS table_no VARCHAR(50);
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS staff_name VARCHAR(100);
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS service_status VARCHAR(30);
 
 -- BUG FIX: warna kategori agar fitur kisi produk berwarna kategori tidak
 -- kembali ke warna acak setiap kali master dimuat ulang.

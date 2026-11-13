@@ -3,7 +3,7 @@ import { ref, computed } from 'vue';
 import { Discount, Buyer, CartItem, CustomerType } from '@sirka/shared-types';
 import { dbService } from '../services/dbService';
 
-const STORAGE_KEY_DISCOUNTS = 'kasir_citra_discounts_v1';
+const STORAGE_KEY_DISCOUNTS = 'sirka_pos_discounts_v1';
 
 /** BUG FIX: JSON.parse tanpa try/catch membuat 1 nilai korup mematikan boot aplikasi. */
 function safeParse<T>(raw: string | null, fallback: T): T {
@@ -126,6 +126,7 @@ export const useDiscountStore = defineStore('discount', () => {
       if (discount.maxDiscount && discount.maxDiscount > 0) {
         cut = Math.min(cut, discount.maxDiscount);
       }
+      cut = Math.min(cut, eligibleSubtotal);
     } else {
       cut = Math.min(discount.value, eligibleSubtotal);
     }

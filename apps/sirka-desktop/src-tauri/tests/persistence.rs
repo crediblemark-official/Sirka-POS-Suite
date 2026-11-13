@@ -7,7 +7,7 @@ use tauri_app_lib::{
 
 // Run against a fresh disposable database; never against operational data.
 #[tokio::test]
-#[ignore = "requires DATABASE_URL pointing to a fresh kasir_citra_test_* database"]
+#[ignore = "requires DATABASE_URL pointing to a fresh sirka_pos_test_* database"]
 async fn persistence_workflows() {
     let client = get_pg_client().await.unwrap();
 
@@ -17,7 +17,7 @@ async fn persistence_workflows() {
         .unwrap()
         .get(0);
     assert!(
-        db.starts_with("kasir_citra_test_"),
+        db.starts_with("sirka_pos_test_"),
         "Use a disposable test database"
     );
 

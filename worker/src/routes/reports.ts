@@ -57,13 +57,15 @@ reportsRoute.get('/financial-report', async (c) => {
           COALESCE(SUM(total_buy), 0)::float8 as cogs,
           COALESCE(SUM(total_profit), 0)::float8 as gross_profit,
           COALESCE(SUM(CASE
-            WHEN UPPER(payment_method) IN ('TUNAI', 'TUNAI / KAS', 'CASH')
-                 AND UPPER(COALESCE(payment_status, 'LUNAS')) = 'LUNAS'
-            THEN COALESCE(final_total, total_sell) ELSE 0 END), 0)::float8 as cash_in,
+            WHEN UPPER(COALESCE(payment_status, 'LUNAS')) != 'LUNAS' THEN 0
+            WHEN COALESCE(is_split_payment, false) = true THEN COALESCE(cash_amount, 0)
+            WHEN UPPER(payment_method) IN ('TUNAI', 'TUNAI / KAS', 'CASH') THEN COALESCE(final_total, total_sell)
+            ELSE 0 END), 0)::float8 as cash_in,
           COALESCE(SUM(CASE
-            WHEN UPPER(payment_method) NOT IN ('TUNAI', 'TUNAI / KAS', 'CASH')
-                 AND UPPER(COALESCE(payment_status, 'LUNAS')) = 'LUNAS'
-            THEN COALESCE(final_total, total_sell) ELSE 0 END), 0)::float8 as transfer_in,
+            WHEN UPPER(COALESCE(payment_status, 'LUNAS')) != 'LUNAS' THEN 0
+            WHEN COALESCE(is_split_payment, false) = true THEN COALESCE(non_cash_amount, 0)
+            WHEN UPPER(payment_method) NOT IN ('TUNAI', 'TUNAI / KAS', 'CASH') THEN COALESCE(final_total, total_sell)
+            ELSE 0 END), 0)::float8 as transfer_in,
           COUNT(*)::int8 as tx_count
         FROM transactions
         WHERE ${txDateFilter}

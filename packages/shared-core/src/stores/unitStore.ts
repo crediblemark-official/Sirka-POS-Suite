@@ -3,8 +3,11 @@ import { ref, computed } from 'vue';
 import { MasterUnit, UnitCategory } from '@sirka/shared-types';
 import { useInventoryStore } from './inventoryStore';
 import { safeParse } from '@sirka/shared-utils';
+import { dbService } from '../services/dbService';
+import { syncService } from '../services/syncService';
 
-const STORAGE_KEY_UNITS = 'kasir_citra_units_v1';
+const STORAGE_KEY_UNITS = 'sirka_pos_units_v1';
+const SETTING_KEY_UNITS = 'units_master';
 
 const DEFAULT_UNITS: MasterUnit[] = [
   // 1. Satuan Metrik Baku (Pasti & Ilmiah)
@@ -49,6 +52,34 @@ export const useUnitStore = defineStore('unit', () => {
   function saveLocal() {
     localStorage.setItem(STORAGE_KEY_UNITS, JSON.stringify(units.value));
   }
+
+  async function syncToDb() {
+    const payload = JSON.stringify(units.value);
+    try {
+      await dbService.updateSetting(SETTING_KEY_UNITS, payload);
+    } catch {
+      syncService.enqueue('UPDATE_SETTING', { key: SETTING_KEY_UNITS, value: payload });
+    }
+  }
+
+  async function fetchFromDb() {
+    try {
+      const settings = await dbService.getSettings();
+      const raw = settings?.find(s => s.key === SETTING_KEY_UNITS)?.value;
+      if (!raw) return;
+      const remote = safeParse<MasterUnit[]>(raw, [], 'UnitStore');
+      if (Array.isArray(remote) && remote.length > 0) {
+        const remoteNames = new Set(remote.map(u => u.name.toUpperCase()));
+        const localOnly = units.value.filter(u => u && u.name && !remoteNames.has(u.name.toUpperCase()));
+        units.value = [...remote, ...localOnly];
+        saveLocal();
+      }
+    } catch {
+      // Offline: tetap gunakan cache lokal
+    }
+  }
+
+  fetchFromDb();
 
   // Filter Categories
   const baseUnits = computed(() => units.value.filter(u => u.category === 'BASE' || u.category === 'METRIC'));
@@ -102,6 +133,7 @@ export const useUnitStore = defineStore('unit', () => {
 
     units.value.push(newUnit);
     saveLocal();
+    syncToDb();
     return newUnit;
   }
 
@@ -121,6 +153,7 @@ export const useUnitStore = defineStore('unit', () => {
     }
     Object.assign(found, updates);
     saveLocal();
+    syncToDb();
   }
 
   function deleteUnit(id: string): boolean {
@@ -128,6 +161,7 @@ export const useUnitStore = defineStore('unit', () => {
     if (idx !== -1) {
       units.value.splice(idx, 1);
       saveLocal();
+      syncToDb();
       return true;
     }
     return false;
@@ -158,6 +192,7 @@ export const useUnitStore = defineStore('unit', () => {
     updateUnit,
     deleteUnit,
     ensureUnitRegistered,
-    saveLocal
+    saveLocal,
+    fetchFromDb
   };
 });

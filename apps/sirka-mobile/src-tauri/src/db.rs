@@ -9,6 +9,29 @@ static DB_URL_INITIALIZED: AtomicBool = AtomicBool::new(false);
 static TLS_UNSUPPORTED: AtomicBool = AtomicBool::new(false);
 static TLS_WARN_ONCE: Once = Once::new();
 static SSL_DISABLE_WARN_ONCE: Once = Once::new();
+static PG_MULTIMODE_MIGRATED: AtomicBool = AtomicBool::new(false);
+
+async fn ensure_pg_multimode_columns(client: &Client) {
+    if PG_MULTIMODE_MIGRATED.load(Ordering::Relaxed) {
+        return;
+    }
+    let res = client
+        .batch_execute(
+            "ALTER TABLE products ADD COLUMN IF NOT EXISTS product_type VARCHAR(20) DEFAULT 'GOODS';
+             ALTER TABLE products ADD COLUMN IF NOT EXISTS tier_pricing JSONB;
+             ALTER TABLE products ADD COLUMN IF NOT EXISTS available_modifiers JSONB;
+             ALTER TABLE products ADD COLUMN IF NOT EXISTS service_duration_minutes INTEGER DEFAULT 0;
+             ALTER TABLE transactions ADD COLUMN IF NOT EXISTS business_type VARCHAR(30);
+             ALTER TABLE transactions ADD COLUMN IF NOT EXISTS order_type VARCHAR(30);
+             ALTER TABLE transactions ADD COLUMN IF NOT EXISTS table_no VARCHAR(50);
+             ALTER TABLE transactions ADD COLUMN IF NOT EXISTS staff_name VARCHAR(100);
+             ALTER TABLE transactions ADD COLUMN IF NOT EXISTS service_status VARCHAR(30);",
+        )
+        .await;
+    if res.is_ok() {
+        PG_MULTIMODE_MIGRATED.store(true, Ordering::Relaxed);
+    }
+}
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -163,18 +186,25 @@ pub async fn get_pg_client() -> Result<Client, String> {
                 "[PG] sslmode=disable — koneksi PostgreSQL TANPA enkripsi TLS."
             );
         });
-        return connect_plain(&clean).await;
+        let client = connect_plain(&clean).await?;
+        ensure_pg_multimode_columns(&client).await;
+        return Ok(client);
     }
 
     // Jika pada percobaan sebelumnya server tidak mendukung TLS, langsung pakai koneksi polos
     if mode != SslMode::Require && TLS_UNSUPPORTED.load(Ordering::Relaxed) {
-        return connect_plain(&clean).await;
+        let client = connect_plain(&clean).await?;
+        ensure_pg_multimode_columns(&client).await;
+        return Ok(client);
     }
 
     // Coba TLS lebih dulu
     match tls::make_tls_connector() {
         Ok(connector) => match connect_tls(&clean, connector).await {
-            Ok(client) => return Ok(client),
+            Ok(client) => {
+                ensure_pg_multimode_columns(&client).await;
+                return Ok(client);
+            }
             Err(e) => {
                 if mode == SslMode::Require {
                     return Err(format!(
@@ -205,7 +235,9 @@ pub async fn get_pg_client() -> Result<Client, String> {
         }
     }
 
-    connect_plain(&clean).await
+    let client = connect_plain(&clean).await?;
+    ensure_pg_multimode_columns(&client).await;
+    Ok(client)
 }
 
 /// Menguji koneksi string PostgreSQL secara langsung tanpa mengubah konfigurasi aktif

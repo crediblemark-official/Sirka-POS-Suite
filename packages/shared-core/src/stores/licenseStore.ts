@@ -6,7 +6,7 @@ import { getOrCreateHwid, getDeviceName, setDeviceName } from '../services/hwidS
 import { safeParse } from '@sirka/shared-utils';
 import type { HeartbeatSession } from '@tertaut/sdk';
 
-const STORAGE_KEY_LICENSE = 'kasir_citra_license_data_v1';
+const STORAGE_KEY_LICENSE = 'sirka_pos_license_data_v1';
 
 export const useLicenseStore = defineStore('license', () => {
   // State HWID & Perangkat

@@ -1,4 +1,4 @@
--- Schema Database Kasir Citra (POS & Distribusi Penjualan)
+-- Schema Database Sirka POS Suite (POS & Distribusi Penjualan)
 -- PostgreSQL 16
 
 CREATE TABLE IF NOT EXISTS category_markups (
@@ -22,6 +22,10 @@ CREATE TABLE IF NOT EXISTS products (
     notes TEXT,
     units JSONB DEFAULT '[]'::jsonb,
     is_perishable BOOLEAN DEFAULT FALSE,
+    product_type VARCHAR(20) DEFAULT 'GOODS',
+    tier_pricing JSONB,
+    available_modifiers JSONB,
+    service_duration_minutes INTEGER DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -70,6 +74,11 @@ CREATE TABLE IF NOT EXISTS transactions (
     shift_id VARCHAR(50),
     refund_status VARCHAR(20) DEFAULT 'NONE',
     refund_total NUMERIC(15,2) DEFAULT 0,
+    business_type VARCHAR(30),
+    order_type VARCHAR(30),
+    table_no VARCHAR(50),
+    staff_name VARCHAR(100),
+    service_status VARCHAR(30),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

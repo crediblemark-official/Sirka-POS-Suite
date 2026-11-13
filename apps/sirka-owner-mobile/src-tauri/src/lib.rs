@@ -13,6 +13,11 @@ pub fn run() {
             get_owner_inventory_valuation,
             get_owner_sales,
             get_owner_purchases,
+            get_owner_products_intelligence,
+            get_owner_sales_patterns,
+            get_owner_receivables_aging,
+            get_owner_shifts,
+            get_owner_settings,
             test_owner_db_connection
         ])
         .run(tauri::generate_context!())

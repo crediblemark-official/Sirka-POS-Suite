@@ -504,7 +504,7 @@ async function exportComprehensiveReport() {
   const wsAr = XLSX.utils.aoa_to_sheet(arData);
   XLSX.utils.book_append_sheet(wb, wsAr, 'Catatan Bon Pelanggan');
 
-  const filename = `Laporan_Keuangan_Citra_${localTodayStr()}.xlsx`;
+  const filename = `Laporan_Keuangan_Sirka_${localTodayStr()}.xlsx`;
   try {
     const buffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
     const msg = await dbService.saveExportFile(filename, Array.from(new Uint8Array(buffer)));

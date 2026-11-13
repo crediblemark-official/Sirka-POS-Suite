@@ -1,21 +1,21 @@
 services:
   db:
     image: postgres:16-alpine
-    container_name: kasir_citra_postgres
+    container_name: sirka_pos_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: kasir_citra_user
-      POSTGRES_PASSWORD: kasir_citra_password
-      POSTGRES_DB: kasir_citra_db
+      POSTGRES_USER: sirka_pos_user
+      POSTGRES_PASSWORD: sirka_pos_password
+      POSTGRES_DB: sirka_pos_db
     ports:
       - "5434:5432"
     volumes:
-      - kasir_citra_pgdata:/var/lib/postgresql/data
+      - sirka_pos_pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U kasir_citra_user -d kasir_citra_db"]
+      test: ["CMD-SHELL", "pg_isready -U sirka_pos_user -d sirka_pos_db"]
       interval: 5s
       timeout: 5s
       retries: 5
 
 volumes:
-  kasir_citra_pgdata:
+  sirka_pos_pgdata:

@@ -27,6 +27,10 @@ pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
             notes TEXT,
             units TEXT,
             is_perishable INTEGER NOT NULL DEFAULT 0,
+            product_type TEXT DEFAULT 'GOODS',
+            tier_pricing TEXT,
+            available_modifiers TEXT,
+            service_duration_minutes INTEGER DEFAULT 0,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             updated_at TEXT DEFAULT CURRENT_TIMESTAMP
         );
@@ -80,6 +84,11 @@ pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
             shift_id TEXT,
             refund_status TEXT DEFAULT 'NONE',
             refund_total REAL DEFAULT 0,
+            business_type TEXT,
+            order_type TEXT,
+            table_no TEXT,
+            staff_name TEXT,
+            service_status TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         );
 
@@ -190,6 +199,15 @@ pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
     let _ = conn.execute("ALTER TABLE transactions ADD COLUMN shift_id TEXT", []);
     let _ = conn.execute("ALTER TABLE transactions ADD COLUMN refund_status TEXT DEFAULT 'NONE'", []);
     let _ = conn.execute("ALTER TABLE transactions ADD COLUMN refund_total REAL DEFAULT 0", []);
+    let _ = conn.execute("ALTER TABLE products ADD COLUMN product_type TEXT DEFAULT 'GOODS'", []);
+    let _ = conn.execute("ALTER TABLE products ADD COLUMN tier_pricing TEXT", []);
+    let _ = conn.execute("ALTER TABLE products ADD COLUMN available_modifiers TEXT", []);
+    let _ = conn.execute("ALTER TABLE products ADD COLUMN service_duration_minutes INTEGER DEFAULT 0", []);
+    let _ = conn.execute("ALTER TABLE transactions ADD COLUMN business_type TEXT", []);
+    let _ = conn.execute("ALTER TABLE transactions ADD COLUMN order_type TEXT", []);
+    let _ = conn.execute("ALTER TABLE transactions ADD COLUMN table_no TEXT", []);
+    let _ = conn.execute("ALTER TABLE transactions ADD COLUMN staff_name TEXT", []);
+    let _ = conn.execute("ALTER TABLE transactions ADD COLUMN service_status TEXT", []);
     let _ = conn.execute("CREATE TABLE IF NOT EXISTS suppliers (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL UNIQUE,

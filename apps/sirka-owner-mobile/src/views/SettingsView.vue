@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import HeaderBar from '../components/HeaderBar.vue';
 import { ShieldCheck, CheckCircle2, Save, Store, Fingerprint, Globe, RefreshCw, AlertCircle } from 'lucide-vue-next';
 import { useStoreProfile } from '../composables/useStoreProfile';
 import { useDeviceAuth } from '../composables/useDeviceAuth';
 import { isDeviceAuthSupported, getKeyBackend } from '../utils/deviceKey';
-import { ownerApi, DEFAULT_API_URL } from '../services/api';
+import { ownerApi, DEFAULT_API_URL, isPostgresUrl } from '../services/api';
 
 const { storeName, storeTagline, storeCode, isSynced: profileSynced } = useStoreProfile();
 
@@ -23,6 +23,12 @@ const apiUrl = ref(DEFAULT_API_URL);
 const apiToken = ref('');
 const isTestingConnection = ref(false);
 const testResult = ref<{ success: boolean; message: string } | null>(null);
+
+const connectionMode = computed<'postgres' | 'worker' | 'empty'>(() => {
+  const val = apiUrl.value.trim();
+  if (!val) return 'empty';
+  return isPostgresUrl(val) ? 'postgres' : 'worker';
+});
 
 const pinCode = ref('');
 const pinEnabled = ref(false);
@@ -57,8 +63,11 @@ async function runTestConnection() {
 }
 
 async function saveSettings() {
-  if (apiUrl.value) {
-    localStorage.setItem('sirka_owner_api_url', apiUrl.value.trim());
+  const cleanUrl = apiUrl.value.trim();
+  if (cleanUrl) {
+    localStorage.setItem('sirka_owner_api_url', cleanUrl);
+  } else {
+    localStorage.removeItem('sirka_owner_api_url');
   }
   await ownerApi.saveApiToken(apiToken.value.trim());
   tokenEncrypted.value = isTokenEncrypted();
@@ -145,25 +154,42 @@ async function handleTogglePin(enabled: boolean) {
         <div class="bg-[#f0ede8] px-3 py-1.5 border-b border-[#c8c5c0] flex items-center justify-between text-xs font-bold text-[#2e2b28]">
           <span class="flex items-center gap-1.5">
             <Globe class="w-4 h-4 text-[#2563eb]" />
-            Server API Worker &amp; PostgreSQL Cloud
+            Koneksi Cloud (Worker API / PostgreSQL)
+          </span>
+          <span
+            class="text-[10px] px-1.5 py-0.5 rounded font-semibold"
+            :class="{
+              'bg-emerald-100 text-emerald-800': connectionMode === 'postgres',
+              'bg-blue-100 text-blue-800': connectionMode === 'worker',
+              'bg-amber-100 text-amber-800': connectionMode === 'empty',
+            }"
+          >
+            {{
+              connectionMode === 'postgres'
+                ? 'Mode: Direct PostgreSQL'
+                : connectionMode === 'worker'
+                  ? 'Mode: Cloudflare Worker'
+                  : 'Belum Diatur'
+            }}
           </span>
         </div>
 
         <div class="p-3 space-y-3 text-xs">
           <div>
-            <label class="block text-[11px] font-bold text-[#2e2b28] mb-1">URL Server API:</label>
+            <label class="block text-[11px] font-bold text-[#2e2b28] mb-1">URL Cloudflare Worker atau PostgreSQL:</label>
             <input
               v-model="apiUrl"
               type="text"
-              placeholder="https://sirka-owner-api.irudsa.workers.dev"
+              placeholder="https://sirka-owner-api.subdomain.workers.dev atau postgresql://user:pass@host/db?sslmode=require"
               class="w-full bg-[#faf9f7] border border-[#b8b5af] rounded-xs px-2.5 py-1 text-xs font-mono text-[#2e2b28] focus:outline-none focus:border-[#2563eb] shadow-inner"
             />
-            <p class="text-[10px] text-[#6b655f] mt-1">
-              Default: <span class="font-mono text-[#2563eb]">https://sirka-owner-api.irudsa.workers.dev</span>
+            <p class="text-[10px] text-[#6b655f] mt-1 leading-relaxed">
+              Isi <span class="font-mono text-[#2563eb]">https://...</span> untuk Cloudflare Worker, atau langsung tempel
+              <span class="font-mono text-emerald-700">postgresql://...</span> (Neon/Supabase/Postgres) tanpa Worker (khusus aplikasi APK/Desktop).
             </p>
           </div>
 
-          <div>
+          <div v-if="connectionMode !== 'postgres'">
             <label class="block text-[11px] font-bold text-[#2e2b28] mb-1">Token Akses Worker (OWNER_SECRET_KEY):</label>
             <input
               v-model="apiToken"

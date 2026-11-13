@@ -4,8 +4,11 @@ import { CashMutation, CashAccountType, CashAccountBalances } from '@sirka/share
 import { useLedgerStore } from './ledgerStore';
 import { usePurchaseStore } from './purchaseStore';
 import { localTodayStr } from '@sirka/shared-utils';
+import { dbService } from '../services/dbService';
+import { syncService } from '../services/syncService';
 
-const STORAGE_KEY_CASH_MUTATIONS = 'kasir_citra_cash_mutations_v1';
+const STORAGE_KEY_CASH_MUTATIONS = 'sirka_pos_cash_mutations_v1';
+const SETTING_KEY_CASH_MUTATIONS = 'cash_mutations';
 
 function safeParse<T>(raw: string | null, fallback: T): T {
   if (!raw) return fallback;
@@ -29,6 +32,34 @@ export const useCashStore = defineStore('cash', () => {
   function saveLocal() {
     localStorage.setItem(STORAGE_KEY_CASH_MUTATIONS, JSON.stringify(mutations.value));
   }
+
+  async function syncToDb() {
+    const payload = JSON.stringify(mutations.value);
+    try {
+      await dbService.updateSetting(SETTING_KEY_CASH_MUTATIONS, payload);
+    } catch {
+      syncService.enqueue('UPDATE_SETTING', { key: SETTING_KEY_CASH_MUTATIONS, value: payload });
+    }
+  }
+
+  async function fetchFromDb() {
+    try {
+      const settings = await dbService.getSettings();
+      const raw = settings?.find(s => s.key === SETTING_KEY_CASH_MUTATIONS)?.value;
+      if (!raw) return;
+      const remote = safeParse<CashMutation[]>(raw, []);
+      if (Array.isArray(remote) && remote.length > 0) {
+        const remoteIds = new Set(remote.map(m => m.id));
+        const localOnly = mutations.value.filter(m => m && m.id && !remoteIds.has(m.id));
+        mutations.value = [...remote, ...localOnly];
+        saveLocal();
+      }
+    } catch {
+      // Offline: tetap gunakan cache lokal
+    }
+  }
+
+  fetchFromDb();
 
   // 1. Tambah Catatan Pengeluaran Kas (Beban Operasional / Prive)
   function addExpense(params: {
@@ -59,6 +90,7 @@ export const useCashStore = defineStore('cash', () => {
 
     mutations.value.unshift(mutation);
     saveLocal();
+    syncToDb();
     return mutation;
   }
 
@@ -103,6 +135,7 @@ export const useCashStore = defineStore('cash', () => {
 
     mutations.value.unshift(mutation);
     saveLocal();
+    syncToDb();
     return mutation;
   }
 
@@ -110,6 +143,7 @@ export const useCashStore = defineStore('cash', () => {
   function deleteMutation(id: string) {
     mutations.value = mutations.value.filter(m => m.id !== id);
     saveLocal();
+    syncToDb();
   }
 
   // 4. Perhitungan Saldo Berjalan & Rekonsiliasi Kas (Berdasarkan Akun)
@@ -228,6 +262,7 @@ export const useCashStore = defineStore('cash', () => {
     transferFunds,
     deleteMutation,
     calculateAccountBalances,
-    overallBalances
+    overallBalances,
+    fetchFromDb
   };
 });

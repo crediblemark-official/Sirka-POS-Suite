@@ -390,9 +390,9 @@ test('BUG FIX: transaksi TEMPO (piutang) tidak menambah kas shift', async () => 
 });
 
 test('BUG FIX: localStorage korup tidak mematikan boot store', async () => {
-  data.set('kasir_citra_products_v1', '{ this is not valid json');
-  data.set('kasir_citra_ledger_v1', '{ broken');
-  data.set('kasir_citra_discounts_v1', 'null');
+  data.set('sirka_pos_products_v1', '{ this is not valid json');
+  data.set('sirka_pos_ledger_v1', '{ broken');
+  data.set('sirka_pos_discounts_v1', 'null');
 
   // Store baru harus tetap bisa dibuat & memakai nilai default
   setActivePinia(createPinia());
@@ -665,18 +665,15 @@ test('BUG FIX: nomor kartu member dijamin unik', async () => {
   expect(cards.size).toBe(25);
 });
 
-test('BUG FIX: kupon persen > 100% ditolak (tidak membuat transaksi gratis)', async () => {
+test('BUG FIX: kupon persen > 100% dibatasi maksimal sebesar subtotal (tidak melebihi tagihan)', async () => {
   const discount = useDiscountStore();
   await flush();
   const coupon: any = {
     id: 'd-big', code: 'BIG150', name: '150%', type: 'PERCENT', value: 150,
     minPurchase: 0, scope: 'ALL', isActive: true, usageCount: 0,
   };
-  // Perhitungan diskonstore tidak membatasi persen terhadap subtotal
   const res = discount.calculateDiscountAmount(coupon, 100000, null, [], 'B2C');
-  expect(res.amount).toBe(150000);
-  // Karena itu form wajib memvalidasi <= 100% (dicek di DiscountFormDrawer)
-  expect(coupon.value).toBeGreaterThan(100);
+  expect(res.amount).toBe(100000);
 });
 
 test('BUG FIX: produk/kategori lokal yang belum ada di DB tidak hilang saat fetchFromDb', async () => {
@@ -726,4 +723,129 @@ test('BUG FIX: profil toko dikelola via settingsStore dengan sinkronisasi terpad
   const { useSettingsStore } = await import('@sirka/shared-core');
   const settings = useSettingsStore();
   expect(typeof settings.storeName).toBe('string');
+});
+
+test('BUG FIX: resetTransactionState mempertahankan metode Tunai / Kas pada mode B2C', async () => {
+  const inv = useInventoryStore();
+  const shift = useShiftStore();
+  const pos = usePosStore();
+  await flush();
+
+  inv.products = [{ ...product }];
+  await shift.openShift('Kasir B2C', 50000);
+  pos.setSaleMode('B2C');
+  expect(pos.paymentMethod).toBe('Tunai / Kas');
+
+  pos.addProductToCart(inv.products[0], 1);
+  await pos.processCheckout();
+
+  expect(pos.saleMode).toBe('B2C');
+  expect(pos.paymentMethod).toBe('Tunai / Kas');
+  expect(pos.paymentStatus).toBe('LUNAS');
+});
+
+test('BUG FIX: harga tierPricing kembali ke harga normal saat qty diturunkan di bawah minQty', async () => {
+  const inv = useInventoryStore();
+  const pos = usePosStore();
+  await flush();
+
+  const tieredProd = {
+    ...product,
+    id: 'p-tier-reset',
+    lastSellPrice: 12000,
+    tierPricing: [{ minQty: 5, price: 10000 }]
+  };
+  inv.products = [tieredProd];
+
+  pos.addProductToCart(tieredProd, 1);
+  expect(pos.cartItems[0].sellPrice).toBe(12000);
+
+  pos.updateItemQty(pos.cartItems[0].id, 5);
+  expect(pos.cartItems[0].sellPrice).toBe(10000);
+
+  pos.updateItemQty(pos.cartItems[0].id, 2);
+  expect(pos.cartItems[0].sellPrice).toBe(12000);
+});
+
+test('BUG FIX: recallHeldCart mereset tableNo dan staffName jika keranjang parkir kosong nilainya', async () => {
+  const inv = useInventoryStore();
+  const pos = usePosStore();
+  await flush();
+
+  inv.products = [{ ...product }];
+  pos.addProductToCart(inv.products[0], 1);
+  pos.orderType = 'TAKEAWAY';
+  pos.tableNo = '';
+  pos.staffName = '';
+  pos.holdCurrentCart('Takeaway');
+
+  pos.orderType = 'DINE_IN';
+  pos.tableNo = 'Meja 9';
+  pos.staffName = 'Budi';
+
+  const heldId = pos.heldCarts[0].id;
+  pos.recallHeldCart(heldId);
+
+  expect(pos.orderType).toBe('TAKEAWAY');
+  expect(pos.tableNo).toBe('');
+  expect(pos.staffName).toBe('');
+});
+
+test('BUG FIX: processRefund memakai tanggal lokal dan mempersistensi refundStatus ke localStorage', async () => {
+  const { useReturnStore } = await import('@sirka/shared-core');
+  const { localTodayStr } = await import('@sirka/shared-utils');
+  const inv = useInventoryStore();
+  const shift = useShiftStore();
+  const pos = usePosStore();
+  const ledger = useLedgerStore();
+  const ret = useReturnStore();
+  await flush();
+
+  inv.products = [{ ...product, stock: 10 }];
+  await shift.openShift('Kasir Retur', 100000);
+  pos.setSaleMode('B2C');
+  pos.addProductToCart(inv.products[0], 2);
+  const tx = await pos.processCheckout();
+  expect(tx).not.toBeNull();
+
+  const refundRecord = await ret.processRefund({
+    transaction: tx!,
+    refundType: 'CORRECTION',
+    reason: 'Salah input',
+    items: [{
+      productId: product.id,
+      productName: product.name,
+      qty: 2,
+      unit: product.unit,
+      baseQty: 2,
+      unitPrice: product.lastSellPrice,
+      refundAmount: tx!.finalTotal ?? tx!.totalSell,
+      returnToStock: true,
+    }],
+    refundPaymentMethod: 'TUNAI'
+  });
+
+  expect(refundRecord.date).toBe(localTodayStr());
+  const savedLedger = JSON.parse(localStorage.getItem('sirka_pos_ledger_v1') || '[]');
+  const persistedTx = savedLedger.find((t: any) => t.id === tx!.id);
+  expect(persistedTx.refundStatus).toBe('FULL');
+  expect(persistedTx.refundTotal).toBe(tx!.finalTotal ?? tx!.totalSell);
+});
+
+test('BUG FIX: initBatchesForExistingProducts tidak membuat batch-init duplikat setelah stok habis lalu terisi lagi', async () => {
+  const { useBatchStore } = await import('@sirka/shared-core');
+  const inv = useInventoryStore();
+  const batch = useBatchStore();
+  await flush();
+
+  inv.products = [{ ...product, id: 'p-batch-dup', stock: 5 }];
+  batch.batches = [];
+  batch.initBatchesForExistingProducts();
+  expect(batch.batches.filter(b => b.id === 'batch-init-p-batch-dup').length).toBe(1);
+
+  // Habiskan batch
+  batch.batches[0].remainingQty = 0;
+  inv.products[0].stock = 10;
+  batch.initBatchesForExistingProducts();
+  expect(batch.batches.filter(b => b.id === 'batch-init-p-batch-dup').length).toBe(1);
 });

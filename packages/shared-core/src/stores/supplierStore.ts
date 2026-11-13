@@ -2,8 +2,11 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { Supplier } from '@sirka/shared-types';
 import { safeParse } from '@sirka/shared-utils';
+import { dbService } from '../services/dbService';
+import { syncService } from '../services/syncService';
 
-const STORAGE_KEY_SUPPLIERS = 'kasir_citra_suppliers_v1';
+const STORAGE_KEY_SUPPLIERS = 'sirka_pos_suppliers_v1';
+const SETTING_KEY_SUPPLIERS = 'suppliers_master';
 
 export const useSupplierStore = defineStore('supplier', () => {
   const showSupplierDrawer = ref(false);
@@ -15,6 +18,34 @@ export const useSupplierStore = defineStore('supplier', () => {
   function saveLocal() {
     localStorage.setItem(STORAGE_KEY_SUPPLIERS, JSON.stringify(suppliers.value));
   }
+
+  async function syncToDb() {
+    const payload = JSON.stringify(suppliers.value);
+    try {
+      await dbService.updateSetting(SETTING_KEY_SUPPLIERS, payload);
+    } catch {
+      syncService.enqueue('UPDATE_SETTING', { key: SETTING_KEY_SUPPLIERS, value: payload });
+    }
+  }
+
+  async function fetchFromDb() {
+    try {
+      const settings = await dbService.getSettings();
+      const raw = settings?.find(s => s.key === SETTING_KEY_SUPPLIERS)?.value;
+      if (!raw) return;
+      const remote = safeParse<Supplier[]>(raw, [], 'SupplierStore');
+      if (Array.isArray(remote) && remote.length > 0) {
+        const remoteIds = new Set(remote.map(s => s.id));
+        const localOnly = suppliers.value.filter(s => s && s.id && !remoteIds.has(s.id));
+        suppliers.value = [...remote, ...localOnly];
+        saveLocal();
+      }
+    } catch {
+      // Offline: tetap gunakan cache lokal
+    }
+  }
+
+  fetchFromDb();
 
   function getSupplierByName(name: string): Supplier | undefined {
     const clean = name.trim().toLowerCase();
@@ -46,6 +77,7 @@ export const useSupplierStore = defineStore('supplier', () => {
 
     suppliers.value = [newSupplier, ...suppliers.value];
     saveLocal();
+    syncToDb();
     return newSupplier;
   }
 
@@ -68,11 +100,13 @@ export const useSupplierStore = defineStore('supplier', () => {
     if (updates.notes !== undefined) suppliers.value[idx].notes = updates.notes.trim();
 
     saveLocal();
+    syncToDb();
   }
 
   function deleteSupplier(id: string) {
     suppliers.value = suppliers.value.filter(s => s.id !== id);
     saveLocal();
+    syncToDb();
     if (activeSupplierForDrawer.value?.id === id) {
       activeSupplierForDrawer.value = null;
       showSupplierDrawer.value = false;
@@ -87,6 +121,7 @@ export const useSupplierStore = defineStore('supplier', () => {
     getSupplierById,
     addSupplier,
     updateSupplier,
-    deleteSupplier
+    deleteSupplier,
+    fetchFromDb
   };
 });

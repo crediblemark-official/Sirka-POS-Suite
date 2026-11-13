@@ -102,8 +102,8 @@ pub struct ConnResult {
 }
 
 #[tauri::command]
-pub async fn get_owner_financial_report(period: Option<String>) -> Result<FinancialReport, String> {
-    let client = get_pg_client(None).await?;
+pub async fn get_owner_financial_report(period: Option<String>, url: Option<String>) -> Result<FinancialReport, String> {
+    let client = get_pg_client(url).await?;
     let p = period.unwrap_or_else(|| "month".to_string());
 
     // BUG FIX (konsistensi periode & timezone): definisi periode harus sama
@@ -244,8 +244,8 @@ pub async fn get_owner_financial_report(period: Option<String>) -> Result<Financ
 }
 
 #[tauri::command]
-pub async fn get_owner_inventory_valuation() -> Result<Vec<StockValuationItem>, String> {
-    let client = get_pg_client(None).await?;
+pub async fn get_owner_inventory_valuation(url: Option<String>) -> Result<Vec<StockValuationItem>, String> {
+    let client = get_pg_client(url).await?;
 
     let rows = client.query(
         "SELECT id, code, name, category, stock::float8, unit, last_buy_price::float8, last_sell_price::float8, (stock * last_buy_price)::float8
@@ -274,8 +274,8 @@ pub async fn get_owner_inventory_valuation() -> Result<Vec<StockValuationItem>, 
 }
 
 #[tauri::command]
-pub async fn get_owner_sales(filter: Option<serde_json::Value>) -> Result<Vec<SaleTransaction>, String> {
-    let client = get_pg_client(None).await?;
+pub async fn get_owner_sales(filter: Option<serde_json::Value>, url: Option<String>) -> Result<Vec<SaleTransaction>, String> {
+    let client = get_pg_client(url).await?;
 
     // BUG FIX: filter (rentang tanggal & status) sebelumnya DIABAIKAN
     // (parameter `_filter` dibuang) sehingga endpoint selalu mengembalikan 100
@@ -416,8 +416,8 @@ pub async fn get_owner_sales(filter: Option<serde_json::Value>) -> Result<Vec<Sa
 }
 
 #[tauri::command]
-pub async fn get_owner_purchases() -> Result<Vec<PurchaseReceipt>, String> {
-    let client = get_pg_client(None).await?;
+pub async fn get_owner_purchases(url: Option<String>) -> Result<Vec<PurchaseReceipt>, String> {
+    let client = get_pg_client(url).await?;
 
     let rows = client.query(
         "SELECT
@@ -476,4 +476,426 @@ pub async fn test_owner_db_connection(url: Option<String>) -> Result<ConnResult,
             message: e,
         })
     }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ProductIntelligenceItem {
+    pub id: String,
+    pub code: String,
+    pub name: String,
+    pub category: String,
+    pub unit: String,
+    pub stock: f64,
+    #[serde(rename = "buyPrice")]
+    pub buy_price: f64,
+    #[serde(rename = "sellPrice")]
+    pub sell_price: f64,
+    #[serde(rename = "capitalLocked")]
+    pub capital_locked: f64,
+    #[serde(rename = "sold30d")]
+    pub sold_30d: f64,
+    #[serde(rename = "revenue30d")]
+    pub revenue_30d: f64,
+    #[serde(rename = "profit30d")]
+    pub profit_30d: f64,
+    #[serde(rename = "marginPct")]
+    pub margin_pct: f64,
+    #[serde(rename = "velocityStatus")]
+    pub velocity_status: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ProductsIntelligenceReport {
+    #[serde(rename = "totalCapitalLocked")]
+    pub total_capital_locked: f64,
+    #[serde(rename = "totalDeadStockSkus")]
+    pub total_dead_stock_skus: i64,
+    #[serde(rename = "fastMovingSkus")]
+    pub fast_moving_skus: i64,
+    pub items: Vec<ProductIntelligenceItem>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct HourlyPattern {
+    pub hour: i32,
+    #[serde(rename = "txCount")]
+    pub tx_count: i32,
+    pub revenue: f64,
+    pub aov: f64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DayPattern {
+    #[serde(rename = "dayName")]
+    pub day_name: String,
+    pub dow: i32,
+    #[serde(rename = "txCount")]
+    pub tx_count: i32,
+    pub revenue: f64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct SalesPatternsReport {
+    #[serde(rename = "totalTransactions")]
+    pub total_transactions: i64,
+    #[serde(rename = "totalSales")]
+    pub total_sales: f64,
+    #[serde(rename = "averageTicket")]
+    pub average_ticket: f64,
+    pub hourly: Vec<HourlyPattern>,
+    pub days: Vec<DayPattern>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ReceivableAgingItem {
+    pub id: String,
+    #[serde(rename = "invoiceNo")]
+    pub invoice_no: String,
+    pub buyer: String,
+    pub date: String,
+    pub amount: f64,
+    #[serde(rename = "ageDays")]
+    pub age_days: i32,
+    #[serde(rename = "agingBucket")]
+    pub aging_bucket: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ReceivablesAgingReport {
+    #[serde(rename = "totalPending")]
+    pub total_pending: f64,
+    #[serde(rename = "totalInvoices")]
+    pub total_invoices: i64,
+    #[serde(rename = "bucket0_7")]
+    pub bucket_0_7: f64,
+    #[serde(rename = "bucket8_14")]
+    pub bucket_8_14: f64,
+    #[serde(rename = "bucket15_30")]
+    pub bucket_15_30: f64,
+    #[serde(rename = "bucketOver30")]
+    pub bucket_over_30: f64,
+    pub items: Vec<ReceivableAgingItem>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct CashierShift {
+    pub id: String,
+    #[serde(rename = "cashierName")]
+    pub cashier_name: String,
+    #[serde(rename = "startTime")]
+    pub start_time: String,
+    #[serde(rename = "endTime")]
+    pub end_time: Option<String>,
+    #[serde(rename = "startingCash")]
+    pub starting_cash: f64,
+    #[serde(rename = "cashSales")]
+    pub cash_sales: f64,
+    #[serde(rename = "nonCashSales")]
+    pub non_cash_sales: f64,
+    #[serde(rename = "cashOutflow")]
+    pub cash_outflow: f64,
+    #[serde(rename = "cashInflow")]
+    pub cash_inflow: f64,
+    #[serde(rename = "refundOutflow")]
+    pub refund_outflow: f64,
+    #[serde(rename = "transferredToTreasury")]
+    pub transferred_to_treasury: f64,
+    #[serde(rename = "retainedInDrawer")]
+    pub retained_in_drawer: f64,
+    #[serde(rename = "expectedCash")]
+    pub expected_cash: f64,
+    #[serde(rename = "actualCash")]
+    pub actual_cash: f64,
+    pub discrepancy: f64,
+    pub notes: Option<String>,
+    pub status: String,
+}
+
+#[tauri::command]
+pub async fn get_owner_products_intelligence(url: Option<String>) -> Result<ProductsIntelligenceReport, String> {
+    let client = get_pg_client(url).await?;
+    let rows = client.query(
+        r#"
+        WITH item_sales AS (
+          SELECT
+            NULLIF(COALESCE(it.item->>'productId', it.item->>'code'), '') as product_id,
+            SUM(CASE
+              WHEN (it.item->>'baseQty') ~ '^-?[0-9]+(\.[0-9]+)?$'
+              THEN (it.item->>'baseQty')::numeric
+              WHEN (it.item->>'qty') ~ '^-?[0-9]+(\.[0-9]+)?$'
+              THEN (it.item->>'qty')::numeric ELSE 0 END) as sold_qty,
+            SUM(CASE WHEN (it.item->>'subtotalSell') ~ '^-?[0-9]+(\.[0-9]+)?$' THEN (it.item->>'subtotalSell')::numeric
+                     WHEN (it.item->>'subtotal') ~ '^-?[0-9]+(\.[0-9]+)?$' THEN (it.item->>'subtotal')::numeric ELSE 0 END) as revenue,
+            SUM(CASE WHEN (it.item->>'profit') ~ '^-?[0-9]+(\.[0-9]+)?$' THEN (it.item->>'profit')::numeric ELSE 0 END) as profit
+          FROM transactions t
+          CROSS JOIN LATERAL jsonb_array_elements(
+            CASE WHEN jsonb_typeof(t.items) = 'array' THEN t.items ELSE '[]'::jsonb END
+          ) AS it(item)
+          WHERE t.date >= (NOW() AT TIME ZONE 'Asia/Jakarta')::date - INTERVAL '30 days'
+          GROUP BY NULLIF(COALESCE(it.item->>'productId', it.item->>'code'), '')
+        )
+        SELECT
+          p.id, COALESCE(p.code, ''), COALESCE(p.name, ''), COALESCE(p.category, ''), COALESCE(p.unit, 'pcs'),
+          COALESCE(p.stock, 0)::float8,
+          COALESCE(p.last_buy_price, 0)::float8,
+          COALESCE(p.last_sell_price, 0)::float8,
+          COALESCE(p.stock * p.last_buy_price, 0)::float8,
+          COALESCE(s.sold_qty, 0)::float8,
+          COALESCE(s.revenue, 0)::float8,
+          COALESCE(s.profit, 0)::float8,
+          CASE
+            WHEN p.last_sell_price > 0 THEN (((p.last_sell_price - p.last_buy_price) / p.last_sell_price) * 100)::float8
+            ELSE 0::float8
+          END,
+          CASE
+            WHEN COALESCE(s.sold_qty, 0) = 0 AND p.stock > 0 THEN 'DEAD_STOCK'
+            WHEN COALESCE(s.sold_qty, 0) >= 10 THEN 'FAST_MOVING'
+            ELSE 'SLOW_MOVING'
+          END
+        FROM products p
+        LEFT JOIN item_sales s ON p.id = s.product_id
+        ORDER BY (p.stock * p.last_buy_price) DESC
+        LIMIT 500
+        "#,
+        &[],
+    ).await.map_err(|e| format!("Query intelijen produk gagal: {}", e))?;
+
+    let mut total_capital_locked = 0.0_f64;
+    let mut total_dead_stock_skus = 0_i64;
+    let mut fast_moving_skus = 0_i64;
+    let mut items = Vec::with_capacity(rows.len());
+
+    for row in rows {
+        let capital_locked: f64 = row.get(8);
+        let velocity_status: String = row.get(13);
+        if velocity_status == "DEAD_STOCK" {
+            total_capital_locked += capital_locked;
+            total_dead_stock_skus += 1;
+        } else if velocity_status == "FAST_MOVING" {
+            fast_moving_skus += 1;
+        }
+        items.push(ProductIntelligenceItem {
+            id: row.get(0),
+            code: row.get(1),
+            name: row.get(2),
+            category: row.get(3),
+            unit: row.get(4),
+            stock: row.get(5),
+            buy_price: row.get(6),
+            sell_price: row.get(7),
+            capital_locked,
+            sold_30d: row.get(9),
+            revenue_30d: row.get(10),
+            profit_30d: row.get(11),
+            margin_pct: row.get(12),
+            velocity_status,
+        });
+    }
+
+    Ok(ProductsIntelligenceReport {
+        total_capital_locked,
+        total_dead_stock_skus,
+        fast_moving_skus,
+        items,
+    })
+}
+
+#[tauri::command]
+pub async fn get_owner_sales_patterns(url: Option<String>) -> Result<SalesPatternsReport, String> {
+    let client = get_pg_client(url).await?;
+    let hourly_rows = client.query(
+        r#"
+        SELECT
+          EXTRACT(HOUR FROM COALESCE(created_at, NOW()) AT TIME ZONE 'Asia/Jakarta')::int4,
+          COUNT(*)::int4,
+          COALESCE(SUM(COALESCE(final_total, total_sell)), 0)::float8,
+          COALESCE(AVG(COALESCE(final_total, total_sell)), 0)::float8
+        FROM transactions
+        WHERE date >= (NOW() AT TIME ZONE 'Asia/Jakarta')::date - INTERVAL '30 days'
+        GROUP BY EXTRACT(HOUR FROM COALESCE(created_at, NOW()) AT TIME ZONE 'Asia/Jakarta')
+        ORDER BY 1 ASC
+        "#,
+        &[],
+    ).await.map_err(|e| format!("Query jam sibuk gagal: {}", e))?;
+
+    let dow_rows = client.query(
+        r#"
+        SELECT
+          TO_CHAR(date, 'Dy'),
+          EXTRACT(DOW FROM date)::int4,
+          COUNT(*)::int4,
+          COALESCE(SUM(COALESCE(final_total, total_sell)), 0)::float8
+        FROM transactions
+        WHERE date >= (NOW() AT TIME ZONE 'Asia/Jakarta')::date - INTERVAL '30 days'
+        GROUP BY TO_CHAR(date, 'Dy'), EXTRACT(DOW FROM date)
+        ORDER BY 2 ASC
+        "#,
+        &[],
+    ).await.map_err(|e| format!("Query pola harian gagal: {}", e))?;
+
+    let summary_row = client.query_one(
+        r#"
+        SELECT
+          COUNT(*)::int8,
+          COALESCE(SUM(COALESCE(final_total, total_sell)), 0)::float8,
+          COALESCE(AVG(COALESCE(final_total, total_sell)), 0)::float8
+        FROM transactions
+        WHERE date >= (NOW() AT TIME ZONE 'Asia/Jakarta')::date - INTERVAL '30 days'
+        "#,
+        &[],
+    ).await.map_err(|e| format!("Query ringkasan pola penjualan gagal: {}", e))?;
+
+    Ok(SalesPatternsReport {
+        total_transactions: summary_row.get(0),
+        total_sales: summary_row.get(1),
+        average_ticket: summary_row.get(2),
+        hourly: hourly_rows.into_iter().map(|r| HourlyPattern {
+            hour: r.get(0),
+            tx_count: r.get(1),
+            revenue: r.get(2),
+            aov: r.get(3),
+        }).collect(),
+        days: dow_rows.into_iter().map(|r| DayPattern {
+            day_name: r.get(0),
+            dow: r.get(1),
+            tx_count: r.get(2),
+            revenue: r.get(3),
+        }).collect(),
+    })
+}
+
+#[tauri::command]
+pub async fn get_owner_receivables_aging(url: Option<String>) -> Result<ReceivablesAgingReport, String> {
+    let client = get_pg_client(url).await?;
+    let rows = client.query(
+        r#"
+        SELECT
+          id,
+          COALESCE(invoice_no, id),
+          COALESCE(buyer, 'Umum'),
+          COALESCE(to_char(date, 'YYYY-MM-DD'), ''),
+          COALESCE(final_total, total_sell)::float8,
+          GREATEST(0, ((NOW() AT TIME ZONE 'Asia/Jakarta')::date - date))::int4,
+          CASE
+            WHEN ((NOW() AT TIME ZONE 'Asia/Jakarta')::date - date) <= 7 THEN '0_7_DAYS'
+            WHEN ((NOW() AT TIME ZONE 'Asia/Jakarta')::date - date) <= 14 THEN '8_14_DAYS'
+            WHEN ((NOW() AT TIME ZONE 'Asia/Jakarta')::date - date) <= 30 THEN '15_30_DAYS'
+            ELSE 'OVER_30_DAYS'
+          END
+        FROM transactions
+        WHERE UPPER(COALESCE(payment_status, 'LUNAS')) IN ('TEMPO', 'BELUM LUNAS', 'UNPAID')
+        ORDER BY date ASC
+        LIMIT 1000
+        "#,
+        &[],
+    ).await.map_err(|e| format!("Query aging piutang gagal: {}", e))?;
+
+    let mut bucket_0_7 = 0.0_f64;
+    let mut bucket_8_14 = 0.0_f64;
+    let mut bucket_15_30 = 0.0_f64;
+    let mut bucket_over_30 = 0.0_f64;
+    let mut total_pending = 0.0_f64;
+    let total_invoices = rows.len() as i64;
+    let mut items = Vec::with_capacity(rows.len());
+
+    for row in rows {
+        let amount: f64 = row.get(4);
+        let aging_bucket: String = row.get(6);
+        total_pending += amount;
+        match aging_bucket.as_str() {
+            "0_7_DAYS" => bucket_0_7 += amount,
+            "8_14_DAYS" => bucket_8_14 += amount,
+            "15_30_DAYS" => bucket_15_30 += amount,
+            _ => bucket_over_30 += amount,
+        }
+        items.push(ReceivableAgingItem {
+            id: row.get(0),
+            invoice_no: row.get(1),
+            buyer: row.get(2),
+            date: row.get(3),
+            amount,
+            age_days: row.get(5),
+            aging_bucket,
+        });
+    }
+
+    Ok(ReceivablesAgingReport {
+        total_pending,
+        total_invoices,
+        bucket_0_7,
+        bucket_8_14,
+        bucket_15_30,
+        bucket_over_30,
+        items,
+    })
+}
+
+#[tauri::command]
+pub async fn get_owner_shifts(url: Option<String>) -> Result<Vec<CashierShift>, String> {
+    let client = get_pg_client(url).await?;
+    let rows = client.query(
+        r#"
+        SELECT
+          id,
+          cashier_name,
+          to_char(start_time AT TIME ZONE 'Asia/Jakarta', 'YYYY-MM-DD"T"HH24:MI:SS"+07:00"'),
+          to_char(end_time AT TIME ZONE 'Asia/Jakarta', 'YYYY-MM-DD"T"HH24:MI:SS"+07:00"'),
+          COALESCE(starting_cash, 0)::float8,
+          COALESCE(cash_sales, 0)::float8,
+          COALESCE(non_cash_sales, 0)::float8,
+          COALESCE(cash_outflow, 0)::float8,
+          COALESCE(cash_inflow, 0)::float8,
+          COALESCE(refund_outflow, 0)::float8,
+          COALESCE(transferred_to_treasury, 0)::float8,
+          COALESCE(retained_in_drawer, 0)::float8,
+          COALESCE(expected_cash, 0)::float8,
+          COALESCE(actual_cash, 0)::float8,
+          COALESCE(discrepancy, 0)::float8,
+          notes,
+          COALESCE(status, 'OPEN')
+        FROM cashier_shifts
+        ORDER BY start_time DESC
+        LIMIT 50
+        "#,
+        &[],
+    ).await.map_err(|e| format!("Query rekap shift gagal: {}", e))?;
+
+    Ok(rows.into_iter().map(|r| CashierShift {
+        id: r.get(0),
+        cashier_name: r.get(1),
+        start_time: r.get(2),
+        end_time: r.get(3),
+        starting_cash: r.get(4),
+        cash_sales: r.get(5),
+        non_cash_sales: r.get(6),
+        cash_outflow: r.get(7),
+        cash_inflow: r.get(8),
+        refund_outflow: r.get(9),
+        transferred_to_treasury: r.get(10),
+        retained_in_drawer: r.get(11),
+        expected_cash: r.get(12),
+        actual_cash: r.get(13),
+        discrepancy: r.get(14),
+        notes: r.get(15),
+        status: r.get(16),
+    }).collect())
+}
+
+#[tauri::command]
+pub async fn get_owner_settings(url: Option<String>) -> Result<std::collections::HashMap<String, String>, String> {
+    let client = get_pg_client(url).await?;
+    let rows = client.query(
+        "SELECT key, value FROM store_settings WHERE key != 'store_logo'",
+        &[],
+    ).await.map_err(|e| format!("Query settings gagal: {}", e))?;
+
+    let mut map = std::collections::HashMap::new();
+    for row in rows {
+        let k: String = row.get(0);
+        let v: Option<String> = row.get(1);
+        if let Some(val) = v {
+            map.insert(k, val);
+        }
+    }
+    Ok(map)
 }

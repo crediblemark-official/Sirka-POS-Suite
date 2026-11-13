@@ -4,8 +4,8 @@
  * untuk binding lisensi perangkat (device seat locking) pada tertaut.com.
  */
 
-const HWID_STORAGE_KEY = 'kasir_citra_hwid_v1';
-const DEVICE_NAME_STORAGE_KEY = 'kasir_citra_device_name_v1';
+const HWID_STORAGE_KEY = 'sirka_pos_hwid_v1';
+const DEVICE_NAME_STORAGE_KEY = 'sirka_pos_device_name_v1';
 
 /**
  * Menghasilkan atau mengambil HWID unik yang konsisten untuk perangkat ini.
@@ -32,17 +32,17 @@ export async function getOrCreateHwid(): Promise<string> {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Jakarta';
 
     // Salt mesin acak unik untuk memastikan isolasi antar instalasi
-    let machineSeed = localStorage.getItem('kasir_citra_machine_seed');
+    let machineSeed = localStorage.getItem('sirka_pos_machine_seed');
     if (!machineSeed) {
       if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
         machineSeed = crypto.randomUUID();
       } else {
         machineSeed = `${Math.random().toString(36).substring(2, 15)}-${Date.now().toString(36)}`;
       }
-      localStorage.setItem('kasir_citra_machine_seed', machineSeed);
+      localStorage.setItem('sirka_pos_machine_seed', machineSeed);
     }
 
-    const payload = `KasirCitra:Salt:v1:${userAgent}::${lang}::${cores}::${screenRes}::${tz}::${machineSeed}`;
+    const payload = `SirkaPosSuite:Salt:v1:${userAgent}::${lang}::${cores}::${screenRes}::${tz}::${machineSeed}`;
 
     // Hash menggunakan SHA-256 via Web Crypto API
     let hashHex = '';
@@ -96,7 +96,7 @@ export function getDeviceName(): string {
     else if (/android/i.test(ua)) platformName = 'Android Tablet';
   }
 
-  return `Kasir Citra POS (${platformName})`;
+  return `Sirka POS Suite POS (${platformName})`;
 }
 
 /**

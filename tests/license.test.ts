@@ -20,11 +20,11 @@ import type { LicenseStatus } from '@sirka/shared-types';
 
 
 const licenseStorageKeys = [
-  'kasir_citra_hwid_v1',
-  'kasir_citra_device_name_v1',
-  'kasir_citra_machine_seed',
-  'kasir_citra_license_data_v1',
-  'kasir_citra_tertaut_config_v1'
+  'sirka_pos_hwid_v1',
+  'sirka_pos_device_name_v1',
+  'sirka_pos_machine_seed',
+  'sirka_pos_license_data_v1',
+  'sirka_pos_tertaut_config_v1'
 ];
 
 function resetStorage() {
@@ -73,7 +73,7 @@ describe('Sistem Lisensi Tertaut.com - HWID & Device Binding', () => {
 
   test('getDeviceName dan setDeviceName mengelola nama perangkat kustom', () => {
     const initial = getDeviceName();
-    expect(initial).toContain('Kasir');
+    expect(initial).toContain('Sirka');
 
     setDeviceName('POS Kasir 02 - Meja Depan');
     expect(getDeviceName()).toBe('POS Kasir 02 - Meja Depan');
@@ -92,13 +92,13 @@ describe('Sistem Lisensi Tertaut.com - Konfigurasi & Error Mapping', () => {
     expect(config.appId).toBeDefined();
 
     saveTertautConfig({
-      appId: 'app_test_citra',
+      appId: 'app_test_sirka',
       apiKey: 'tt_test_sample_key',
       baseUrl: 'https://tertaut.com/'
     });
 
     const updated = getTertautConfig();
-    expect(updated.appId).toBe('app_test_citra');
+    expect(updated.appId).toBe('app_test_sirka');
     expect(updated.apiKey).toBe('tt_test_sample_key');
     expect(updated.baseUrl).toBe('https://tertaut.com'); // trailing slash removed
   });

@@ -215,7 +215,8 @@ async fn pull_master_data_from_cloud(pg: &mut tokio_postgres::Client) -> Result<
         .query(
             "SELECT id, code, name, category, unit, default_markup_percent::float8,
                     last_buy_price::float8, last_sell_price::float8, stock::float8, barcode, notes,
-                    supplier, units::text, is_perishable
+                    supplier, units::text, is_perishable,
+                    product_type, tier_pricing::text, available_modifiers::text, service_duration_minutes
              FROM products",
             &[],
         )
@@ -230,6 +231,16 @@ async fn pull_master_data_from_cloud(pg: &mut tokio_postgres::Client) -> Result<
             // Solusi: cast ke ::text di SQL lalu parse sebagai JSON.
             let units_json: Option<String> = r.get(12);
             let units: Option<Vec<ProductUnitConversionRecord>> = units_json
+                .as_deref()
+                .filter(|raw| !raw.trim().is_empty() && *raw != "[]" && *raw != "null")
+                .and_then(|raw| serde_json::from_str(raw).ok());
+            let tier_json: Option<String> = r.get(15);
+            let tier_pricing: Option<Value> = tier_json
+                .as_deref()
+                .filter(|raw| !raw.trim().is_empty() && *raw != "null")
+                .and_then(|raw| serde_json::from_str(raw).ok());
+            let mods_json: Option<String> = r.get(16);
+            let available_modifiers: Option<Vec<String>> = mods_json
                 .as_deref()
                 .filter(|raw| !raw.trim().is_empty() && *raw != "[]" && *raw != "null")
                 .and_then(|raw| serde_json::from_str(raw).ok());
@@ -248,6 +259,10 @@ async fn pull_master_data_from_cloud(pg: &mut tokio_postgres::Client) -> Result<
                 supplier: r.get(11),
                 units,
                 is_perishable: Some(r.get::<_, Option<bool>>(13).unwrap_or(false)),
+                product_type: r.get(14),
+                tier_pricing,
+                available_modifiers,
+                service_duration_minutes: r.get::<_, Option<i32>>(17).map(|v| v as i64),
             };
             let _ = local_upsert_product(&conn, &p);
         }
@@ -369,7 +384,8 @@ async fn pull_history_from_cloud(pg: &mut tokio_postgres::Client) -> Result<(), 
                     is_pre_order, pic_name, created_at::text,
                     is_split_payment, cash_amount::float8, non_cash_amount::float8,
                     non_cash_method, change_amount::float8, infaq_amount::float8,
-                    shift_id, refund_status, refund_total::float8
+                    shift_id, refund_status, refund_total::float8,
+                    business_type, order_type, table_no, staff_name, service_status
              FROM transactions ORDER BY created_at DESC LIMIT 500",
             &[],
         )
@@ -411,6 +427,11 @@ async fn pull_history_from_cloud(pg: &mut tokio_postgres::Client) -> Result<(), 
                 shift_id: r.get(28),
                 refund_status: r.get(29),
                 refund_total: r.get(30),
+                business_type: r.get(31),
+                order_type: r.get(32),
+                table_no: r.get(33),
+                staff_name: r.get(34),
+                service_status: r.get(35),
             };
             let _ = local_save_transaction_direct(&conn, &tx_record);
         }

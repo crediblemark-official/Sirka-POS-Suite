@@ -7,7 +7,7 @@ import { localTodayStr } from '@sirka/shared-utils';
 
 import { syncService } from '../services/syncService';
 
-const STORAGE_KEY_LEDGER = 'kasir_citra_ledger_v1';
+const STORAGE_KEY_LEDGER = 'sirka_pos_ledger_v1';
 
 /** BUG FIX: JSON.parse tanpa try/catch membuat 1 nilai korup mematikan boot aplikasi. */
 function safeParse<T>(raw: string | null, fallback: T): T {
@@ -221,6 +221,7 @@ export const useLedgerStore = defineStore('ledger', () => {
 
   return {
     transactions,
+    saveLocal,
     fetchTransactionsFromDb,
     addTransaction,
     togglePaymentStatus,

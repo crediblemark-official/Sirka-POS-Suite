@@ -1,4 +1,4 @@
-// Native Rust backend for Kasir Citra (POS Distribusi SPPG)
+// Native Rust backend for Sirka POS Suite (POS Distribusi SPPG)
 // Modular Architecture
 
 pub mod cloud_db;
@@ -67,7 +67,7 @@ pub fn run() {
             ensure_windows_certificate_installed();
 
             let app_data = app.path().app_data_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
-            let db_path = app_data.join("kasir_citra.db");
+            let db_path = app_data.join("sirka_pos.db");
             if let Err(e) = local_db::init_local_db(&db_path) {
                 eprintln!("[SQLite Init Error] {}", e);
             }

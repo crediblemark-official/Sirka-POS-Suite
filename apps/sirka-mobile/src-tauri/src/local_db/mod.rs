@@ -30,7 +30,7 @@ pub fn get_conn() -> &'static Mutex<Connection> {
         let path = DB_PATH
             .get()
             .cloned()
-            .unwrap_or_else(|| PathBuf::from("kasir_citra.db"));
+            .unwrap_or_else(|| PathBuf::from("sirka_pos.db"));
         if let Some(parent) = path.parent() {
             let _ = std::fs::create_dir_all(parent);
         }

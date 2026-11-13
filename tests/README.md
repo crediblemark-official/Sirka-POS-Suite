@@ -3,7 +3,7 @@
 Frontend: `bun test` (54 tests in persistence, deviceKey, license, and businessSuite).
 
 Backend: create a **fresh disposable PostgreSQL database** whose name starts with
-`kasir_citra_test_`, set `DATABASE_URL` to its connection string, then run:
+`sirka_pos_test_`, set `DATABASE_URL` to its connection string, then run:
 
 ```sh
 cargo test --manifest-path apps/sirka-desktop/src-tauri/Cargo.toml --test persistence -- --ignored

@@ -13,7 +13,7 @@ const props = defineProps<{
   containerRef?: HTMLElement | null;
 }>();
 
-const STICKY_NOTES_STORAGE_KEY = 'kasir_citra_canvas_sticky_notes_v1';
+const STICKY_NOTES_STORAGE_KEY = 'sirka_pos_canvas_sticky_notes_v1';
 
 const stickyNotes = ref<StickyNoteItem[]>([]);
 const maxNoteZIndex = ref(30);

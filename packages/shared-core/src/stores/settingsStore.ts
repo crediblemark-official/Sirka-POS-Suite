@@ -5,9 +5,9 @@ import { dbService } from '../services/dbService';
 import { applyTheme } from '@sirka/shared-utils';
 import { safeParse } from '@sirka/shared-utils';
 
-const STORAGE_KEY_SETTINGS = 'kasir_citra_settings_v1';
+const STORAGE_KEY_SETTINGS = 'sirka_pos_settings_v1';
 // BUG FIX (keamanan): token akses Worker TIDAK boleh ikut ter-sync ke cloud.
-const STORAGE_KEY_OWNER_API_TOKEN = 'kasir_citra_owner_api_token';
+const STORAGE_KEY_OWNER_API_TOKEN = 'sirka_pos_owner_api_token';
 
 const DEFAULT_SETTINGS: Record<string, string> = {
   store_name: 'Sirka',

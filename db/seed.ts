@@ -29,7 +29,7 @@ async function seed() {
   if (!connectionString) {
     console.error(
       'DATABASE_URL belum diset.\n' +
-      'Contoh: DATABASE_URL=postgresql://USER:PASSWORD@localhost:5432/kasir_citra_db\n' +
+      'Contoh: DATABASE_URL=postgresql://USER:PASSWORD@localhost:5432/sirka_pos_db\n' +
       'Atau set env var di shell sebelum menjalankan seed.'
     );
     process.exitCode = 1;

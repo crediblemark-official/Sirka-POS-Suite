@@ -13,10 +13,14 @@ import { useInventoryStore } from './inventoryStore';
 import { useLedgerStore } from './ledgerStore';
 import { useShiftStore } from './shiftStore';
 import { useStockMovementStore } from './stockMovementStore';
-import { safeParse } from '@sirka/shared-utils';
+import { safeParse, localTodayStr } from '@sirka/shared-utils';
+import { dbService } from '../services/dbService';
+import { syncService } from '../services/syncService';
 
-const STORAGE_KEY_REFUNDS = 'kasir_citra_refunds_v1';
-const STORAGE_KEY_WASTE = 'kasir_citra_waste_v1';
+const STORAGE_KEY_REFUNDS = 'sirka_pos_refunds_v1';
+const STORAGE_KEY_WASTE = 'sirka_pos_waste_v1';
+const SETTING_KEY_REFUNDS = 'refunds_records';
+const SETTING_KEY_WASTE = 'waste_records';
 
 export const useReturnStore = defineStore('return', () => {
   const batchStore = useBatchStore();
@@ -40,6 +44,50 @@ export const useReturnStore = defineStore('return', () => {
     localStorage.setItem(STORAGE_KEY_REFUNDS, JSON.stringify(refunds.value));
     localStorage.setItem(STORAGE_KEY_WASTE, JSON.stringify(wasteRecords.value));
   }
+
+  async function syncToDb() {
+    const refPayload = JSON.stringify(refunds.value);
+    const wastePayload = JSON.stringify(wasteRecords.value);
+    try {
+      await dbService.updateSetting(SETTING_KEY_REFUNDS, refPayload);
+    } catch {
+      syncService.enqueue('UPDATE_SETTING', { key: SETTING_KEY_REFUNDS, value: refPayload });
+    }
+    try {
+      await dbService.updateSetting(SETTING_KEY_WASTE, wastePayload);
+    } catch {
+      syncService.enqueue('UPDATE_SETTING', { key: SETTING_KEY_WASTE, value: wastePayload });
+    }
+  }
+
+  async function fetchFromDb() {
+    try {
+      const settings = await dbService.getSettings();
+      const rawRef = settings?.find(s => s.key === SETTING_KEY_REFUNDS)?.value;
+      if (rawRef) {
+        const remote = safeParse<TransactionRefund[]>(rawRef, [], 'ReturnStore');
+        if (Array.isArray(remote) && remote.length > 0) {
+          const remoteIds = new Set(remote.map(r => r.id));
+          const localOnly = refunds.value.filter(r => r && r.id && !remoteIds.has(r.id));
+          refunds.value = [...remote, ...localOnly];
+        }
+      }
+      const rawWaste = settings?.find(s => s.key === SETTING_KEY_WASTE)?.value;
+      if (rawWaste) {
+        const remote = safeParse<WasteRecord[]>(rawWaste, [], 'ReturnStore');
+        if (Array.isArray(remote) && remote.length > 0) {
+          const remoteIds = new Set(remote.map(w => w.id));
+          const localOnly = wasteRecords.value.filter(w => w && w.id && !remoteIds.has(w.id));
+          wasteRecords.value = [...remote, ...localOnly];
+        }
+      }
+      saveLocal();
+    } catch {
+      // Offline: tetap gunakan cache lokal
+    }
+  }
+
+  fetchFromDb();
 
   function openRefundModal(tx: Transaction) {
     activeTransactionForRefund.value = tx;
@@ -79,7 +127,7 @@ export const useReturnStore = defineStore('return', () => {
     const totalRefundAmount = items.reduce((sum, it) => sum + it.refundAmount, 0);
     const refundId = `ref-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
     const nowIso = new Date().toISOString();
-    const todayStr = nowIso.slice(0, 10);
+    const todayStr = localTodayStr();
 
     const activeCashier = cashierName || shiftStore.currentShift?.cashierName || 'Kasir Toko';
 
@@ -148,6 +196,7 @@ export const useReturnStore = defineStore('return', () => {
       } else {
         targetTx.refundStatus = 'PARTIAL';
       }
+      ledgerStore.saveLocal();
     }
 
     // 4. Buat record refund
@@ -168,6 +217,7 @@ export const useReturnStore = defineStore('return', () => {
 
     refunds.value.unshift(refundRecord);
     saveLocal();
+    syncToDb();
     closeRefundModal();
 
     return refundRecord;
@@ -235,6 +285,7 @@ export const useReturnStore = defineStore('return', () => {
 
     wasteRecords.value.unshift(wasteRecord);
     saveLocal();
+    syncToDb();
     closeWasteModal();
 
     return wasteRecord;
@@ -262,6 +313,7 @@ export const useReturnStore = defineStore('return', () => {
     openWasteModal,
     closeWasteModal,
     processRefund,
-    recordWaste
+    recordWaste,
+    fetchFromDb
   };
 });
