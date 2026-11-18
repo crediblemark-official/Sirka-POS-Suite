@@ -466,6 +466,46 @@ export const useLicenseStore = defineStore('license', () => {
     showModal.value = false;
   }
 
+  /**
+   * Membuat sesi Tertaut MoR Checkout (QRIS / Virtual Account) untuk pembelian atau perpanjangan lisensi.
+   */
+  async function startCheckout(options: {
+    customerEmail: string;
+    customerName?: string;
+    amount?: number;
+    redirectUrl?: string;
+  }) {
+    errorMessage.value = null;
+    try {
+      return await licenseService.createCheckout({
+        customerEmail: options.customerEmail.trim(),
+        customerName: options.customerName?.trim(),
+        amount: options.amount,
+        redirectUrl: options.redirectUrl
+      });
+    } catch (err) {
+      errorMessage.value = formatLicensingError(err);
+      throw err;
+    }
+  }
+
+  /**
+   * Mengecek status pembayaran Tertaut MoR Checkout dan otomatis mengaktivasi jika licenseKey sudah terbit.
+   */
+  async function checkPaymentStatus(transactionId: string, ticket?: string) {
+    errorMessage.value = null;
+    try {
+      const res = await licenseService.getPaymentStatus(transactionId, ticket);
+      if (res.paymentStatus === 'PAID' && res.licenseKey) {
+        await activate(res.licenseKey, deviceName.value);
+      }
+      return res;
+    } catch (err) {
+      errorMessage.value = formatLicensingError(err);
+      throw err;
+    }
+  }
+
   return {
     // State
     hwid,
@@ -513,6 +553,8 @@ export const useLicenseStore = defineStore('license', () => {
     hasFeature,
     getFeature,
     openLicenseModal,
-    closeLicenseModal
+    closeLicenseModal,
+    startCheckout,
+    checkPaymentStatus
   };
 });

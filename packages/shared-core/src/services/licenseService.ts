@@ -140,6 +140,13 @@ export function formatLicensingError(err: unknown): string {
   return String(err || 'Terjadi kesalahan sistem lisensi.');
 }
 
+function detectPlatform(): 'android' | 'desktop' {
+  if (typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent)) {
+    return 'android';
+  }
+  return 'desktop';
+}
+
 export const licenseService = {
   /**
    * Mengaktivasi lisensi dan mengunci ke perangkat (HWID).
@@ -169,6 +176,7 @@ export const licenseService = {
     offlineToken?: string | null;
     allowOfflineFallback?: boolean;
     appVersion?: string;
+    platform?: 'android' | 'desktop';
     config?: Partial<TertautApiConfig>;
   }): Promise<LicenseCheckResult> {
     const client = createTertautClient(payload.config);
@@ -177,8 +185,8 @@ export const licenseService = {
       hwid: payload.hwid,
       offlineToken: payload.offlineToken || undefined,
       allowOfflineFallback: payload.allowOfflineFallback !== false,
-      appVersion: payload.appVersion || '0.1.0',
-      platform: 'desktop'
+      appVersion: payload.appVersion || '0.2.6',
+      platform: payload.platform || detectPlatform()
     });
   },
 
@@ -189,14 +197,15 @@ export const licenseService = {
     licenseKey: string;
     hwid: string;
     appVersion?: string;
+    platform?: 'android' | 'desktop';
     config?: Partial<TertautApiConfig>;
   }): Promise<LicenseValidateResult> {
     const client = createTertautClient(payload.config);
     return await client.licensing.validate({
       licenseKey: payload.licenseKey.trim(),
       hardwareId: payload.hwid,
-      appVersion: payload.appVersion || '0.1.0',
-      platform: 'desktop'
+      appVersion: payload.appVersion || '0.2.6',
+      platform: payload.platform || detectPlatform()
     });
   },
 
@@ -262,5 +271,17 @@ export const licenseService = {
       redirectUrl: options.redirectUrl,
       autoRedirect: false
     });
+  },
+
+  /**
+   * Mengecek status pembayaran transaksi MoR Checkout di Tertaut.
+   */
+  async getPaymentStatus(
+    transactionId: string,
+    ticket?: string,
+    config?: Partial<TertautApiConfig>
+  ) {
+    const client = createTertautClient(config);
+    return await client.getPaymentStatus(transactionId, ticket);
   }
 };

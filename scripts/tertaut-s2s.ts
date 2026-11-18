@@ -29,8 +29,8 @@ function loadEnv() {
 
 loadEnv();
 
-const SECRET_KEY = process.env.TERTAUT_SECRET_KEY || 'tt_secret_c460f87d06c593ba7cb95ef66d6b4a2b1d55799b7fb27a71';
-const APP_ID = process.env.TERTAUT_APP_ID || process.env.VITE_TERTAUT_APP_ID || 'app_c0d2fecb36dd';
+const SECRET_KEY = process.env.TERTAUT_SECRET_KEY || '';
+const APP_ID = process.env.TERTAUT_APP_ID || process.env.VITE_TERTAUT_APP_ID || '';
 const BASE_URL = (process.env.TERTAUT_BASE_URL || 'https://tertaut.com').replace(/\/+$/, '');
 
 if (!SECRET_KEY || !SECRET_KEY.startsWith('tt_secret_')) {

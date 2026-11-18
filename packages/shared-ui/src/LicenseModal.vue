@@ -59,6 +59,68 @@ const configSavedMsg = ref(false);
 
 const activeTab = ref<'status' | 'activate'>('status');
 
+// Tertaut MoR Checkout state
+const showBuyForm = ref(false);
+const buyEmail = ref('');
+const buyName = ref('');
+const isCreatingCheckout = ref(false);
+const isCheckingPayment = ref(false);
+const checkoutSession = ref<{
+  transactionId: string;
+  ticket?: string;
+  checkoutUrl: string;
+  qrDataUrl?: string;
+  paymentCode?: string;
+  status: string;
+} | null>(null);
+
+async function handleCreateCheckout() {
+  if (!buyEmail.value.trim()) return;
+  isCreatingCheckout.value = true;
+  try {
+    const res = await licenseStore.startCheckout({
+      customerEmail: buyEmail.value.trim(),
+      customerName: buyName.value.trim() || undefined
+    });
+    let url = res.hostedPayUrl || res.checkoutUrl || '';
+    if (url && res.ticket && url.includes('/pay/') && !url.includes('ticket=')) {
+      url += (url.includes('?') ? '&' : '?') + `ticket=${encodeURIComponent(res.ticket)}`;
+    }
+    checkoutSession.value = {
+      transactionId: res.transactionId,
+      ticket: res.ticket,
+      checkoutUrl: url,
+      qrDataUrl: res.qrDataUrl,
+      paymentCode: res.paymentCode,
+      status: 'PENDING'
+    };
+    if (url && typeof window !== 'undefined') {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  } finally {
+    isCreatingCheckout.value = false;
+  }
+}
+
+async function handleCheckPayment() {
+  if (!checkoutSession.value) return;
+  isCheckingPayment.value = true;
+  try {
+    const res = await licenseStore.checkPaymentStatus(
+      checkoutSession.value.transactionId,
+      checkoutSession.value.ticket
+    );
+    checkoutSession.value.status = res.paymentStatus;
+    if (res.paymentStatus === 'PAID' && res.licenseKey) {
+      inputKey.value = res.licenseKey;
+      showBuyForm.value = false;
+      activeTab.value = 'status';
+    }
+  } finally {
+    isCheckingPayment.value = false;
+  }
+}
+
 // Jika belum berlisensi dan belum ada key, buka tab aktivasi
 if (!licenseStore.isLicensed && !licenseStore.licenseKey) {
   activeTab.value = 'activate';
@@ -513,6 +575,72 @@ onUnmounted(() => {
               <RefreshCw v-else :size="16" class="animate-spin" />
               <span>{{ licenseStore.isActivating ? 'Mengaktivasi...' : 'Aktivasi' }}</span>
             </button>
+
+            <!-- Beli Lisensi via Tertaut MoR Checkout (QRIS / Virtual Account) -->
+            <div class="pt-2 border-t border-gray-200 space-y-2">
+              <button
+                type="button"
+                class="w-full py-1.5 rounded-md text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                @click="showBuyForm = !showBuyForm"
+              >
+                <Sparkles :size="13" />
+                <span>{{ showBuyForm ? 'Tutup Form Pembelian' : 'Beli Lisensi Instan (QRIS / Virtual Account)' }}</span>
+              </button>
+
+              <div v-if="showBuyForm" class="p-2.5 rounded-md bg-gray-50 border border-gray-200 space-y-2 text-xs">
+                <input
+                  v-model="buyEmail"
+                  type="email"
+                  placeholder="Email penerima lisensi (wajib)"
+                  class="w-full px-2.5 py-1.5 rounded border border-gray-300 bg-white text-xs text-gray-900 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                />
+                <input
+                  v-model="buyName"
+                  type="text"
+                  placeholder="Nama toko / pemilik (opsional)"
+                  class="w-full px-2.5 py-1.5 rounded border border-gray-300 bg-white text-xs text-gray-900 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                />
+                <button
+                  type="button"
+                  class="w-full py-1.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs cursor-pointer disabled:opacity-50"
+                  :disabled="isCreatingCheckout || !buyEmail.trim()"
+                  @click="handleCreateCheckout"
+                >
+                  {{ isCreatingCheckout ? 'Membuat Sesi Pembayaran...' : 'Lanjut ke Pembayaran Tertaut' }}
+                </button>
+
+                <div v-if="checkoutSession" class="p-2 rounded bg-white border border-blue-200 space-y-1.5 text-[11px]">
+                  <div class="flex items-center justify-between">
+                    <span class="text-gray-500">Status Pembayaran:</span>
+                    <span class="font-bold text-blue-700">{{ checkoutSession.status }}</span>
+                  </div>
+                  <div v-if="checkoutSession.qrDataUrl" class="flex justify-center py-1">
+                    <img :src="checkoutSession.qrDataUrl" alt="QRIS Pembayaran" class="w-36 h-36 rounded border border-gray-200 object-contain" />
+                  </div>
+                  <div v-else-if="checkoutSession.paymentCode" class="p-1.5 rounded bg-gray-50 border border-gray-200 font-mono text-center select-all">
+                    Kode Bayar: <strong>{{ checkoutSession.paymentCode }}</strong>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <a
+                      :href="checkoutSession.checkoutUrl"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="flex-1 text-center py-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold border border-blue-200"
+                    >
+                      Buka Halaman Bayar
+                    </a>
+                    <button
+                      type="button"
+                      class="flex-1 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white font-semibold cursor-pointer disabled:opacity-50"
+                      :disabled="isCheckingPayment"
+                      @click="handleCheckPayment"
+                    >
+                      {{ isCheckingPayment ? 'Mengecek...' : 'Cek & Aktivasi' }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
 
             <!-- Bantuan WhatsApp -->
             <div class="text-center text-[11px] text-gray-500 pt-1 flex items-center justify-center gap-1.5">
