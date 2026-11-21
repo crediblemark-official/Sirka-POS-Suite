@@ -141,6 +141,9 @@ async function handleStartInAppCheckout() {
     if (url && res.ticket && url.includes('/pay/') && !url.includes('ticket=')) {
       url += (url.includes('?') ? '&' : '?') + `ticket=${encodeURIComponent(res.ticket)}`;
     }
+    if (url && url.includes('/pay/') && !url.includes('email=')) {
+      url += `&email=${encodeURIComponent(buyEmail.value.trim())}&amount=${licenseStore.apiConfig.targetPrice || 135000}`;
+    }
 
     checkoutSession.value = {
       transactionId: res.transactionId,
