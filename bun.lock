@@ -12,7 +12,7 @@
         "@tailwindcss/vite": "^4.3.3",
         "@tauri-apps/api": "^2",
         "@tauri-apps/plugin-opener": "^2",
-        "@tertaut/sdk": "^0.2.2",
+        "@tertaut/sdk": "^0.2.3",
         "@types/jsbarcode": "^3.11.4",
         "@types/pg": "^8.23.1",
         "@vueuse/core": "^15.0.0",
@@ -42,7 +42,7 @@
     },
     "apps/sirka-desktop": {
       "name": "sirka-desktop",
-      "version": "0.2.5",
+      "version": "0.2.7",
       "dependencies": {
         "@sirka/shared-core": "workspace:*",
         "@sirka/shared-types": "workspace:*",
@@ -51,7 +51,7 @@
         "@tailwindcss/vite": "^4.3.3",
         "@tauri-apps/api": "^2",
         "@tauri-apps/plugin-opener": "^2",
-        "@tertaut/sdk": "^0.2.2",
+        "@tertaut/sdk": "^0.2.3",
         "@types/jsbarcode": "^3.11.4",
         "@types/pg": "^8.23.1",
         "@vueuse/core": "^15.0.0",
@@ -81,7 +81,7 @@
     },
     "apps/sirka-mobile": {
       "name": "sirka-mobile",
-      "version": "0.2.5",
+      "version": "0.2.7",
       "dependencies": {
         "@sirka/shared-core": "workspace:*",
         "@sirka/shared-types": "workspace:*",
@@ -90,7 +90,7 @@
         "@tailwindcss/vite": "^4.3.3",
         "@tauri-apps/api": "^2",
         "@tauri-apps/plugin-opener": "^2",
-        "@tertaut/sdk": "^0.2.2",
+        "@tertaut/sdk": "^0.2.3",
         "@types/jsbarcode": "^3.11.4",
         "@types/pg": "^8.23.1",
         "@vueuse/core": "^15.0.0",
@@ -120,7 +120,7 @@
     },
     "apps/sirka-owner-mobile": {
       "name": "sirka-owner-mobile",
-      "version": "0.2.5",
+      "version": "0.2.7",
       "dependencies": {
         "@tailwindcss/vite": "^4.3.3",
         "@tauri-apps/api": "^2",
@@ -146,7 +146,7 @@
       "dependencies": {
         "@sirka/shared-types": "workspace:*",
         "@sirka/shared-utils": "workspace:*",
-        "@tertaut/sdk": "^0.2.2",
+        "@tertaut/sdk": "^0.2.3",
         "@vueuse/core": "^15.0.0",
         "pinia": "^4.1.0",
         "vue": "^3.5.13",
@@ -294,7 +294,7 @@
 
     "@tauri-apps/plugin-opener": ["@tauri-apps/plugin-opener@2.7.2", "", { "dependencies": { "@tauri-apps/api": "^2.12.0" } }, "sha512-LyybP1VSzTMQiaFYcsbAse47KpivlyXdLZMQzGLEnkgQacGESnpjAfFoQ6h5sqWgAdZDH9szYjPzHMpv0Sz+TQ=="],
 
-    "@tertaut/sdk": ["@tertaut/sdk@0.2.2", "", {}, "sha512-1Wu55IFAVeyf2ILpDsCyZxj6m0BXrJ3SbSDKfgF8PohAqnew/1S7MG3SO/gO2IxctOdjCFyvshnxd0xBxAVOUA=="],
+    "@tertaut/sdk": ["@tertaut/sdk@0.2.3", "", {}, "sha512-mvfCEJUmWNdBfm6C6pWlCcX8SwoGiIb814aXrWImR3pXmdaWvSZ0CVDGg/oaaJS4JsnV/E+7LAQcXkzYlTLFtw=="],
 
     "@types/bun": ["@types/bun@1.4.3", "", { "dependencies": { "bun-types": "1.4.3" } }, "sha512-N67Pqy8JXbAY/j0tNraS3V5mubGvc6rrrNDmDCtZLlFzccbUJPDb0tvgUBC5q4m8ybkP93Jcn1QB+RYQ6PvBhw=="],
 

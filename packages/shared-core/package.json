@@ -8,7 +8,7 @@
   "dependencies": {
     "@sirka/shared-types": "workspace:*",
     "@sirka/shared-utils": "workspace:*",
-    "@tertaut/sdk": "^0.2.2",
+    "@tertaut/sdk": "^0.2.3",
     "@vueuse/core": "^15.0.0",
     "pinia": "^4.1.0",
     "vue": "^3.5.13"

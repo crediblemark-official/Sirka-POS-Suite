@@ -1,7 +1,7 @@
 {
   "name": "sirka-desktop",
   "private": true,
-  "version": "0.2.6",
+  "version": "0.2.7",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -17,7 +17,7 @@
     "@tailwindcss/vite": "^4.3.3",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-opener": "^2",
-    "@tertaut/sdk": "^0.2.2",
+    "@tertaut/sdk": "^0.2.3",
     "@types/jsbarcode": "^3.11.4",
     "@types/pg": "^8.23.1",
     "@vueuse/core": "^15.0.0",

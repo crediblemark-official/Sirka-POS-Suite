@@ -40,6 +40,21 @@ export interface TertautApiConfig {
   apiKey: string;
   appId: string;
   baseUrl: string;
+  slug?: string;
+  targetPrice?: number;
+  secretKey?: string;
+}
+
+export interface TertautCheckoutSessionResult {
+  success: boolean;
+  transactionId: string;
+  ticket?: string;
+  checkoutUrl: string;
+  hostedPayUrl?: string;
+  amount?: number;
+  qrDataUrl?: string;
+  paymentCode?: string;
+  status?: string;
 }
 
 export interface LicenseActivationPayload {

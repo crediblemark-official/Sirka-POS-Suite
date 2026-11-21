@@ -30,11 +30,12 @@ function loadEnv() {
 loadEnv();
 
 const SECRET_KEY = process.env.TERTAUT_SECRET_KEY || '';
-const APP_ID = process.env.TERTAUT_APP_ID || process.env.VITE_TERTAUT_APP_ID || '';
+const APP_ID = process.env.TERTAUT_APP_ID || process.env.VITE_TERTAUT_APP_ID || 'app_2ee4f785d508';
 const BASE_URL = (process.env.TERTAUT_BASE_URL || 'https://tertaut.com').replace(/\/+$/, '');
 
-if (!SECRET_KEY || !SECRET_KEY.startsWith('tt_secret_')) {
-  console.error('❌ Error: TERTAUT_SECRET_KEY belum diisi di file .env atau tidak diawali dengan tt_secret_');
+if (!SECRET_KEY || !SECRET_KEY.startsWith('tt_secret_') || SECRET_KEY.includes('ganti_dengan')) {
+  console.error('❌ Error: TERTAUT_SECRET_KEY belum diisi di file .env');
+  console.error('👉 Kunjungi https://tertaut.com/ -> Masuk ke Proyek "Sirka POS Studio" -> Salin SECRET API KEY (S2S) lalu tempel ke TERTAUT_SECRET_KEY di file .env');
   process.exit(1);
 }
 

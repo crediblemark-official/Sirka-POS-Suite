@@ -109,6 +109,10 @@ export const useLicenseStore = defineStore('license', () => {
     return source.value === 'offline' || status.value === 'OFFLINE_GRACE';
   });
 
+  const officialCheckoutUrl = computed(() => {
+    return licenseService.getOfficialCheckoutUrl(apiConfig.value.slug);
+  });
+
   const daysRemaining = computed(() => {
     if (!expiresAt.value) return null;
     const exp = new Date(expiresAt.value).getTime();
@@ -470,18 +474,29 @@ export const useLicenseStore = defineStore('license', () => {
    * Membuat sesi Tertaut MoR Checkout (QRIS / Virtual Account) untuk pembelian atau perpanjangan lisensi.
    */
   async function startCheckout(options: {
-    customerEmail: string;
+    customerEmail?: string;
     customerName?: string;
     amount?: number;
+    paymentRail?: string;
+    preferredPaymentChannel?: string;
+    vaBank?: string;
     redirectUrl?: string;
   }) {
     errorMessage.value = null;
     try {
+      const email = options.customerEmail?.trim() || customerEmail.value || 'pos-kasir@sirkapos.com';
+      const name = options.customerName?.trim() || customerName.value || deviceName.value || 'Kasir Sirka POS';
+      const amount = options.amount ?? apiConfig.value.targetPrice ?? 135000;
+
       return await licenseService.createCheckout({
-        customerEmail: options.customerEmail.trim(),
-        customerName: options.customerName?.trim(),
-        amount: options.amount,
-        redirectUrl: options.redirectUrl
+        customerEmail: email,
+        customerName: name,
+        amount,
+        paymentRail: options.paymentRail,
+        preferredPaymentChannel: options.preferredPaymentChannel,
+        vaBank: options.vaBank,
+        redirectUrl: options.redirectUrl,
+        hwid: hwid.value
       });
     } catch (err) {
       errorMessage.value = formatLicensingError(err);
@@ -536,6 +551,7 @@ export const useLicenseStore = defineStore('license', () => {
     // Computed
     isLicensed,
     isOfflineVerification,
+    officialCheckoutUrl,
     daysRemaining,
     maskedLicenseKey,
     statusLabel,
